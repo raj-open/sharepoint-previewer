@@ -65,7 +65,8 @@ describe('preview per file type', () => {
       const page = await openFolder(h.LIBRARY + folder);
       const v = await h.preview(page, name);
       assert.match(await properties(v), format);
-      assert.match(await v.locator('.tp-content').textContent(), new RegExp(text));
+      // table rows are drawn a frame after the viewer settles (blocks fill as they come into view)
+      await v.locator('.tp-content', { hasText: new RegExp(text) }).waitFor({ timeout: 5000 });
       // small file: fully cached; workbooks only up to the sheet shown (ODS: all sheets in one part)
       const sheetWise = /\.(xlsx|xlsb|xls)$/.test(name);
       assert.equal(await h.eye(page, name).getAttribute('data-eye'), sheetWise ? 'half' : 'open');
@@ -107,7 +108,7 @@ describe('preview per file type', () => {
     await select.selectOption({ label: '○ Notes' });
     await v.locator('.tp-title-sheet', { hasText: 'Notes' }).waitFor();
     await h.settled(page);
-    assert.match(await v.locator('.tp-content').textContent(), /after a gap/);
+    await v.locator('.tp-content', { hasText: 'after a gap' }).waitFor({ timeout: 5000 });
     assert.match(await properties(v), /sheet: Notes/);
 
     await v.locator('.tp-load-more').click(); // last sheet: whole file cached
