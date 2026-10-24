@@ -4,6 +4,7 @@
 // IMPORTS
 // ===========================================================================
 
+import { foundPaths } from '../readers/search.js';
 import { EYE_CLOSED_SVG } from '../ui/icons.js';
 import { EYE_FULL_SVG } from '../ui/icons.js';
 import { EYE_HALF_SVG } from '../ui/icons.js';
@@ -251,7 +252,8 @@ function processRow(row) {
         const eye = /** @type {HTMLElement} */ (cell.querySelector('.tp-preview')); // written just above
         const name = rowName(row);
         const folder = currentFolder();
-        eye.dataset.url = (name && (rowFilePath(row, name) || (folder && `${folder}/${name}`))) || '';
+        const guess = folder && `${folder}/${name}`;
+        eye.dataset.url = (name && (rowFilePath(row, name) || (guess && (foundPaths.get(guess) || guess)))) || '';
         setEye(eye);
     }
     return true;

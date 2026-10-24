@@ -21,6 +21,7 @@ import { nextFrame } from '../_core/util.js';
 import { linkTarget } from '../readers/links.js';
 import { PARQUET_RE } from '../readers/parquet/meta.js';
 import { openParquetSource } from '../readers/parquet/source.js';
+import { findFile } from '../readers/search.js';
 import { SHEET_RE } from '../readers/sheets/cells.js';
 import { sheetFormat } from '../readers/sheets/cells.js';
 import { openSheetSource } from '../readers/sheets/index.js';
@@ -202,7 +203,13 @@ export async function openPreview(row) {
         return;
     }
     const folder = currentFolder();
-    const url = rowFilePath(row, name) || (folder && `${folder}/${name}`);
+    // row without the file's path (search results): found by search, else guessed in the open folder
+    let url = rowFilePath(row, name);
+    if (!url && folder) {
+        url = (await findFile(folder, name)) || `${folder}/${name}`;
+        const eye = row.querySelector('.tp-preview');
+        if (eye instanceof HTMLElement) eye.dataset.url = url; // cache state of the file found
+    }
     if (url && viewer?.file && sameFile(viewer.file.url, url)) return void closeViewer(); // eye of open file: same as close
     if (url) showFile(name, url, false);
 }

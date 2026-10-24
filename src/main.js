@@ -2341,6 +2341,100 @@
       document.documentElement.append(style);
   }
 
+  // Module: readers/request.js
+
+  // Requests for files: this SharePoint only (nothing is sent elsewhere); dates from the file's own response
+
+  // ===========================================================================
+  // CONSTANTS
+  // ===========================================================================
+
+  const OUTSIDE = 'Not opened: the link points outside this SharePoint';
+
+  // ===========================================================================
+  // METHODS
+  // ===========================================================================
+
+  /** @param {string} url relative or absolute @returns {boolean} on this SharePoint */
+  const sameOrigin = (url) => new URL(url, location.href).origin === location.origin;
+
+  // Dates from file's own response headers
+  /** @param {Response} response @param {string} cd Content-Disposition @returns {{ modified: string|null, created: string|null }} */
+  function responseDates(response, cd) {
+      /** @param {string} [v] */
+      const iso = (v) => {
+          const d = v ? new Date(v.replace(/^"|"$/g, '')) : null;
+          // "2026-10-24 08:35:13 UTC" (list dates are local time, so UTC is named)
+          return d && !Number.isNaN(d.getTime()) ? `${d.toISOString().slice(0, 19).replace('T', ' ')} UTC` : null;
+      };
+      return {
+          modified: iso(response.headers.get('last-modified') || (cd.match(/modification-date="?([^";]+)/i) || [])[1]),
+          created: iso((cd.match(/creation-date="?([^";]+)/i) || [])[1]),
+      };
+  }
+
+  // Module: readers/search.js
+
+  // Files by SharePoint search: rows of search results in a library carry no path, only the name
+
+  // ===========================================================================
+  // IMPORTS
+  // ===========================================================================
+
+  // ===========================================================================
+  // CONSTANTS
+  // ===========================================================================
+
+  const SITE_RE = /^\/(?:sites|teams)\/[^/]+/i; // site of a server-relative path ('' = root site)
+
+  /** @type {Map<string, string>} path guessed from folder and name -> path found */
+  const foundPaths = new Map();
+
+  // ===========================================================================
+  // METHODS
+  // ===========================================================================
+
+  // File `name` in `folder` or below, by the search index (as the search results themselves)
+  // NOTE: same name in several sub-folders: the one in `folder` itself, else the first found
+  /** @param {string} folder server-relative @param {string} name @returns {Promise<string|null>} server-relative path */
+  async function findFile(folder, name) {
+      const guess = `${folder}/${name}`;
+      const known = foundPaths.get(guess);
+      if (known) return known;
+      const site = folder.match(SITE_RE)?.[0] ?? '';
+      const query = `filename:"${name}" path:"${location.origin}${folder}"`.replace(/'/g, "''");
+      const url =
+          `${site}/_api/search/query?querytext='${encodeURIComponent(query)}'` +
+          "&selectproperties='Path'&rowlimit=50&trimduplicates=false";
+      if (!sameOrigin(url)) return null;
+      /** @type {{ Cells: { Key: string, Value: string|null }[] }[]} */
+      let rows;
+      try {
+          const res = await fetch(url, {
+              credentials: 'same-origin',
+              headers: { Accept: 'application/json;odata=nometadata' },
+          });
+          if (!res.ok) return null;
+          rows = (await res.json())?.PrimaryQueryResult?.RelevantResults?.Table?.Rows ?? [];
+      } catch {
+          return null;
+      }
+      const below = `${folder.toLowerCase()}/`;
+      const paths = rows.flatMap((r) => {
+          const value = r.Cells.find((c) => c.Key === 'Path')?.Value;
+          let path;
+          try {
+              path = value ? decodeURIComponent(new URL(value).pathname) : '';
+          } catch {
+              return [];
+          }
+          return path.split('/').pop() === name && path.toLowerCase().startsWith(below) ? [path] : [];
+      });
+      const path = paths.find((p) => p.toLowerCase() === guess.toLowerCase()) ?? paths[0] ?? null;
+      if (path) foundPaths.set(guess, path);
+      return path;
+  }
+
   // Module: readers/links.js
 
   // Links: .url shortcut files ("[InternetShortcut] URL=...") point to another file
@@ -2608,38 +2702,6 @@
 
   /** @param {number} max @returns {number} */
   const bitWidth = (max) => 32 - Math.clz32(max);
-
-  // Module: readers/request.js
-
-  // Requests for files: this SharePoint only (nothing is sent elsewhere); dates from the file's own response
-
-  // ===========================================================================
-  // CONSTANTS
-  // ===========================================================================
-
-  const OUTSIDE = 'Not opened: the link points outside this SharePoint';
-
-  // ===========================================================================
-  // METHODS
-  // ===========================================================================
-
-  /** @param {string} url relative or absolute @returns {boolean} on this SharePoint */
-  const sameOrigin = (url) => new URL(url, location.href).origin === location.origin;
-
-  // Dates from file's own response headers
-  /** @param {Response} response @param {string} cd Content-Disposition @returns {{ modified: string|null, created: string|null }} */
-  function responseDates(response, cd) {
-      /** @param {string} [v] */
-      const iso = (v) => {
-          const d = v ? new Date(v.replace(/^"|"$/g, '')) : null;
-          // "2026-10-24 08:35:13 UTC" (list dates are local time, so UTC is named)
-          return d && !Number.isNaN(d.getTime()) ? `${d.toISOString().slice(0, 19).replace('T', ' ')} UTC` : null;
-      };
-      return {
-          modified: iso(response.headers.get('last-modified') || (cd.match(/modification-date="?([^";]+)/i) || [])[1]),
-          created: iso((cd.match(/creation-date="?([^";]+)/i) || [])[1]),
-      };
-  }
 
   // Module: readers/ranges.js
 
@@ -8189,7 +8251,13 @@
           return;
       }
       const folder = currentFolder();
-      const url = rowFilePath(row, name) || (folder && `${folder}/${name}`);
+      // row without the file's path (search results): found by search, else guessed in the open folder
+      let url = rowFilePath(row, name);
+      if (!url && folder) {
+          url = (await findFile(folder, name)) || `${folder}/${name}`;
+          const eye = row.querySelector('.tp-preview');
+          if (eye instanceof HTMLElement) eye.dataset.url = url; // cache state of the file found
+      }
       if (url && viewer?.file && sameFile(viewer.file.url, url)) return void closeViewer(); // eye of open file: same as close
       if (url) showFile(name, url, false);
   }
@@ -9822,7 +9890,8 @@
           const eye = /** @type {HTMLElement} */ (cell.querySelector('.tp-preview')); // written just above
           const name = rowName(row);
           const folder = currentFolder();
-          eye.dataset.url = (name && (rowFilePath(row, name) || (folder && `${folder}/${name}`))) || '';
+          const guess = folder && `${folder}/${name}`;
+          eye.dataset.url = (name && (rowFilePath(row, name) || (guess && (foundPaths.get(guess) || guess)))) || '';
           setEye(eye);
       }
       return true;

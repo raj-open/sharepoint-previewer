@@ -67,6 +67,7 @@ import '../readers/sheets/cfb.js';
 import '../readers/sheets/xls.js';
 import '../readers/sheets/index.js';
 import '../readers/links.js';
+import '../readers/search.js';
 import './prefs.js';
 import '../viewer/views.js';
 
