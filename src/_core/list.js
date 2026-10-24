@@ -4,6 +4,7 @@
 // IMPORTS
 // ===========================================================================
 
+import { foundPaths } from '../readers/search.js';
 import { EYE_CLOSED_SVG } from '../ui/icons.js';
 import { EYE_FULL_SVG } from '../ui/icons.js';
 import { EYE_HALF_SVG } from '../ui/icons.js';
@@ -42,7 +43,6 @@ const EYE_TITLES = {
 
 let scheduled = false;
 
-/** @returns {void} */
 // Containers of SharePoint's dialogues, panels and pop-ups (Fluent UI layers)
 const OVERLAY =
     '.ms-Layer, .fui-Portal, [role="dialog"], [role="alertdialog"], [aria-modal="true"], .ms-Panel, .ms-Modal, .ms-Callout';
@@ -61,6 +61,11 @@ const OWN = '.tp-viewer, .tp-cell, .tp-head';
 //  .../AllItems.aspx?id=/sites/X/Shared Documents/Folder -> id
 //  .../Shared Documents/Forms/AllItems.aspx -> library root
 // ---------------------------------------------------------------------------
+
+/** @returns {boolean} page is a library's list view (.../Forms/<view>.aspx): eyes only there */
+export function inLibrary() {
+    return /\/forms\/[^/]+\.aspx$/i.test(decodeURIComponent(location.pathname));
+}
 
 /** @returns {string|null} server-relative folder of the open view, or null outside a library */
 export function currentFolder() {
@@ -247,7 +252,8 @@ function processRow(row) {
         const eye = /** @type {HTMLElement} */ (cell.querySelector('.tp-preview')); // written just above
         const name = rowName(row);
         const folder = currentFolder();
-        eye.dataset.url = (name && (rowFilePath(row, name) || (folder && `${folder}/${name}`))) || '';
+        const guess = folder && `${folder}/${name}`;
+        eye.dataset.url = (name && (rowFilePath(row, name) || (guess && (foundPaths.get(guess) || guess)))) || '';
         setEye(eye);
     }
     return true;
@@ -294,7 +300,10 @@ function scan() {
     scheduled = false;
     // H-mode panel inside SharePoint's container: put it back if SharePoint re-rendered
     if (viewer?.anchor && !viewer.box.isConnected) syncPanel();
-    if (!currentFolder()) return; // not inside library
+    if (!inLibrary()) {
+        for (const el of document.querySelectorAll('.tp-cell, .tp-head')) el.remove(); // left from library page
+        return;
+    }
     // Only library's list, not grids in dialogues, panels or pop-ups
     const rows = [...document.querySelectorAll('[role="grid"] [role="row"], [role="treegrid"] [role="row"]')].filter(
         (row) => !row.closest(OVERLAY),

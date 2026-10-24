@@ -6,6 +6,7 @@
 // @license      MPL-2.0
 // @match        https://*.sharepoint.com/*/*/*
 // @run-at       document-idle
+// @noframes
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
