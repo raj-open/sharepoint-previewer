@@ -81,13 +81,14 @@ build-src:
     @just _size "{{PATH_SRC}}" "{{MAX_KB_SRC}}"
     @just _size "{{PATH_MIN}}" "{{MAX_KB_MIN}}"
 
-# writes release to /dist/v<VERSION>: both userscripts with @version (off main: <VERSION>-beta.<short commit>) and 3D hashes stamped, 3D files, notes
+# writes release to /dist/v<VERSION>: both userscripts with @version (not the commit tagged v<VERSION>: <VERSION>-beta.<short commit>) and 3D hashes stamped, 3D files, notes
 [group("build")]
 build-dist: build-src build-3d
     @hash_js="$(just _sha256 "{{PATH_RELEASE}}/ifc-lite-3d.js")"; \
     hash_wasm="$(just _sha256 "{{PATH_RELEASE}}/ifc-lite_bg.wasm")"; \
     version="{{VERSION}}"; \
-    if [ "$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)" != "main" ]; then \
+    if git rev-parse --git-dir >/dev/null 2>&1 && \
+        [ "$(git tag --points-at HEAD 2>/dev/null | grep -Fx "v{{VERSION}}")" != "v{{VERSION}}" ]; then \
         version="{{VERSION}}-beta.$(git rev-parse --short HEAD)"; \
     fi; \
     for pair in "{{PATH_SRC}}:{{NAME}}.js" "{{PATH_MIN}}:{{NAME}}.min.js"; do \
