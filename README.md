@@ -38,11 +38,14 @@ just clean              # node_modules + built artefacts
 
 ## Artefacts ##
 
-| Path | Contents |
+Each build writes one flat release folder `/dist/v<VERSION>`:
+
+| File | Contents |
 | :--- | :------- |
-| `/dist/sharepoint-previewer.user.js` | userscript to install |
-| `/dist/viewer-3d/ifc-lite-3d.js` | ifc-lite bundle (esbuild, versions pinned in `package.json`) |
-| `/dist/viewer-3d/ifc-lite_bg.wasm` | engine binary, copied unchanged from `@ifc-lite/wasm` |
+| `sharepoint-previewer.js` | userscript to install |
+| `ifc-lite-3d.js` | ifc-lite bundle (esbuild, versions pinned in `package.json`) |
+| `ifc-lite_bg.wasm` | engine binary, copied unchanged from `@ifc-lite/wasm` |
+| `NOTES.md` | technical description for IT |
 
 The build writes into the userscript:
 
