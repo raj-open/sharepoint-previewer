@@ -3,7 +3,7 @@
 ## Scope ##
 
 - Each build produces one flat release folder `/dist/v<VERSION>`
-  with the Tampermonkey userscript (`sharepoint-previewer.js`),
+  with the Tampermonkey userscript (`sharepoint-previewer.js`, minified: `sharepoint-previewer.min.js`),
   the optional 3D files and `NOTES.md`.
 - 3D files:
   ifc-lite bundled from `/src/viewer-3d/main.js`,
@@ -14,6 +14,8 @@
 ## Conventions ##
 
 - Source: `/src/main.js`.
+- Minified userscript: `/src/main.min.js`, written by the build (from the release's userscript) and committed;
+  identifier names are kept (the check worker is built from the script's own function sources).
 - Version: `/dist/VERSION` is the single source;
   the build writes it into the userscript's `@version`.
 - 3D hashes: the build writes the SHA-256 of the built 3D files into the userscript;
