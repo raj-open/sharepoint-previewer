@@ -21,7 +21,7 @@ and where it stores data.
 
 | Topic | Behaviour |
 | :---- | :-------- |
-| Form | One JavaScript file (userscript, ~9,000 lines), runs in the user's browser via Tampermonkey |
+| Form | One JavaScript file (userscript, ~280 KB; minified ~200 KB), runs in the user's browser via Tampermonkey. Built from ES modules in the repository |
 | Scope | Only on `https://*.sharepoint.com/*/*/*`, and only inside a library's file list |
 | APIs | **No** SharePoint REST / Graph API calls. It reads the page's HTML and fetches the file itself, like opening its URL |
 | Third parties | **None.** No CDN, no analytics, no external servers. All requests go to the same SharePoint origin |
@@ -360,8 +360,8 @@ That is outside the scope of this script.
   SharePoint may report the time the file was served
   rather than when it was last changed.
 - **Testing:**
-  - Decoders (Parquet, Snappy, LZ4, ZSTD, spreadsheets), linters and highlighters
-    are covered by automated tests outside the browser.
+  - Every module of the script has unit tests outside the browser
+    (decoders for Parquet, Snappy, LZ4, ZSTD and spreadsheets, linters, highlighters, cache, …).
   - The spreadsheet reader was also checked against the public test files of
     the calamine library (~150 real-world workbooks).
   - The UI was tested in Chromium against a mock of SharePoint's markup

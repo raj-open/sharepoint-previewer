@@ -9,8 +9,11 @@
         "includes": [
             "biome.json",
             "package.json",
+            "tsconfig.json",
             "src/**",
-            "!src/**/*.min.js",
+            "scripts/**",
+            "!src/main.js",
+            "!src/main.min.js",
             "tests/**",
             "!tests/behave/fake-sharepoint/library"
         ]

@@ -10,10 +10,12 @@ see [NOTES.md](NOTES.md).
 
 | Path | Contents |
 | :--- | :------- |
-| `/src/main.js` | the userscript |
-| `/src/main.min.js` | the userscript, minified (written by `just build-dist`) |
-| `/src/viewer-3d/main.js` | entry of the ifc-lite bundle for the optional 3D view |
-| `/tests/{unit,behave,integration}` | tests (`tests_*.mjs`, run with `node --test`) |
+| `/src/_core` | entry (`main.js`), Tampermonkey header (`header.js`), settings, preferences, list view, shared types |
+| `/src/{readers,text,ui,view,viewer}` | the other modules (ES modules) |
+| `/src/main.js` | the userscript, bundled from the modules (written by `just build-src`) |
+| `/src/main.min.js` | the same, minified (written by `just build-src`) |
+| `/src/@apis/ifc-lite/main.js` | entry of the ifc-lite bundle for the optional 3D view |
+| `/tests/{unit,behave,integration}` | tests (`tests_*.mjs`, run with `node --test`); unit tests mirror `/src` |
 | `/templates` | templates for local files (e.g. `.env`) |
 | `/dist/VERSION` | version (single source) |
 | `/models` | (reserved) schemata |
@@ -30,6 +32,7 @@ see [NOTES.md](NOTES.md).
 ```bash
 just setup              # local files (.env, ...) from /templates
 just build              # dependencies (per lock) + all artefacts in /dist
+just build-src          # /src/main.js + /src/main.min.js from the modules
 just build-dist         # artefacts only (dependencies already installed)
 just prettify           # format + lint with fixes (Biome)
 just lint-check         # same, dry run
