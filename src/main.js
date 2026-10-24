@@ -12,6 +12,7 @@
 // ==/UserScript==
 
 (() => {
+  // biome-ignore lint/suspicious/noRedundantUseStrict: userscripts run as classic scripts, not as modules
   'use strict';
 
   // --- Types (JSDoc) ---
@@ -80,7 +81,10 @@
     const out = {};
     for (const [key, fallback] of Object.entries(DEFAULTS)) {
       let value = GM_getValue(key);
-      if (value === undefined) GM_setValue(key, (value = fallback)); // shown in Tampermonkey's storage
+      if (value === undefined) {
+        value = fallback;
+        GM_setValue(key, value); // shown in Tampermonkey's storage
+      }
       out[key] = typeof value === typeof fallback ? value : fallback;
     }
     return out;
@@ -727,7 +731,7 @@
 
     let cell = target.querySelector(':scope > .tp-cell');
     if (!cell) {
-      row.querySelectorAll('.tp-cell').forEach((n) => n.remove()); // recycled row
+      for (const n of row.querySelectorAll('.tp-cell')) n.remove(); // recycled row
       if (!target.dataset.tpPadded) {
         target.dataset.tpPadded = '1';
         const pad = parseFloat(getComputedStyle(target).paddingLeft) || 0;
@@ -1907,7 +1911,10 @@
       const rest = line.slice(lead[0].length);
       if (/^\s*\|/.test(rest) || /\|\s*$/.test(rest)) {
         // table row: pipes as punctuation
-        rest.split(/(\|)/).forEach((part) => (part === '|' ? out.push(['punct', part]) : mdInline(part, out)));
+        for (const part of rest.split(/(\|)/)) {
+          if (part === '|') out.push(['punct', part]);
+          else mdInline(part, out);
+        }
       } else {
         mdInline(rest, out);
       }
@@ -2349,10 +2356,9 @@
       return { problems: [], info: kind };
     } catch (e) {
       const msg = e.message.replace(/^JSON\.parse:\s*/, '');
-      let line = 1;
-      let m;
-      if ((m = msg.match(/line (\d+)/i))) line = +m[1];
-      else if ((m = msg.match(/position (\d+)/i))) line = lineAt(text, +m[1]);
+      const byLine = msg.match(/line (\d+)/i);
+      const byPos = msg.match(/position (\d+)/i);
+      const line = byLine ? +byLine[1] : byPos ? lineAt(text, +byPos[1]) : 1;
       return { problems: [{ line, msg, severity: 'error' }] };
     }
   }
@@ -2681,7 +2687,7 @@
       },
       { root, rootMargin: '1500px 0px' },
     );
-    blocks.forEach((b) => io.observe(b));
+    for (const b of blocks) io.observe(b);
     return io;
   }
 
@@ -2752,7 +2758,7 @@
    */
   function mountTable(content, header, rows, opts) {
     const { state } = opts;
-    content.querySelectorAll(':scope > .tp-plus, :scope > .tp-col-widths').forEach((n) => n.remove()); // earlier table
+    for (const n of content.querySelectorAll(':scope > .tp-plus, :scope > .tp-col-widths')) n.remove(); // earlier table
     state.widths ||= new Map(); // column -> width in px (column edge drag)
     const widthStyle = document.createElement('style');
     widthStyle.className = 'tp-col-widths';
@@ -2963,7 +2969,7 @@
         build();
       };
       all.onchange = () => {
-        boxes.forEach((b) => (b.checked = all.checked));
+        for (const b of boxes) b.checked = all.checked;
         apply();
       };
       panel.querySelector('.tp-filter-list').onchange = () => {
@@ -2972,9 +2978,9 @@
       };
       input.oninput = () => {
         const t = input.value.toLowerCase();
-        boxes.forEach(
-          (b) => (b.parentElement.style.display = values[+b.dataset.i].toLowerCase().includes(t) ? '' : 'none'),
-        );
+        for (const b of boxes) {
+          b.parentElement.style.display = values[+b.dataset.i].toLowerCase().includes(t) ? '' : 'none';
+        }
         apply();
       };
       input.focus();
@@ -2992,10 +2998,11 @@
         const after = dragging.kind === 'row' ? e.clientY > r.top + r.height / 2 : e.clientX > r.left + r.width / 2;
         return { el, to: after ? i + 1 : i, after };
       };
-      const clearMarks = () =>
-        table
-          .querySelectorAll('.tp-drop-before, .tp-drop-after')
-          .forEach((el) => el.classList.remove('tp-drop-before', 'tp-drop-after'));
+      const clearMarks = () => {
+        for (const el of table.querySelectorAll('.tp-drop-before, .tp-drop-after')) {
+          el.classList.remove('tp-drop-before', 'tp-drop-after');
+        }
+      };
       table.addEventListener('dragstart', (e) => {
         const rn = e.target.closest?.('td.tp-rn[data-row]');
         const th = e.target.closest?.('th[data-c]');
@@ -4677,7 +4684,8 @@
   /** @param {*} lib @param {Uint8Array} wasm @param {HTMLCanvasElement} canvas @param {Uint8Array} ifcBytes @param {(s: string) => void} onStatus @returns {Promise<{ dispose: () => void }>} */
   async function open3dModel(lib, wasm, canvas, ifcBytes, onStatus, pose) {
     onStatus('3D engine start …');
-    await (lib.ready ||= lib.init({ module_or_path: wasm })); // once per page
+    lib.ready ||= lib.init({ module_or_path: wasm }); // once per page
+    await lib.ready;
     // Canvas in CSS pixels, width multiple of 64 (WebGPU), set before renderer starts
     const size = () => {
       const r = canvas.getBoundingClientRect();
@@ -6502,7 +6510,11 @@
       case 6: {
         const lens = readDelta(data, pos, false);
         let at = lens.pos;
-        return lens.values.slice(0, n).map((len) => data.subarray(at, (at += len)));
+        return lens.values.slice(0, n).map((len) => {
+          const part = data.subarray(at, at + len);
+          at += len;
+          return part;
+        });
       }
       case 7: {
         const prefixes = readDelta(data, pos, false);
@@ -6585,6 +6597,7 @@
       }
       if (lt[1] || ct === 0 || lt[4] || ct === 4 || lt[12] || ct === 19) return utf8.decode(v);
       const s = utf8.decode(v);
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters mark binary values
       return s.includes('�') || /[\x00-\x08]/.test(s) ? `0x${hexText(v)}` : s;
     }
     if (typeof v === 'number' || typeof v === 'bigint') {
@@ -7194,7 +7207,11 @@
     v.abort = new AbortController();
     // relay: progress and signal of this file's source, also once another file is shown
     const relay = { fn: null, controller: null };
-    const getSignal = () => (relay.controller || (v.abort ||= new AbortController())).signal;
+    const getSignal = () => {
+      if (relay.controller) return relay.controller.signal;
+      v.abort ||= new AbortController();
+      return v.abort.signal;
+    };
     let rendered = false; // once text is shown, progress goes to "Cache next" bar
 
     let metaSize = 0;
@@ -7202,7 +7219,10 @@
       if (!current()) return;
       if (total) loaded = Math.min(loaded, total); // overlapping reads may count twice
       showProgress(v, loaded, total);
-      if (!rendered && total && total !== metaSize) earlyMeta((metaSize = total));
+      if (!rendered && total && total !== metaSize) {
+        metaSize = total;
+        earlyMeta(total);
+      }
       // all bytes in, view still built (e.g. Parquet rows decoded)
       if (total && loaded >= total) v.progressText.textContent += ' · preparing view …';
     };
