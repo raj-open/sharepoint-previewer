@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Sharepoint Previewer
-// @description  Previewer (text, table, 3d-viewer) for various file types. Provides an editor for all pure text files.
+// @description  Previewer (text, table, spreadsheet, 3d-viewer) for various file types. Provides an editor for all pure text files.
 // @version      1.0.0
 // @copyright    2026, raj-open (https://github.com/raj-open/sharepoint-previewer)
 // @license      MPL-2.0
@@ -22,6 +22,12 @@
   /** @typedef {{ stop: () => void, show: (line: number) => void }} LineView */
   /** @typedef {{ total: number, loaded: number, done: boolean, text: string, more: () => Promise<void>, loadAll: () => Promise<void> } & Object<string, *>} Source */
   /** @typedef {Object<string, *>} Viewer the open preview panel: its elements and state */
+  /** @typedef {(from: number, to: number) => Promise<Uint8Array>} ByteReader bytes [from, to) of a file */
+  /** @typedef {{ size: number, head: Uint8Array, dates: Object, read: ByteReader, fetched: () => number, whole: () => boolean }} RangeFile */
+  /** @typedef {{ name: string, method: number, packed: number, size: number, offset: number, head: number }} ZipEntry */
+  /** @typedef {{ rows: string[][], cols: number, cut: boolean }} SheetData cells as text, rows without gaps */
+  /** @typedef {{ name: string, hidden: boolean, kind: string, size: number, path?: string, data?: SheetData|null, note?: string }} Sheet data: undefined = not read yet, null = no cells */
+  /** @typedef {{ format: string, sheets: Sheet[], active: number, date1904: boolean, load: (i: number) => Promise<SheetData|null> }} Book */
 
   // ===========================================================================
   // Settings: defaults below; own values in Tampermonkey's storage (menu → "Settings …"),
@@ -43,6 +49,9 @@
     // Syntax colours: text view, table view (start values)
     'colours-text': true,
     'colours-table': false,
+
+    // Column colours in table view of spreadsheets (start value; rows stay striped)
+    'colours-sheet': false,
 
     // Bytes per cache step ("Cache next"); 512 KB ≈ 10,000 lines of code
     'cache-chunk-bytes': 512 * 1024,
@@ -99,6 +108,7 @@
     ['wrap-lines', 'Wrap long lines'],
     ['colours-text', 'Syntax highlighting (text view)'],
     ['colours-table', 'Syntax highlighting (table view)'],
+    ['colours-sheet', 'Column colours (spreadsheets)'],
     ['cache-chunk-bytes', 'Cache chunk size', 'KB'],
     ['memory-cache-bytes', 'Cache limit (all files)', 'MB'],
     ['cache-all-confirm-bytes', 'Warn full file cache if file size exceeds', 'MB'],
@@ -179,6 +189,7 @@
     'wrap-lines': 'tp-preview-wrap',
     'colours-text': 'tp-preview-colours-text',
     'colours-table': 'tp-preview-colours-table',
+    'colours-sheet': 'tp-preview-colours-sheet',
   };
   const SETTINGS_POS_KEY = 'tp-preview-settings-pos';
   const POPUP_POS_KEY = 'tp-preview-popup-pos';
@@ -480,6 +491,7 @@
     'wrap-lines': DEFAULT_WRAP,
     'colours-text': DEFAULT_COLOURS,
     'colours-table': DEFAULT_TABLE_COLOURS,
+    'colours-sheet': DEFAULT_SHEET_COLOURS,
     'cache-chunk-bytes': MAX_BYTES,
     'parquet-rows': PARQUET_ROWS,
     'memory-cache-bytes': MEMORY_CACHE_BYTES,
@@ -1315,6 +1327,22 @@
     .tp-viewer .tp-view-btn[aria-pressed="true"] { background: #0078d4; color: #fff; }
     .tp-viewer .tp-view-btn:disabled { opacity: .4; cursor: default; }
     .tp-viewer .tp-view-btn:not(:disabled):not([aria-pressed="true"]):hover { background: var(--tp-hover); }
+    /* Sheet choice (spreadsheets): segment right of the table button */
+    .tp-viewer .tp-sheet-select {
+      height: 22px;
+      max-width: 200px;
+      padding: 0 4px;
+      border: none;
+      border-left: 1px solid var(--tp-border);
+      border-radius: 0;
+      background: transparent;
+      color: var(--tp-fg);
+      font: 12px sans-serif;
+      cursor: pointer;
+    }
+    .tp-viewer .tp-sheet-select:hover { background: var(--tp-hover); }
+    .tp-viewer .tp-sheet-select option { background: var(--tp-bg); color: var(--tp-fg); }
+    .tp-viewer .tp-sheet-select + .tp-view-btn { border-left: 1px solid var(--tp-border); }
     .tp-progress-bar {
       width: 140px;
       height: 3px;
@@ -2753,7 +2781,7 @@
   /**
    * @param {HTMLElement} content @param {string[]} header @param {Array<string[] & { raw?: string }>} rows
    * @param {{ state: { sort: { col: number, dir: number }|null, filters: Map<number, { values: Set<string>|null, text: string }> },
-   *   editable?: boolean, onEdit?: () => void, sep?: string }} opts
+   *   editable?: boolean, onEdit?: () => void, sep?: string, colour?: boolean, format?: { sep: string, quote: string }|null }} opts
    * @returns {LineView & { csvText: () => string }}
    */
   function mountTable(content, header, rows, opts) {
@@ -3463,7 +3491,11 @@
       return b;
     };
     const textBtn = viewBtn(TEXT_SVG, 'Text', 'Text view');
-    const tableBtn = viewBtn(TABLE_SVG, 'Table', 'Table view (CSV, Parquet)');
+    const tableBtn = viewBtn(TABLE_SVG, 'Table', 'Table view (CSV, Parquet, spreadsheets)');
+    // Sheet of spreadsheet shown (● cached, ○ not yet); hidden for other files
+    const sheetSelect = document.createElement('select');
+    sheetSelect.className = 'tp-sheet-select';
+    sheetSelect.hidden = true;
     const view3dBtn = viewBtn(CUBE_SVG, '3D', '3D view (IFC, IFCZIP)');
     const moreBtn = button(MORE_SVG, 'More', 0);
     moreBtn.style.left = '';
@@ -3541,14 +3573,15 @@
     `;
     title.innerHTML = `
       <div style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; line-height:18px; margin-right:4px">
-        <strong>File:</strong> <span class="tp-title-name"></span>
+        <strong>File:</strong> <span class="tp-title-name"></span><span class="tp-title-sheet" hidden></span>
       </div>
     `;
     // Note: tooltip on header
     header.title =
-      'Note: this viewer is primarily for text files. Parquet files may also be viewed. ' +
+      'Note: this viewer is primarily for text files. Parquet files and spreadsheets may also be viewed (read only). ' +
       'Write mode is only partially supported.';
     const titleName = title.querySelector('.tp-title-name');
+    const titleSheet = title.querySelector('.tp-title-sheet');
 
     // Metadata (second line, full width): dates, size, format, table shape, ...
     const metaLine = document.createElement('div');
@@ -3761,7 +3794,7 @@
     statusBar.className = 'tp-statusbar';
     const views = document.createElement('div');
     views.className = 'tp-views';
-    views.append(textBtn, tableBtn, view3dBtn);
+    views.append(textBtn, tableBtn, sheetSelect, view3dBtn);
     statusBar.append(progress, views);
     box.append(header, csvBar, content, stage3d, editorWrap, loadMoreBtn, statusBar, splitter);
 
@@ -3789,6 +3822,7 @@
       writeBtn,
       textBtn,
       tableBtn,
+      sheetSelect,
       view3dBtn,
       stage3d,
       canvas3d,
@@ -3802,6 +3836,7 @@
       updateGutter,
       title,
       titleName,
+      titleSheet,
       metaLine,
       csvBar,
       copyBtn,
@@ -3876,6 +3911,7 @@
       last3d = on;
       savePref('tp-preview-3d', on ? '1' : '0');
     };
+    sheetSelect.onchange = () => v.selectSheet?.(Number(sheetSelect.value));
     view3dBtn.onclick = () => {
       if (v.view3d) return;
       set3d(true);
@@ -3967,9 +4003,9 @@
     const applyColour = () => colourBtn.setAttribute('aria-pressed', String(colourOn(v)));
     v.applyColour = applyColour;
     colourBtn.onclick = () => {
-      const key = tableView(v) ? 'table' : 'text';
+      const key = colourKey(v);
       colourPrefs[key] = !colourPrefs[key];
-      savePref(key === 'table' ? COLOUR_TABLE_KEY : COLOUR_KEY, colourPrefs[key] ? '1' : '0');
+      savePref(COLOUR_KEYS[key], colourPrefs[key] ? '1' : '0');
       applyColour();
       v.rerender?.();
       // Saved edit not yet checked: check now that colours are on
@@ -3995,7 +4031,8 @@
 
     copyBtn.onclick = async () => {
       try {
-        if (v.source && !v.source.done) {
+        if (v.source && !v.source.done && !v.source.isSheet) {
+          // (spreadsheets: only the sheet shown is copied, nothing more to cache)
           const big = v.source.total > LARGE_FILE_BYTES;
           if (big && !confirm('This text file is large are you sure you want to load it all into the previewer?'))
             return;
@@ -4545,7 +4582,7 @@
   // ---------------------------------------------------------------------------
 
   /** @param {Viewer} v @returns {boolean} */
-  const canWrite = (v) => !!(v.source && !v.source.isParquet && !v.source.isZip); // archives: read only
+  const canWrite = (v) => !!(v.source && !v.source.isParquet && !v.source.isZip && !v.source.isSheet); // read only
 
   /** @param {Viewer} v @returns {Promise<void>} */
   async function enterWrite(v) {
@@ -5121,6 +5158,7 @@
     v.loadAllBtn.disabled = true;
     v.clearBtn.disabled = true;
     v.lint.style.display = 'none';
+    showSheets(v, null);
     showPlain(v, 'Cache cleared for this file. Use refresh, or open the file again, to cache it anew.');
   }
 
@@ -5494,42 +5532,126 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Parquet (read only, no library): footer and needed column parts by range, rows as CSV
+  // Files by byte range (Parquet, spreadsheets): only the parts needed are fetched
   // ---------------------------------------------------------------------------
 
-  // ---------------------------------------------------------------------------
-  // .ifczip: ZIP with one IFC file, unpacked by browser (read only)
-  // ---------------------------------------------------------------------------
-  const ZIP_RE = /\.ifczip$/i;
-  const MAX_ZIP_BYTES = 256 * 1024 * 1024; // archive size limit
+  // Parts of file by range; whole file at once if SharePoint ignores ranges. Same origin only.
+  /**
+   * @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload
+   * @param {(loaded: number, total: number) => void} onProgress
+   * @returns {Promise<RangeFile|{ error: string }>}
+   */
+  async function openRanges(url, getSignal, reload, onProgress) {
+    if (new URL(url, location.href).origin !== location.origin) {
+      return { error: 'Not opened: the link points outside this SharePoint' };
+    }
+    let whole = null; // whole file, if SharePoint ignores partial requests
+    let size = 0;
+    let fetched = 0;
+    const request = (range) =>
+      fetch(url, {
+        credentials: 'same-origin',
+        cache: reload ? 'reload' : 'default', // 'reload': fresh copy, which also updates cache
+        headers: { Range: `bytes=${range}` },
+        signal: getSignal(),
+      });
 
-  // Entries of ZIP archive from its central directory
-  /** @param {Uint8Array} bytes @returns {{ name: string, method: number, size: number, packed: number, offset: number }[]} */
-  function zipEntries(bytes) {
-    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    let end = -1;
-    for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65557); i--) {
-      if (dv.getUint32(i, true) === 0x06054b50) {
-        end = i;
-        break;
+    // Size and signature (first 8 bytes) from small request, or whole file
+    const res = await request('0-7');
+    if (!res.ok) return { error: `Error ${res.status} on caching` };
+    const dates = responseDates(res, res.headers.get('content-disposition') || '');
+    let head = new Uint8Array(await res.arrayBuffer());
+    fetched = head.length;
+    if (res.status === 206) size = Number((res.headers.get('content-range') || '').split('/')[1]) || 0;
+    else {
+      whole = head;
+      size = whole.length;
+      head = whole.subarray(0, 8);
+    }
+    onProgress(fetched, size);
+
+    // Bytes [from, to) of file
+    const read = async (from, to) => {
+      from = Math.max(0, from);
+      to = Math.min(size, to);
+      if (from >= to) return new Uint8Array(0);
+      if (whole) return whole.subarray(from, to);
+      const r = await request(`${from}-${to - 1}`);
+      if (!r.ok) throw new Error(`Error ${r.status} on caching`);
+      const buf = new Uint8Array(await r.arrayBuffer());
+      fetched += buf.length;
+      onProgress(fetched, size);
+      if (r.status !== 206 || (from === 0 && buf.length >= size)) {
+        whole = buf; // all of it is here: no more requests
+        return whole.subarray(from, to);
       }
+      return buf;
+    };
+    return { size, head, dates, read, fetched: () => fetched, whole: () => !!whole };
+  }
+
+  /** @param {Uint8Array[]} parts @returns {Uint8Array} */
+  function concatBytes(parts) {
+    if (parts.length === 1) return parts[0];
+    const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+    let at = 0;
+    for (const p of parts) {
+      out.set(p, at);
+      at += p.length;
+    }
+    return out;
+  }
+
+  /** @param {Uint8Array} b @returns {DataView} */
+  const dataView = (b) => new DataView(b.buffer, b.byteOffset, b.byteLength);
+
+  // ---------------------------------------------------------------------------
+  // ZIP archives (.ifczip, spreadsheets): directory and single entries, read by range
+  // ---------------------------------------------------------------------------
+
+  // Entries of ZIP archive from its central directory (at its end)
+  /** @param {ByteReader} read @param {number} size @returns {Promise<ZipEntry[]>} */
+  async function zipEntries(read, size) {
+    // End record: in last 22 bytes, unless archive has a comment (then up to 64 KB before)
+    let base = 0;
+    /** @type {Uint8Array} */
+    let tail = new Uint8Array(0);
+    let end = -1;
+    for (const span of [4096, 65557]) {
+      base = Math.max(0, size - span);
+      tail = await read(base, size);
+      const dv = dataView(tail);
+      for (let i = tail.length - 22; i >= 0; i--) {
+        if (dv.getUint32(i, true) === 0x06054b50) {
+          end = i;
+          break;
+        }
+      }
+      if (end >= 0 || base === 0) break;
     }
     if (end < 0) throw new Error('not a ZIP archive');
+    const dv = dataView(tail);
     const count = dv.getUint16(end + 10, true);
-    let p = dv.getUint32(end + 16, true);
+    const length = dv.getUint32(end + 12, true);
+    const at = dv.getUint32(end + 16, true);
+    if (count === 0xffff || at === 0xffffffff) throw new Error('ZIP64 archives are not supported');
+    const dir = at >= base ? tail.subarray(at - base, at - base + length) : await read(at, at + length);
+    const d = dataView(dir);
     const names = new TextDecoder();
     const entries = [];
+    let p = 0;
     for (let k = 0; k < count; k++) {
-      if (dv.getUint32(p, true) !== 0x02014b50) throw new Error('damaged ZIP directory');
-      const nameLen = dv.getUint16(p + 28, true);
-      const extraLen = dv.getUint16(p + 30, true);
-      const commentLen = dv.getUint16(p + 32, true);
+      if (p + 46 > dir.length || d.getUint32(p, true) !== 0x02014b50) throw new Error('damaged ZIP directory');
+      const nameLen = d.getUint16(p + 28, true);
+      const extraLen = d.getUint16(p + 30, true);
+      const commentLen = d.getUint16(p + 32, true);
       entries.push({
-        name: names.decode(bytes.subarray(p + 46, p + 46 + nameLen)),
-        method: dv.getUint16(p + 10, true),
-        packed: dv.getUint32(p + 20, true),
-        size: dv.getUint32(p + 24, true),
-        offset: dv.getUint32(p + 42, true),
+        name: names.decode(dir.subarray(p + 46, p + 46 + nameLen)),
+        method: d.getUint16(p + 10, true),
+        packed: d.getUint32(p + 20, true),
+        size: d.getUint32(p + 24, true),
+        offset: d.getUint32(p + 42, true),
+        head: 30 + nameLen + extraLen, // local header: usually as long as this one
       });
       p += 46 + nameLen + extraLen + commentLen;
     }
@@ -5537,18 +5659,28 @@
   }
 
   // Bytes of one entry: stored (0) or deflated (8)
-  /** @param {Uint8Array} bytes @param {{ method: number, packed: number, offset: number }} entry @returns {Promise<Uint8Array>} */
-  async function zipEntryBytes(bytes, entry) {
-    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  /** @param {ByteReader} read @param {ZipEntry} entry @returns {Promise<Uint8Array>} */
+  async function zipEntryBytes(read, entry) {
     const at = entry.offset;
-    if (dv.getUint32(at, true) !== 0x04034b50) throw new Error('damaged ZIP entry');
-    const start = at + 30 + dv.getUint16(at + 26, true) + dv.getUint16(at + 28, true);
+    let bytes = await read(at, at + entry.head + entry.packed);
+    const dv = dataView(bytes);
+    if (bytes.length < 30 || dv.getUint32(0, true) !== 0x04034b50) throw new Error('damaged ZIP entry');
+    const start = 30 + dv.getUint16(26, true) + dv.getUint16(28, true);
+    if (start + entry.packed > bytes.length) {
+      bytes = concatBytes([bytes, await read(at + bytes.length, at + start + entry.packed)]); // longer local header
+    }
     const packed = bytes.subarray(start, start + entry.packed);
     if (entry.method === 0) return packed;
     if (entry.method !== 8) throw new Error(`ZIP compression ${entry.method} is not supported`);
-    const stream = new Blob([packed]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
+    const blob = new Blob([/** @type {BlobPart} */ (packed)]);
+    return new Uint8Array(
+      await new Response(blob.stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer(),
+    );
   }
+
+  // .ifczip: ZIP with one IFC file, unpacked by browser (read only)
+  const ZIP_RE = /\.ifczip$/i;
+  const MAX_ZIP_BYTES = 256 * 1024 * 1024; // archive size limit
 
   /** @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload @param {(loaded: number, total: number) => void} onProgress @returns {Promise<Source|{ error: string }>} */
   async function openZipSource(url, getSignal, reload, onProgress, force = false) {
@@ -5581,21 +5713,17 @@
       loaded += value.length;
       onProgress(loaded, total);
     }
-    const bytes = new Uint8Array(loaded);
-    let at = 0;
-    for (const part of parts) {
-      bytes.set(part, at);
-      at += part.length;
-    }
+    const bytes = concatBytes(parts.length ? parts : [new Uint8Array(0)]);
+    const read = async (from, to) => bytes.subarray(from, to);
     let entries;
     try {
-      entries = zipEntries(bytes);
+      entries = await zipEntries(read, bytes.length);
     } catch (err) {
       return { error: `Not a valid .ifczip (${err.message})` };
     }
     const entry = entries.find((e) => /\.ifc$/i.test(e.name));
     if (!entry) return { error: 'No .ifc file inside this archive' };
-    const raw = await zipEntryBytes(bytes, entry);
+    const raw = await zipEntryBytes(read, entry);
     const encoding = sniffText(raw);
     if (!encoding) return { binary: true };
     const text = new TextDecoder(encoding).decode(raw);
@@ -5614,6 +5742,10 @@
       loadAll: async () => {},
     };
   }
+
+  // ---------------------------------------------------------------------------
+  // Parquet (read only, no library): footer and needed column parts by range, rows as CSV
+  // ---------------------------------------------------------------------------
 
   const PARQUET_RE = /\.parquet$/i;
   const CODEC_NAMES = ['none', 'SNAPPY', 'GZIP', 'LZO', 'BROTLI', 'LZ4', 'ZSTD', 'LZ4_RAW'];
@@ -6622,54 +6754,14 @@
   // Parquet source like openSource(): text = rows as CSV, more() = PARQUET_ROWS more
   /** @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload @param {(loaded: number, total: number) => void} onProgress @returns {Promise<Source|{ error: string }>} */
   async function openParquetSource(url, getSignal, reload, onProgress, force = false) {
-    if (new URL(url, location.href).origin !== location.origin) {
-      return { error: 'Not opened: the link points outside this SharePoint' };
-    }
-    let whole = null; // whole file, if SharePoint ignores partial requests
-    let size = 0;
-    let fetched = 0;
-
-    // Bytes [from, to) of file
-    const read = async (from, to) => {
-      if (whole) return whole.subarray(from, to);
-      const res = await fetch(url, {
-        credentials: 'same-origin',
-        cache: reload ? 'reload' : 'default',
-        headers: { Range: `bytes=${from}-${to - 1}` },
-        signal: getSignal(),
-      });
-      if (!res.ok) throw new Error(`Error ${res.status} on caching`);
-      const buf = new Uint8Array(await res.arrayBuffer());
-      fetched += buf.length;
-      onProgress(fetched, size);
-      if (res.status === 206) return buf;
-      whole = buf;
-      return whole.subarray(from, to);
-    };
-
-    // Size from 4-byte request (or whole file, if ranges are ignored)
-    const res = await fetch(url, {
-      credentials: 'same-origin',
-      cache: reload ? 'reload' : 'default',
-      headers: { Range: 'bytes=0-3' },
-      signal: getSignal(),
-    });
-    if (!res.ok) return { error: `Error ${res.status} on caching` };
-    const dates = responseDates(res, res.headers.get('content-disposition') || '');
-    if (res.status === 206) {
-      size = Number((res.headers.get('content-range') || '').split('/')[1]) || 0;
-      fetched += (await res.arrayBuffer()).byteLength;
-    } else {
-      whole = new Uint8Array(await res.arrayBuffer());
-      size = whole.length;
-      fetched = size;
-    }
+    const file = await openRanges(url, getSignal, reload, onProgress);
+    if ('error' in file) return file;
+    const { size, dates, read } = file;
     if (size < 12) return { error: 'Not a Parquet file' };
-    if (!whole && size > MAX_BYTES && !force) return { deferred: 'Parquet', size, dates }; // asks first
+    if (!file.whole() && size > MAX_BYTES && !force) return { deferred: 'Parquet', size, dates }; // asks first
 
     // Footer: last 64 KB usually hold all of it (asked for by exact position)
-    let tail = await read(Math.max(0, size - 65536), size);
-    if (!whole && tail.length >= size) whole = tail; // small file: all of it is here already
+    let tail = await read(Math.max(0, size - 65536), size); // small file: all of it, no more requests
     if (utf8.decode(tail.subarray(tail.length - 4)) !== 'PAR1') return { error: 'Not a Parquet file' };
     const footerLen = u32(tail, tail.length - 8);
     let footer;
@@ -6829,9 +6921,10 @@
     const codecs = [...new Set(meta.rowGroups.flatMap((rg) => rg.columns.map((c) => CODEC_NAMES[c.codec] || c.codec)))];
     const src = {
       total: size,
-      loaded: fetched,
+      loaded: file.fetched(),
       done: false,
       isParquet: true,
+      format: 'Parquet',
       wholeLines: true,
       dates,
       info: [
@@ -6855,7 +6948,7 @@
       }
       src.rows = count;
       src.text = lines.join('\n');
-      src.loaded = fetched;
+      src.loaded = file.fetched();
       src.done = count >= meta.numRows || states.every((st) => st.ended);
     };
 
@@ -6868,6 +6961,1110 @@
     if (!leaves.length) return { error: 'Parquet file without columns' };
     await fill(PARQUET_ROWS);
     return src;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Spreadsheets (read only, no library): Excel (.xlsx .xlsm .xltx .xltm, .xlsb, .xls .xlt)
+  // and OpenDocument (.ods .ots). Cached sheet by sheet: workbook, shared strings and styles
+  // first, then only the sheets shown, by range (ODS keeps all sheets in one part).
+  // Formats: ECMA-376 (OOXML), [MS-XLSB], [MS-XLS] in [MS-CFB], OASIS OpenDocument 1.2.
+  // ---------------------------------------------------------------------------
+
+  const SHEET_RE = /\.(xlsx|xlsm|xltx|xltm|xlsb|xls|xlt|ods|ots)$/i;
+
+  // Excel's own limits; cells in total kept per sheet (against damaged or hostile files)
+  const MAX_SHEET_ROWS = 1048576;
+  const MAX_SHEET_COLS = 16384;
+  const MAX_SHEET_CELLS = 10000000;
+
+  // Format by file extension (shown before the file is read)
+  /** @param {string} name @returns {string|null} */
+  function sheetFormat(name) {
+    const ext = (name.match(SHEET_RE) || [])[1];
+    if (!ext) return null;
+    const upper = ext.toUpperCase();
+    return /^o/i.test(ext) ? `OpenDocument spreadsheet (${upper})` : `Excel (${upper})`;
+  }
+
+  // --- Cells: numbers as Excel's "General" (15 digits), dates and times as ISO 8601 ---
+
+  const SHEET_ERRORS = {
+    0: '#NULL!',
+    7: '#DIV/0!',
+    15: '#VALUE!',
+    23: '#REF!',
+    29: '#NAME?',
+    36: '#NUM!',
+    42: '#N/A',
+    43: '#GETTING_DATA',
+  };
+
+  // Built-in number formats other than plain numbers (ECMA-376 part 1, 18.8.30); only their kind counts
+  const BUILTIN_FORMATS = {
+    9: '0%',
+    10: '0.00%',
+    14: 'yyyy-mm-dd',
+    15: 'd-mmm-yy',
+    16: 'd-mmm',
+    17: 'mmm-yy',
+    18: 'h:mm AM/PM',
+    19: 'h:mm:ss AM/PM',
+    20: 'h:mm',
+    21: 'h:mm:ss',
+    22: 'yyyy-mm-dd h:mm',
+    45: 'mm:ss',
+    46: '[h]:mm:ss',
+    47: 'mm:ss.0',
+  };
+  for (const id of [27, 28, 29, 30, 31, 36, 50, 51, 52, 53, 54, 57, 58]) BUILTIN_FORMATS[id] = 'yyyy-mm-dd'; // East Asian
+  for (const id of [32, 33, 34, 35, 55, 56]) BUILTIN_FORMATS[id] = 'h:mm:ss';
+
+  // Number format code -> 'date' | 'time' | 'datetime' | 'elapsed' ([h]:mm) | 'percent' | '' (plain number)
+  /** @param {string} code @returns {string} */
+  function formatKind(code) {
+    if (!code) return '';
+    const plain = code
+      .split(';')[0] // positive part decides
+      .replace(/"[^"]*"|\\.|_.|\*./g, '') // literal text, padding
+      .replace(/\[(?![hms]+\])[^\]]*\]/gi, '') // colours, conditions, locales (not elapsed [h] [m] [s])
+      .replace(/AM\/PM|A\/P/gi, '');
+    if (/\[[hms]+\]/i.test(plain)) return 'elapsed';
+    const time = /[hs]/i.test(plain);
+    const date = /[yd]/i.test(plain) || (/m/i.test(plain) && !time);
+    if (date || time) return date && time ? 'datetime' : date ? 'date' : 'time';
+    return plain.includes('%') ? 'percent' : '';
+  }
+
+  /** @param {number} n @returns {string} */
+  const generalText = (n) => String(Number(n.toPrecision(15)));
+
+  // Serial number -> text; 1900 system counts the non-existent 1900-02-29 (as Lotus 1-2-3 did)
+  /** @param {number} n @param {string} kind @param {boolean} date1904 @returns {string} */
+  function numberText(n, kind, date1904) {
+    if (!Number.isFinite(n)) return String(n);
+    if (kind === 'percent') return `${generalText(n * 100)}%`;
+    if (kind === 'elapsed') {
+      const secs = Math.round(Math.abs(n) * 86400);
+      const pad = (x) => String(x).padStart(2, '0');
+      return `${n < 0 ? '-' : ''}${Math.floor(secs / 3600)}:${pad(Math.floor(secs / 60) % 60)}:${pad(secs % 60)}`;
+    }
+    if (!kind || n < 0 || n >= 2958466) return generalText(n); // dates up to 9999-12-31
+    const days = date1904 ? n + 1462 : n < 60 ? n + 1 : n;
+    const iso = new Date(Math.round((days - 25569) * 86400) * 1000).toISOString(); // 25569 = 1970-01-01
+    if (kind === 'date') return iso.slice(0, 10);
+    if (kind === 'time') return iso.slice(11, 19);
+    return `${iso.slice(0, 10)} ${iso.slice(11, 19)}`;
+  }
+
+  // Column letters <-> index (0-based): A, …, Z, AA, …
+  /** @param {string} ref e.g. "AB12" @returns {number} */
+  function refCol(ref) {
+    let c = 0;
+    for (let i = 0; i < ref.length; i++) {
+      const k = ref.charCodeAt(i) & ~32;
+      if (k < 65 || k > 90) break;
+      c = c * 26 + k - 64;
+    }
+    return c - 1;
+  }
+
+  /** @param {number} c @returns {string} */
+  function colName(c) {
+    let s = '';
+    for (let n = c + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+    return s;
+  }
+
+  // Cells of one sheet -> rows (no gaps between rows; missing cells are empty)
+  /** @returns {{ set: (r: number, c: number, text: string) => boolean, done: () => SheetData }} */
+  function sheetGrid() {
+    const rows = [];
+    let cols = 0;
+    let cells = 0;
+    let cut = false;
+    return {
+      set(r, c, text) {
+        if (text === '' || !(r >= 0 && r < MAX_SHEET_ROWS && c >= 0 && c < MAX_SHEET_COLS)) return true;
+        if (cells >= MAX_SHEET_CELLS) {
+          cut = true;
+          return false;
+        }
+        cells++;
+        if (!rows[r]) rows[r] = [];
+        rows[r][c] = text;
+        if (c >= cols) cols = c + 1;
+        return true;
+      },
+      done() {
+        for (let i = 0; i < rows.length; i++) if (!rows[i]) rows[i] = [];
+        return { rows, cols, cut };
+      },
+    };
+  }
+
+  // --- XML without DOM (also for huge sheets; DOMParser builds the whole tree) ---
+
+  const XML_ENTITIES = { lt: '<', gt: '>', amp: '&', quot: '"', apos: "'" };
+
+  // Line ends as XML reads them (\r\n -> \n), entities decoded
+  /** @param {string} s @returns {string} */
+  const xmlText = (s) => xmlEntities(s.includes('\r') ? s.replace(/\r\n?/g, '\n') : s);
+
+  /** @param {string} s @returns {string} */
+  const xmlEntities = (s) =>
+    s.includes('&')
+      ? s.replace(/&(#x[\da-f]+|#\d+|\w+);/gi, (m, e) => {
+          if (e[0] !== '#') return XML_ENTITIES[e] ?? m;
+          const code = /^#x/i.test(e) ? parseInt(e.slice(2), 16) : Number(e.slice(1));
+          return code <= 0x10ffff ? String.fromCodePoint(code) : m;
+        })
+      : s;
+
+  // OOXML escapes characters XML cannot hold: _x000D_ = carriage return
+  /** @param {string} s @returns {string} */
+  const ooxmlText = (s) =>
+    s.includes('_x') ? s.replace(/_x([\da-fA-F]{4})_/g, (_, h) => String.fromCharCode(parseInt(h, 16))) : s;
+
+  const SHEET_ATTR_RE = /([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+
+  // Attributes, names without namespace prefix
+  /** @param {string} s @returns {Object<string, string>} */
+  function xmlAttrs(s) {
+    /** @type {Object<string, string>} */
+    const out = {};
+    for (const m of s.matchAll(SHEET_ATTR_RE)) out[m[1].slice(m[1].indexOf(':') + 1)] = xmlText(m[2] ?? m[3]);
+    return out;
+  }
+
+  // Tags (names without prefix) and raw text between them; empty tags open and close at once
+  /**
+   * @param {string} xml @param {(name: string, attrs: string) => void} open
+   * @param {(name: string) => void} close @param {(raw: string) => void} [text] raw (entities not decoded)
+   */
+  function scanXml(xml, open, close, text) {
+    const re = /<(\/?)([^\s/>!?]+)([^>]*?)(\/?)>|<!\[CDATA\[([\s\S]*?)\]\]>|<!--[\s\S]*?-->|<[!?][^>]*>/g;
+    let last = 0;
+    for (let m = re.exec(xml); m; m = re.exec(xml)) {
+      if (text && m.index > last) text(xml.slice(last, m.index));
+      last = re.lastIndex;
+      if (m[5] !== undefined) {
+        if (text) text(m[5].replace(/[&<]/g, (c) => (c === '&' ? '&amp;' : '&lt;'))); // raw like other text
+        continue;
+      }
+      if (!m[2]) continue; // comment, declaration
+      const name = m[2].slice(m[2].indexOf(':') + 1);
+      if (m[1]) close(name);
+      else {
+        open(name, m[3]);
+        if (m[4]) close(name);
+      }
+    }
+  }
+
+  /** @param {Uint8Array} b @returns {string} */
+  function xmlString(b) {
+    const bom = b[0] === 0xff && b[1] === 0xfe ? 'utf-16le' : b[0] === 0xfe && b[1] === 0xff ? 'utf-16be' : 'utf-8';
+    return new TextDecoder(bom).decode(b);
+  }
+
+  // --- Packages (ZIP): parts by path, relationships between them ---
+
+  /** @param {ByteReader} read @param {number} size @returns {Promise<Object>} */
+  async function zipPackage(read, size) {
+    const entries = await zipEntries(read, size);
+    const byName = new Map(entries.map((e) => [e.name.replace(/\\/g, '/').toLowerCase(), e])); // some writers use \
+    const entry = (path) => (path ? byName.get(path.replace(/^\//, '').toLowerCase()) : undefined);
+    const bytes = async (path) => {
+      const e = entry(path);
+      return e ? zipEntryBytes(read, e) : null;
+    };
+    const text = async (path) => {
+      const b = await bytes(path);
+      return b ? xmlString(b) : null;
+    };
+    return { entry, bytes, text };
+  }
+
+  // Path of target, relative to folder of `base` (or from root with leading "/")
+  /** @param {string} base @param {string} target @returns {string} */
+  function partPath(base, target) {
+    if (target.startsWith('/')) return target.slice(1);
+    const parts = base.split('/').slice(0, -1);
+    for (const p of target.split('/')) {
+      if (p === '..') parts.pop();
+      else if (p && p !== '.') parts.push(p);
+    }
+    return parts.join('/');
+  }
+
+  /** @param {string} part @returns {string} "xl/workbook.xml" -> "xl/_rels/workbook.xml.rels" */
+  const relsPath = (part) => part.replace(/[^/]*$/, (n) => `_rels/${n}.rels`);
+
+  // Relationships of a part: id -> { path, type }
+  /** @param {Object} pkg @param {string} part @returns {Promise<Map<string, { path: string, type: string }>>} */
+  async function partRels(pkg, part) {
+    const out = new Map();
+    const xml = await pkg.text(relsPath(part));
+    if (!xml) return out;
+    scanXml(
+      xml,
+      (n, a) => {
+        if (n !== 'Relationship') return;
+        const at = xmlAttrs(a);
+        if (at.TargetMode !== 'External' && at.Target) {
+          out.set(at.Id, { path: partPath(part, at.Target), type: at.Type || '' });
+        }
+      },
+      () => {},
+    );
+    return out;
+  }
+
+  // --- Excel 2007+ (OOXML): workbook, shared strings, styles and sheets as XML ---
+
+  const XLSX_PARTS = {
+    /** @param {Uint8Array} bytes @returns {{ sheets: Object[], active: number, date1904: boolean }} */
+    workbook(bytes) {
+      const sheets = [];
+      let active = 0;
+      let date1904 = false;
+      let views = 0;
+      scanXml(
+        xmlString(bytes),
+        (n, a) => {
+          if (n === 'sheet') {
+            const at = xmlAttrs(a);
+            sheets.push({
+              name: at.name || `Sheet${sheets.length + 1}`,
+              id: at.id,
+              hidden: !!at.state && at.state !== 'visible',
+            });
+          } else if (n === 'workbookPr') {
+            if (/^(1|true)$/.test(xmlAttrs(a).date1904 || '')) date1904 = true; // extensions may repeat it without
+          } else if (n === 'workbookView' && !views++) {
+            active = Number(xmlAttrs(a).activeTab) || 0;
+          }
+        },
+        () => {},
+      );
+      return { sheets, active, date1904 };
+    },
+
+    /** @param {Uint8Array} bytes @returns {string[]} */
+    strings(bytes) {
+      const out = [];
+      let cur = null;
+      let inText = false;
+      let phonetic = 0; // <rPh>: reading aid, not part of the text
+      scanXml(
+        xmlString(bytes),
+        (n) => {
+          if (n === 'si') cur = '';
+          else if (n === 'rPh') phonetic++;
+          else if (n === 't') inText = true;
+        },
+        (n) => {
+          if (n === 'si') {
+            out.push(ooxmlText(cur ?? ''));
+            cur = null;
+          } else if (n === 'rPh') phonetic--;
+          else if (n === 't') inText = false;
+        },
+        (raw) => {
+          if (inText && !phonetic && cur !== null) cur += xmlText(raw);
+        },
+      );
+      return out;
+    },
+
+    // Number format code per cell style (index = style "s" of cells)
+    /** @param {Uint8Array} bytes @returns {string[]} */
+    styles(bytes) {
+      const codes = new Map();
+      const xfs = [];
+      let where = ''; // 'numFmts' | 'cellXfs'
+      scanXml(
+        xmlString(bytes),
+        (n, a) => {
+          if (n === 'numFmts' || n === 'cellXfs') where = n;
+          else if (n === 'numFmt' && where === 'numFmts') {
+            const at = xmlAttrs(a);
+            codes.set(Number(at.numFmtId), at.formatCode || '');
+          } else if (n === 'xf' && where === 'cellXfs') xfs.push(Number(xmlAttrs(a).numFmtId) || 0);
+        },
+        (n) => {
+          if (n === where) where = '';
+        },
+      );
+      return xfs.map((id) => codes.get(id) ?? BUILTIN_FORMATS[id] ?? '');
+    },
+
+    /** @param {Uint8Array} bytes @param {string[]} strings @param {string[]} kinds @param {boolean} date1904 @returns {SheetData} */
+    sheet(bytes, strings, kinds, date1904) {
+      const grid = sheetGrid();
+      let r = -1;
+      let c = -1;
+      let cell = null; // { t, s, v, is }
+      let field = ''; // 'v' value, 't' inline text
+      let phonetic = 0;
+      scanXml(
+        xmlString(bytes),
+        (n, a) => {
+          if (n === 'c') {
+            const at = xmlAttrs(a);
+            if (at.r) {
+              c = refCol(at.r);
+              r = Number(at.r.replace(/^[A-Za-z]+/, '')) - 1;
+            } else c++;
+            cell = { t: at.t || 'n', s: Number(at.s) || 0, v: '', is: '' };
+          } else if (n === 'row') {
+            const at = xmlAttrs(a);
+            r = at.r ? Number(at.r) - 1 : r + 1;
+            c = -1;
+          } else if (cell && (n === 'v' || n === 't')) field = n;
+          else if (n === 'rPh') phonetic++;
+        },
+        (n) => {
+          if (n === 'c' && cell) {
+            grid.set(r, c, cellText(cell));
+            cell = null;
+          } else if (n === 'v' || n === 't') field = '';
+          else if (n === 'rPh') phonetic--;
+        },
+        (raw) => {
+          if (!cell || !field || phonetic) return;
+          if (field === 'v') cell.v += xmlText(raw);
+          else cell.is += xmlText(raw);
+        },
+      );
+      return grid.done();
+
+      function cellText({ t, s, v, is }) {
+        if (t === 's') return strings[Number(v)] ?? '';
+        if (t === 'inlineStr') return ooxmlText(is);
+        if (t === 'str') return ooxmlText(v);
+        if (t === 'b') return v.trim() === '1' ? 'TRUE' : 'FALSE';
+        if (t === 'e') return v;
+        if (t === 'd') return v.replace('T', ' ').replace(/Z$/, '');
+        return v.trim() === '' ? '' : numberText(Number(v), kinds[s] || '', date1904);
+      }
+    },
+  };
+
+  // --- Excel binary workbook (.xlsb): same parts as OOXML, as BIFF12 records ---
+
+  const utf16le = new TextDecoder('utf-16le');
+
+  // Records: type and size as 7-bit varints, then data
+  /** @param {Uint8Array} b @param {(type: number, data: Uint8Array) => void} on @returns {void} */
+  function biff12Records(b, on) {
+    let p = 0;
+    while (p < b.length) {
+      let type = b[p++];
+      if (type & 0x80) type = (type & 0x7f) | ((b[p++] & 0x7f) << 7);
+      let size = 0;
+      for (let i = 0; i < 4; i++) {
+        const x = b[p++];
+        size |= (x & 0x7f) << (7 * i);
+        if (!(x & 0x80)) break;
+      }
+      on(type, b.subarray(p, p + size));
+      p += size;
+    }
+  }
+
+  // XLWideString: character count (4 bytes), then UTF-16; count 0xFFFFFFFF = none
+  /** @param {Uint8Array} d @param {number} at @returns {{ text: string, end: number }} */
+  function wideString(d, at) {
+    if (at + 4 > d.length) return { text: '', end: d.length };
+    const n = dataView(d).getUint32(at, true);
+    if (n === 0xffffffff) return { text: '', end: at + 4 };
+    const end = Math.min(d.length, at + 4 + 2 * n);
+    return { text: utf16le.decode(d.subarray(at + 4, end)), end };
+  }
+
+  // RK: 30-bit integer or high bits of a double, optionally divided by 100
+  const rkView = new DataView(new ArrayBuffer(8));
+  /** @param {number} rk @returns {number} */
+  function rkNumber(rk) {
+    let n;
+    if (rk & 2) n = rk >> 2;
+    else {
+      rkView.setUint32(0, 0, true);
+      rkView.setUint32(4, rk & 0xfffffffc, true);
+      n = rkView.getFloat64(0, true);
+    }
+    return rk & 1 ? n / 100 : n;
+  }
+
+  const XLSB_PARTS = {
+    workbook(bytes) {
+      const sheets = [];
+      let active = 0;
+      let date1904 = false;
+      let views = 0;
+      biff12Records(bytes, (type, d) => {
+        const dv = dataView(d);
+        if (type === 156 && d.length >= 12) {
+          // BrtBundleSh: state, tab id, relationship id, name
+          const id = wideString(d, 8);
+          sheets.push({ name: wideString(d, id.end).text, id: id.text, hidden: dv.getUint32(0, true) !== 0 });
+        } else if (type === 153 && d.length >= 4)
+          date1904 = (dv.getUint32(0, true) & 1) === 1; // BrtWbProp
+        else if (type === 158 && d.length >= 28 && !views++) active = dv.getUint32(24, true); // BrtBookView
+      });
+      return { sheets, active, date1904 };
+    },
+
+    strings(bytes) {
+      const out = [];
+      biff12Records(bytes, (type, d) => {
+        if (type === 19) out.push(wideString(d, 1).text); // BrtSSTItem: flags, text
+      });
+      return out;
+    },
+
+    styles(bytes) {
+      const codes = new Map();
+      const xfs = [];
+      let inXfs = false;
+      biff12Records(bytes, (type, d) => {
+        if (type === 44 && d.length >= 2)
+          codes.set(d[0] | (d[1] << 8), wideString(d, 2).text); // BrtFmt
+        else if (type === 617)
+          inXfs = true; // BrtBeginCellXFs
+        else if (type === 618) inXfs = false;
+        else if (type === 47 && inXfs && d.length >= 4) xfs.push(d[2] | (d[3] << 8)); // BrtXF
+      });
+      return xfs.map((id) => codes.get(id) ?? BUILTIN_FORMATS[id] ?? '');
+    },
+
+    sheet(bytes, strings, kinds, date1904) {
+      const grid = sheetGrid();
+      let r = 0;
+      biff12Records(bytes, (type, d) => {
+        if (type === 0) {
+          if (d.length >= 4) r = dataView(d).getUint32(0, true); // BrtRowHdr
+          return;
+        }
+        if (!((type >= 2 && type <= 11) || type === 62) || d.length < 9) return; // cells only
+        const dv = dataView(d);
+        const c = dv.getUint32(0, true);
+        const num = (n) => numberText(n, kinds[dv.getUint32(4, true) & 0xffffff] || '', date1904);
+        let text = '';
+        if (type === 2) text = num(rkNumber(dv.getUint32(8, true)));
+        else if (type === 5 || type === 9) text = d.length >= 16 ? num(dv.getFloat64(8, true)) : '';
+        else if (type === 4 || type === 10) text = d[8] ? 'TRUE' : 'FALSE';
+        else if (type === 3 || type === 11) text = SHEET_ERRORS[d[8]] ?? '#ERROR';
+        else if (type === 7) text = strings[dv.getUint32(8, true)] ?? '';
+        else if (type === 6 || type === 8) text = wideString(d, 8).text;
+        else if (type === 62) text = wideString(d, 9).text; // rich text: flags first
+        grid.set(r, c, text);
+      });
+      return grid.done();
+    },
+  };
+
+  // Excel 2007+ package: workbook part from package relationships (.xlsx: XML, .xlsb: binary)
+  /** @param {Object} pkg @returns {Promise<Book>} */
+  async function readOoxml(pkg) {
+    const main = [...(await partRels(pkg, '')).values()].find((r) => r.type.endsWith('/officeDocument'))?.path;
+    const wbPath = [main, 'xl/workbook.xml', 'xl/workbook.bin'].find((p) => pkg.entry(p));
+    if (!wbPath) throw new Error('no workbook inside (not a spreadsheet?)');
+    const binary = /\.bin$/i.test(wbPath);
+    const parts = binary ? XLSB_PARTS : XLSX_PARTS;
+    const rels = await partRels(pkg, wbPath);
+    const relOf = (type) => [...rels.values()].find((r) => r.type.endsWith(`/${type}`))?.path;
+    const wb = parts.workbook(await pkg.bytes(wbPath));
+
+    const stringsPath = relOf('sharedStrings');
+    const stylesPath = relOf('styles');
+    const strings = pkg.entry(stringsPath) ? parts.strings(await pkg.bytes(stringsPath)) : [];
+    const kinds = pkg.entry(stylesPath) ? parts.styles(await pkg.bytes(stylesPath)).map(formatKind) : [];
+
+    const sheets = wb.sheets.map((s, i) => {
+      const rel = rels.get(s.id);
+      const path = rel?.path || `xl/worksheets/sheet${i + 1}.${binary ? 'bin' : 'xml'}`;
+      return {
+        name: s.name,
+        hidden: s.hidden,
+        kind: /chartsheet$/i.test(rel?.type || '') ? 'chart' : 'sheet',
+        size: pkg.entry(path)?.packed || 0,
+        path,
+      };
+    });
+    return {
+      format: `Excel (${binary ? 'XLSB' : 'XLSX'})`,
+      sheets,
+      active: wb.active,
+      date1904: wb.date1904,
+      load: async (i) => {
+        const s = sheets[i];
+        if (s.kind !== 'sheet' || !pkg.entry(s.path)) return null;
+        return parts.sheet(await pkg.bytes(s.path), strings, kinds, wb.date1904);
+      },
+    };
+  }
+
+  // --- OpenDocument spreadsheet: all sheets in content.xml, cells with their display text ---
+
+  /** @param {string} xml @returns {{ name: string, data: SheetData }[]} */
+  function odsSheets(xml) {
+    const sheets = [];
+    let grid = null;
+    let name = '';
+    let depth = 0; // tables inside cells (rare) are part of their cell
+    let r = 0;
+    let c = 0;
+    let row = null; // texts of current row
+    let rowRepeat = 1;
+    let cell = null; // { repeat, text, value } (value: typed, else text shown)
+    let para = 0;
+    let note = 0; // annotations (comments): not part of cell text
+    const add = (s) => {
+      if (cell && para && !note) cell.text += s;
+    };
+    scanXml(
+      xml,
+      (n, a) => {
+        if (n === 'table') {
+          if (depth++) return;
+          grid = sheetGrid();
+          name = xmlAttrs(a).name || `Sheet${sheets.length + 1}`;
+          r = 0;
+        }
+        if (depth !== 1) return;
+        if (n === 'table-row') {
+          rowRepeat = Math.max(1, Number(xmlAttrs(a)['number-rows-repeated']) || 1);
+          row = [];
+          c = 0;
+        } else if (n === 'table-cell' || n === 'covered-table-cell') {
+          const at = xmlAttrs(a);
+          cell = { repeat: Math.max(1, Number(at['number-columns-repeated']) || 1), text: null, value: odsValue(at) };
+        } else if (n === 'annotation') note++;
+        else if (n === 'p' && cell && !note) {
+          cell.text = cell.text === null ? '' : `${cell.text}\n`;
+          para++;
+        } else if (n === 's') add(' '.repeat(Math.min(1000, Number(xmlAttrs(a).c) || 1)));
+        else if (n === 'tab') add('\t');
+        else if (n === 'line-break') add('\n');
+      },
+      (n) => {
+        if (n === 'table') {
+          if (--depth) return;
+          sheets.push({ name, data: grid.done() });
+          grid = null;
+        }
+        if (depth !== 1) return;
+        if (n === 'p' && para) para--;
+        else if (n === 'annotation') note--;
+        else if ((n === 'table-cell' || n === 'covered-table-cell') && cell && row) {
+          const text = cell.value ?? cell.text ?? '';
+          if (text !== '') for (let k = 0; k < cell.repeat && c + k < MAX_SHEET_COLS; k++) row[c + k] = text;
+          c += cell.repeat;
+          cell = null;
+        } else if (n === 'table-row' && row) {
+          // repeated rows: often a million empty ones at the end, kept only while they hold text
+          if (row.length) {
+            for (let k = 0; k < rowRepeat && r + k < MAX_SHEET_ROWS; k++) {
+              if (!row.every((t, col) => grid.set(r + k, col, t))) break;
+            }
+          }
+          r += rowRepeat;
+          row = null;
+        }
+      },
+      (raw) => add(xmlText(raw)),
+    );
+    return sheets;
+  }
+
+  // Typed value as the Excel formats show it (ISO dates, plain numbers); null = use cell text
+  /** @param {Object<string, string>} at @returns {string|null} */
+  function odsValue(at) {
+    const type = at['value-type'];
+    const n = Number(at.value);
+    if ((type === 'float' || type === 'currency') && at.value) return generalText(n);
+    if (type === 'percentage' && at.value) return `${generalText(n * 100)}%`;
+    if (type === 'boolean') return /^true$/i.test(at['boolean-value'] || '') ? 'TRUE' : 'FALSE';
+    if (type === 'date' && at['date-value']) return at['date-value'].replace('T', ' ').replace(/(\.\d+)?Z?$/, '');
+    const t = type === 'time' && /^-?PT(\d+)H(\d+)M(\d+)/.exec(at['time-value'] || '');
+    if (t) return [t[1], t[2], t[3]].map((x) => x.padStart(2, '0')).join(':');
+    return null;
+  }
+
+  /** @param {Object} pkg @returns {Promise<Book>} */
+  async function readOds(pkg) {
+    if ((await pkg.text('META-INF/manifest.xml'))?.includes('encryption-data')) {
+      throw new Error('the file is password-protected');
+    }
+    const found = odsSheets(xmlString(await pkg.bytes('content.xml')));
+    // all sheets come with content.xml: cached at once
+    const sheets = found.map((s) => ({ name: s.name, hidden: false, kind: 'sheet', size: 0, data: s.data }));
+    return {
+      format: 'OpenDocument spreadsheet',
+      sheets,
+      active: 0,
+      date1904: false,
+      load: async (i) => sheets[i].data,
+    };
+  }
+
+  // --- Excel 97–2003 (.xls): BIFF8 (also BIFF5) records in a compound file ---
+
+  // Compound file: directory at once; streams read sector by sector, only where needed
+  /** @param {ByteReader} read @param {number} size @returns {Promise<Object>} */
+  async function compoundFile(read, size) {
+    const h = await read(0, 512);
+    const dv = dataView(h);
+    if (h.length < 512 || dv.getUint32(0, true) !== 0xe011cfd0 || dv.getUint32(4, true) !== 0xe11ab1a1) {
+      throw new Error('not an Office file');
+    }
+    const ss = 2 ** dv.getUint16(30, true); // sector size: 512 or 4096
+    const mss = 2 ** dv.getUint16(32, true); // mini sector size: 64
+    const cutoff = dv.getUint32(56, true); // smaller streams live in the mini stream
+    const SPECIAL = 0xfffffffa; // ids from here on: end of chain, free, …
+    const off = (s) => (s + 1) * ss; // header takes the first sector's place
+
+    // Sectors -> bytes (consecutive ones in one request)
+    const readSectors = async (ids) => {
+      const parts = [];
+      for (let i = 0; i < ids.length; ) {
+        let j = i + 1;
+        while (j < ids.length && ids[j] === ids[j - 1] + 1) j++;
+        parts.push(await read(off(ids[i]), off(ids[j - 1]) + ss));
+        i = j;
+      }
+      return concatBytes(parts.length ? parts : [new Uint8Array(0)]);
+    };
+    const u32s = (b) => {
+      const d = dataView(b);
+      return Uint32Array.from({ length: b.length >> 2 }, (_, i) => d.getUint32(4 * i, true));
+    };
+
+    // Allocation table: sector ids of its parts in header (first 109), more in DIFAT chain
+    const nFat = dv.getUint32(44, true);
+    const fatIds = [];
+    for (let i = 0; i < 109 && fatIds.length < nFat; i++) fatIds.push(dv.getUint32(76 + 4 * i, true));
+    for (let s = dv.getUint32(68, true), k = 0; s < SPECIAL && fatIds.length < nFat && k < size / ss; k++) {
+      const d = dataView(await read(off(s), off(s) + ss));
+      for (let i = 0; i < ss / 4 - 1 && fatIds.length < nFat; i++) fatIds.push(d.getUint32(4 * i, true));
+      s = d.getUint32(ss - 4, true);
+    }
+    const fat = u32s(await readSectors(fatIds));
+    const chain = (start, table = fat) => {
+      const ids = [];
+      for (let s = start; s < SPECIAL && s < table.length && ids.length < table.length; s = table[s]) ids.push(s);
+      return ids;
+    };
+
+    // Directory: 128 bytes per entry (name, type, first sector, size)
+    const dir = await readSectors(chain(dv.getUint32(48, true)));
+    const dd = dataView(dir);
+    const entries = [];
+    for (let at = 0; at + 128 <= dir.length; at += 128) {
+      const type = dir[at + 66];
+      if (!type) continue;
+      const len = Math.min(64, dd.getUint16(at + 64, true));
+      entries.push({
+        name: utf16le.decode(dir.subarray(at, at + Math.max(0, len - 2))),
+        type, // 1 storage, 2 stream, 5 root
+        start: dd.getUint32(at + 116, true),
+        size: dd.getUint32(at + 120, true),
+      });
+    }
+    const root = entries.find((e) => e.type === 5);
+
+    // Big stream: sectors fetched when a range of it is asked for, kept for later
+    const bigStream = (start, length) => {
+      const ids = chain(start);
+      const buf = new Uint8Array(Math.min(length, ids.length * ss));
+      const have = new Uint8Array(ids.length);
+      return {
+        size: buf.length,
+        bytes: async (from, to) => {
+          to = Math.min(to, buf.length);
+          for (let i = Math.floor(from / ss), last = Math.ceil(to / ss); i < last; ) {
+            if (have[i]) {
+              i++;
+              continue;
+            }
+            let j = i + 1;
+            while (j < last && !have[j] && ids[j] === ids[j - 1] + 1) j++;
+            const part = await read(off(ids[i]), off(ids[i]) + (j - i) * ss);
+            buf.set(part.subarray(0, buf.length - i * ss), i * ss);
+            have.fill(1, i, j);
+            i = j;
+          }
+          return buf.subarray(from, to);
+        },
+      };
+    };
+
+    // Small stream: in the mini stream (root's stream), read whole
+    let mini = null;
+    const smallStream = async (start, length) => {
+      if (!mini) {
+        const table = u32s(await readSectors(chain(dv.getUint32(60, true))));
+        const data = root ? await bigStream(root.start, root.size).bytes(0, root.size) : new Uint8Array(0);
+        mini = { table, data };
+      }
+      const out = new Uint8Array(length);
+      let at = 0;
+      for (const s of chain(start, mini.table)) {
+        if (at >= length) break;
+        out.set(mini.data.subarray(s * mss, s * mss + Math.min(mss, length - at)), at);
+        at += mss;
+      }
+      return { size: length, bytes: async (from, to) => out.subarray(from, Math.min(to, length)) };
+    };
+
+    return {
+      find: (name) => entries.find((e) => e.type === 2 && e.name.toLowerCase() === name.toLowerCase()),
+      stream: async (e) => (e.size < cutoff ? smallStream(e.start, e.size) : bigStream(e.start, e.size)),
+    };
+  }
+
+  // Code pages of BIFF5 texts (BIFF8 texts are Unicode)
+  const CODEPAGES = {
+    367: 'windows-1252',
+    932: 'shift_jis',
+    936: 'gbk',
+    949: 'euc-kr',
+    950: 'big5',
+    10000: 'macintosh',
+    32768: 'macintosh',
+    32769: 'windows-1252',
+  };
+
+  /** @param {number} cp @returns {TextDecoder} */
+  function codepageDecoder(cp) {
+    try {
+      return new TextDecoder(CODEPAGES[cp] || `windows-${cp}`);
+    } catch {
+      return new TextDecoder('windows-1252');
+    }
+  }
+
+  // Characters stored with 1 byte each: Unicode code points up to U+00FF
+  /** @param {Uint8Array} b @returns {string} */
+  function latin1(b) {
+    let s = '';
+    for (let i = 0; i < b.length; i += 8192) s += String.fromCharCode.apply(null, b.subarray(i, i + 8192));
+    return s;
+  }
+
+  // BIFF8 XLUnicodeString: count (2 bytes, or 1 for short ones), flags, [runs, extension sizes], characters
+  /** @param {Uint8Array} d @param {number} at @param {boolean} [short] @returns {string} */
+  function biffString(d, at, short = false) {
+    const n = short ? d[at] : d[at] | (d[at + 1] << 8);
+    let p = at + (short ? 1 : 2);
+    const flags = d[p++];
+    if (flags & 8) p += 2;
+    if (flags & 4) p += 4;
+    return flags & 1 ? utf16le.decode(d.subarray(p, p + 2 * n)) : latin1(d.subarray(p, p + n));
+  }
+
+  // Shared strings: SST record and its CONTINUE records; text crossing them gets a new flag byte
+  /** @param {Uint8Array[]} parts @returns {string[]} */
+  function biffStrings(parts) {
+    const out = [];
+    let k = 0;
+    let d = parts[0];
+    let p = 8; // after total and unique counts
+    const next = () => {
+      while (p >= d.length && k < parts.length - 1) {
+        d = parts[++k];
+        p = 0;
+      }
+      return p < d.length;
+    };
+    const u8 = () => (next() ? d[p++] : 0);
+    const u16 = () => u8() | (u8() << 8);
+    const skip = (n) => {
+      while (n > 0 && next()) {
+        const step = Math.min(n, d.length - p);
+        p += step;
+        n -= step;
+      }
+    };
+    while (next()) {
+      let n = u16();
+      let flags = u8();
+      const runs = flags & 8 ? u16() : 0;
+      const ext = flags & 4 ? u16() + u16() * 65536 : 0;
+      let s = '';
+      while (n > 0) {
+        if (p >= d.length) {
+          if (k >= parts.length - 1) break;
+          d = parts[++k];
+          p = 0;
+          flags = d[p++]; // text goes on in next record: 1 or 2 bytes per character from here
+        }
+        const wide = flags & 1 ? 2 : 1;
+        const take = Math.min(n, Math.floor((d.length - p) / wide));
+        if (take <= 0) {
+          p = d.length;
+          continue;
+        }
+        const bytes = d.subarray(p, p + take * wide);
+        s += wide === 2 ? utf16le.decode(bytes) : latin1(bytes);
+        p += bytes.length;
+        n -= take;
+      }
+      skip(runs * 4 + ext);
+      out.push(s);
+    }
+    return out;
+  }
+
+  const BIFF_BOF = new Set([0x0009, 0x0209, 0x0409, 0x0809]);
+  const XLS_KINDS = { 0: 'sheet', 1: 'sheet', 2: 'chart', 6: 'module' }; // macro sheets have cells too
+
+  /** @param {ByteReader} read @param {number} size @returns {Promise<Book>} */
+  async function readXls(read, size) {
+    const cfb = await compoundFile(read, size);
+    if (cfb.find('EncryptedPackage')) throw new Error('the file is password-protected');
+    const entry = cfb.find('Workbook') || cfb.find('Book');
+    if (!entry) throw new Error('no workbook inside (not an Excel file?)');
+    const stream = await cfb.stream(entry);
+
+    // Records from `from` to the end of their substream (BOF … EOF); nested ones (charts) skipped
+    const records = async (from, to, on) => {
+      let buf = await stream.bytes(from, Math.min(to, from + 65536));
+      const grow = async (need) => {
+        if (need > buf.length && from + buf.length < to) {
+          buf = await stream.bytes(from, Math.min(to, from + Math.max(need, 2 * buf.length)));
+        }
+      };
+      let depth = 0;
+      for (let p = 0; ; ) {
+        await grow(p + 4);
+        if (p + 4 > buf.length) return;
+        const type = buf[p] | (buf[p + 1] << 8);
+        const len = buf[p + 2] | (buf[p + 3] << 8);
+        if (p + 4 + len > buf.length) await grow(p + 4 + len);
+        const data = buf.subarray(p + 4, p + 4 + len);
+        p += 4 + len;
+        if (BIFF_BOF.has(type)) depth++;
+        if (depth <= 1) on(type, data);
+        if (type === 0x000a && --depth <= 0) return; // EOF
+      }
+    };
+
+    // Workbook globals: sheets, formats, cell styles, shared strings, date system
+    let biff8 = true;
+    let text8 = new TextDecoder('windows-1252');
+    const sheets = [];
+    const codes = new Map();
+    const xfs = [];
+    let sst = null;
+    let last = 0;
+    let date1904 = false;
+    let active = -1;
+    await records(0, stream.size, (type, d) => {
+      if (type === 0x003c && sst && last === 0x00fc) return void sst.push(d); // CONTINUE of SST
+      last = type;
+      if (d.length < 2) return;
+      const dv = dataView(d);
+      if (type === 0x0809) biff8 = dv.getUint16(0, true) >= 0x0600;
+      else if (type === 0x002f)
+        throw new Error('the file is password-protected'); // FILEPASS
+      else if (type === 0x0042) text8 = codepageDecoder(dv.getUint16(0, true));
+      else if (type === 0x0022) date1904 = dv.getUint16(0, true) === 1;
+      else if (type === 0x003d && active < 0 && d.length >= 12)
+        active = dv.getUint16(10, true); // WINDOW1
+      else if (type === 0x0085 && d.length >= 7) {
+        // BOUNDSHEET: position of its BOF in stream, visibility, type, name
+        sheets.push({
+          pos: dv.getUint32(0, true),
+          hidden: (d[4] & 3) !== 0,
+          kind: XLS_KINDS[d[5]] || 'module',
+          name: biff8 ? biffString(d, 6, true) : text8.decode(d.subarray(7, 7 + d[6])),
+        });
+      } else if (type === 0x041e && d.length >= 3) {
+        codes.set(dv.getUint16(0, true), biff8 ? biffString(d, 2) : text8.decode(d.subarray(3, 3 + d[2])));
+      } else if (type === 0x00e0 && d.length >= 4) xfs.push(dv.getUint16(2, true));
+      else if (type === 0x00fc) sst = [d];
+    });
+    const strings = sst ? biffStrings(sst) : [];
+    const kinds = xfs.map((id) => formatKind(codes.get(id) ?? BUILTIN_FORMATS[id] ?? ''));
+
+    // Each sheet: from its BOF up to the next sheet's (or end of stream)
+    const starts = [...sheets.map((s) => s.pos), stream.size].sort((a, b) => a - b);
+    for (const s of sheets) s.size = Math.max(0, starts.find((x) => x > s.pos) - s.pos || 0);
+
+    const load = async (i) => {
+      const s = sheets[i];
+      if (s.kind !== 'sheet' || s.pos >= stream.size) return null;
+      const grid = sheetGrid();
+      const num = (xf, n) => numberText(n, kinds[xf] || '', date1904);
+      const label = (d, at) =>
+        biff8 ? biffString(d, at) : text8.decode(d.subarray(at + 2, at + 2 + (d[at] | (d[at + 1] << 8))));
+      let pending = null; // formula with text result: text follows in STRING record
+      await records(s.pos, s.pos + s.size, (type, d) => {
+        if (type === 0x0207 && pending) {
+          grid.set(pending[0], pending[1], label(d, 0));
+          pending = null;
+          return;
+        }
+        if (d.length < 6) return;
+        const dv = dataView(d);
+        const r = dv.getUint16(0, true);
+        const c = dv.getUint16(2, true);
+        const xf = dv.getUint16(4, true);
+        if (type === 0x0203 && d.length >= 14)
+          grid.set(r, c, num(xf, dv.getFloat64(6, true))); // NUMBER
+        else if (type === 0x027e && d.length >= 10)
+          grid.set(r, c, num(xf, rkNumber(dv.getUint32(6, true)))); // RK
+        else if (type === 0x00bd) {
+          // MULRK: (style, RK) per column from c on
+          for (let k = 0, at = 4; at + 6 <= d.length - 2; k++, at += 6) {
+            grid.set(r, c + k, num(dv.getUint16(at, true), rkNumber(dv.getUint32(at + 2, true))));
+          }
+        } else if (type === 0x00fd && d.length >= 10)
+          grid.set(r, c, strings[dv.getUint32(6, true)] ?? ''); // LABELSST
+        else if (type === 0x0204 || type === 0x00d6)
+          grid.set(r, c, label(d, 6)); // LABEL, RSTRING
+        else if (type === 0x0205 && d.length >= 8) {
+          grid.set(r, c, d[7] ? (SHEET_ERRORS[d[6]] ?? '#ERROR') : d[6] ? 'TRUE' : 'FALSE'); // BOOLERR
+        } else if (type === 0x0006 && d.length >= 14) {
+          // FORMULA: last result; 0xFFFF at end marks text, boolean, error or empty text
+          if (dv.getUint16(12, true) !== 0xffff) grid.set(r, c, num(xf, dv.getFloat64(6, true)));
+          else if (d[6] === 0) pending = [r, c];
+          else if (d[6] === 1) grid.set(r, c, d[8] ? 'TRUE' : 'FALSE');
+          else if (d[6] === 2) grid.set(r, c, SHEET_ERRORS[d[8]] ?? '#ERROR');
+        }
+      });
+      return grid.done();
+    };
+
+    return {
+      format: biff8 ? 'Excel 97–2003 (XLS)' : 'Excel 5.0/95 (XLS)',
+      sheets: sheets.map(({ pos, ...s }) => s),
+      active: Math.max(0, active),
+      date1904,
+      load,
+    };
+  }
+
+  // --- Workbook of any of these formats, by its signature ---
+
+  /** @param {ByteReader} read @param {number} size @param {Uint8Array} head @returns {Promise<Book>} */
+  async function readBook(read, size, head) {
+    if (head[0] === 0xd0 && head[1] === 0xcf) return readXls(read, size);
+    if (head[0] !== 0x50 || head[1] !== 0x4b) {
+      throw new Error(head[0] === 0x09 ? 'Excel 2.x–4.x files are not supported' : 'not a spreadsheet file');
+    }
+    const pkg = await zipPackage(read, size);
+    return pkg.entry('content.xml') && !pkg.entry('[Content_Types].xml') ? readOds(pkg) : readOoxml(pkg);
+  }
+
+  // Spreadsheet source like openSource(): text = sheet shown, as CSV; more() = next sheet not cached
+  /** @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload @param {(loaded: number, total: number) => void} onProgress @returns {Promise<Source|{ error: string }>} */
+  async function openSheetSource(url, getSignal, reload, onProgress) {
+    const file = await openRanges(url, getSignal, reload, onProgress);
+    if ('error' in file) return file;
+    /** @type {Book} */
+    let book;
+    try {
+      book = await readBook(file.read, file.size, file.head);
+    } catch (err) {
+      if (err.name === 'AbortError') throw err;
+      return { error: `Not shown: ${err.message}` };
+    }
+    const { sheets } = book;
+    if (!sheets.length) return { error: 'Not shown: no sheets in this workbook' };
+    const cached = () => sheets.filter((s) => s.data !== undefined).length;
+
+    // Sheet read once: data = { rows, cols } or null (no cells: chart, module, unreadable)
+    /** @param {number} i @returns {Promise<void>} */
+    const loadSheet = async (i) => {
+      const s = sheets[i];
+      if (s.data === undefined) {
+        try {
+          s.data = await book.load(i);
+          if (!s.data) s.note = s.kind === 'chart' ? 'Chart sheet: no cells to show.' : 'No cells to show.';
+        } catch (err) {
+          if (err.name === 'AbortError') throw err;
+          s.data = null;
+          s.note = `This sheet could not be read: ${err.message}`;
+        }
+      }
+      // all content shown is here once every sheet is: then the whole file counts as cached
+      src.done = cached() === sheets.length;
+      src.loaded = src.done ? file.size : Math.min(file.fetched(), file.size - 1);
+    };
+
+    /** @type {Source} */
+    const src = {
+      total: file.size,
+      loaded: 0,
+      done: false,
+      isSheet: true,
+      wholeLines: true,
+      dates: file.dates,
+      format: book.format,
+      sheets,
+      current: 0,
+      text: '',
+      label: () => `${cached().toLocaleString()} of ${sheets.length.toLocaleString()} sheets cached`,
+      nextLabel: 'Cache next sheet',
+      get info() {
+        const s = sheets[src.current];
+        const d = s.data;
+        const hidden = sheets.filter((x) => x.hidden).length;
+        const shape = d?.rows.length ? `: ${d.rows.length.toLocaleString()} rows × ${d.cols} columns` : '';
+        const info = [
+          ['sheets', `${sheets.length}${hidden ? ` (${hidden} hidden)` : ''}`],
+          ['sheet', `${s.name}${shape}${d?.cut ? ` (first ${MAX_SHEET_CELLS.toLocaleString()} cells)` : ''}`],
+        ];
+        if (book.date1904) info.push(['dates', '1904 system']);
+        return info;
+      },
+      loadSheet,
+      /** @param {number} i @returns {void} */
+      select: (i) => {
+        src.current = i;
+        const d = sheets[i].data;
+        src.text = d ? csvRows(d.rows, d.cols) : '';
+      },
+      header: () => Array.from({ length: sheets[src.current].data?.cols || 0 }, (_, c) => colName(c)),
+      more: async () => {
+        for (let k = 1; k <= sheets.length; k++) {
+          const i = (src.current + k) % sheets.length;
+          if (sheets[i].data === undefined) return loadSheet(i);
+        }
+      },
+      loadAll: async () => {
+        for (let i = 0; i < sheets.length; i++) await loadSheet(i);
+      },
+    };
+
+    // First: sheet active when saved (else first visible worksheet)
+    const usable = (i) => sheets[i] && sheets[i].kind === 'sheet' && !sheets[i].hidden;
+    const first = usable(book.active)
+      ? book.active
+      : Math.max(
+          0,
+          sheets.findIndex((_, i) => usable(i)),
+        );
+    await loadSheet(first);
+    src.select(first);
+    return src;
+  }
+
+  // Rows as CSV, padded to all columns
+  /** @param {string[][]} rows @param {number} cols @returns {string} */
+  function csvRows(rows, cols) {
+    const out = new Array(rows.length);
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      let line = '';
+      for (let c = 0; c < cols; c++) line += (c ? ',' : '') + csvCell(r[c] ?? '');
+      out[i] = line;
+    }
+    return out.join('\n');
   }
 
   // ---------------------------------------------------------------------------
@@ -7025,13 +8222,20 @@
   }
   let lastTheme = ['light', 'dark'].includes(loadPref(THEME_KEY)) ? loadPref(THEME_KEY) : THEME;
   const COLOUR_TABLE_KEY = 'tp-preview-colours-table';
+  const COLOUR_SHEET_KEY = 'tp-preview-colours-sheet';
+  const COLOUR_KEYS = { text: COLOUR_KEY, table: COLOUR_TABLE_KEY, sheet: COLOUR_SHEET_KEY };
   const colourPrefs = {
     text: loadPref(COLOUR_KEY, DEFAULT_COLOURS ? '1' : '0') === '1',
     table: loadPref(COLOUR_TABLE_KEY, DEFAULT_TABLE_COLOURS ? '1' : '0') === '1',
+    sheet: loadPref(COLOUR_SHEET_KEY, DEFAULT_SHEET_COLOURS ? '1' : '0') === '1',
   };
 
   /** @param {Viewer} v @returns {boolean} */
-  const tableView = (v) => ['csv', 'parquet'].includes(v.lang) && lastTable;
+  const tableView = (v) => ['csv', 'parquet', 'sheet'].includes(v.lang) && lastTable;
+
+  // Colour choice of view shown: text, table (CSV / Parquet) or sheet (spreadsheets: own choice)
+  /** @param {Viewer} v @returns {'text'|'table'|'sheet'} */
+  const colourKey = (v) => (!tableView(v) ? 'text' : v.lang === 'sheet' ? 'sheet' : 'table');
 
   // View switch state (pressed = current view) and idle cache bar
   /** @param {Viewer} v @returns {void} */
@@ -7045,10 +8249,29 @@
     if (!v.busy) showCached(v);
   }
 
-  // Colours on in view now shown (table view: CSV / Parquet with table button on)
+  // Colours on in view now shown
   /** @param {Viewer} v @returns {boolean} */
   function colourOn(v) {
-    return tableView(v) ? colourPrefs.table : colourPrefs.text;
+    return colourPrefs[colourKey(v)];
+  }
+
+  // Sheet choice (spreadsheets only): drop-down next to table button, sheet name in title
+  /** @param {Viewer} v @param {Source|null} src @returns {void} */
+  function showSheets(v, src) {
+    const sheets = src?.isSheet ? src.sheets : null;
+    v.sheetSelect.hidden = !sheets;
+    v.titleSheet.hidden = !sheets;
+    if (!sheets) return;
+    const s = sheets[src.current];
+    v.sheetSelect.innerHTML = sheets
+      .map((x, i) => {
+        const notes = [x.hidden && 'hidden', x.kind !== 'sheet' && x.kind].filter(Boolean).join(', ');
+        return `<option value="${i}">${x.data === undefined ? '○' : '●'} ${esc(x.name)}${notes ? ` (${notes})` : ''}</option>`;
+      })
+      .join('');
+    v.sheetSelect.value = String(src.current);
+    v.sheetSelect.title = `Sheet ${src.current + 1} of ${sheets.length} (● cached, ○ not cached yet)`;
+    v.titleSheet.innerHTML = ` · <strong>Sheet:</strong> ${esc(s.name)}`;
   }
   let lastWrap = loadPref(WRAP_KEY, DEFAULT_WRAP ? '1' : '0') === '1';
 
@@ -7060,9 +8283,11 @@
     for (let hop = 0; ; hop++) {
       const result = PARQUET_RE.test(fileName)
         ? await openParquetSource(fetchUrl, getSignal, reload, onProgress, force)
-        : ZIP_RE.test(fileName)
-          ? await openZipSource(fetchUrl, getSignal, reload, onProgress, force)
-          : await openSource(fetchUrl, getSignal, reload, onProgress);
+        : SHEET_RE.test(fileName)
+          ? await openSheetSource(fetchUrl, getSignal, reload, onProgress)
+          : ZIP_RE.test(fileName)
+            ? await openZipSource(fetchUrl, getSignal, reload, onProgress, force)
+            : await openSource(fetchUrl, getSignal, reload, onProgress);
       if (result.deferred) return { src: null, deferred: result, message: null, fileName, hops };
       if (result.error) return { src: null, message: `${result.error}\n${hops.join('\n→ ')}`, fileName, hops };
       if (result.binary) {
@@ -7125,6 +8350,7 @@
     v.relint = null;
     v.text = '';
     for (const b of [v.copyBtn, v.loadAllBtn, v.writeBtn, v.tableBtn, v.view3dBtn, v.clearBtn]) b.disabled = true;
+    showSheets(v, null);
     updateViews(v);
     v.titleName.textContent = '–';
     v.titleName.title = '';
@@ -7173,7 +8399,7 @@
     v.titleName.textContent = name;
     v.titleName.title = url;
     // what is known before the content: format, then size (from the first response)
-    const earlyFormat = PARQUET_RE.test(name) ? 'Parquet' : LANG_NAMES[langOf(name)] || 'Text';
+    const earlyFormat = PARQUET_RE.test(name) ? 'Parquet' : sheetFormat(name) || LANG_NAMES[langOf(name)] || 'Text';
     const earlyMeta = (total) => {
       const parts = [
         total ? `size: ${formatBytes(total)} (${total.toLocaleString()} bytes)` : '',
@@ -7189,6 +8415,7 @@
     v.writeBtn.disabled = true;
     v.tableBtn.disabled = true;
     v.view3dBtn.disabled = true;
+    showSheets(v, null);
     updateViews(v);
     v.clearBtn.disabled = false;
     setBusy(v, true);
@@ -7355,10 +8582,13 @@
     // Copy gets whole file: rest is cached first if needed
     v.source = src;
     v.fileName = fileName;
-    v.lang = PARQUET_RE.test(fileName) ? 'parquet' : langOf(fileName);
+    v.lang = PARQUET_RE.test(fileName) ? 'parquet' : src.isSheet ? 'sheet' : langOf(fileName);
     v.linked = hops.length > 1;
     v.writeBtn.disabled = !canWrite(v);
-    v.tableBtn.disabled = !(PARQUET_RE.test(fileName) || langOf(fileName) === 'csv');
+    v.writeBtn.title = src.isSheet
+      ? 'Edit: not available for spreadsheets (read only)'
+      : 'Edit (beta, text files only)';
+    v.tableBtn.disabled = !['parquet', 'sheet', 'csv'].includes(v.lang);
     const ifcSize = src.ifcBytes ? src.ifcBytes.length : src.total;
     const tooBig = ifcSize > MAX_3D_BYTES;
     v.view3dBtn.disabled = langOf(fileName) !== 'ifc' || tooBig;
@@ -7368,7 +8598,7 @@
     updateViews(v);
     v.text = src.text;
 
-    const lang = PARQUET_RE.test(fileName) ? 'csv' : langOf(fileName); // Parquet rows come as CSV
+    const lang = ['parquet', 'sheet'].includes(v.lang) ? 'csv' : langOf(fileName); // their rows come as CSV
     const highlight = HIGHLIGHTERS[lang] || ((t) => [['', t]]);
     let problemsByLine = new Map();
     let lines = [];
@@ -7380,11 +8610,15 @@
       return t.split(/\r?\n/);
     };
 
-    // Table view: sort and filters stay while this file is open (also across "Cache next")
+    // Table view: sort and filters stay while this file is open (also across "Cache next"); per sheet
     const tableState = { sort: null, filters: new Map() };
+    const sheetStates = new Map();
+    const sheetState = (i) => {
+      if (!sheetStates.has(i)) sheetStates.set(i, { sort: null, filters: new Map() });
+      return sheetStates.get(i);
+    };
 
     // Metadata line: dates, size, format and, for tables, their shape
-    const isParquet = PARQUET_RE.test(fileName);
 
     const updateMeta = () => {
       const d = src.dates || {};
@@ -7393,10 +8627,11 @@
         ['created', d.created],
         ['modified', d.modified || 'n/a'],
         ['size', src.total ? `${formatBytes(src.total)} (${src.total.toLocaleString()} bytes)` : null],
-        ['format', isParquet ? 'Parquet' : `${LANG_NAMES[lang] || 'Text'}${src.encoding ? `, ${src.encoding}` : ''}`],
+        ['format', src.format || `${LANG_NAMES[lang] || 'Text'}${src.encoding ? `, ${src.encoding}` : ''}`],
       ];
-      if (!isParquet && lang !== 'csv') info.push(['indent', indentation(src.text)]);
-      if (isParquet || src.isZip) info.push(...src.info);
+      if (!src.format && lang !== 'csv') info.push(['indent', indentation(src.text)]);
+      if (src.info)
+        info.push(...src.info); // Parquet, archives, spreadsheets
       else if (lang === 'csv') {
         const sep = csvSeparator(src.text);
         const header = src.text.slice(0, (src.text.indexOf('\n') + 1 || src.text.length + 1) - 1);
@@ -7427,7 +8662,17 @@
         return line.slice(0, MAX_LINE_CHARS);
       });
       v.lineView?.stop();
-      if (lastTable && lang === 'csv') {
+      const sheet = src.isSheet ? src.sheets[src.current] : null;
+      if (sheet && !sheet.data?.rows.length) {
+        // chart sheet, empty or unreadable sheet: a note instead
+        v.lineView = mountLines(v.content, renderLines([['', sheet.note || 'Empty sheet: no cells.']], new Map()));
+        v.content.firstElementChild.classList.add('tp-notice');
+      } else if (sheet && lastTable) {
+        v.lineView = mountTable(v.content, src.header(), sheet.data.rows, {
+          state: sheetState(src.current),
+          colour: colourOn(v),
+        });
+      } else if (lastTable && lang === 'csv') {
         const sep = csvSeparator(src.text);
         const rows = parseCsv(src.done ? src.text.replace(/\r?\n$/, '') : lines.join('\n'), sep);
         v.lineView = mountTable(v.content, rows[0] || [], rows.slice(1), {
@@ -7445,6 +8690,7 @@
       v.content.scrollTop = scrollTop;
 
       updateMeta();
+      showSheets(v, src);
       v.loadMoreBtn.style.display = src.done ? 'none' : 'block';
       v.loadMoreBtn.disabled = false;
       v.loadAllBtn.disabled = src.done;
@@ -7488,10 +8734,10 @@
       if (result.problems.length) render();
     };
 
-    // Load more (one chunk, or everything), then shows it
-    const load = async (all) => {
+    // Load more (one chunk, or everything; or `job`, e.g. one sheet), then shows it
+    const load = async (all, job = src.more, need = MAX_BYTES) => {
       if (src.done) return true;
-      if (!all && !src.fullJob && !makeRoom(v, MAX_BYTES)) return false;
+      if (!all && !src.fullJob && !makeRoom(v, need)) return false;
       if (src.fullJob) all = true; // join the "cache all" still running
       v.loadMoreBtn.disabled = true;
       v.loadAllBtn.disabled = true;
@@ -7511,7 +8757,7 @@
             });
           } else v.abort = src.controller;
           await src.fullJob;
-        } else await src.more();
+        } else await job();
       } catch (err) {
         if (!current()) return false;
         setBusy(v, false);
@@ -7548,6 +8794,27 @@
       runLint();
     };
     v.loadMoreBtn.onclick = () => load(false);
+
+    // Other sheet: cached on first choice (stop keeps the sheet shown before)
+    v.selectSheet = async (i) => {
+      if (!src.isSheet || i === src.current || !src.sheets[i]) return;
+      if (src.sheets[i].data === undefined) {
+        const job = async () => {
+          await src.loadSheet(i);
+          src.select(i);
+        };
+        const ok = await load(false, job, src.sheets[i].size);
+        if (!current()) return;
+        if (!ok) return void showSheets(v, src); // drop-down back to sheet shown
+      }
+      if (src.current !== i) {
+        src.select(i);
+        v.text = src.text;
+        render();
+      }
+      v.content.scrollTop = 0;
+      v.content.scrollLeft = 0;
+    };
 
     if (LINTERS[lang] && !src.done) {
       v.lint.style.display = 'block';
