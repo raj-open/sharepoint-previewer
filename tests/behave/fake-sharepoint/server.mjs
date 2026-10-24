@@ -30,19 +30,19 @@ const RELEASE_FOLDER = `${LIBRARY}/previewer`;
 const MODIFIED = new Date('2026-10-01T12:00:00Z');
 
 const TYPES = {
-  '.csv': 'text/csv',
-  '.ifc': 'application/octet-stream',
-  '.js': 'application/javascript',
-  '.md': 'application/octet-stream',
-  '.ods': 'application/vnd.oasis.opendocument.spreadsheet',
-  '.parquet': 'application/octet-stream',
-  '.png': 'image/png',
-  '.txt': 'text/plain',
-  '.wasm': 'application/wasm',
-  '.xls': 'application/vnd.ms-excel',
-  '.xlsb': 'application/vnd.ms-excel.sheet.binary.macroEnabled.12',
-  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  '.xml': 'text/xml',
+    '.csv': 'text/csv',
+    '.ifc': 'application/octet-stream',
+    '.js': 'application/javascript',
+    '.md': 'application/octet-stream',
+    '.ods': 'application/vnd.oasis.opendocument.spreadsheet',
+    '.parquet': 'application/octet-stream',
+    '.png': 'image/png',
+    '.txt': 'text/plain',
+    '.wasm': 'application/wasm',
+    '.xls': 'application/vnd.ms-excel',
+    '.xlsb': 'application/vnd.ms-excel.sheet.binary.macroEnabled.12',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.xml': 'text/xml',
 };
 
 /**
@@ -52,35 +52,35 @@ const TYPES = {
 
 /** @param {string} folder server-relative @returns {string|null} local directory */
 function localPath(folder) {
-  if (folder !== LIBRARY && !folder.startsWith(`${LIBRARY}/`)) return null;
-  const local = path.join(PATH_FILES, folder.slice(LIBRARY.length));
-  return local.startsWith(PATH_FILES) ? local : null; // no ".." out of the library
+    if (folder !== LIBRARY && !folder.startsWith(`${LIBRARY}/`)) return null;
+    const local = path.join(PATH_FILES, folder.slice(LIBRARY.length));
+    return local.startsWith(PATH_FILES) ? local : null; // no ".." out of the library
 }
 
 /** @param {string} dir @returns {Entry[]} folders first, then files; hidden entries left out */
 function listing(dir) {
-  return fs
-    .readdirSync(dir, { withFileTypes: true })
-    .filter((d) => !d.name.startsWith('.'))
-    .map((d) => ({
-      name: d.name,
-      folder: d.isDirectory(),
-      size: d.isDirectory() ? 0 : fs.statSync(path.join(dir, d.name)).size,
-    }))
-    .sort((a, b) => Number(b.folder) - Number(a.folder) || a.name.localeCompare(b.name));
+    return fs
+        .readdirSync(dir, { withFileTypes: true })
+        .filter((d) => !d.name.startsWith('.'))
+        .map((d) => ({
+            name: d.name,
+            folder: d.isDirectory(),
+            size: d.isDirectory() ? 0 : fs.statSync(path.join(dir, d.name)).size,
+        }))
+        .sort((a, b) => Number(b.folder) - Number(a.folder) || a.name.localeCompare(b.name));
 }
 
 /** @returns {Object<string, Entry[]>} server-relative folder -> entries, for the whole library */
 function tree() {
-  /** @type {Object<string, Entry[]>} */
-  const out = {};
-  const walk = (folder) => {
-    const entries = listing(/** @type {string} */ (localPath(folder)));
-    out[folder] = entries;
-    for (const e of entries) if (e.folder) walk(`${folder}/${e.name}`);
-  };
-  walk(LIBRARY);
-  return out;
+    /** @type {Object<string, Entry[]>} */
+    const out = {};
+    const walk = (folder) => {
+        const entries = listing(/** @type {string} */ (localPath(folder)));
+        out[folder] = entries;
+        for (const e of entries) if (e.folder) walk(`${folder}/${e.name}`);
+    };
+    walk(LIBRARY);
+    return out;
 }
 
 /** @param {string} body @returns {Reply} */
@@ -91,7 +91,7 @@ const fail = (status) => ({ status, headers: { 'content-type': 'text/plain' }, b
 
 /** @returns {Reply} */
 function listPage() {
-  return html(`<!doctype html>
+    return html(`<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -199,36 +199,36 @@ function listPage() {
 
 /** @param {string} file local path @param {string} method @param {string|undefined} range @returns {Reply} */
 function serveFile(file, method, range) {
-  const data = fs.readFileSync(file);
-  const headers = {
-    'content-type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream',
-    'accept-ranges': 'bytes',
-    'last-modified': MODIFIED.toUTCString(),
-    'etag': `"{${data.length}},1"`,
-  };
-  const m = range && /^bytes=(\d+)-(\d*)$/.exec(range);
-  if (m) {
-    const from = Number(m[1]);
-    if (from >= data.length) {
-      return { status: 416, headers: { ...headers, 'content-range': `bytes */${data.length}` }, body: '' };
-    }
-    const to = Math.min(m[2] ? Number(m[2]) : data.length - 1, data.length - 1);
-    const part = data.subarray(from, to + 1);
-    return {
-      status: 206,
-      headers: {
-        ...headers,
-        'content-range': `bytes ${from}-${to}/${data.length}`,
-        'content-length': String(part.length),
-      },
-      body: method === 'HEAD' ? '' : part,
+    const data = fs.readFileSync(file);
+    const headers = {
+        'content-type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream',
+        'accept-ranges': 'bytes',
+        'last-modified': MODIFIED.toUTCString(),
+        'etag': `"{${data.length}},1"`,
     };
-  }
-  return {
-    status: 200,
-    headers: { ...headers, 'content-length': String(data.length) },
-    body: method === 'HEAD' ? '' : data,
-  };
+    const m = range && /^bytes=(\d+)-(\d*)$/.exec(range);
+    if (m) {
+        const from = Number(m[1]);
+        if (from >= data.length) {
+            return { status: 416, headers: { ...headers, 'content-range': `bytes */${data.length}` }, body: '' };
+        }
+        const to = Math.min(m[2] ? Number(m[2]) : data.length - 1, data.length - 1);
+        const part = data.subarray(from, to + 1);
+        return {
+            status: 206,
+            headers: {
+                ...headers,
+                'content-range': `bytes ${from}-${to}/${data.length}`,
+                'content-length': String(part.length),
+            },
+            body: method === 'HEAD' ? '' : part,
+        };
+    }
+    return {
+        status: 200,
+        headers: { ...headers, 'content-length': String(data.length) },
+        body: method === 'HEAD' ? '' : data,
+    };
 }
 
 /**
@@ -237,27 +237,27 @@ function serveFile(file, method, range) {
  * @returns {Reply}
  */
 export function handle({ url, method, headers }) {
-  const u = new URL(url);
-  const pathname = decodeURIComponent(u.pathname);
+    const u = new URL(url);
+    const pathname = decodeURIComponent(u.pathname);
 
-  if (pathname === LIST_PAGE) return listPage();
-  if (pathname === `${SITE}/SitePages/Home.aspx`) {
-    return html(
-      '<!doctype html><title>Home</title><h1>Home</h1><div role="grid"><div role="row">notes.txt</div></div>',
-    );
-  }
-  if (pathname.startsWith('/_layouts/')) {
-    return {
-      status: 200,
-      headers: { 'content-type': 'image/svg+xml' },
-      body: '<svg xmlns="http://www.w3.org/2000/svg"/>',
-    };
-  }
-  if (pathname.startsWith(`${RELEASE_FOLDER}/`)) {
-    const file = path.join(PATH_RELEASE, path.basename(pathname));
-    return fs.existsSync(file) ? serveFile(file, method, headers.range) : fail(404);
-  }
-  const file = localPath(pathname);
-  if (!file || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return fail(404);
-  return serveFile(file, method, headers.range);
+    if (pathname === LIST_PAGE) return listPage();
+    if (pathname === `${SITE}/SitePages/Home.aspx`) {
+        return html(
+            '<!doctype html><title>Home</title><h1>Home</h1><div role="grid"><div role="row">notes.txt</div></div>',
+        );
+    }
+    if (pathname.startsWith('/_layouts/')) {
+        return {
+            status: 200,
+            headers: { 'content-type': 'image/svg+xml' },
+            body: '<svg xmlns="http://www.w3.org/2000/svg"/>',
+        };
+    }
+    if (pathname.startsWith(`${RELEASE_FOLDER}/`)) {
+        const file = path.join(PATH_RELEASE, path.basename(pathname));
+        return fs.existsSync(file) ? serveFile(file, method, headers.range) : fail(404);
+    }
+    const file = localPath(pathname);
+    if (!file || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return fail(404);
+    return serveFile(file, method, headers.range);
 }
