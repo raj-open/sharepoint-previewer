@@ -20,3 +20,10 @@
   the values in `/src/main.js` are only those of the last deployed bundle.
 - Tests: `node --test`, files named `tests_*.mjs` under `/tests/{unit,behave,integration}`.
 - Lint and format: Biome (cf. `/biome.json`).
+
+## Quality ##
+
+- `just qa` = lint checks + all tests (unit, behave, integration).
+- `just qa` must pass before merging to staging, before versioning up and before merging to main.
+- Behavioural tests: `/tests/behave`, Playwright (Chromium) on a fake SharePoint (`/tests/behave/fake-sharepoint`);
+  browser installed by `just build-deps`.
