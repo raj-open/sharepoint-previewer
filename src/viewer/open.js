@@ -22,6 +22,7 @@ import { linkTarget } from '../readers/links.js';
 import { PARQUET_RE } from '../readers/parquet/meta.js';
 import { openParquetSource } from '../readers/parquet/source.js';
 import { findFile } from '../readers/search.js';
+import { lookupNotes } from '../readers/search.js';
 import { SHEET_RE } from '../readers/sheets/cells.js';
 import { sheetFormat } from '../readers/sheets/cells.js';
 import { openSheetSource } from '../readers/sheets/index.js';
@@ -125,7 +126,17 @@ async function openFile(fetchUrl, fileName, hops, getSignal, reload, onProgress,
                 : await openSource(fetchUrl, getSignal, reload, onProgress);
         if ('deferred' in result)
             return { src: null, deferred: /** @type {Deferred} */ (result), message: null, fileName, hops };
-        if ('error' in result) return { src: null, message: `${result.error}\n${hops.join('\n→ ')}`, fileName, hops };
+        if ('error' in result) {
+            // file from search results, not found by name: say so first, details below
+            const note = lookupNotes.get(hops[0]);
+            const type = (fileName.match(/\.[^.]+$/)?.[0] ?? 'this type').toLowerCase();
+            const hint = note
+                ? `Files of type ${type} cannot be viewed from search results (SharePoint gives no path for them).\n` +
+                  "Open the file's folder to view it."
+                : '';
+            const message = [hint, `${result.error}\n${hops.join('\n→ ')}`, note].filter(Boolean).join('\n\n');
+            return { src: null, message, fileName, hops };
+        }
         if ('binary' in result) {
             return {
                 src: null,
@@ -423,6 +434,7 @@ export async function showFile(name, url, reload) {
         v.relint = null;
         v.loadAllBtn.disabled = true;
         showPlain(v, message);
+        showCached(v); // nothing cached (not the last file's state)
         return;
     }
 

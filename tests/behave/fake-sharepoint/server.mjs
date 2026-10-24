@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
 
-export const ORIGIN = 'https://contoso.sharepoint.com';
+export const ORIGIN = 'https://acme.sharepoint.com';
 export const SITE = '/sites/Test';
 export const LIBRARY = `${SITE}/Shared Documents`;
 export const LIST_PAGE = `${LIBRARY}/Forms/AllItems.aspx`;
