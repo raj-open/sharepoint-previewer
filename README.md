@@ -305,7 +305,10 @@ Changing them in the form resets that remembered choice.
      `@ifc-lite/renderer` 6.4.0,
      `@ifc-lite/wasm` 10.4.0,
      bundled with esbuild into one file
-     that only exposes `globalThis.IfcLite`.
+     that only exposes `globalThis.IfcLite`
+     (entry: `/src/viewer-3d/main.js`).
+   - Both files are built into `/dist/viewer-3d` by `just build`;
+     the `.wasm` is taken unchanged from `@ifc-lite/wasm`.
 
 **Long-term alternative:**
 if a permanent, company-wide solution is preferred,
@@ -358,12 +361,19 @@ Requirements: [just](https://just.systems), Node.js (≥ 22), bash.
 
 ```bash
 just setup        # .env etc. from /templates
-just build        # dependencies (per lock) + /dist/sharepoint-previewer.user.js
+just build        # dependencies (per lock) + userscript and 3D files in /dist
 just prettify     # format + lint with fixes (Biome)
 just lint-check   # same, dry run
 just tests        # all tests
 just clean
 ```
 
-The script to install is `/dist/sharepoint-previewer.user.js`;
-its `@version` is taken from `/dist/VERSION`.
+Artefacts to deploy:
+
+- `/dist/sharepoint-previewer.user.js` - the userscript to install
+- `/dist/viewer-3d/ifc-lite-3d.js`, `/dist/viewer-3d/ifc-lite_bg.wasm` - optional 3D files for SharePoint
+
+The build writes `@version` (from `/dist/VERSION`)
+and the SHA-256 hashes of the 3D files
+into the userscript,
+so the userscript and the 3D files must always be deployed together.
