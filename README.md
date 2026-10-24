@@ -11,6 +11,7 @@ see [NOTES.md](NOTES.md).
 | Path | Contents |
 | :--- | :------- |
 | `/src/main.js` | the userscript |
+| `/src/main.min.js` | the userscript, minified (written by `just build-dist`) |
 | `/src/viewer-3d/main.js` | entry of the ifc-lite bundle for the optional 3D view |
 | `/tests/{unit,behave,integration}` | tests (`tests_*.mjs`, run with `node --test`) |
 | `/templates` | templates for local files (e.g. `.env`) |
@@ -43,6 +44,7 @@ Each build writes one flat release folder `/dist/v<VERSION>`:
 | File | Contents |
 | :--- | :------- |
 | `sharepoint-previewer.js` | userscript to install |
+| `sharepoint-previewer.min.js` | the same, minified (whitespace and syntax; names kept) |
 | `ifc-lite-3d.js` | ifc-lite bundle (esbuild, versions pinned in `package.json`) |
 | `ifc-lite_bg.wasm` | engine binary, copied unchanged from `@ifc-lite/wasm` |
 | `NOTES.md` | technical description for IT |

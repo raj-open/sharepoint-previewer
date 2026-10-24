@@ -6,7 +6,14 @@
         "useIgnoreFile": true
     },
     "files": {
-        "includes": ["biome.json", "package.json", "src/**", "tests/**", "!tests/behave/fake-sharepoint/library"]
+        "includes": [
+            "biome.json",
+            "package.json",
+            "src/**",
+            "!src/**/*.min.js",
+            "tests/**",
+            "!tests/behave/fake-sharepoint/library"
+        ]
     },
     "formatter": {
         "enabled": true,
