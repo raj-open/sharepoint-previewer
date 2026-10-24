@@ -991,6 +991,8 @@
       --tp-anchor: #795e26;
       --tp-trunc: #8a8886;
       --tp-ws: rgba(0, 0, 0, .2);
+      --tp-well-bg: #f3f2f1;
+      --tp-well-shadow: inset 0 1px 3px rgba(0, 0, 0, .18), inset 0 -1px 0 rgba(255, 255, 255, .9);
     }
     .tp-dark {
       --tp-bg: #1e1e1e;
@@ -1042,12 +1044,21 @@
       --tp-anchor: #dcdcaa;
       --tp-trunc: #808080;
       --tp-ws: rgba(255, 255, 255, .18);
+      --tp-well-bg: #1e1e1e;
+      --tp-well-shadow: inset 0 1px 3px rgba(0, 0, 0, .6), inset 0 -1px 0 rgba(255, 255, 255, .06);
       color-scheme: dark;
     }
 
     .tp-viewer { background: var(--tp-bg); }
     .tp-header { background: var(--tp-header-bg); border-bottom: 1px solid var(--tp-border); }
     .tp-title { color: var(--tp-title); }
+    /* File name sits in a recessed "valley" */
+    .tp-well {
+      padding: 0 10px;
+      border-radius: 8px;
+      background: var(--tp-well-bg);
+      box-shadow: var(--tp-well-shadow);
+    }
     .tp-mode-btn { background: var(--tp-btn-bg); color: var(--tp-btn-fg); }
     .tp-mode-btn[aria-pressed="true"] { background: var(--tp-accent); color: #fff; }
     .tp-mode-btn:disabled { opacity: .4; cursor: default; }
@@ -3507,13 +3518,14 @@
 
     // Title: file name, with small note below it
     const title = document.createElement('div');
-    title.className = 'tp-title';
+    title.className = 'tp-title tp-well';
     title.style.cssText = `
       position: absolute;
       top: 8px;
       height: 30px;
       left: 232px;
       right: 256px;
+      box-sizing: border-box;
       display: flex;
       align-items: center;
       gap: 6px;
