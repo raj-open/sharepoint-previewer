@@ -212,7 +212,11 @@ function serveFile(file, method, range) {
     const part = data.subarray(from, to + 1);
     return {
       status: 206,
-      headers: { ...headers, 'content-range': `bytes ${from}-${to}/${data.length}`, 'content-length': String(part.length) },
+      headers: {
+        ...headers,
+        'content-range': `bytes ${from}-${to}/${data.length}`,
+        'content-length': String(part.length),
+      },
       body: method === 'HEAD' ? '' : part,
     };
   }
@@ -234,10 +238,16 @@ export function handle({ url, method, headers }) {
 
   if (pathname === LIST_PAGE) return listPage();
   if (pathname === `${SITE}/SitePages/Home.aspx`) {
-    return html('<!doctype html><title>Home</title><h1>Home</h1><div role="grid"><div role="row">notes.txt</div></div>');
+    return html(
+      '<!doctype html><title>Home</title><h1>Home</h1><div role="grid"><div role="row">notes.txt</div></div>',
+    );
   }
   if (pathname.startsWith('/_layouts/')) {
-    return { status: 200, headers: { 'content-type': 'image/svg+xml' }, body: '<svg xmlns="http://www.w3.org/2000/svg"/>' };
+    return {
+      status: 200,
+      headers: { 'content-type': 'image/svg+xml' },
+      body: '<svg xmlns="http://www.w3.org/2000/svg"/>',
+    };
   }
   if (pathname.startsWith(`${RELEASE_FOLDER}/`)) {
     const file = path.join(PATH_RELEASE, path.basename(pathname));

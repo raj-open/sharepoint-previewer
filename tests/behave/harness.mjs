@@ -49,7 +49,10 @@ function tampermonkey({ script, settings }) {
     GM_info: { script: { version: 'test' } },
     // dialogues would block the page: recorded instead (confirm answers "yes")
     alert: (msg) => void gm.alerts.push(String(msg)),
-    confirm: (msg) => (gm.confirms.push(String(msg)), true),
+    confirm: (msg) => {
+      gm.confirms.push(String(msg));
+      return true;
+    },
   });
   document.addEventListener('DOMContentLoaded', () => {
     const el = document.createElement('script');
@@ -101,7 +104,11 @@ export const folderUrl = (folder) => `${LIST_PAGE}?id=${encodeURIComponent(folde
 
 /** @param {import('playwright').Page} page @param {string} name @returns {import('playwright').Locator} */
 export const row = (page, name) =>
-  page.locator('[role="grid"] [role="row"]').filter({ has: page.locator('[data-automationid="field-LinkFilename"]', { hasText: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) }) });
+  page.locator('[role="grid"] [role="row"]').filter({
+    has: page.locator('[data-automationid="field-LinkFilename"]', {
+      hasText: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`),
+    }),
+  });
 
 /** @param {import('playwright').Page} page @param {string} name @returns {import('playwright').Locator} eye of that file */
 export const eye = (page, name) => row(page, name).locator('.tp-preview');

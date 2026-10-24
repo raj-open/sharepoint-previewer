@@ -19,7 +19,7 @@ async function openFolder(folder) {
 }
 
 /** @param {import('playwright').Locator} v @returns {Promise<string>} "Properties: …" line */
-const properties = (v) => v.locator('.tp-title').nth(1).innerText();
+const properties = (v) => v.locator('.tp-title').nth(1).textContent();
 
 describe('list view', () => {
   it('shows an eye on files only, not on folders', async () => {
@@ -61,7 +61,7 @@ describe('preview per file type', () => {
       const page = await openFolder(h.LIBRARY + folder);
       const v = await h.preview(page, name);
       assert.match(await properties(v), format);
-      assert.match(await v.locator('.tp-content').innerText(), new RegExp(text));
+      assert.match(await v.locator('.tp-content').textContent(), new RegExp(text));
       assert.equal(await h.eye(page, name).getAttribute('data-eye'), 'open'); // small file: fully cached
     });
   }
@@ -91,7 +91,7 @@ describe('preview per file type', () => {
   it('refuses binary files', async () => {
     const page = await openFolder(`${h.LIBRARY}/Data`);
     const v = await h.preview(page, 'logo.png');
-    assert.match(await v.locator('.tp-content').innerText(), /Not a plain text file/);
+    assert.match(await v.locator('.tp-content').textContent(), /Not a plain text file/);
   });
 
   it('fetches by byte range and only from SharePoint itself', async () => {
