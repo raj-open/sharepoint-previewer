@@ -1,4 +1,4 @@
-// Search: path of a file below the open folder, from SharePoint's search index
+// Search: path of a file below the open folder, from the library list or SharePoint's search index
 import assert from 'node:assert/strict';
 import { describe } from 'node:test';
 import { it } from 'node:test';
@@ -10,48 +10,83 @@ const { foundPaths } = await load('readers/search.js');
 
 const FOLDER = '/teams/T/Shared Documents/Sandbox';
 
-/** fetch() answering a search query with the given absolute paths; records request URLs */
-function answer(paths, status = 200) {
+/**
+ * fetch() answering list queries with `files` (server-relative, null = list refuses) and search queries
+ * with `found` ({ Path, ParentLink?, Filename? }); records request URLs
+ */
+function answer({ files = [], found = [], status = 200 }) {
     const urls = [];
     globalThis.fetch = async (url) => {
         urls.push(String(url));
-        const Rows = paths.map((p) => ({ Cells: [{ Key: 'Path', Value: p }] }));
-        return new Response(JSON.stringify({ PrimaryQueryResult: { RelevantResults: { Table: { Rows } } } }), {
-            status,
-        });
+        if (status !== 200) return new Response('', { status });
+        if (String(url).includes('/_api/web/GetList(')) {
+            if (files === null) return new Response('', { status: 500 }); // list view threshold
+            return new Response(JSON.stringify({ value: files.map((FileRef) => ({ FileRef })) }));
+        }
+        const Rows = found.map((x) => ({ Cells: Object.entries(x).map(([Key, Value]) => ({ Key, Value })) }));
+        return new Response(JSON.stringify({ PrimaryQueryResult: { RelevantResults: { Table: { Rows } } } }));
     };
     return urls;
 }
 
 describe('readers/search', () => {
-    setLocation(`${FOLDER.replace(/ /g, '%20')}/Forms/AllItems.aspx`);
+    setLocation(`${FOLDER.replace(/ /g, '%20')}/Forms/AllItems.aspx`.replace('/Sandbox', ''));
     const origin = location.origin;
 
-    it('file in a sub-folder: its path; query on the site, by name below the folder', async () => {
+    it('file in a sub-folder: from the library list, one request on the site', async () => {
         foundPaths.clear();
-        const urls = answer([`${origin}/teams/T/Shared%20Documents/Sandbox/Logs/debug%201632.log`]);
+        const urls = answer({
+            files: [`${FOLDER}/Logs/debug 1632.log`, '/teams/T/Shared Documents/Other/debug 1632.log'],
+        });
         assert.equal(await findFile(FOLDER, 'debug 1632.log'), `${FOLDER}/Logs/debug 1632.log`);
-        assert.match(urls[0], /^\/teams\/T\/_api\/search\/query\?querytext='/);
-        assert.match(decodeURIComponent(urls[0]), /filename:"debug 1632\.log" path:"/);
+        assert.equal(urls.length, 1);
+        assert.match(urls[0], /^\/teams\/T\/_api\/web\/GetList\(@list\)\/items\?/);
+        assert.match(
+            decodeURIComponent(urls[0]),
+            /FileLeafRef eq 'debug 1632\.log'.*@list='\/teams\/T\/Shared Documents'/,
+        );
     });
     it('found once: no second request', async () => {
-        const urls = answer([]);
+        const urls = answer({});
         assert.equal(await findFile(FOLDER, 'debug 1632.log'), `${FOLDER}/Logs/debug 1632.log`);
         assert.equal(urls.length, 0);
     });
     it('same name in folder and below: the one in the folder', async () => {
         foundPaths.clear();
-        answer([`${origin}${FOLDER}/A/x.log`, `${origin}${FOLDER}/x.log`]);
+        answer({ files: [`${FOLDER}/A/x.log`, `${FOLDER}/x.log`] });
         assert.equal(await findFile(FOLDER, 'x.log'), `${FOLDER}/x.log`);
+    });
+    it('list refuses (threshold): search index', async () => {
+        foundPaths.clear();
+        const urls = answer({
+            files: null,
+            found: [{ Path: `${origin}/teams/T/Shared%20Documents/Sandbox/Logs/x.log` }],
+        });
+        assert.equal(await findFile(FOLDER, 'x.log'), `${FOLDER}/Logs/x.log`);
+        assert.match(decodeURIComponent(urls[1]), /\/_api\/search\/query\?querytext='filename:"x\.log" path:"/);
+    });
+    it('search: form instead of file (Parquet): parent folder and file name', async () => {
+        foundPaths.clear();
+        answer({
+            files: null,
+            found: [
+                {
+                    Path: `${origin}/teams/T/Shared%20Documents/Forms/DispForm.aspx?ID=7`,
+                    ParentLink: `${origin}/teams/T/Shared Documents/Sandbox/logs`,
+                    Filename: 'E_1.parquet',
+                },
+            ],
+        });
+        assert.equal(await findFile(FOLDER, 'E_1.parquet'), `${FOLDER}/logs/E_1.parquet`);
     });
     it('other names and other folders are ignored', async () => {
         foundPaths.clear();
-        answer([`${origin}${FOLDER}/x.log.bak`, `${origin}/teams/T/Other/x.log`]);
+        answer({ files: [`${FOLDER}/x.log.bak`, '/teams/T/Other/x.log'] });
         assert.equal(await findFile(FOLDER, 'x.log'), null);
     });
-    it('search failing: none', async () => {
+    it('requests failing: none', async () => {
         foundPaths.clear();
-        answer([], 500);
+        answer({ status: 500 });
         assert.equal(await findFile(FOLDER, 'x.log'), null);
     });
 });
