@@ -6,6 +6,7 @@ import { load } from '../helpers.mjs';
 import { setLocation } from '../helpers.mjs';
 
 const { currentFolder } = await load('_core/list.js');
+const { inLibrary } = await load('_core/list.js');
 
 describe('list', () => {
     it('library root from the list page path', () => {
@@ -25,5 +26,13 @@ describe('list', () => {
     it('outside a library: none', () => {
         setLocation('/sites/Test/SitePages/Home.aspx');
         assert.equal(currentFolder(), null);
+    });
+    it('eyes only in list views of a library', () => {
+        setLocation('/sites/Test/Shared%20Documents/Forms/AllItems.aspx?id=%2Fsites%2FTest');
+        assert.equal(inLibrary(), true);
+        setLocation('/sites/Test/_layouts/15/FilePicker.aspx?id=%2Fsites%2FTest');
+        assert.equal(inLibrary(), false);
+        setLocation('/sites/Test/SitePages/Home.aspx');
+        assert.equal(inLibrary(), false);
     });
 });
