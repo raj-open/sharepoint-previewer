@@ -287,18 +287,21 @@ let headerDirty = true;
 
 // Changes inside script's own elements (viewer, eyes) don't need new scan
 const OWN = '.tp-viewer, .tp-cell, .tp-head';
-new MutationObserver((changes) => {
-  if (changes.every((c) => /** @type {Element} */ (c.target).closest?.(OWN))) return; // text nodes: no closest()
-  if (!scheduled) {
-    scheduled = true;
+/** Watches the list: rescans on DOM changes and resize, plus a first scan. @returns {void} */
+export function watchList() {
+  new MutationObserver((changes) => {
+    if (changes.every((c) => /** @type {Element} */ (c.target).closest?.(OWN))) return; // text nodes: no closest()
+    if (!scheduled) {
+      scheduled = true;
+      requestAnimationFrame(scan);
+    }
+  }).observe(document.body, { childList: true, subtree: true });
+  window.addEventListener('resize', () => {
+    headerDirty = true; // re-align header eye
     requestAnimationFrame(scan);
-  }
-}).observe(document.body, { childList: true, subtree: true });
-window.addEventListener('resize', () => {
-  headerDirty = true; // re-align header eye
-  requestAnimationFrame(scan);
-});
-requestAnimationFrame(scan); // after whole script has run (scan uses later definitions)
+  });
+  requestAnimationFrame(scan); // first scan once page has settled
+}
 
 // ---------------------------------------------------------------------------
 // Clicks (capture phase, so SharePoint doesn't select/open row)
@@ -309,61 +312,64 @@ const findPreview = (e) => /** @type {HTMLElement|null} */ (e.target)?.closest?.
 /** @param {Event} e @returns {HTMLElement|null} */
 const findHead = (e) => /** @type {HTMLElement|null} */ (e.target)?.closest?.('.tp-head') ?? null;
 
-for (const type of ['pointerdown', 'mousedown', 'dblclick']) {
+/** Eye clicks and keys (capture phase): preview a row, or open the empty viewer. @returns {void} */
+export function handleEyes() {
+  for (const type of ['pointerdown', 'mousedown', 'dblclick']) {
+    document.addEventListener(
+      type,
+      (e) => {
+        if (findPreview(e) || findHead(e)) e.stopPropagation(); // not sort / row selection
+      },
+      true,
+    );
+  }
+
+  // Header eye: previewer without file (to see it, change settings, ...); again: close
   document.addEventListener(
-    type,
+    'click',
     (e) => {
-      if (findPreview(e) || findHead(e)) e.stopPropagation(); // not sort / row selection
+      if (!findHead(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openEmptyViewer();
+    },
+    true,
+  );
+  document.addEventListener(
+    'keydown',
+    (e) => {
+      if (!findHead(e) || (e.key !== 'Enter' && e.key !== ' ')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openEmptyViewer();
+    },
+    true,
+  );
+
+  document.addEventListener(
+    'click',
+    (e) => {
+      const btn = findPreview(e);
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openPreview(btn.closest('[role="row"]'));
+    },
+    true,
+  );
+
+  document.addEventListener(
+    'keydown',
+    (e) => {
+      const btn = findPreview(e);
+      if (!btn || (e.key !== 'Enter' && e.key !== ' ')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openPreview(btn.closest('[role="row"]'));
     },
     true,
   );
 }
-
-// Header eye: previewer without file (to see it, change settings, ...); again: close
-document.addEventListener(
-  'click',
-  (e) => {
-    if (!findHead(e)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    openEmptyViewer();
-  },
-  true,
-);
-document.addEventListener(
-  'keydown',
-  (e) => {
-    if (!findHead(e) || (e.key !== 'Enter' && e.key !== ' ')) return;
-    e.preventDefault();
-    e.stopPropagation();
-    openEmptyViewer();
-  },
-  true,
-);
-
-document.addEventListener(
-  'click',
-  (e) => {
-    const btn = findPreview(e);
-    if (!btn) return;
-    e.preventDefault();
-    e.stopPropagation();
-    openPreview(btn.closest('[role="row"]'));
-  },
-  true,
-);
-
-document.addEventListener(
-  'keydown',
-  (e) => {
-    const btn = findPreview(e);
-    if (!btn || (e.key !== 'Enter' && e.key !== ' ')) return;
-    e.preventDefault();
-    e.stopPropagation();
-    openPreview(btn.closest('[role="row"]'));
-  },
-  true,
-);
 
 // File's path from row's links (search results mix folders)
 /** @param {HTMLElement} row @param {string} name @returns {string|null} */

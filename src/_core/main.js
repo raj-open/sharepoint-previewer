@@ -1,12 +1,12 @@
-// Entry of the userscript: modules in load order (their top-level code runs in this order)
+// Entry of the userscript: modules in load order (they only define), then start-up in one place
 
 import './settings.js';
-import './settings-form.js';
+import { registerMenu } from './settings-form.js';
 import '../ui/move.js';
 import '../text/lang.js';
 import '../ui/icons.js';
-import './list.js';
-import '../ui/styles.js';
+import { injectStyles } from '../ui/styles.js';
+import { handleEyes, watchList } from './list.js';
 import './util.js';
 import '../text/highlight/tokenise.js';
 import '../text/highlight/json.js';
@@ -36,7 +36,7 @@ import '../viewer/open.js';
 import '../viewer/panel.js';
 import '../viewer/layout.js';
 import '../viewer/status.js';
-import '../viewer/edit.js';
+import { guardEdits } from '../viewer/edit.js';
 import '../viewer/view3d.js';
 import '../viewer/cache.js';
 import '../viewer/messages.js';
@@ -64,3 +64,13 @@ import '../readers/sheets/index.js';
 import '../readers/links.js';
 import './prefs.js';
 import '../viewer/views.js';
+
+// ---------------------------------------------------------------------------
+// Start-up
+// ---------------------------------------------------------------------------
+
+registerMenu();
+watchList();
+handleEyes();
+injectStyles();
+guardEdits();

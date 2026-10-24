@@ -26,7 +26,8 @@ describe('modules', () => {
     });
   }
 
-  it('entry: registers the Tampermonkey menu', async () => {
+  it('entry: starts up (modules alone register no menu)', async () => {
+    assert.deepEqual(Object.keys(gm.menu), []);
     await load('_core/main.js');
     assert.deepEqual(Object.keys(gm.menu).sort(), ['Reset settings to defaults', 'Settings …']);
   });

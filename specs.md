@@ -21,6 +21,8 @@
   Identifier names are kept (the check worker is built from the script's own function sources).
 - Modules: one concern each; a module only writes its own top-level variables
   (shared, changeable state lives in objects, e.g. `view` in `prefs.js`).
+- Start-up: modules only define (no listeners, observers, menu or DOM changes on load);
+  the entry `/src/_core/main.js` starts everything explicitly, in order, at the end of the bundle.
 - Version: `/dist/VERSION` is the single source;
   the build writes it into the userscript's `@version`.
 - 3D hashes: the build writes the SHA-256 of the built 3D files into the userscript;
