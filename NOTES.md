@@ -4,7 +4,7 @@ A userscript (Tampermonkey)
 that adds a preview column to SharePoint Online document libraries.
 It shows text-like files directly in the browser,
 including files SharePoint itself cannot preview.
-It displays CSV and Parquet as sortable tables
+It displays CSV, Parquet and spreadsheets (Excel, OpenDocument) as sortable tables
 and IFC building models in 3D,
 and offers a simple editor for plain-text files.
 
@@ -21,7 +21,7 @@ and where it stores data.
 
 | Topic | Behaviour |
 | :---- | :-------- |
-| Form | One JavaScript file (userscript, ~7,000 lines), runs in the user's browser via Tampermonkey |
+| Form | One JavaScript file (userscript, ~280 KB; minified ~200 KB), runs in the user's browser via Tampermonkey. Built from ES modules in the repository |
 | Scope | Only on `https://*.sharepoint.com/*/*/*`, and only inside a library's file list |
 | APIs | **No** SharePoint REST / Graph API calls. It reads the page's HTML and fetches the file itself, like opening its URL |
 | Third parties | **None.** No CDN, no analytics, no external servers. All requests go to the same SharePoint origin |
@@ -54,12 +54,16 @@ and where it stores data.
   modified date (from the file's own HTTP response),
   size, format, encoding, indentation,
   CSV delimiter and table shape,
-  Parquet details.
+  Parquet details,
+  number of sheets and shape of the sheet shown.
 - **Status bar:**
   - left: cache progress
     (blue while caching, neutral when idle or complete),
     with a "click to fully cache" hint
-  - right: view switch **Text | Table | 3D**
+  - right: view switch **Text | Table | 3D**;
+    for spreadsheets a sheet drop-down right of **Table**
+    (● cached, ○ not cached yet; hidden sheets marked),
+    the sheet shown is also named next to the file name
 
 The script never changes SharePoint's own UI,
 apart from adding the eye column and making room for the viewer.
@@ -76,11 +80,13 @@ SharePoint page (DOM)
      ├─ MutationObserver: finds file rows → adds eye cells (HTML only)
      ├─ Viewer (own DOM elements, own CSS, prefix "tp-")
      │   ├─ text view: syntax colours, whitespace markers, virtualised rendering
-     │   ├─ table view: CSV / Parquet, sort, filter, column widths, CSV editing
+     │   ├─ table view: CSV / Parquet / spreadsheets, sort, filter, column widths, CSV editing
      │   └─ 3D view: ifc-lite (optional, loaded from your SharePoint on first use)
      ├─ Sources: same-origin fetch with HTTP Range (chunks), in-memory cache (LRU)
      ├─ Decoders built in: Parquet (Thrift, RLE/bit-packing, dictionary, v1/v2 pages),
-     │   Snappy, LZ4_RAW, ZSTD (RFC 8878); GZIP / ZIP via the browser's DecompressionStream
+     │   Snappy, LZ4_RAW, ZSTD (RFC 8878); GZIP / ZIP via the browser's DecompressionStream;
+     │   spreadsheets: OOXML (XML scanner, no DOM), XLSB (BIFF12), XLS (BIFF8/BIFF5 in a
+     │   compound file), OpenDocument
      └─ Checks (linters) in a Web Worker created from the script's own code (blob: URL)
 ```
 
@@ -103,7 +109,9 @@ and are **refused by the script if the target is not the current SharePoint orig
 | `GET <file>` with `Range: bytes=…` | Opening a file; "Cache next"; "Cache all" | Read the file in chunks (default 512 KB). If SharePoint ignores ranges, one transfer is kept paused between chunks |
 | `GET <file>` `Range: bytes=0-3` | Opening a Parquet file | File size; then footer and needed column chunks by range |
 | `GET <file>` (whole) | Opening an `.ifczip` (after confirmation if > chunk size) | ZIP archive, unpacked in the browser |
+| `GET <file>` `Range: bytes=0-7`, then further ranges | Opening a spreadsheet; choosing another sheet; "Cache next sheet" | Size and signature; then only the parts needed: ZIP directory, workbook, shared strings, styles and the sheet shown (`.xls`: the sectors of the workbook globals and of that sheet) |
 | `GET <target>` | Opening a `.url` link file | Follows the link, same origin only, max. 5 hops |
+| `GET <site>/_api/search/query` | Opening a file from search results in a library (rows there carry only the name) | Finds the file's path below the open folder, by name |
 | `HEAD <file>` | After an upload | Checks that the file really changed (ETag / Last-Modified / size) |
 | `GET <VIEWER_3D_FOLDER>/ifc-lite-3d.js`, `…/ifc-lite_bg.wasm` | First use of the 3D view only | 3D library from **your** SharePoint; checked against fixed SHA-256 hashes before use |
 
@@ -141,13 +149,22 @@ The logo setting only accepts `data:` URIs.
 | Format | Colours | Check (lint) | Table | 3D | Edit |
 | :----- | :-----: | :----------: | :---: | :-: | :--: |
 | JSON, XML (incl. `.addin`, `.config`, `.csproj`, …) | ✓ | ✓ | | | ✓ |
-| YAML, TOML, Power Query M, JavaScript, Python, SQL, Markdown, reStructuredText, Excel formulas (`.xlf`) | ✓ | YAML, M | | | ✓ |
+| YAML, TOML, log files, Power Query M, JavaScript, Python, SQL, Markdown, reStructuredText, Excel formulas (`.xlf`) | ✓ | YAML, M | | | ✓ |
 | CSV / TSV (delimiter detected) | ✓ (per column) | | ✓ (sort, filter, edit cells, rows, columns) | | ✓ |
 | Parquet (Snappy, GZIP, ZSTD, LZ4_RAW, uncompressed) | ✓ | | ✓ (read only) | | |
+| Spreadsheets: Excel `.xlsx` `.xlsm` `.xltx` `.xltm`, `.xlsb`, `.xls` `.xlt` (97–2003, 5.0/95), OpenDocument `.ods` `.ots` | ✓ | | ✓ (read only, per sheet) | | |
 | IFC / IFCZIP | ✓ | ✓ | | ✓ (up to 8 MB, setting) | IFC only |
 | Any other text file | – | | | | ✓ |
 
-Binary files (PDF, Office, images, archives, …)
+Spreadsheets show the last saved value of each cell (formulas are not recalculated):
+numbers as Excel's "General" shows them (15 significant digits),
+percentages with `%`,
+dates and times as ISO 8601 (`2026-10-24`, `14:30:00`, `2026-10-24 14:30:00`),
+both date systems (1900, 1904).
+Number formats beyond that (decimals, currencies, thousands separators) are not applied.
+Password-protected workbooks are not opened.
+
+Other binary files (PDF, Word, PowerPoint, images, archives, …)
 are detected from their first bytes and not shown.
 
 ---
@@ -157,6 +174,13 @@ are detected from their first bytes and not shown.
 - **Opening a file** fetches the first chunk (default 512 KB).
   "Cache next" fetches the next chunk,
   and "Cache all" fetches the rest.
+- **Spreadsheets are cached sheet by sheet:**
+  opening one fetches the workbook's directory, shared strings and styles
+  and the sheet that was active when it was saved.
+  Other sheets are fetched when chosen in the drop-down,
+  or with "Cache next sheet" / "Cache all".
+  OpenDocument files hold all sheets in one part, so they are cached whole.
+  The eye is fully open once every sheet is cached.
 - **Big files:**
   - Big Parquet and IFCZIP files (larger than one chunk)
     are **not** fetched automatically.
@@ -222,6 +246,7 @@ plus "Reset to defaults".
 | `show-whitespace` | `true` | Markers for spaces and tabs |
 | `wrap-lines` | `false` | Wrap long lines |
 | `colours-text` / `colours-table` | `true` / `false` | Syntax colours per view |
+| `colours-sheet` | `false` | Column colours in the table view of spreadsheets (rows are always striped) |
 | `cache-chunk-bytes` | 512 KB | Chunk size; also the threshold for asking before big Parquet / IFCZIP |
 | `memory-cache-bytes` | 256 MB | Cache limit for all files together |
 | `cache-all-confirm-bytes` | 16 MB | "Cache all" asks above this size |
@@ -325,16 +350,21 @@ That is outside the scope of this script.
   SharePoint Online (modern library view); Chrome and Edge.
   The 3D view needs WebGPU.
 - **Not supported:**
-  - binary Office formats
+  - Word and PowerPoint files
+  - editing spreadsheets (read only);
+    their charts, images, comments and cell formatting (colours, merged cells)
+  - Excel 2.x–4.x files and encrypted workbooks
   - Parquet nested types beyond simple lists
-  - ZIP archives other than IFCZIP
+  - ZIP archives other than IFCZIP and spreadsheets
 - **Dates:**
   the modified date comes from the HTTP response of the file.
   SharePoint may report the time the file was served
   rather than when it was last changed.
 - **Testing:**
-  - Decoders (Parquet, Snappy, LZ4, ZSTD), linters and highlighters
-    are covered by automated tests outside the browser.
+  - Every module of the script has unit tests outside the browser
+    (decoders for Parquet, Snappy, LZ4, ZSTD and spreadsheets, linters, highlighters, cache, …).
+  - The spreadsheet reader was also checked against the public test files of
+    the calamine library (~150 real-world workbooks).
   - The UI was tested in Chromium against a mock of SharePoint's markup
     and by hand in SharePoint Online.
   - Upload and 3D rendering were tested by hand only.

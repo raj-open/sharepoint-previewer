@@ -1,7 +1,7 @@
 # SharePoint Previewer #
 
 Tampermonkey userscript:
-preview (text, table, 3D) and editor for files in SharePoint Online document libraries.
+preview (text, table, 3D, spreadsheets) and editor for files in SharePoint Online document libraries.
 
 Technical description for IT (behaviour, network, storage, security, deployment):
 see [NOTES.md](NOTES.md).
@@ -10,9 +10,12 @@ see [NOTES.md](NOTES.md).
 
 | Path | Contents |
 | :--- | :------- |
-| `/src/main.js` | the userscript |
-| `/src/viewer-3d/main.js` | entry of the ifc-lite bundle for the optional 3D view |
-| `/tests/{unit,behave,integration}` | tests (`tests_*.mjs`, run with `node --test`) |
+| `/src/_core` | entry (`main.js`), Tampermonkey header (`header.js`), settings, preferences, list view, shared types |
+| `/src/{readers,text,ui,view,viewer}` | the other modules (ES modules) |
+| `/src/main.js` | the userscript, bundled from the modules (written by `just build-src`) |
+| `/src/main.min.js` | the same, minified (written by `just build-src`) |
+| `/src/@apis/ifc-lite/main.js` | entry of the ifc-lite bundle for the optional 3D view |
+| `/tests/{unit,behave,integration}` | tests (`tests_*.mjs`, run with `node --test`); unit tests mirror `/src` |
 | `/templates` | templates for local files (e.g. `.env`) |
 | `/dist/VERSION` | version (single source) |
 | `/models` | (reserved) schemata |
@@ -29,6 +32,7 @@ see [NOTES.md](NOTES.md).
 ```bash
 just setup              # local files (.env, ...) from /templates
 just build              # dependencies (per lock) + all artefacts in /dist
+just build-src          # /src/main.js + /src/main.min.js from the modules
 just build-dist         # artefacts only (dependencies already installed)
 just prettify           # format + lint with fixes (Biome)
 just lint-check         # same, dry run
@@ -43,6 +47,7 @@ Each build writes one flat release folder `/dist/v<VERSION>`:
 | File | Contents |
 | :--- | :------- |
 | `sharepoint-previewer.js` | userscript to install |
+| `sharepoint-previewer.min.js` | the same, minified (whitespace and syntax; names kept) |
 | `ifc-lite-3d.js` | ifc-lite bundle (esbuild, versions pinned in `package.json`) |
 | `ifc-lite_bg.wasm` | engine binary, copied unchanged from `@ifc-lite/wasm` |
 | `NOTES.md` | technical description for IT |

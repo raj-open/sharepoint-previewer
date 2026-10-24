@@ -17,6 +17,7 @@
 !/package.json
 !/package-lock.json
 !/biome.json
+!/tsconfig.json
 
 # --------------------------------
 # folders
@@ -30,6 +31,9 @@
 
 !/tests
 !/tests/**
+
+!/scripts
+!/scripts/**
 
 !/models
 !/models/**

@@ -6,12 +6,22 @@
         "useIgnoreFile": true
     },
     "files": {
-        "includes": ["biome.json", "package.json", "src/**", "tests/**", "!tests/behave/fake-sharepoint/library"]
+        "includes": [
+            "biome.json",
+            "package.json",
+            "tsconfig.json",
+            "src/**",
+            "scripts/**",
+            "!src/main.js",
+            "!src/main.min.js",
+            "tests/**",
+            "!tests/behave/fake-sharepoint/library"
+        ]
     },
     "formatter": {
         "enabled": true,
         "indentStyle": "space",
-        "indentWidth": 2,
+        "indentWidth": 4,
         "lineWidth": 120,
         "lineEnding": "lf"
     },
@@ -29,9 +39,11 @@
             "preset": "recommended"
         }
     },
-    "json": {
-        "formatter": {
-            "indentWidth": 4
+    "assist": {
+        "actions": {
+            "source": {
+                "organizeImports": "off"
+            }
         }
     }
 }
