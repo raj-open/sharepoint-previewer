@@ -27,6 +27,7 @@
         "@ifc-lite/renderer": "6.5.0",
         "@ifc-lite/wasm": "10.5.0",
         "esbuild": "0.28.2",
-        "playwright": "1.64.1"
+        "playwright": "1.64.1",
+        "typescript": "5.9.3"
     }
 }

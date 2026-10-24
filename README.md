@@ -10,11 +10,12 @@ see [NOTES.md](NOTES.md).
 
 | Path | Contents |
 | :--- | :------- |
-| `/src/userscript` | sources: ES modules (`main.js` entry, `header.js` Tampermonkey header) |
-| `/src/main.js` | the userscript, bundled from `/src/userscript` (written by `just build-src`) |
+| `/src/_core` | entry (`main.js`), Tampermonkey header (`header.js`), settings, preferences, list view, shared types |
+| `/src/{readers,text,ui,view,viewer}` | the other modules (ES modules) |
+| `/src/main.js` | the userscript, bundled from the modules (written by `just build-src`) |
 | `/src/main.min.js` | the same, minified (written by `just build-src`) |
-| `/src/viewer-3d/main.js` | entry of the ifc-lite bundle for the optional 3D view |
-| `/tests/{unit,behave,integration}` | tests (`tests_*.mjs`, run with `node --test`); unit tests mirror `/src/userscript` |
+| `/src/@apis/ifc-lite/main.js` | entry of the ifc-lite bundle for the optional 3D view |
+| `/tests/{unit,behave,integration}` | tests (`tests_*.mjs`, run with `node --test`); unit tests mirror `/src` |
 | `/templates` | templates for local files (e.g. `.env`) |
 | `/dist/VERSION` | version (single source) |
 | `/models` | (reserved) schemata |

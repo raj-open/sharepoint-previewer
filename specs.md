@@ -6,7 +6,7 @@
   with the Tampermonkey userscript (`sharepoint-previewer.js`, minified: `sharepoint-previewer.min.js`),
   the optional 3D files and `NOTES.md`.
 - 3D files:
-  ifc-lite bundled from `/src/viewer-3d/main.js`,
+  ifc-lite bundled from `/src/@apis/ifc-lite/main.js`,
   the `.wasm` copied unchanged from `@ifc-lite/wasm` (not rebuilt from its Rust source).
 - Keep the script a single, dependency-free JavaScript file at runtime.
 - Size (rule of thumb): userscript source ≤ 500 KB, minified userscript ≤ 300 KB.
@@ -14,7 +14,8 @@
 
 ## Conventions ##
 
-- Source: ES modules under `/src/userscript` (entry `main.js`, Tampermonkey header `header.js`).
+- Source: ES modules under `/src` (entry `/src/_core/main.js`, Tampermonkey header `/src/_core/header.js`);
+  third-party code under `/src/@apis`.
 - Userscript: `/src/main.js` (bundle, esbuild) and `/src/main.min.js` (minified), both written by `just build-src`
   and committed; never edited by hand.
   Identifier names are kept (the check worker is built from the script's own function sources).
@@ -25,7 +26,7 @@
 - 3D hashes: the build writes the SHA-256 of the built 3D files into the userscript;
   the values in `/src/main.js` are only those of the last deployed bundle.
 - Tests: `node --test`, files named `tests_*.mjs` under `/tests/{unit,behave,integration}`.
-  Unit tests: one file per module, same path under `/tests/unit/userscript`;
+  Unit tests: one file per module, same path under `/tests/unit`;
   browser and Tampermonkey stubbed by `/tests/unit/helpers.mjs`.
 - Lint and format: Biome (cf. `/biome.json`).
 

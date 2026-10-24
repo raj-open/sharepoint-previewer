@@ -65,8 +65,8 @@ export function setLocation(href) {
 // Modules and files
 // ----------------------------------------------------------------
 
-/** @param {string} module path under /src/userscript @returns {Promise<Object>} */
-export const load = (module) => import(path.join(ROOT, 'src/userscript', module));
+/** @param {string} module path under /src @returns {Promise<Object>} */
+export const load = (module) => import(path.join(ROOT, 'src', module));
 
 /** @param {string} file path under the fake library @returns {Uint8Array} */
 export const fixture = (file) => new Uint8Array(fs.readFileSync(path.join(LIBRARY, file)));

@@ -21,11 +21,11 @@ set windows-shell := ["bash", "-euo", "pipefail", "-c"]
 # --------------------------------
 
 NAME := env("NAME", "sharepoint-previewer")
-# userscript: modules under /src/userscript (entry, header); bundled and minified by build-src, both kept in the repo
-PATH_MODULES := "src/userscript"
+# userscript: modules under /src (entry and header in /src/_core); bundled and minified by build-src into /src, both kept in the repo
+PATH_MODULES := "src"
 PATH_SRC := "src/main.js"
 PATH_MIN := "src/main.min.js"
-PATH_SRC_3D := "src/viewer-3d/main.js"
+PATH_SRC_3D := "src/@apis/ifc-lite/main.js"
 PATH_DIST := "dist"
 PATH_VERSION := "dist/VERSION"
 VERSION := trim(read(PATH_VERSION))
@@ -33,11 +33,12 @@ VERSION := trim(read(PATH_VERSION))
 PATH_RELEASE := PATH_DIST / "v" + VERSION
 BIOME := "node_modules/.bin/biome"
 ESBUILD := "node_modules/.bin/esbuild"
+TSC := "node_modules/.bin/tsc"
 # size limits (rule of thumb, cf. /specs.md): userscript source, minified userscript
 MAX_KB_SRC := "500"
 MAX_KB_MIN := "300"
 # lint scope: src + tests + named root files (same as `files.includes` in /biome.json)
-LINT_PATHS := "src tests biome.json package.json"
+LINT_PATHS := "src scripts tests biome.json package.json tsconfig.json"
 
 # ----------------------------------------------------------------
 # TARGETS - setup
@@ -71,13 +72,11 @@ build-deps:
     @npm ci --no-audit --no-fund || npm install --no-audit --no-fund
     @npx playwright install chromium
 
-# bundles the modules into the userscript (/src/main.js) and minifies it (/src/main.min.js)
+# bundles the modules into the userscript (/src/main.js, readable) and minifies it (/src/main.min.js)
 [group("build")]
 build-src:
-    @banner="$(cat "{{PATH_MODULES}}/header.js")"$'\n'"'use strict';"; \
-    "{{ESBUILD}}" "{{PATH_MODULES}}/main.js" --bundle --format=iife --charset=utf8 --legal-comments=none \
-        --log-level=warning --banner:js="${banner}" --outfile="{{PATH_SRC}}"; \
-    node --check "{{PATH_SRC}}"
+    @node scripts/bundle.mjs "{{PATH_MODULES}}/_core/main.js" "{{PATH_MODULES}}/_core/header.js" "{{PATH_MODULES}}/_core/types.js" "{{PATH_SRC}}"
+    @node --check "{{PATH_SRC}}"
     @just _minify "{{PATH_SRC}}" "{{PATH_MIN}}"
     @just _size "{{PATH_SRC}}" "{{MAX_KB_SRC}}"
     @just _size "{{PATH_MIN}}" "{{MAX_KB_MIN}}"
@@ -102,7 +101,7 @@ build-dist: build-src build-3d
 # minified userscript; its ==UserScript== header is kept as is (Tampermonkey reads it).
 # NOTE: names are kept: the check worker is built from the script's own function sources
 _minify path_in path_out:
-    @header="$(sed -n '\|^// ==UserScript==|,\|^// ==/UserScript==|p' "{{path_in}}")"; \
+    @header="$(sed -n '\|^// ==UserScript==|,\|^// ==/UserScript==|p' "{{path_in}}")"$'\n'"// @ts-nocheck: built file"; \
     "{{ESBUILD}}" "{{path_in}}" --minify-whitespace --minify-syntax --charset=utf8 --legal-comments=none \
         --log-level=warning --banner:js="${header}" --outfile="{{path_out}}"; \
     node --check "{{path_out}}"
@@ -162,17 +161,26 @@ _tests kind:
 
 # auto qa: lint checks + all tests; must pass before merging to staging, versioning up, merging to main
 [group("quality")]
-qa: build-src lint-check tests
+qa: build-src lint-check type-check tests
 
 # formats + lints with auto-fixes; fails only if fixes are impossible
 [group("quality")]
 prettify:
     @"{{BIOME}}" check --write {{LINT_PATHS}}
 
-# dry run of prettify; fails if prettify would change or fail
+# prettify dry run: prettify on a copy; fails only if prettify would fail (not on mere formatting changes)
 [group("quality")]
 lint-check:
-    @"{{BIOME}}" check {{LINT_PATHS}}
+    @tmp="$(mktemp -d)"; \
+    trap 'rm -rf "${tmp}"' EXIT; \
+    tar -cf - {{LINT_PATHS}} | tar -xf - -C "${tmp}"; \
+    root="${PWD}"; \
+    cd "${tmp}" && "${root}/{{BIOME}}" check --write --vcs-enabled=false {{LINT_PATHS}}
+
+# type check of the modules (strict; cf. /tsconfig.json), as the editor shows it
+[group("quality")]
+type-check:
+    @"{{TSC}}" -p tsconfig.json
 
 # ----------------------------------------------------------------
 # TARGETS - clean

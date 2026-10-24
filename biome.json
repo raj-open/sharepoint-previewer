@@ -9,7 +9,9 @@
         "includes": [
             "biome.json",
             "package.json",
+            "tsconfig.json",
             "src/**",
+            "scripts/**",
             "!src/main.js",
             "!src/main.min.js",
             "tests/**",
