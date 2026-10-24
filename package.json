@@ -22,9 +22,9 @@
     },
     "devDependencies": {
         "@biomejs/biome": "2.6.2",
-        "@ifc-lite/geometry": "7.8.1",
-        "@ifc-lite/renderer": "6.4.0",
-        "@ifc-lite/wasm": "10.4.0",
+        "@ifc-lite/geometry": "7.9.0",
+        "@ifc-lite/renderer": "6.5.0",
+        "@ifc-lite/wasm": "10.5.0",
         "esbuild": "0.28.2",
         "playwright": "1.64.1"
     }
