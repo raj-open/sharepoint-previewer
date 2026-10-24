@@ -127,8 +127,14 @@ async function openFile(fetchUrl, fileName, hops, getSignal, reload, onProgress,
         if ('deferred' in result)
             return { src: null, deferred: /** @type {Deferred} */ (result), message: null, fileName, hops };
         if ('error' in result) {
-            const note = lookupNotes.get(hops[0]); // file from search results, not found by name
-            const message = [`${result.error}\n${hops.join('\n→ ')}`, note].filter(Boolean).join('\n\n');
+            // file from search results, not found by name: say so first, details below
+            const note = lookupNotes.get(hops[0]);
+            const type = (fileName.match(/\.[^.]+$/)?.[0] ?? 'this type').toLowerCase();
+            const hint = note
+                ? `Files of type ${type} cannot be viewed from search results (SharePoint gives no path for them).\n` +
+                  "Open the file's folder to view it."
+                : '';
+            const message = [hint, `${result.error}\n${hops.join('\n→ ')}`, note].filter(Boolean).join('\n\n');
             return { src: null, message, fileName, hops };
         }
         if ('binary' in result) {
