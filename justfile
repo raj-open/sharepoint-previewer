@@ -62,6 +62,7 @@ build: build-deps build-dist
 [group("build")]
 build-deps:
     @npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+    @npx playwright install chromium
 
 # writes release to /dist/v<VERSION>; stamps @version and 3D hashes into userscript
 [group("build")]
@@ -121,6 +122,10 @@ _tests kind:
 # ----------------------------------------------------------------
 # TARGETS - quality
 # ----------------------------------------------------------------
+
+# auto qa: lint checks + all tests; must pass before merging to staging, versioning up, merging to main
+[group("quality")]
+qa: lint-check tests
 
 # formats + lints with auto-fixes; fails only if fixes are impossible
 [group("quality")]
