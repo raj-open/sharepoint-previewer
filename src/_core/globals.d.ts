@@ -8,9 +8,9 @@ declare const GM_info: { script: { version: string } };
 // Selectors in this script target HTML elements (the one exception, icons incl. SVG, is typed as Element where used).
 // Results may still be null: callers check.
 interface ParentNode {
-  querySelector<E extends HTMLElement = HTMLElement>(selectors: string): E | null;
-  querySelectorAll<E extends HTMLElement = HTMLElement>(selectors: string): NodeListOf<E>;
+    querySelector<E extends HTMLElement = HTMLElement>(selectors: string): E | null;
+    querySelectorAll<E extends HTMLElement = HTMLElement>(selectors: string): NodeListOf<E>;
 }
 interface Element {
-  closest<E extends HTMLElement = HTMLElement>(selectors: string): E | null;
+    closest<E extends HTMLElement = HTMLElement>(selectors: string): E | null;
 }

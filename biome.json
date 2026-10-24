@@ -21,7 +21,7 @@
     "formatter": {
         "enabled": true,
         "indentStyle": "space",
-        "indentWidth": 2,
+        "indentWidth": 4,
         "lineWidth": 120,
         "lineEnding": "lf"
     },
@@ -39,9 +39,11 @@
             "preset": "recommended"
         }
     },
-    "json": {
-        "formatter": {
-            "indentWidth": 4
+    "assist": {
+        "actions": {
+            "source": {
+                "organizeImports": "off"
+            }
         }
     }
 }

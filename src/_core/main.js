@@ -1,12 +1,17 @@
 // Entry of the userscript: modules in load order (they only define), then start-up in one place
 
+// ===========================================================================
+// IMPORTS
+// ===========================================================================
+
 import './settings.js';
 import { registerMenu } from './settings-form.js';
 import '../ui/move.js';
 import '../text/lang.js';
 import '../ui/icons.js';
 import { injectStyles } from '../ui/styles.js';
-import { handleEyes, watchList } from './list.js';
+import { handleEyes } from './list.js';
+import { watchList } from './list.js';
 import './util.js';
 import '../text/highlight/tokenise.js';
 import '../text/highlight/json.js';
@@ -65,9 +70,9 @@ import '../readers/links.js';
 import './prefs.js';
 import '../viewer/views.js';
 
-// ---------------------------------------------------------------------------
-// Start-up
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// START-UP
+// ===========================================================================
 
 registerMenu();
 watchList();
