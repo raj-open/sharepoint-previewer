@@ -2400,6 +2400,9 @@
   /** @type {Map<string, string>} path guessed from folder and name -> path found */
   const foundPaths = new Map();
 
+  /** @type {Map<string, string>} path guessed -> how the lookup went (shown when the file is not found) */
+  const lookupNotes = new Map();
+
   // ===========================================================================
   // METHODS
   // ===========================================================================
@@ -2419,36 +2422,50 @@
           const inside = paths.filter((p) => p.split('/').pop() === name && p.toLowerCase().startsWith(below));
           return inside.find((p) => p.toLowerCase() === guess.toLowerCase()) ?? inside[0] ?? null;
       };
-      const path = pick(await listPaths(site, name)) ?? pick(await searchPaths(site, folder, name));
+      const listed = await listPaths(site, name);
+      let path = pick(listed.paths);
+      const notes = [`library list: ${listed.note}`];
+      if (!path) {
+          const searched = await searchPaths(site, folder, name);
+          path = pick(searched.paths);
+          notes.push(`search: ${searched.note}`);
+      }
       if (path) foundPaths.set(guess, path);
+      lookupNotes.set(guess, `Looked up by name below ${folder}\n${notes.join('\n')}`);
       return path;
   }
 
+  /** @param {string[]} paths @returns {string} */
+  const summary = (paths) => (paths.length ? `${paths.length} found (${paths.slice(0, 3).join(', ')})` : 'none found');
+
   // Paths of files named `name` in the library of the open view (FileLeafRef = file name)
-  /** @param {string} site @param {string} name @returns {Promise<string[]>} */
+  /** @param {string} site @param {string} name @returns {Promise<{ paths: string[], note: string }>} */
   async function listPaths(site, name) {
       const path = decodeURIComponent(location.pathname);
       const i = path.toLowerCase().indexOf('/forms/');
-      if (i < 0) return [];
+      if (i < 0) return { paths: [], note: 'not in a list view' };
       const quote = (/** @type {string} */ s) => `'${s.replace(/'/g, "''")}'`;
       const url =
           `${site}/_api/web/GetList(@list)/items?$select=FileRef&$top=50` +
           `&$filter=FileLeafRef eq ${encodeURIComponent(quote(name))}&@list=${encodeURIComponent(quote(path.slice(0, i)))}`;
-      /** @type {{ value?: { FileRef?: string }[] }|null} */
+      /** @type {{ value?: { FileRef?: string }[] }|string} */
       const data = await getJson(url);
-      return (data?.value ?? []).flatMap((x) => (x.FileRef ? [x.FileRef] : []));
+      if (typeof data === 'string') return { paths: [], note: data };
+      const paths = (data?.value ?? []).flatMap((x) => (x.FileRef ? [x.FileRef] : []));
+      return { paths, note: summary(paths) };
   }
 
   // Paths of files named `name` below `folder` by the search index; Path may be a form (DispForm.aspx?ID=…)
   // for file types the index does not read, then the file is ParentLink + Filename
-  /** @param {string} site @param {string} folder @param {string} name @returns {Promise<string[]>} */
+  /** @param {string} site @param {string} folder @param {string} name @returns {Promise<{ paths: string[], note: string }>} */
   async function searchPaths(site, folder, name) {
-      const query = `filename:"${name}" path:"${location.origin}${folder}"`.replace(/'/g, "''");
+      const query = `(filename:"${name}" OR "${name}") path:"${location.origin}${folder}"`.replace(/'/g, "''");
       const url =
           `${site}/_api/search/query?querytext='${encodeURIComponent(query)}'` +
           "&selectproperties='Path,ParentLink,Filename'&rowlimit=50&trimduplicates=false";
-      /** @type {{ PrimaryQueryResult?: { RelevantResults?: { Table?: { Rows?: { Cells: { Key: string, Value: string|null }[] }[] } } } }|null} */
+      /** @type {{ PrimaryQueryResult?: { RelevantResults?: { Table?: { Rows?: { Cells: { Key: string, Value: string|null }[] }[] } } } }|string} */
       const data = await getJson(url);
+      if (typeof data === 'string') return { paths: [], note: data };
       const rows = data?.PrimaryQueryResult?.RelevantResults?.Table?.Rows ?? [];
       /** @param {string|null|undefined} value @returns {string} */
       const pathOf = (value) => {
@@ -2458,22 +2475,23 @@
               return '';
           }
       };
-      return rows.flatMap((r) => {
+      const paths = rows.flatMap((r) => {
           /** @param {string} key */
           const cell = (key) => r.Cells.find((c) => c.Key === key)?.Value;
           const parent = pathOf(cell('ParentLink'));
           return [pathOf(cell('Path')), parent && cell('Filename') ? `${parent}/${cell('Filename')}` : ''];
       });
+      return { paths: paths.filter(Boolean), note: summary([...new Set(paths.filter(Boolean))]) };
   }
 
-  /** @param {string} url @returns {Promise<any>} parsed JSON, or null (refused, failed, not JSON) */
+  /** @param {string} url @returns {Promise<any>} parsed JSON, or why not (refused, HTTP status, failed) */
   async function getJson(url) {
-      if (!sameOrigin(url)) return null;
+      if (!sameOrigin(url)) return 'refused (other origin)';
       try {
           const res = await fetch(url, { credentials: 'same-origin', headers: JSON_HEADERS });
-          return res.ok ? await res.json() : null;
-      } catch {
-          return null;
+          return res.ok ? await res.json() : `HTTP ${res.status}`;
+      } catch (e) {
+          return `failed (${e instanceof Error ? e.message : e})`;
       }
   }
 
@@ -8299,7 +8317,11 @@
                   : await openSource(fetchUrl, getSignal, reload, onProgress);
           if ('deferred' in result)
               return { src: null, deferred: /** @type {Deferred} */ (result), message: null, fileName, hops };
-          if ('error' in result) return { src: null, message: `${result.error}\n${hops.join('\n→ ')}`, fileName, hops };
+          if ('error' in result) {
+              const note = lookupNotes.get(hops[0]); // file from search results, not found by name
+              const message = [`${result.error}\n${hops.join('\n→ ')}`, note].filter(Boolean).join('\n\n');
+              return { src: null, message, fileName, hops };
+          }
           if ('binary' in result) {
               return {
                   src: null,
@@ -8597,6 +8619,7 @@
           v.relint = null;
           v.loadAllBtn.disabled = true;
           showPlain(v, message);
+          showCached(v); // nothing cached (not the last file's state)
           return;
       }
 

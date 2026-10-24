@@ -7,6 +7,7 @@ import { setLocation } from '../helpers.mjs';
 
 const { findFile } = await load('readers/search.js');
 const { foundPaths } = await load('readers/search.js');
+const { lookupNotes } = await load('readers/search.js');
 
 const FOLDER = '/teams/T/Shared Documents/Sandbox';
 
@@ -63,7 +64,10 @@ describe('readers/search', () => {
             found: [{ Path: `${origin}/teams/T/Shared%20Documents/Sandbox/Logs/x.log` }],
         });
         assert.equal(await findFile(FOLDER, 'x.log'), `${FOLDER}/Logs/x.log`);
-        assert.match(decodeURIComponent(urls[1]), /\/_api\/search\/query\?querytext='filename:"x\.log" path:"/);
+        assert.match(
+            decodeURIComponent(urls[1]),
+            /\/_api\/search\/query\?querytext='\(filename:"x\.log" OR "x\.log"\) path:"/,
+        );
     });
     it('search: form instead of file (Parquet): parent folder and file name', async () => {
         foundPaths.clear();
@@ -84,9 +88,10 @@ describe('readers/search', () => {
         answer({ files: [`${FOLDER}/x.log.bak`, '/teams/T/Other/x.log'] });
         assert.equal(await findFile(FOLDER, 'x.log'), null);
     });
-    it('requests failing: none', async () => {
+    it('requests failing: none, and how the lookup went', async () => {
         foundPaths.clear();
         answer({ status: 500 });
         assert.equal(await findFile(FOLDER, 'x.log'), null);
+        assert.match(lookupNotes.get(`${FOLDER}/x.log`) ?? '', /library list: HTTP 500\nsearch: HTTP 500/);
     });
 });
