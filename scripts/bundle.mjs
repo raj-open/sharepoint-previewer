@@ -1,5 +1,5 @@
 // Bundles the userscript's ES modules into one readable classic script (no dependencies):
-// modules in load order (imports first, depth first, as ES modules run), each one's text as written,
+// modules in load order (imports first, depth first, as ES modules run), entry (start-up) last, each one's text as written,
 // without its import lines and `export` keywords, inside one IIFE in strict mode.
 // Usage: node scripts/bundle.mjs <entry> <header> <types> <out>
 // NOTE: needs unique top-level names across modules and plain named imports (checked here).
@@ -43,7 +43,12 @@ function loadOrder(entry) {
 function moduleText(file, root) {
   let text = fs.readFileSync(file, 'utf8');
   if (/^export (default|\{|\*)/m.test(text)) throw new Error(`${file}: only exported declarations are supported`);
-  text = text.replace(IMPORT_RE, '').replace(TYPE_IMPORT_RE, '').replace(EXPORT_RE, '').trim();
+  text = text
+    .replace(IMPORT_RE, '')
+    .replace(TYPE_IMPORT_RE, '')
+    .replace(EXPORT_RE, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
   if (!text) return '';
   return `// Module: ${path.relative(root, file)}\n\n${text}`;
 }
@@ -87,8 +92,7 @@ const typedefs = fs
   .readFileSync(types, 'utf8')
   .replace(/^export \{\};\n?/m, '')
   .trim();
-const modules = files.filter((f) => f !== path.resolve(entry)); // entry: imports only
-const body = [typedefs, ...modules.map((f) => moduleText(f, root))].filter(Boolean).join('\n\n');
+const body = [typedefs, ...files.map((f) => moduleText(f, root))].filter(Boolean).join('\n\n');
 const script =
   `${fs.readFileSync(header, 'utf8').trim()}\n\n` +
   '// Built from the modules in /src (just build-src): do not edit by hand.\n' +

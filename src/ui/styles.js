@@ -2,8 +2,7 @@
 // Styles for code view and syntax colours
 // ---------------------------------------------------------------------------
 
-const style = document.createElement('style');
-style.textContent = `
+const CSS = `
   .tp-light {
     --tp-bg: #fff;
     --tp-fg: #1f1f1f;
@@ -566,4 +565,10 @@ style.textContent = `
   .tp-lint-item.tp-sev-error b { color: var(--tp-sev-error); }
   .tp-lint-item.tp-sev-warning b { color: var(--tp-sev-warning); }
 `;
-document.documentElement.append(style);
+
+/** Adds the stylesheet (both themes) to the page. @returns {void} */
+export function injectStyles() {
+  const style = document.createElement('style');
+  style.textContent = CSS;
+  document.documentElement.append(style);
+}

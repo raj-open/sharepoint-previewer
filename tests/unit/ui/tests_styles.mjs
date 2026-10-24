@@ -1,4 +1,4 @@
-// Styles: one <style> element with both themes, added to the page when the module loads
+// Styles: one <style> element with both themes, added to the page by injectStyles (not on load)
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { element, load } from '../helpers.mjs';
@@ -10,9 +10,12 @@ globalThis.document = {
   documentElement: { append: (...els) => added.push(...els) },
   head,
 };
-await load('ui/styles.js');
+const styles = await load('ui/styles.js');
+const before = added.length;
+styles.injectStyles();
 
 describe('ui/styles', () => {
+  it('loading adds nothing', () => assert.equal(before, 0));
   it('style element with light and dark theme, own prefix', () => {
     const style = added.find((e) => e.tag === 'style');
     assert.ok(style);

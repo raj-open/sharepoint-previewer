@@ -341,10 +341,13 @@ export function openSettingsForm() {
   json.style.height = `${Math.max(200, Math.round(formHeight) - 43)}px`;
   placeMoved(form, SETTINGS_POS_KEY);
 }
-GM_registerMenuCommand('Settings …', openSettingsForm);
+/** Tampermonkey menu: settings form, reset to defaults. @returns {void} */
+export function registerMenu() {
+  GM_registerMenuCommand('Settings …', openSettingsForm);
 
-GM_registerMenuCommand('Reset settings to defaults', () => {
-  if (!confirm('Reset all Sharepoint Previewer settings to their defaults?')) return;
-  for (const [key, value] of Object.entries(DEFAULTS)) GM_setValue(key, value);
-  alert('Settings reset. Reload the page to apply them.');
-});
+  GM_registerMenuCommand('Reset settings to defaults', () => {
+    if (!confirm('Reset all Sharepoint Previewer settings to their defaults?')) return;
+    for (const [key, value] of Object.entries(DEFAULTS)) GM_setValue(key, value);
+    alert('Settings reset. Reload the page to apply them.');
+  });
+}

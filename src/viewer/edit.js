@@ -248,21 +248,24 @@ export async function uploadEdits(v, edited) {
   return true;
 }
 
-// Ctrl+S / Cmd+S: save (not upload)
-document.addEventListener(
-  'keydown',
-  (e) => {
-    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 's' || !viewer?.writeMode) return;
-    e.preventDefault(); // no "save page" dialogue
-    if (!viewer.saveBtn.disabled) viewer.saveBtn.click(); // upload is separate step
-  },
-  true,
-);
+/** Page-wide edit guards: Ctrl+S / Cmd+S saves, unsaved changes ask before leaving. @returns {void} */
+export function guardEdits() {
+  // Ctrl+S / Cmd+S: save (not upload)
+  document.addEventListener(
+    'keydown',
+    (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 's' || !viewer?.writeMode) return;
+      e.preventDefault(); // no "save page" dialogue
+      if (!viewer.saveBtn.disabled) viewer.saveBtn.click(); // upload is separate step
+    },
+    true,
+  );
 
-// Unsaved changes: browser asks before page is left
-window.addEventListener('beforeunload', (e) => {
-  if (viewer && (viewer.dirty || viewer.staged != null)) e.preventDefault();
-});
+  // Unsaved changes: browser asks before page is left
+  window.addEventListener('beforeunload', (e) => {
+    if (viewer && (viewer.dirty || viewer.staged != null)) e.preventDefault();
+  });
+}
 
 // Fill and wires delimiter / quote selects; `fileSep` is file's own delimiter
 /** @param {Viewer} v @param {string} fileSep @returns {void} */
