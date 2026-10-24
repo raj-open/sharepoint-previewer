@@ -21,6 +21,8 @@
   Identifier names are kept (the check worker is built from the script's own function sources).
 - Modules: one concern each; a module only writes its own top-level variables
   (shared, changeable state lives in objects, e.g. `view` in `prefs.js`).
+- Template literals: never nested (no backticks inside `${…}`); build inner parts in variables first
+  (editors mismatch the brackets around nested backticks).
 - Start-up: modules only define (no listeners, observers, menu or DOM changes on load);
   the entry `/src/_core/main.js` starts everything explicitly, in order, at the end of the bundle.
 - Version: `/dist/VERSION` is the single source;

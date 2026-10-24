@@ -102,7 +102,7 @@ build-dist: build-src build-3d
 # NOTE: names are kept: the check worker is built from the script's own function sources
 _minify path_in path_out:
     @header="$(sed -n '\|^// ==UserScript==|,\|^// ==/UserScript==|p' "{{path_in}}")"$'\n'"// @ts-nocheck: built file"; \
-    "{{ESBUILD}}" "{{path_in}}" --minify-whitespace --minify-syntax --charset=utf8 --legal-comments=none \
+    "{{ESBUILD}}" "{{path_in}}" --minify-whitespace --minify-syntax --charset=utf8 --legal-comments=none --line-limit=1000 \
         --log-level=warning --banner:js="${header}" --outfile="{{path_out}}"; \
     node --check "{{path_out}}"
 

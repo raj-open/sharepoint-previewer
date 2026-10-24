@@ -80,7 +80,8 @@ export function openSettingsForm() {
         `<input type="range" name="${key}" min="0" max="100" step="1" style="width:140px; margin:0">` +
         '<span data-pct style="margin-left:8px; min-width:3em"></span>';
     } else if (Array.isArray(extra)) {
-      input = `<select name="${key}" style="${field} width:140px">${extra.map((o) => `<option>${o}</option>`).join('')}</select>`;
+      const options = extra.map((o) => `<option>${o}</option>`).join('');
+      input = `<select name="${key}" style="${field} width:140px">${options}</select>`;
     } else if (typeof defaults[key] === 'boolean') {
       input = `<input type="checkbox" name="${key}" style="margin:0; width:16px; height:16px">`;
     } else if (typeof defaults[key] === 'number') {
@@ -190,10 +191,12 @@ export function openSettingsForm() {
     for (const [key, , extra] of SETTING_FORM) {
       const value = key in data ? data[key] : stored[key];
       const type = typeof defaults[key];
-      if (typeof value !== type) errors.push(`${key}: must be ${type === 'boolean' ? 'true or false' : `a ${type}`}`);
-      else if (Array.isArray(extra) && !extra.includes(value))
-        errors.push(`${key}: must be one of ${extra.map((o) => `"${o}"`).join(', ')}`);
-      else if (key === 'viewer-share' && (value < 0.2 || value > 0.8))
+      const expected = type === 'boolean' ? 'true or false' : `a ${type}`;
+      if (typeof value !== type) errors.push(`${key}: must be ${expected}`);
+      else if (Array.isArray(extra) && !extra.includes(value)) {
+        const allowed = extra.map((o) => `"${o}"`).join(', ');
+        errors.push(`${key}: must be one of ${allowed}`);
+      } else if (key === 'viewer-share' && (value < 0.2 || value > 0.8))
         errors.push(`${key}: must be between 0.2 and 0.8`);
       else if (type === 'number' && !(value > 0 && Number.isFinite(value)))
         errors.push(`${key}: must be greater than 0`);

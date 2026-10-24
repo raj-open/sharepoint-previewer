@@ -270,18 +270,20 @@ export function mountTable(content, header, rows, opts) {
     const values = [...counts.keys()].sort(cmp).slice(0, 1000);
     panel = document.createElement('div');
     panel.className = 'tp-filter-panel';
+    const items = values
+      .map(
+        (val, i) => `
+        <label><input type="checkbox" data-i="${i}"${!f.values || f.values.has(val) ? ' checked' : ''}>
+        ${esc(val || '(empty)')} <span>${counts.get(val)}</span></label>`,
+      )
+      .join('');
+    const more = counts.size > values.length ? `<small>first ${values.length} of ${counts.size} values</small>` : '';
     panel.innerHTML = `
       <input type="text" placeholder="contains …" value="${esc(f.text)}">
       <label><input type="checkbox" data-all> <em>all</em></label>
-      <div class="tp-filter-list">${values
-        .map(
-          (val, i) => `
-        <label><input type="checkbox" data-i="${i}"${!f.values || f.values.has(val) ? ' checked' : ''}>
-        ${esc(val || '(empty)')} <span>${counts.get(val)}</span></label>`,
-        )
-        .join('')}
+      <div class="tp-filter-list">${items}
       </div>
-      ${counts.size > values.length ? `<small>first ${values.length} of ${counts.size} values</small>` : ''}
+      ${more}
     `;
     const r = btn.getBoundingClientRect();
     const box = content.getBoundingClientRect();

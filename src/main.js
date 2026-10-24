@@ -771,18 +771,20 @@
       const values = [...counts.keys()].sort(cmp).slice(0, 1000);
       panel = document.createElement('div');
       panel.className = 'tp-filter-panel';
+      const items = values
+        .map(
+          (val, i) => `
+          <label><input type="checkbox" data-i="${i}"${!f.values || f.values.has(val) ? ' checked' : ''}>
+          ${esc(val || '(empty)')} <span>${counts.get(val)}</span></label>`,
+        )
+        .join('');
+      const more = counts.size > values.length ? `<small>first ${values.length} of ${counts.size} values</small>` : '';
       panel.innerHTML = `
         <input type="text" placeholder="contains …" value="${esc(f.text)}">
         <label><input type="checkbox" data-all> <em>all</em></label>
-        <div class="tp-filter-list">${values
-          .map(
-            (val, i) => `
-          <label><input type="checkbox" data-i="${i}"${!f.values || f.values.has(val) ? ' checked' : ''}>
-          ${esc(val || '(empty)')} <span>${counts.get(val)}</span></label>`,
-          )
-          .join('')}
+        <div class="tp-filter-list">${items}
         </div>
-        ${counts.size > values.length ? `<small>first ${values.length} of ${counts.size} values</small>` : ''}
+        ${more}
       `;
       const r = btn.getBoundingClientRect();
       const box = content.getBoundingClientRect();
@@ -1291,7 +1293,8 @@
           `<input type="range" name="${key}" min="0" max="100" step="1" style="width:140px; margin:0">` +
           '<span data-pct style="margin-left:8px; min-width:3em"></span>';
       } else if (Array.isArray(extra)) {
-        input = `<select name="${key}" style="${field} width:140px">${extra.map((o) => `<option>${o}</option>`).join('')}</select>`;
+        const options = extra.map((o) => `<option>${o}</option>`).join('');
+        input = `<select name="${key}" style="${field} width:140px">${options}</select>`;
       } else if (typeof defaults[key] === 'boolean') {
         input = `<input type="checkbox" name="${key}" style="margin:0; width:16px; height:16px">`;
       } else if (typeof defaults[key] === 'number') {
@@ -1401,10 +1404,12 @@
       for (const [key, , extra] of SETTING_FORM) {
         const value = key in data ? data[key] : stored[key];
         const type = typeof defaults[key];
-        if (typeof value !== type) errors.push(`${key}: must be ${type === 'boolean' ? 'true or false' : `a ${type}`}`);
-        else if (Array.isArray(extra) && !extra.includes(value))
-          errors.push(`${key}: must be one of ${extra.map((o) => `"${o}"`).join(', ')}`);
-        else if (key === 'viewer-share' && (value < 0.2 || value > 0.8))
+        const expected = type === 'boolean' ? 'true or false' : `a ${type}`;
+        if (typeof value !== type) errors.push(`${key}: must be ${expected}`);
+        else if (Array.isArray(extra) && !extra.includes(value)) {
+          const allowed = extra.map((o) => `"${o}"`).join(', ');
+          errors.push(`${key}: must be one of ${allowed}`);
+        } else if (key === 'viewer-share' && (value < 0.2 || value > 0.8))
           errors.push(`${key}: must be between 0.2 and 0.8`);
         else if (type === 'number' && !(value > 0 && Number.isFinite(value)))
           errors.push(`${key}: must be greater than 0`);
@@ -5086,9 +5091,11 @@
         const d = s.data;
         const hidden = sheets.filter((x) => x.hidden).length;
         const shape = d?.rows.length ? `: ${d.rows.length.toLocaleString()} rows × ${d.cols} columns` : '';
+        const hiddenNote = hidden ? ` (${hidden} hidden)` : '';
+        const cutNote = d?.cut ? ` (first ${MAX_SHEET_CELLS.toLocaleString()} cells)` : '';
         const info = [
-          ['sheets', `${sheets.length}${hidden ? ` (${hidden} hidden)` : ''}`],
-          ['sheet', `${s.name}${shape}${d?.cut ? ` (first ${MAX_SHEET_CELLS.toLocaleString()} cells)` : ''}`],
+          ['sheets', `${sheets.length}${hiddenNote}`],
+          ['sheet', `${s.name}${shape}${cutNote}`],
         ];
         if (book.date1904) info.push(['dates', '1904 system']);
         return info;
@@ -6334,7 +6341,8 @@
     lint.className = `tp-lint ${problems.length ? 'tp-lint-bad' : 'tp-lint-ok'}`;
 
     if (!problems.length) {
-      lint.innerHTML = `<div class="tp-lint-summary">✓ ${label}: no problems${info ? ` · ${esc(info)}` : ''}</div>`;
+      const extra = info ? ` · ${esc(info)}` : '';
+      lint.innerHTML = `<div class="tp-lint-summary">✓ ${label}: no problems${extra}</div>`;
       return;
     }
 
@@ -6345,18 +6353,19 @@
     if (warnings) parts.push(`${warnings.toLocaleString()} warning${warnings > 1 ? 's' : ''}`);
     const capped = problems.length >= MAX_PROBLEMS ? ` (first ${MAX_PROBLEMS} shown)` : '';
 
-    lint.innerHTML = `
-      <button class="tp-lint-summary" type="button">✗ ${label}: ${parts.join(', ')}${capped} ▾</button>
-      <div class="tp-lint-list" style="display:none">
-        ${problems
-          .map(
-            (p) => `
+    const items = problems
+      .map(
+        (p) => `
           <div class="tp-lint-item tp-sev-${p.severity}" data-line="${p.line}">
             <b>Line ${p.line}</b>${esc(p.msg)}
           </div>
         `,
-          )
-          .join('')}
+      )
+      .join('');
+    lint.innerHTML = `
+      <button class="tp-lint-summary" type="button">✗ ${label}: ${parts.join(', ')}${capped} ▾</button>
+      <div class="tp-lint-list" style="display:none">
+        ${items}
       </div>
     `;
     const list = lint.querySelector('.tp-lint-list');
@@ -6458,7 +6467,8 @@
     v.sheetSelect.innerHTML = sheets
       .map((x, i) => {
         const notes = [x.hidden && 'hidden', x.kind !== 'sheet' && x.kind].filter(Boolean).join(', ');
-        return `<option value="${i}">${x.data === undefined ? '○' : '●'} ${esc(x.name)}${notes ? ` (${notes})` : ''}</option>`;
+        const suffix = notes ? ` (${notes})` : '';
+        return `<option value="${i}">${x.data === undefined ? '○' : '●'} ${esc(x.name)}${suffix}</option>`;
       })
       .join('');
     v.sheetSelect.value = String(src.current);
@@ -6909,13 +6919,16 @@
       opacity: .75;
       white-space: nowrap;
     `;
-    const version = typeof GM_info !== 'undefined' ? GM_info.script.version : '';
+    // NOTE: not `!== 'undefined'`: minified to `GM_info<"u"`, which editors read as type arguments (brackets then mismatch)
+    const version = typeof GM_info === 'object' ? GM_info.script.version : '';
     const logo = /^data:image\/[\w.+-]+;base64,[A-Za-z0-9+/=\s]+$/.test(LOGO) ? LOGO.replace(/\s+/g, '') : '';
+    const logoHtml = logo ? `<img src="${logo}" alt="" style="height:18px; width:auto; display:block">` : '';
+    const versionHtml = version ? `<span>v${esc(version)}</span>` : '';
     brand.innerHTML = `
-      ${logo ? `<img src="${logo}" alt="" style="height:18px; width:auto; display:block">` : ''}
-      ${version ? `<span>v${esc(version)}</span>` : ''}
+      ${logoHtml}
+      ${versionHtml}
     `;
-    brand.title = `Sharepoint Previewer${version ? ` v${version}` : ''}`;
+    brand.title = version ? `Sharepoint Previewer v${version}` : 'Sharepoint Previewer';
 
     // Copy button (left of X)
     const copyBtn = document.createElement('button');
@@ -7062,13 +7075,14 @@
     // Write mode in table view: delimiter and quote style for saved file
     const csvBar = document.createElement('div');
     csvBar.className = 'tp-csv-bar';
+    const quoteOptions = Object.entries(QUOTE_MODES)
+      .map(([k, t]) => `<option value="${k}">${t}</option>`)
+      .join('');
     csvBar.innerHTML = `
       <select class="tp-csv-sep" title="Delimiter of the saved file"></select>
       <select class="tp-csv-quote" title="Quote style of the saved file">
         <option value="">Quotes: as in the file</option>
-        ${Object.entries(QUOTE_MODES)
-          .map(([k, t]) => `<option value="${k}">${t}</option>`)
-          .join('')}
+        ${quoteOptions}
       </select>`;
     // 3D view: canvas with status line (shown instead of text)
     const stage3d = document.createElement('div');
@@ -7753,12 +7767,13 @@
 
     const updateMeta = () => {
       const d = src.dates || {};
+      const encoding = src.encoding ? `, ${src.encoding}` : '';
       const info = [
         // from the file's own response only (no list columns, no API)
         ['created', d.created],
         ['modified', d.modified || 'n/a'],
         ['size', src.total ? `${formatBytes(src.total)} (${src.total.toLocaleString()} bytes)` : null],
-        ['format', src.format || `${LANG_NAMES[lang] || 'Text'}${src.encoding ? `, ${src.encoding}` : ''}`],
+        ['format', src.format || `${LANG_NAMES[lang] || 'Text'}${encoding}`],
       ];
       if (!src.format && lang !== 'csv') info.push(['indent', indentation(src.text)]);
       if (src.info)
@@ -7775,8 +7790,9 @@
         info.push(['shape', `${src.done ? '' : '≥ '}${rows.toLocaleString()} rows × ${cols} columns`]);
       }
       const shown = info.filter(([, x]) => x !== null && x !== undefined && x !== '');
-      v.metaLine.innerHTML = `<strong>Properties:</strong> ${esc(shown.map(([k, x]) => `${k}: ${x}`).join(' · '))}`;
-      v.metaLine.title = shown.map(([k, x]) => `${k}: ${x}`).join('\n');
+      const pairs = shown.map(([k, x]) => `${k}: ${x}`);
+      v.metaLine.innerHTML = `<strong>Properties:</strong> ${esc(pairs.join(' · '))}`;
+      v.metaLine.title = pairs.join('\n');
     };
 
     // Very long lines (e.g. minified files) are cut for display; copy still gets everything

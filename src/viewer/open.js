@@ -412,12 +412,13 @@ export async function showFile(name, url, reload) {
 
   const updateMeta = () => {
     const d = src.dates || {};
+    const encoding = src.encoding ? `, ${src.encoding}` : '';
     const info = [
       // from the file's own response only (no list columns, no API)
       ['created', d.created],
       ['modified', d.modified || 'n/a'],
       ['size', src.total ? `${formatBytes(src.total)} (${src.total.toLocaleString()} bytes)` : null],
-      ['format', src.format || `${LANG_NAMES[lang] || 'Text'}${src.encoding ? `, ${src.encoding}` : ''}`],
+      ['format', src.format || `${LANG_NAMES[lang] || 'Text'}${encoding}`],
     ];
     if (!src.format && lang !== 'csv') info.push(['indent', indentation(src.text)]);
     if (src.info)
@@ -434,8 +435,9 @@ export async function showFile(name, url, reload) {
       info.push(['shape', `${src.done ? '' : '≥ '}${rows.toLocaleString()} rows × ${cols} columns`]);
     }
     const shown = info.filter(([, x]) => x !== null && x !== undefined && x !== '');
-    v.metaLine.innerHTML = `<strong>Properties:</strong> ${esc(shown.map(([k, x]) => `${k}: ${x}`).join(' · '))}`;
-    v.metaLine.title = shown.map(([k, x]) => `${k}: ${x}`).join('\n');
+    const pairs = shown.map(([k, x]) => `${k}: ${x}`);
+    v.metaLine.innerHTML = `<strong>Properties:</strong> ${esc(pairs.join(' · '))}`;
+    v.metaLine.title = pairs.join('\n');
   };
 
   // Very long lines (e.g. minified files) are cut for display; copy still gets everything
