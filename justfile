@@ -22,9 +22,12 @@ set windows-shell := ["bash", "-euo", "pipefail", "-c"]
 
 NAME := env("NAME", "sharepoint-previewer")
 PATH_SRC := "src/main.js"
+PATH_SRC_3D := "src/viewer-3d/main.js"
 PATH_DIST := "dist"
 PATH_VERSION := "dist/VERSION"
+PATH_DIST_3D := "dist/viewer-3d"
 BIOME := "node_modules/.bin/biome"
+ESBUILD := "node_modules/.bin/esbuild"
 LINT_PATHS := "src tests"
 
 # ----------------------------------------------------------------
@@ -58,14 +61,34 @@ build: build-deps build-dist
 build-deps:
     @npm ci --no-audit --no-fund || npm install --no-audit --no-fund
 
-# writes userscript with @version from /dist/VERSION
+# writes userscript (+ 3D bundle) to /dist; stamps @version and 3D hashes
 [group("build")]
-build-dist:
+build-dist: build-3d
     @version="$(tr -d '[:space:]' < "{{PATH_VERSION}}")"; \
+    hash_js="$(just _sha256 "{{PATH_DIST_3D}}/ifc-lite-3d.js")"; \
+    hash_wasm="$(just _sha256 "{{PATH_DIST_3D}}/ifc-lite_bg.wasm")"; \
     path="{{PATH_DIST}}/{{NAME}}.user.js"; \
-    sed -E "s|^(// @version[[:space:]]+).*$|\1${version}|" "{{PATH_SRC}}" > "${path}"; \
+    sed -E \
+        -e "s|^(// @version[[:space:]]+).*$|\1${version}|" \
+        -e "s|(const VIEWER_3D_JS_SHA256 = ')[0-9a-f]*'|\1${hash_js}'|" \
+        -e "s|(const VIEWER_3D_WASM_SHA256 = ')[0-9a-f]*'|\1${hash_wasm}'|" \
+        "{{PATH_SRC}}" > "${path}"; \
     node --check "${path}"; \
     echo "built ${path} (v${version})"
+
+# bundles ifc-lite (pinned in manifest) for the optional 3D view; wasm is copied as is
+[group("build")]
+build-3d:
+    @mkdir -p "{{PATH_DIST_3D}}"
+    @banner="$(node -p '["geometry", "renderer", "wasm"].map((name) => `@ifc-lite/${name} ${require(`./node_modules/@ifc-lite/${name}/package.json`).version}`).join(", ")')"; \
+    "{{ESBUILD}}" "{{PATH_SRC_3D}}" --bundle --minify --format=iife --log-level=warning \
+        --banner:js="/* ifc-lite library bundle for Sharepoint Previewer: ${banner} (MPL-2.0, source: https://github.com/LTplus-AG/ifc-lite). Engine binary: ifc-lite_bg.wasm from @ifc-lite/wasm. */" \
+        --outfile="{{PATH_DIST_3D}}/ifc-lite-3d.js"
+    @cp node_modules/@ifc-lite/wasm/pkg/ifc-lite_bg.wasm "{{PATH_DIST_3D}}/ifc-lite_bg.wasm"
+    @echo "built {{PATH_DIST_3D}}"
+
+_sha256 path:
+    @node -e 'const fs = require("fs"); const crypto = require("crypto"); console.log(crypto.createHash("sha256").update(fs.readFileSync(process.argv[1])).digest("hex"))' "{{path}}"
 
 # ----------------------------------------------------------------
 # TARGETS - tests
@@ -116,4 +139,5 @@ lint-check:
 clean:
     @rm -rf node_modules
     @rm -f "{{PATH_DIST}}"/*.user.js
+    @rm -rf "{{PATH_DIST_3D}}"
     @find . -name '.DS_Store' -not -path './__human__/*' -delete 2> /dev/null || true
