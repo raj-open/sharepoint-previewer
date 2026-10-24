@@ -1,6 +1,6 @@
 {
     "name": "sharepoint-previewer",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Tampermonkey userscript: preview (text, table, 3D) and editor for files in SharePoint Online document libraries.",
     "private": true,
     "homepage": "https://github.com/raj-open/sharepoint-previewer",
