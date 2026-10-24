@@ -30,8 +30,8 @@ VERSION := trim(read(PATH_VERSION))
 PATH_RELEASE := PATH_DIST / "v" + VERSION
 BIOME := "node_modules/.bin/biome"
 ESBUILD := "node_modules/.bin/esbuild"
-# paths per /biome.json (files.includes)
-LINT_PATHS := "."
+# lint scope: src + tests + named root files (same as `files.includes` in /biome.json)
+LINT_PATHS := "src tests biome.json package.json"
 
 # ----------------------------------------------------------------
 # TARGETS - setup
