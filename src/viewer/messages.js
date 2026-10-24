@@ -31,7 +31,8 @@ export function renderLint(v, lang, result, goToLine) {
   lint.className = `tp-lint ${problems.length ? 'tp-lint-bad' : 'tp-lint-ok'}`;
 
   if (!problems.length) {
-    lint.innerHTML = `<div class="tp-lint-summary">✓ ${label}: no problems${info ? ` · ${esc(info)}` : ''}</div>`;
+    const extra = info ? ` · ${esc(info)}` : '';
+    lint.innerHTML = `<div class="tp-lint-summary">✓ ${label}: no problems${extra}</div>`;
     return;
   }
 
@@ -42,18 +43,19 @@ export function renderLint(v, lang, result, goToLine) {
   if (warnings) parts.push(`${warnings.toLocaleString()} warning${warnings > 1 ? 's' : ''}`);
   const capped = problems.length >= MAX_PROBLEMS ? ` (first ${MAX_PROBLEMS} shown)` : '';
 
-  lint.innerHTML = `
-    <button class="tp-lint-summary" type="button">✗ ${label}: ${parts.join(', ')}${capped} ▾</button>
-    <div class="tp-lint-list" style="display:none">
-      ${problems
-        .map(
-          (p) => `
+  const items = problems
+    .map(
+      (p) => `
         <div class="tp-lint-item tp-sev-${p.severity}" data-line="${p.line}">
           <b>Line ${p.line}</b>${esc(p.msg)}
         </div>
       `,
-        )
-        .join('')}
+    )
+    .join('');
+  lint.innerHTML = `
+    <button class="tp-lint-summary" type="button">✗ ${label}: ${parts.join(', ')}${capped} ▾</button>
+    <div class="tp-lint-list" style="display:none">
+      ${items}
     </div>
   `;
   const list = lint.querySelector('.tp-lint-list');

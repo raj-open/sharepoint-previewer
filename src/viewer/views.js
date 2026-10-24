@@ -42,7 +42,8 @@ export function showSheets(v, src) {
   v.sheetSelect.innerHTML = sheets
     .map((x, i) => {
       const notes = [x.hidden && 'hidden', x.kind !== 'sheet' && x.kind].filter(Boolean).join(', ');
-      return `<option value="${i}">${x.data === undefined ? '○' : '●'} ${esc(x.name)}${notes ? ` (${notes})` : ''}</option>`;
+      const suffix = notes ? ` (${notes})` : '';
+      return `<option value="${i}">${x.data === undefined ? '○' : '●'} ${esc(x.name)}${suffix}</option>`;
     })
     .join('');
   v.sheetSelect.value = String(src.current);

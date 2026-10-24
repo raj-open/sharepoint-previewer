@@ -76,9 +76,11 @@ export async function openSheetSource(url, getSignal, reload, onProgress) {
       const d = s.data;
       const hidden = sheets.filter((x) => x.hidden).length;
       const shape = d?.rows.length ? `: ${d.rows.length.toLocaleString()} rows × ${d.cols} columns` : '';
+      const hiddenNote = hidden ? ` (${hidden} hidden)` : '';
+      const cutNote = d?.cut ? ` (first ${MAX_SHEET_CELLS.toLocaleString()} cells)` : '';
       const info = [
-        ['sheets', `${sheets.length}${hidden ? ` (${hidden} hidden)` : ''}`],
-        ['sheet', `${s.name}${shape}${d?.cut ? ` (first ${MAX_SHEET_CELLS.toLocaleString()} cells)` : ''}`],
+        ['sheets', `${sheets.length}${hiddenNote}`],
+        ['sheet', `${s.name}${shape}${cutNote}`],
       ];
       if (book.date1904) info.push(['dates', '1904 system']);
       return info;

@@ -238,13 +238,16 @@ export function createViewer() {
     opacity: .75;
     white-space: nowrap;
   `;
-  const version = typeof GM_info !== 'undefined' ? GM_info.script.version : '';
+  // NOTE: not `!== 'undefined'`: minified to `GM_info<"u"`, which editors read as type arguments (brackets then mismatch)
+  const version = typeof GM_info === 'object' ? GM_info.script.version : '';
   const logo = /^data:image\/[\w.+-]+;base64,[A-Za-z0-9+/=\s]+$/.test(LOGO) ? LOGO.replace(/\s+/g, '') : '';
+  const logoHtml = logo ? `<img src="${logo}" alt="" style="height:18px; width:auto; display:block">` : '';
+  const versionHtml = version ? `<span>v${esc(version)}</span>` : '';
   brand.innerHTML = `
-    ${logo ? `<img src="${logo}" alt="" style="height:18px; width:auto; display:block">` : ''}
-    ${version ? `<span>v${esc(version)}</span>` : ''}
+    ${logoHtml}
+    ${versionHtml}
   `;
-  brand.title = `Sharepoint Previewer${version ? ` v${version}` : ''}`;
+  brand.title = version ? `Sharepoint Previewer v${version}` : 'Sharepoint Previewer';
 
   // Copy button (left of X)
   const copyBtn = document.createElement('button');
@@ -391,13 +394,14 @@ export function createViewer() {
   // Write mode in table view: delimiter and quote style for saved file
   const csvBar = document.createElement('div');
   csvBar.className = 'tp-csv-bar';
+  const quoteOptions = Object.entries(QUOTE_MODES)
+    .map(([k, t]) => `<option value="${k}">${t}</option>`)
+    .join('');
   csvBar.innerHTML = `
     <select class="tp-csv-sep" title="Delimiter of the saved file"></select>
     <select class="tp-csv-quote" title="Quote style of the saved file">
       <option value="">Quotes: as in the file</option>
-      ${Object.entries(QUOTE_MODES)
-        .map(([k, t]) => `<option value="${k}">${t}</option>`)
-        .join('')}
+      ${quoteOptions}
     </select>`;
   // 3D view: canvas with status line (shown instead of text)
   const stage3d = document.createElement('div');
