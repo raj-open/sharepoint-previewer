@@ -55,6 +55,10 @@ describe('preview per file type', () => {
     ['/Data', 'sensors.parquet', /Parquet/, 's2'],
     ['/Config', 'settings.xml', /format: XML/, 'retries'],
     ['/Models', 'wall.ifc', /format: IFC/, 'IFCWALL'],
+    ['/Data', 'harvest.xlsx', /format: Excel \(XLSX\)/, 'banana'],
+    ['/Data', 'harvest.xlsb', /format: Excel \(XLSB\)/, 'banana'],
+    ['/Data', 'harvest.xls', /format: Excel 97–2003/, 'banana'],
+    ['/Data', 'harvest.ods', /format: OpenDocument/, 'banana'],
   ];
   for (const [folder, name, format, text] of cases) {
     it(`${name}: content and properties`, async () => {
@@ -62,7 +66,9 @@ describe('preview per file type', () => {
       const v = await h.preview(page, name);
       assert.match(await properties(v), format);
       assert.match(await v.locator('.tp-content').textContent(), new RegExp(text));
-      assert.equal(await h.eye(page, name).getAttribute('data-eye'), 'open'); // small file: fully cached
+      // small file: fully cached; workbooks only up to the sheet shown (ODS: all sheets in one part)
+      const sheetWise = /\.(xlsx|xlsb|xls)$/.test(name);
+      assert.equal(await h.eye(page, name).getAttribute('data-eye'), sheetWise ? 'half' : 'open');
     });
   }
 
@@ -86,6 +92,37 @@ describe('preview per file type', () => {
       const table = v.locator('.tp-view-btn', { hasText: 'Table' });
       assert.equal(await table.isDisabled(), false);
     }
+  });
+
+  it('spreadsheets: sheet drop-down, read only, sheets cached one by one', async () => {
+    const page = await openFolder(`${h.LIBRARY}/Data`);
+    const v = await h.preview(page, 'harvest.xlsx');
+    const select = v.locator('.tp-sheet-select');
+    assert.equal(await select.isVisible(), true);
+    assert.deepEqual(await select.locator('option').allTextContents(), ['● Prices', '○ Notes', '○ Secret (hidden)']);
+    assert.match(await v.locator('.tp-title-sheet').textContent(), /Sheet: Prices/);
+    assert.equal(await v.locator('.tp-mode-btn[title^="Edit"]').isDisabled(), true);
+    assert.equal(await h.eye(page, 'harvest.xlsx').getAttribute('data-eye'), 'half'); // other sheets not cached
+
+    await select.selectOption({ label: '○ Notes' });
+    await v.locator('.tp-title-sheet', { hasText: 'Notes' }).waitFor();
+    await h.settled(page);
+    assert.match(await v.locator('.tp-content').textContent(), /after a gap/);
+    assert.match(await properties(v), /sheet: Notes/);
+
+    await v.locator('.tp-load-more').click(); // last sheet: whole file cached
+    await h.settled(page);
+    assert.equal(await h.eye(page, 'harvest.xlsx').getAttribute('data-eye'), 'open');
+  });
+
+  it('spreadsheets: rows striped, column colours off by default', async () => {
+    const page = await openFolder(`${h.LIBRARY}/Data`);
+    const v = await h.preview(page, 'harvest.xls');
+    await v.locator('.tp-view-btn', { hasText: 'Table' }).click();
+    await v.locator('.tp-table').waitFor();
+    assert.ok((await v.locator('.tp-table tr.tp-stripe').count()) > 0);
+    assert.equal(await v.locator('.tp-table td[class^="tp-"]:not(.tp-rn)').count(), 0);
+    assert.deepEqual(await v.locator('.tp-table thead .tp-sort').allTextContents(), ['A', 'B', 'C', 'D']);
   });
 
   it('refuses binary files', async () => {

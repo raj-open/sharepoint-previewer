@@ -1,7 +1,7 @@
 # SharePoint Previewer #
 
 Tampermonkey userscript:
-preview (text, table, 3D) and editor for files in SharePoint Online document libraries.
+preview (text, table, 3D, spreadsheets) and editor for files in SharePoint Online document libraries.
 
 Technical description for IT (behaviour, network, storage, security, deployment):
 see [NOTES.md](NOTES.md).

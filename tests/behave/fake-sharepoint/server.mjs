@@ -34,10 +34,14 @@ const TYPES = {
   '.ifc': 'application/octet-stream',
   '.js': 'application/javascript',
   '.md': 'application/octet-stream',
+  '.ods': 'application/vnd.oasis.opendocument.spreadsheet',
   '.parquet': 'application/octet-stream',
   '.png': 'image/png',
   '.txt': 'text/plain',
   '.wasm': 'application/wasm',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsb': 'application/vnd.ms-excel.sheet.binary.macroEnabled.12',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   '.xml': 'text/xml',
 };
 

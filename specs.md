@@ -9,6 +9,7 @@
   ifc-lite bundled from `/src/viewer-3d/main.js`,
   the `.wasm` copied unchanged from `@ifc-lite/wasm` (not rebuilt from its Rust source).
 - Keep the script a single, dependency-free JavaScript file at runtime.
+- Size (rule of thumb): userscript source ≤ 500 KB, minified userscript ≤ 300 KB.
 - Development tooling (lint, format, tests) must not end up in the artefact.
 
 ## Conventions ##
