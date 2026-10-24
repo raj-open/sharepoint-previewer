@@ -6,7 +6,7 @@ import { load } from '../helpers.mjs';
 import { setLocation } from '../helpers.mjs';
 
 const { linkTarget } = await load('readers/links.js');
-setLocation('https://contoso.sharepoint.com/sites/Test/Shared%20Documents/Forms/AllItems.aspx');
+setLocation('https://acme.sharepoint.com/sites/Test/Shared%20Documents/Forms/AllItems.aspx');
 const url = (target) => `[InternetShortcut]\nURL=${target}\n`;
 
 describe('readers/links', () => {
@@ -14,19 +14,19 @@ describe('readers/links', () => {
         const t = linkTarget(
             'x.url',
             url(
-                'https://contoso.sharepoint.com/sites/Test/Shared%20Documents/Forms/AllItems.aspx?id=/sites/Test/Shared%20Documents/a%20b.txt',
+                'https://acme.sharepoint.com/sites/Test/Shared%20Documents/Forms/AllItems.aspx?id=/sites/Test/Shared%20Documents/a%20b.txt',
             ),
         );
         assert.equal(t.name, 'a b.txt');
         assert.equal(t.fetchUrl, '/sites/Test/Shared%20Documents/a%20b.txt');
     });
     it('direct link /:t:/r/…', () => {
-        const t = linkTarget('x.url', url('https://contoso.sharepoint.com/:t:/r/sites/Test/Docs/n.txt?web=1'));
+        const t = linkTarget('x.url', url('https://acme.sharepoint.com/:t:/r/sites/Test/Docs/n.txt?web=1'));
         assert.equal(t.fetchUrl, '/sites/Test/Docs/n.txt');
         assert.equal(t.name, 'n.txt');
     });
     it('share link: raw file asked for', () => {
-        const t = linkTarget('x.url', url('https://contoso.sharepoint.com/:t:/s/Test/AbC?web=1'));
+        const t = linkTarget('x.url', url('https://acme.sharepoint.com/:t:/s/Test/AbC?web=1'));
         assert.match(t.fetchUrl, /download=1/);
         assert.doesNotMatch(t.fetchUrl, /web=1/);
     });

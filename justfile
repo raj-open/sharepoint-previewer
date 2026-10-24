@@ -81,22 +81,26 @@ build-src:
     @just _size "{{PATH_SRC}}" "{{MAX_KB_SRC}}"
     @just _size "{{PATH_MIN}}" "{{MAX_KB_MIN}}"
 
-# writes release to /dist/v<VERSION>: both userscripts with @version and 3D hashes stamped, 3D files, notes
+# writes release to /dist/v<VERSION>: both userscripts with @version (off main: <VERSION>-beta.<short commit>) and 3D hashes stamped, 3D files, notes
 [group("build")]
 build-dist: build-src build-3d
     @hash_js="$(just _sha256 "{{PATH_RELEASE}}/ifc-lite-3d.js")"; \
     hash_wasm="$(just _sha256 "{{PATH_RELEASE}}/ifc-lite_bg.wasm")"; \
+    version="{{VERSION}}"; \
+    if [ "$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)" != "main" ]; then \
+        version="{{VERSION}}-beta.$(git rev-parse --short HEAD)"; \
+    fi; \
     for pair in "{{PATH_SRC}}:{{NAME}}.js" "{{PATH_MIN}}:{{NAME}}.min.js"; do \
         path="{{PATH_RELEASE}}/${pair#*:}"; \
         sed -E \
-            -e "s|^(// @version[[:space:]]+).*$|\1{{VERSION}}|" \
+            -e "s|^(// @version[[:space:]]+).*$|\1${version}|" \
             -e "s|(VIEWER_3D_JS_SHA256 ?= ?[\"'])[0-9a-f]*|\1${hash_js}|" \
             -e "s|(VIEWER_3D_WASM_SHA256 ?= ?[\"'])[0-9a-f]*|\1${hash_wasm}|" \
             "${pair%%:*}" > "${path}"; \
         node --check "${path}"; \
     done
     @cp NOTES.md "{{PATH_RELEASE}}/NOTES.md"
-    @echo "built {{PATH_RELEASE}}"
+    @echo "built {{PATH_RELEASE}} ($(sed -n 's|^// @version[[:space:]]*||p' "{{PATH_RELEASE}}/{{NAME}}.js"))"
 
 # minified userscript; its ==UserScript== header is kept as is (Tampermonkey reads it).
 # NOTE: names are kept: the check worker is built from the script's own function sources
