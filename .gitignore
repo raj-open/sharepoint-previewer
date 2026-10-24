@@ -11,6 +11,7 @@
 !/.gitignore
 !/LICENCE
 !/README.md
+!/NOTES.md
 !/specs.md
 !/justfile
 !/package.json
