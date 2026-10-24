@@ -6,11 +6,7 @@
         "useIgnoreFile": true
     },
     "files": {
-        "includes": [
-            "src/**",
-            "tests/**",
-            "!tests/behave/fake-sharepoint/library/**"
-        ]
+        "includes": ["biome.json", "package.json", "src/**", "tests/**", "!tests/behave/fake-sharepoint/library"]
     },
     "formatter": {
         "enabled": true,
@@ -30,13 +26,12 @@
     "linter": {
         "enabled": true,
         "rules": {
-            "preset": "recommended",
-            "suspicious": {
-                "noAssignInExpressions": "off",
-                "noControlCharactersInRegex": "off",
-                "noRedundantUseStrict": "off",
-                "useIterableCallbackReturn": "off"
-            }
+            "preset": "recommended"
+        }
+    },
+    "json": {
+        "formatter": {
+            "indentWidth": 4
         }
     }
 }
