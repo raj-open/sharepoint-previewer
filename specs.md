@@ -31,7 +31,8 @@
 - Start-up: modules only define (no listeners, observers, menu or DOM changes on load);
   the entry `/src/_core/main.js` starts everything explicitly, in order, at the end of the bundle.
 - Version: `/dist/VERSION` is the single source;
-  the build writes it into the userscript's `@version`.
+  the build writes it into the userscript's `@version`,
+  off `main` as `<VERSION>-beta.<short commit>` (release files only, not `/src/main.js`).
 - 3D hashes: the build writes the SHA-256 of the built 3D files into the userscript;
   the values in `/src/main.js` are only those of the last deployed bundle.
 - Tests: `node --test`, files named `tests_*.mjs` under `/tests/{unit,behave,integration}`.
