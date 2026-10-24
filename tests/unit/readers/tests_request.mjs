@@ -6,14 +6,14 @@ import { load } from '../helpers.mjs';
 import { setLocation } from '../helpers.mjs';
 
 const { sameOrigin, responseDates, OUTSIDE } = await load('readers/request.js');
-setLocation('https://contoso.sharepoint.com/sites/Test/Shared%20Documents/Forms/AllItems.aspx');
+setLocation('https://acme.sharepoint.com/sites/Test/Shared%20Documents/Forms/AllItems.aspx');
 
 describe('readers/request', () => {
     it('same origin: relative paths and this host only', () => {
         assert.equal(sameOrigin('/sites/Test/a.txt'), true);
-        assert.equal(sameOrigin('https://contoso.sharepoint.com/x'), true);
+        assert.equal(sameOrigin('https://acme.sharepoint.com/x'), true);
         assert.equal(sameOrigin('https://example.com/x'), false);
-        assert.equal(sameOrigin('https://contoso.sharepoint.com.evil.example/x'), false);
+        assert.equal(sameOrigin('https://acme.sharepoint.com.evil.example/x'), false);
         assert.match(OUTSIDE, /outside this SharePoint/);
     });
     it('dates: Last-Modified, else Content-Disposition; in UTC', () => {
