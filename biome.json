@@ -10,7 +10,8 @@
             "biome.json",
             "package.json",
             "src/**",
-            "!src/**/*.min.js",
+            "!src/main.js",
+            "!src/main.min.js",
             "tests/**",
             "!tests/behave/fake-sharepoint/library"
         ]
