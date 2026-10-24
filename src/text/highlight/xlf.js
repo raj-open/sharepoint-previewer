@@ -1,4 +1,4 @@
-// XLIFF highlighting
+// Excel formulas (.xlf) highlighting
 
 // ===========================================================================
 // IMPORTS
