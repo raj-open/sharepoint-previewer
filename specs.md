@@ -2,9 +2,10 @@
 
 ## Scope ##
 
-- The project produces one main artefact:
-  a Tampermonkey userscript (`/dist/sharepoint-previewer.user.js`).
-- Optional 3D files (`/dist/viewer-3d`):
+- Each build produces one flat release folder `/dist/v<VERSION>`
+  with the Tampermonkey userscript (`sharepoint-previewer.js`),
+  the optional 3D files and `NOTES.md`.
+- 3D files:
   ifc-lite bundled from `/src/viewer-3d/main.js`,
   the `.wasm` copied unchanged from `@ifc-lite/wasm` (not rebuilt from its Rust source).
 - Keep the script a single, dependency-free JavaScript file at runtime.
