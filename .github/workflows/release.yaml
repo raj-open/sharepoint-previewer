@@ -1,0 +1,18 @@
+# ----------------------------------------------------------------
+# release: placeholder, not yet implemented
+# ----------------------------------------------------------------
+
+name: release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "not yet implemented"

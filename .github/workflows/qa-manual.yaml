@@ -1,0 +1,18 @@
+# ----------------------------------------------------------------
+# qa-manual: placeholder, not yet implemented
+# ----------------------------------------------------------------
+
+name: qa-manual
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qa-manual:
+    name: qa-manual
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "not yet implemented"
