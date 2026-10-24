@@ -489,6 +489,13 @@ const CSS = `
   .tp-enum { color: var(--tp-enum); }
   .tp-kw { color: var(--tp-kw); font-weight: 700; }
   .tp-anchor { color: var(--tp-anchor); }
+  .tp-lv-err { color: var(--tp-sev-error); font-weight: 700; }
+  .tp-lv-warn { color: var(--tp-sev-warning); font-weight: 700; }
+  .tp-lv-info { color: var(--tp-lit); font-weight: 700; }
+  .tp-lv-debug { color: var(--tp-trunc); }
+  .tp-log-date { color: var(--tp-type); }
+  .tp-log-frame { color: var(--tp-trunc); }
+  .tp-log-url { color: var(--tp-enum); text-decoration: underline; }
   .tp-sp {
     background-image: radial-gradient(circle, var(--tp-ws) 0.9px, transparent 1.3px);
     background-size: 1ch 100%;

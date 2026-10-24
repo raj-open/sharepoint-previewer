@@ -148,7 +148,7 @@ The logo setting only accepts `data:` URIs.
 | Format | Colours | Check (lint) | Table | 3D | Edit |
 | :----- | :-----: | :----------: | :---: | :-: | :--: |
 | JSON, XML (incl. `.addin`, `.config`, `.csproj`, …) | ✓ | ✓ | | | ✓ |
-| YAML, TOML, Power Query M, JavaScript, Python, SQL, Markdown, reStructuredText, Excel formulas (`.xlf`) | ✓ | YAML, M | | | ✓ |
+| YAML, TOML, log files, Power Query M, JavaScript, Python, SQL, Markdown, reStructuredText, Excel formulas (`.xlf`) | ✓ | YAML, M | | | ✓ |
 | CSV / TSV (delimiter detected) | ✓ (per column) | | ✓ (sort, filter, edit cells, rows, columns) | | ✓ |
 | Parquet (Snappy, GZIP, ZSTD, LZ4_RAW, uncompressed) | ✓ | | ✓ (read only) | | |
 | Spreadsheets: Excel `.xlsx` `.xlsm` `.xltx` `.xltm`, `.xlsb`, `.xls` `.xlt` (97–2003, 5.0/95), OpenDocument `.ods` `.ots` | ✓ | | ✓ (read only, per sheet) | | |

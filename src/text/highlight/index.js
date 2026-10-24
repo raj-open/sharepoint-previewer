@@ -8,6 +8,7 @@ import { highlightCsv } from './csv.js';
 import { highlightIfc } from './ifc.js';
 import { highlightJs } from './js.js';
 import { highlightJson } from './json.js';
+import { highlightLog } from './log.js';
 import { highlightM } from './m.js';
 import { highlightMd } from './md.js';
 import { highlightPy } from './py.js';
@@ -39,4 +40,5 @@ export const HIGHLIGHTERS = {
     yaml: highlightYaml,
     ifc: highlightIfc,
     toml: highlightToml,
+    log: highlightLog,
 };

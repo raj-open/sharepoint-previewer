@@ -23,6 +23,7 @@ const LANGS = [
     ['xlf', /\.xlf$/i], // Excel formulas
     ['sql', /\.sql$/i], // SQL
     ['py', /\.(py|pyw|pyi)$/i], // Python
+    ['log', /\.log$/i], // log files
 ];
 
 /** @type {Object<string, string>} */
@@ -32,6 +33,7 @@ export const LANG_NAMES = {
     yaml: 'YAML',
     ifc: 'IFC (STEP)',
     toml: 'TOML',
+    log: 'Log',
     m: 'Power Query M',
     js: 'JavaScript',
     md: 'Markdown',
