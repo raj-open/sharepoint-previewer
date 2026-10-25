@@ -1,18 +1,22 @@
 # ----------------------------------------------------------------
-# qa-auto: placeholder, not yet implemented
+# QA (automatic): on every push and pull request
 # ----------------------------------------------------------------
 
 name: qa-auto
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - "**"
+  pull_request:
 
 permissions:
   contents: read
 
+concurrency:
+  group: qa-auto-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  qa-auto:
-    name: qa-auto
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "not yet implemented"
+  qa:
+    uses: ./.github/workflows/_qa.yaml

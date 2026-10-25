@@ -1,18 +1,22 @@
 # ----------------------------------------------------------------
-# qa-manual: placeholder, not yet implemented
+# QA (manual): on demand, for any branch, tag or commit
 # ----------------------------------------------------------------
 
 name: qa-manual
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: branch, tag or commit (empty = the chosen branch)
+        type: string
+        default: ""
 
 permissions:
   contents: read
 
 jobs:
-  qa-manual:
-    name: qa-manual
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "not yet implemented"
+  qa:
+    uses: ./.github/workflows/_qa.yaml
+    with:
+      ref: ${{ inputs.ref }}

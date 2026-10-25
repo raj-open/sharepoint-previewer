@@ -1,18 +1,80 @@
 # ----------------------------------------------------------------
-# release: placeholder, not yet implemented
+# RELEASE: on a release tag (v<VERSION>, cf. `just tag`),
+# runs qa, builds /dist/v<VERSION> and attaches its files to the GitHub release
+# (created if missing; pre-release for alpha, beta, rc)
 # ----------------------------------------------------------------
 
 name: release
 
 on:
-  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
 
 permissions:
   contents: read
 
 jobs:
+  qa:
+    uses: ./.github/workflows/_qa.yaml
+
   release:
     name: release
+    needs: qa
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
     steps:
-      - run: echo "not yet implemented"
+      # --------------------------------
+      # setup
+      # --------------------------------
+      - uses: actions/checkout@v5
+        with:
+          fetch-tags: true
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: extractions/setup-just@v3
+
+      - name: tag matches /dist/VERSION
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          expected="$(just tag)"
+          if [[ "${TAG}" != "${expected}" ]]; then
+            echo "::error::tag ${TAG} does not match /dist/VERSION (expected ${expected})"
+            exit 1
+          fi
+
+      # --------------------------------
+      # build (no browser needed)
+      # --------------------------------
+      - name: build
+        run: |
+          npm ci --no-audit --no-fund
+          just build-dist
+
+      # --------------------------------
+      # release
+      # --------------------------------
+      - name: attach artefacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="$(cat dist/VERSION)"
+          folder="dist/v${version}"
+          if ! gh release view "${TAG}" > /dev/null 2>&1; then
+            flags=(--title "${TAG}" --generate-notes --verify-tag)
+            if [[ "${TAG}" == *-* ]]; then
+              flags+=(--prerelease)
+            fi
+            gh release create "${TAG}" "${flags[@]}"
+          fi
+          gh release upload "${TAG}" "${folder}"/* --clobber

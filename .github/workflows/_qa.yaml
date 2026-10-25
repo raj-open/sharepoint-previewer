@@ -1,0 +1,56 @@
+# ----------------------------------------------------------------
+# QA (reusable): lint checks + type check + all tests, as `just qa`
+# cf. /justfile (target `qa`) and /specs.md (section Quality)
+# ----------------------------------------------------------------
+
+name: qa
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "branch, tag or commit to check (empty: the triggering one)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    name: qa
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # --------------------------------
+      # setup
+      # --------------------------------
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: extractions/setup-just@v3
+
+      - name: dependencies
+        run: |
+          just build-deps
+          npx playwright install-deps chromium
+
+      # --------------------------------
+      # checks
+      # --------------------------------
+      - name: qa
+        run: just qa
+
+      # bundle in /src is committed: warn if it was not rebuilt before the commit
+      - name: bundle up to date
+        run: |
+          if ! git diff --quiet -- src/main.js src/main.min.js; then
+            echo "::warning::src/main.js or src/main.min.js not rebuilt before commit (run \`just build-src\`)"
+          fi
