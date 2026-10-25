@@ -31,18 +31,19 @@ const PREFIX = '/__explore__';
 const PATH_SHIM = path.join(import.meta.dirname, 'tampermonkey.js');
 const VERSION = `${sharepoint.VERSION}-explore`;
 
-// Logo shown in the viewer (setting `logo`): a sprout in soil under a sky; base64, as the userscript takes only that
+// Logo shown in the viewer (setting `logo`): a sprout in soil, dark blue behind; base64, as the userscript takes only that
 const LOGO_SVG =
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">' +
     '<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">' +
-    '<stop offset="0" stop-color="#4fa3e0"/><stop offset="1" stop-color="#bfe3f7"/></linearGradient></defs>' +
+    '<stop offset="0" stop-color="#0d2547"/><stop offset="1" stop-color="#1d4f86"/></linearGradient></defs>' +
     '<rect width="32" height="32" rx="7" fill="url(#sky)"/>' +
-    '<circle cx="16" cy="5" r="2.6" fill="#fff3b0"/>' +
     '<path d="M16 24V14" stroke="#3f8f3a" stroke-width="2.4" stroke-linecap="round" fill="none"/>' +
     '<path d="M16 16C15 10 10 7 4 8c0 6 5 9 12 8z" fill="#5fb548"/>' +
     '<path d="M16 13c1-5 5-8 11-7 0 5-4 8-11 7z" fill="#7cc95e"/>' +
-    '<path d="M0 25Q16 19 32 25A7 7 0 0 1 25 32H7A7 7 0 0 1 0 25z" fill="#6b4423"/>' +
-    '<circle cx="9" cy="27.5" r="1" fill="#8a5a33"/><circle cx="22" cy="27" r="1.2" fill="#8a5a33"/></svg>';
+    // flat, rough soil with black bits
+    '<path d="M0 24l2-.6 2 .7 2-.9 2 .8 2-.5 2 .6 2-.8 2 .7 2-.6 2 .9 2-.7 2 .5 2-.8 2 .7 2-.5 2 .6V25A7 7 0 0 1 25 32H7A7 7 0 0 1 0 25z" fill="#3a2414"/>' +
+    '<g fill="#0b0705">' +
+    '<circle cx="5" cy="27" r="0.6"/><circle cx="8" cy="25.4" r="0.45"/><circle cx="10.5" cy="29.5" r="0.7"/><circle cx="12.5" cy="27.6" r="0.4"/><circle cx="14" cy="26.3" r="0.55"/><circle cx="18.5" cy="28.8" r="0.65"/><circle cx="20.5" cy="30.6" r="0.45"/><circle cx="23" cy="26.2" r="0.5"/><circle cx="25.5" cy="28" r="0.7"/><circle cx="27.5" cy="25.6" r="0.4"/><circle cx="28.5" cy="29.5" r="0.5"/><circle cx="3.5" cy="25.3" r="0.4"/><circle cx="16.5" cy="30" r="0.4"/><circle cx="7" cy="30" r="0.5"/></g></svg>';
 const LOGO = `data:image/svg+xml;base64,${Buffer.from(LOGO_SVG).toString('base64')}`;
 
 const SCRIPT_TYPE = 'application/javascript; charset=utf-8';
