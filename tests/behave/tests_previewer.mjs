@@ -1,4 +1,4 @@
-// Behavioural tests (preliminary): userscript on the fake SharePoint (cf. ./fake-sharepoint/server.mjs)
+// Behavioural tests (preliminary): userscript on the fake SharePoint (cf. /tests/fake-sharepoint/server.mjs)
 
 import assert from 'node:assert/strict';
 import { after } from 'node:test';
