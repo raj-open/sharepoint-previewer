@@ -21,6 +21,8 @@ set windows-shell := ["bash", "-euo", "pipefail", "-c"]
 # --------------------------------
 
 NAME := env("NAME", "sharepoint-previewer")
+# local port of the explorative tests (fake SharePoint)
+HTTP_PORT := env("HTTP_PORT", "8080")
 # userscript: modules under /src (entry and header in /src/_core); bundled and minified by build-src into /src, both kept in the repo
 PATH_MODULES := "src"
 PATH_SRC := "src/main.js"
@@ -151,6 +153,11 @@ tests-behave:
 [group("tests")]
 tests-integration:
     @just _tests integration
+
+# explorative tests: fake SharePoint + userscript (/src/main.js) on http://localhost:${HTTP_PORT}; optional folder as library
+[group("tests")]
+tests-explore folder="":
+    @node tests/explore/server.mjs "{{HTTP_PORT}}" "{{folder}}"
 
 _tests kind:
     @files="$(find "tests/{{kind}}" -type f -name 'tests_*.mjs' | sort)"; \

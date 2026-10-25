@@ -37,6 +37,7 @@ just build-dist         # artefacts only (dependencies already installed)
 just prettify           # format + lint with fixes (Biome)
 just lint-check         # same, dry run
 just tests              # all tests (tests-unit, tests-behave, tests-integration)
+just tests-explore      # fake SharePoint with the userscript on localhost (HTTP_PORT in .env)
 just clean              # node_modules + built artefacts
 ```
 
