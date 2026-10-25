@@ -31,6 +31,8 @@ PATH_SRC_3D := "src/@apis/ifc-lite/main.js"
 PATH_DIST := "dist"
 PATH_VERSION := "dist/VERSION"
 VERSION := trim(read(PATH_VERSION))
+# release tag: short pre-release forms in /dist/VERSION (1.1.0a1, 1.1.0b2, 1.1.0rc1), long in tags (v1.1.0-alpha.1, ...)
+TAG := "v" + replace_regex(replace_regex(replace_regex(VERSION, '([0-9])a([0-9]+)$', '${1}-alpha.${2}'), '([0-9])b([0-9]+)$', '${1}-beta.${2}'), '([0-9])rc([0-9]+)$', '${1}-rc.${2}')
 # release folder, flat: userscript, 3D files, NOTES.md
 PATH_RELEASE := PATH_DIST / "v" + VERSION
 BIOME := "node_modules/.bin/biome"
@@ -85,7 +87,7 @@ build-src:
     @just _size "{{PATH_SRC}}" "{{MAX_KB_SRC}}"
     @just _size "{{PATH_MIN}}" "{{MAX_KB_MIN}}"
 
-# writes release to /dist/v<VERSION>: both userscripts with @version (not the commit tagged v<VERSION>: <VERSION>-beta.<short commit>) and 3D hashes stamped, 3D files, notes
+# writes release to /dist/v<VERSION>: both userscripts with @version (not the commit tagged with the release tag: <VERSION>-beta.<short commit>) and 3D hashes stamped, 3D files, notes
 [group("build")]
 build-dist: build-src build-3d
     #!/usr/bin/env bash
@@ -94,7 +96,7 @@ build-dist: build-src build-3d
     hash_wasm="$(just _sha256 "{{PATH_RELEASE}}/ifc-lite_bg.wasm")"
     version="{{VERSION}}"
     if git rev-parse --git-dir >/dev/null 2>&1 &&
-        [ "$(git tag --points-at HEAD 2>/dev/null | grep -Fx "v{{VERSION}}")" != "v{{VERSION}}" ]; then
+        [ "$(git tag --points-at HEAD 2>/dev/null | grep -Fx "{{TAG}}")" != "{{TAG}}" ]; then
         version="{{VERSION}}-beta.$(git rev-parse --short HEAD)"
     fi
     # quoted value: opening quote, then anything up to the closing quote
@@ -146,6 +148,11 @@ build-3d:
         --outfile="{{PATH_RELEASE}}/ifc-lite-3d.js"
     cp node_modules/@ifc-lite/wasm/pkg/ifc-lite_bg.wasm "{{PATH_RELEASE}}/ifc-lite_bg.wasm"
 
+# prints the release tag of /dist/VERSION (cf. TAG)
+[group("build")]
+tag:
+    @echo "{{TAG}}"
+
 _sha256 path:
     @node -e 'const fs = require("fs"); const crypto = require("crypto"); console.log(crypto.createHash("sha256").update(fs.readFileSync(process.argv[1])).digest("hex"))' "{{path}}"
 
@@ -172,6 +179,11 @@ tests-integration:
 [group("tests")]
 tests-explore folder="":
     @node tests/explore/server.mjs "{{HTTP_PORT}}" "{{folder}}"
+
+# screenshots for /demos (/demos/img/<case>.png) on the mock SharePoint; no case: all (cf. /scripts/demos.mjs)
+[group("tests")]
+demos *cases:
+    @node scripts/demos.mjs "$@"
 
 _tests kind:
     #!/usr/bin/env bash

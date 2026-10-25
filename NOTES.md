@@ -1,16 +1,16 @@
-# SharePoint Previewer - Technical Notes #
+# Sharepoint Previewer - Technical Notes #
 
 A userscript (Tampermonkey)
-that adds a preview column to SharePoint Online document libraries.
+that adds a preview column to Sharepoint Online document libraries.
 It shows text-like files directly in the browser,
-including files SharePoint itself cannot preview.
+including files Sharepoint itself cannot preview.
 It displays CSV, Parquet and spreadsheets (Excel, OpenDocument) as sortable tables,
 IFC building models in 3D
 and Markdown as formatted text,
 and offers a simple editor for plain-text files.
 
 This document is written for IT staff
-who need to decide whether the script can be used permanently within the company's SharePoint.
+who need to decide whether the script can be used permanently within the company's Sharepoint.
 It describes what the script does,
 what it does **not** do,
 which network requests it makes
@@ -24,12 +24,12 @@ and where it stores data.
 | :---- | :-------- |
 | Form | One JavaScript file (userscript, ~280 KB; minified ~200 KB), runs in the user's browser via Tampermonkey. Built from ES modules in the repository |
 | Scope | Only on `https://*.sharepoint.com/*/*/*`, and only inside a library's file list |
-| APIs | **No** SharePoint REST / Graph API calls. It reads the page's HTML and fetches the file itself, like opening its URL |
-| Third parties | **None.** No CDN, no analytics, no external servers. All requests go to the same SharePoint origin |
-| External libraries | None in the script itself. Optional 3D view: two files (ifc-lite, MPL-2.0) that **you** host in your own SharePoint |
+| APIs | **No** Sharepoint REST / Graph API calls. It reads the page's HTML and fetches the file itself, like opening its URL |
+| Third parties | **None.** No CDN, no analytics, no external servers. All requests go to the same Sharepoint origin |
+| External libraries | None in the script itself. Optional 3D view: two files (ifc-lite, MPL-2.0) that **you** host in your own Sharepoint |
 | Permissions | Those of the signed-in user, through the browser's normal session. No extra rights, no tokens |
-| Data leaving the browser | Only when the user explicitly uploads an edited file, through SharePoint's own upload (as if done by hand) |
-| Storage | Settings in Tampermonkey's script storage. View choices and window positions in the browser's `localStorage` for the SharePoint origin. File contents only in memory, gone on reload |
+| Data leaving the browser | Only when the user explicitly uploads an edited file, through Sharepoint's own upload (as if done by hand) |
+| Storage | Settings in Tampermonkey's script storage. View choices and window positions in the browser's `localStorage` for the Sharepoint origin. File contents only in memory, gone on reload |
 | Cookies | Not used |
 | Tampermonkey grants | `GM_getValue`, `GM_setValue`, `GM_registerMenuCommand` (settings only) |
 
@@ -80,9 +80,9 @@ and where it stores data.
 - **Markdown view:** headings, lists, task lists, quotes, code (with colours), tables, links, images;
   raw HTML is shown as text;
   links open in a new tab (scripts not followed);
-  images are shown only from the same SharePoint, others only as links (nothing fetched from elsewhere)
+  images are shown only from the same Sharepoint, others only as links (nothing fetched from elsewhere)
 
-The script never changes SharePoint's own UI,
+The script never changes Sharepoint's own UI,
 apart from adding the eye column and making room for the viewer.
 It ignores lists inside dialogues and pop-ups (e.g. "Copy to"),
 and it does not depend on the UI language.
@@ -92,14 +92,14 @@ and it does not depend on the UI language.
 ## 3. Architecture ##
 
 ```text
-SharePoint page (DOM)
+Sharepoint page (DOM)
  └─ userscript (Tampermonkey, @grant GM_getValue/GM_setValue/GM_registerMenuCommand)
      ├─ MutationObserver: finds file rows → adds eye cells (HTML only)
      ├─ Viewer (own DOM elements, own CSS, prefix "tp-")
      │   ├─ text view: syntax colours, whitespace markers, virtualised rendering
      │   ├─ table view: CSV / Parquet / spreadsheets / logs, sort, filter, column widths, CSV editing
      │   ├─ Markdown view: own small renderer (no library), raw HTML escaped
-     │   └─ 3D view: ifc-lite (optional, loaded from your SharePoint on first use)
+     │   └─ 3D view: ifc-lite (optional, loaded from your Sharepoint on first use)
      ├─ Sources: same-origin fetch with HTTP Range (chunks), in-memory cache (LRU)
      ├─ Decoders built in: Parquet (Thrift, RLE/bit-packing, dictionary, v1/v2 pages),
      │   Snappy, LZ4_RAW, ZSTD (RFC 8878); GZIP / ZIP via the browser's DecompressionStream;
@@ -120,18 +120,18 @@ SharePoint page (DOM)
 ## 4. Network behaviour (complete list) ##
 
 All requests use `fetch` with `credentials: 'same-origin'`
-and are **refused by the script if the target is not the current SharePoint origin**.
+and are **refused by the script if the target is not the current Sharepoint origin**.
 
 | Request | When | Purpose |
 | :------ | :--- | :------ |
-| `GET <file>` with `Range: bytes=…` | Opening a file; "Cache next"; "Cache all" | Read the file in chunks (default 512 KB). If SharePoint ignores ranges, one transfer is kept paused between chunks |
+| `GET <file>` with `Range: bytes=…` | Opening a file; "Cache next"; "Cache all" | Read the file in chunks (default 512 KB). If Sharepoint ignores ranges, one transfer is kept paused between chunks |
 | `GET <file>` `Range: bytes=0-3` | Opening a Parquet file | File size; then footer and needed column chunks by range |
 | `GET <file>` (whole) | Opening an `.ifczip` (after confirmation if > chunk size) | ZIP archive, unpacked in the browser |
 | `GET <file>` `Range: bytes=0-7`, then further ranges | Opening a spreadsheet; choosing another sheet; "Cache next sheet" | Size and signature; then only the parts needed: ZIP directory, workbook, shared strings, styles and the sheet shown (`.xls`: the sectors of the workbook globals and of that sheet) |
 | `GET <target>` | Opening a `.url` link file | Follows the link, same origin only, max. 5 hops |
 | `GET <site>/_api/web/GetList(…)/items`, if refused `GET <site>/_api/search/query` | Opening a file from search results in a library (rows there carry only the name) | Finds the file's path below the open folder, by name: library list first, search index as fallback |
 | `HEAD <file>` | After an upload | Checks that the file really changed (ETag / Last-Modified / size) |
-| `GET <VIEWER_3D_FOLDER>/ifc-lite-3d.js`, `…/ifc-lite_bg.wasm` | First use of the 3D view only | 3D library from **your** SharePoint; checked against fixed SHA-256 hashes before use |
+| `GET <VIEWER_3D_FOLDER>/ifc-lite-3d.js`, `…/ifc-lite_bg.wasm` | First use of the 3D view only | 3D library from **your** Sharepoint; checked against fixed SHA-256 hashes before use |
 
 There are no other requests:
 no telemetry,
@@ -147,7 +147,7 @@ The logo setting only accepts `data:` URIs.
 | :--- | :---- | :------- |
 | File contents (cached chunks) | JavaScript memory of the tab | Until reload, "Clear cache", or eviction at the cache limit |
 | Settings (16 values, see §9) | Tampermonkey storage for this script | Until changed / reset / script removed |
-| View choices (layout, split size, theme, colours, wrap, text size, table / Markdown / 3D on/off, properties lines, CSV format, sheets or tables per spreadsheet path) and window positions | `localStorage` of the SharePoint origin, keys `tp-preview-*` | Until the user clears site data |
+| View choices (layout, split size, theme, colours, wrap, text size, table / Markdown / 3D on/off, properties lines, CSV format, sheets or tables per spreadsheet path) and window positions | `localStorage` of the Sharepoint origin, keys `tp-preview-*` | Until the user clears site data |
 | 3D camera per file | Memory | Until reload |
 
 - **Cache limit:**
@@ -253,14 +253,14 @@ are detected from their first bytes and not shown.
 - **Save** keeps the edits in the browser (staged).
   **Upload** is a separate step.
 - **Upload uses no API.**
-  The script hands the file to SharePoint the way a user would:
+  The script hands the file to Sharepoint the way a user would:
   1. a simulated drop onto the file list, or
-  2. SharePoint's own file-upload input.
+  2. Sharepoint's own file-upload input.
 
-  SharePoint then performs the upload as the signed-in user,
+  Sharepoint then performs the upload as the signed-in user,
   including its usual "replace?" prompt.
   A `HEAD` request then confirms the change.
-- **If SharePoint does not accept it,**
+- **If Sharepoint does not accept it,**
   the user is offered a local save of the edited file to upload by hand.
 - **Unsaved or not-yet-uploaded changes** trigger warnings:
   when switching files,
@@ -305,7 +305,7 @@ Changing them in the form resets that remembered choice.
 
 ## 10. Security assessment ##
 
-**What reduces risk**
+### Risk reduction ###
 
 - **No new attack surface on the server side:**
   - no API usage
@@ -319,11 +319,11 @@ Changing them in the form resets that remembered choice.
   the optional 3D library is hosted by you
   and verified by SHA-256 before it is executed.
 - **No data leaves the browser**
-  except through a user-initiated upload to the same SharePoint.
+  except through a user-initiated upload to the same Sharepoint.
 - **HTML escaping:**
   file contents are always escaped before they are put into the page.
 
-**What to be aware of**
+### For further consideration ###
 
 - **Userscripts run with access to the page.**
   Any userscript manager can, in principle, read what the user sees.
@@ -331,18 +331,18 @@ Changing them in the form resets that remembered choice.
   (pin the version, disable auto-update from untrusted URLs).
 - **3D view:**
   - It runs the ifc-lite bundle with `new Function(...)` and compiles WebAssembly.
-  - SharePoint's Content Security Policy (CSP) could block this in future.
+  - Sharepoint's Content Security Policy (CSP) could block this in future.
     The script then shows "3D view failed"
     and everything else keeps working.
   - It needs WebGPU (current Chrome / Edge).
 - **Checks run in a Web Worker**
   created from a `blob:` URL, built from the script's own code.
   If workers are blocked, checks run on the page instead.
-- **Upload simulation depends on SharePoint's UI** (drop target / file input).
+- **Upload simulation depends on Sharepoint's UI** (drop target / file input).
   Changes by Microsoft may break it;
   the script then offers a local save instead.
 - **DOM dependence:**
-  the eye column relies on SharePoint's ARIA roles
+  the eye column relies on Sharepoint's ARIA roles
   (`role="grid"`, `row`, `columnheader`, `gridcell`).
   Microsoft UI changes may require adjustments.
 
@@ -361,7 +361,7 @@ Changing them in the form resets that remembered choice.
    - Keep auto-update pointed only at that internal URL.
 3. **3D view (optional):**
    - Put `ifc-lite-3d.js` (~1 MB) and `ifc-lite_bg.wasm` (~10 MB)
-     into a SharePoint library readable by the users.
+     into a Sharepoint library readable by the users.
    - Set `viewer-3d-folder`.
    - The script contains the expected SHA-256 hashes;
      files that don't match are refused.
@@ -387,7 +387,7 @@ That is outside the scope of this script.
 ## 12. Limitations and status ##
 
 - **Platform:**
-  SharePoint Online (modern library view); Chrome and Edge.
+  Sharepoint Online (modern library view); Chrome and Edge.
   The 3D view needs WebGPU.
 - **Not supported:**
   - Word and PowerPoint files
@@ -398,15 +398,15 @@ That is outside the scope of this script.
   - ZIP archives other than IFCZIP and spreadsheets
 - **Dates:**
   the modified date comes from the HTTP response of the file.
-  SharePoint may report the time the file was served
+  Sharepoint may report the time the file was served
   rather than when it was last changed.
 - **Testing:**
   - Every module of the script has unit tests outside the browser
     (decoders for Parquet, Snappy, LZ4, ZSTD and spreadsheets, linters, highlighters, cache, …).
   - The spreadsheet reader was also checked against the public test files of
     the calamine library (~150 real-world workbooks).
-  - The UI was tested in Chromium against a mock of SharePoint's markup
-    and by hand in SharePoint Online.
+  - The UI was tested in Chromium against a mock of Sharepoint's markup
+    and by hand in Sharepoint Online.
   - Upload and 3D rendering were tested by hand only.
 
 ---

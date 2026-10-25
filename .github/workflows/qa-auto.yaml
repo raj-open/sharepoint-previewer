@@ -1,18 +1,48 @@
 # ----------------------------------------------------------------
-# qa-auto: placeholder, not yet implemented
+# QA (automatic): on every push and pull request
 # ----------------------------------------------------------------
 
 name: qa-auto
 
 on:
-  workflow_dispatch:
+  # NOTE: resort to manual execution instead of run-on-push
+  # push:
+  #   branches:
+  #     - main
+  #     - staging
+
+  pull_request:
+    branches:
+      - main
+      - staging
+      - 'dev-*'
+      - 'bugfix-*'
+      - 'hotfix-*'
+      - 'feat-*'
+      - 'feature-*'
+      - 'story-*'
+
+    paths:
+      - '**/*'
+
+    # see <https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#discussion>
+    types:
+      - opened
+      - edited
+      - reopened
+      - ready_for_review
+      - unlocked
 
 permissions:
   contents: read
 
+concurrency:
+  group: qa-auto-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  qa-auto:
-    name: qa-auto
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "not yet implemented"
+  qa:
+    name: QA
+    runs-on: "ubuntu-latest"
+    environment: "local"
+    uses: ./.github/workflows/_common.yaml
