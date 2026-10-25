@@ -209,6 +209,7 @@ export function fakeViewer(extra = {}) {
         'textBtn',
         'tableBtn',
         'view3dBtn',
+        'sheetModeSelect',
         'sheetSelect',
         'titleSheet',
         'stage3d',

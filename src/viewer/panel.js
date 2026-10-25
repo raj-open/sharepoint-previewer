@@ -150,7 +150,11 @@ export function createViewer() {
     };
     const textBtn = viewBtn(TEXT_SVG, 'Text', 'Text view');
     const tableBtn = viewBtn(TABLE_SVG, 'Table', 'Table view (CSV, Parquet, spreadsheets)');
-    // Sheet of spreadsheet shown (● cached, ○ not yet); hidden for other files
+    // Spreadsheets with tables: sheets or tables; then the sheet or table shown (● cached, ○ not yet)
+    const sheetModeSelect = document.createElement('select');
+    sheetModeSelect.className = 'tp-sheet-mode';
+    sheetModeSelect.hidden = true;
+    sheetModeSelect.innerHTML = '<option value="sheets">Sheets</option><option value="tables">Tables</option>';
     const sheetSelect = document.createElement('select');
     sheetSelect.className = 'tp-sheet-select';
     sheetSelect.hidden = true;
@@ -465,7 +469,7 @@ export function createViewer() {
     statusBar.className = 'tp-statusbar';
     const views = document.createElement('div');
     views.className = 'tp-views';
-    views.append(textBtn, tableBtn, sheetSelect, view3dBtn);
+    views.append(textBtn, tableBtn, sheetModeSelect, sheetSelect, view3dBtn);
     statusBar.append(progress, views);
     box.append(header, csvBar, content, stage3d, editorWrap, loadMoreBtn, statusBar, splitter);
 
@@ -493,6 +497,7 @@ export function createViewer() {
         writeBtn,
         textBtn,
         tableBtn,
+        sheetModeSelect,
         sheetSelect,
         view3dBtn,
         stage3d,
@@ -590,6 +595,7 @@ export function createViewer() {
         savePref('tp-preview-3d', on ? '1' : '0');
     };
     sheetSelect.onchange = () => v.selectSheet?.(Number(sheetSelect.value));
+    sheetModeSelect.onchange = () => v.selectSheetMode?.(sheetModeSelect.value);
     view3dBtn.onclick = () => {
         if (v.view3d) return;
         set3d(true);

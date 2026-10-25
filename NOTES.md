@@ -55,14 +55,16 @@ and where it stores data.
   size, format, encoding, indentation,
   CSV delimiter and table shape,
   Parquet details,
-  number of sheets and shape of the sheet shown.
+  number of sheets and tables, shape of the sheet or table shown.
 - **Status bar:**
   - left: cache progress
     (blue while caching, neutral when idle or complete),
     with a "click to fully cache" hint
   - right: view switch **Text | Table | 3D**;
     for spreadsheets a sheet drop-down right of **Table**
-    (● cached, ○ not cached yet; hidden sheets marked),
+    (● cached, ○ not cached yet; hidden sheets marked);
+    for spreadsheets with tables also a **Sheets | Tables** choice
+    (start value: setting `spreadsheet-view`, then the last choice per file),
     the sheet shown is also named next to the file name
 
 The script never changes SharePoint's own UI,
@@ -129,7 +131,7 @@ The logo setting only accepts `data:` URIs.
 | :--- | :---- | :------- |
 | File contents (cached chunks) | JavaScript memory of the tab | Until reload, "Clear cache", or eviction at the cache limit |
 | Settings (16 values, see §9) | Tampermonkey storage for this script | Until changed / reset / script removed |
-| View choices (layout, split size, theme, colours, wrap, table on/off, 3D on/off, properties lines, CSV format) and window positions | `localStorage` of the SharePoint origin, keys `tp-preview-*` | Until the user clears site data |
+| View choices (layout, split size, theme, colours, wrap, table on/off, 3D on/off, properties lines, CSV format, sheets or tables per spreadsheet path) and window positions | `localStorage` of the SharePoint origin, keys `tp-preview-*` | Until the user clears site data |
 | 3D camera per file | Memory | Until reload |
 
 - **Cache limit:**
@@ -163,6 +165,13 @@ dates and times as ISO 8601 (`2026-10-24`, `14:30:00`, `2026-10-24 14:30:00`),
 both date systems (1900, 1904).
 Number formats beyond that (decimals, currencies, thousands separators) are not applied.
 Password-protected workbooks are not opened.
+
+Tables (Excel's "Format as Table" in `.xlsx` and `.xlsb`; named database ranges in `.ods`)
+can be shown instead of whole sheets:
+the table's rows below its header row (totals rows left out), its column names as header.
+`.xls` files show sheets only.
+The text view of a sheet shows the column letters as first line and the row numbers as first column,
+as Excel does (`,A,B,C`, then `1,…`).
 
 Other binary files (PDF, Word, PowerPoint, images, archives, …)
 are detected from their first bytes and not shown.
@@ -247,6 +256,7 @@ plus "Reset to defaults".
 | `wrap-lines` | `false` | Wrap long lines |
 | `colours-text` / `colours-table` | `true` / `false` | Syntax colours per view |
 | `colours-sheet` | `false` | Column colours in the table view of spreadsheets (rows are always striped) |
+| `spreadsheet-view` | `sheets` | Spreadsheets show `sheets` or `tables` (sheets if a file has none); the last choice is kept per file, a new value here resets those |
 | `cache-chunk-bytes` | 512 KB | Chunk size; also the threshold for asking before big Parquet / IFCZIP |
 | `memory-cache-bytes` | 256 MB | Cache limit for all files together |
 | `cache-all-confirm-bytes` | 16 MB | "Cache all" asks above this size |

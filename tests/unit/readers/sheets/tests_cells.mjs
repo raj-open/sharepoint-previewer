@@ -37,6 +37,14 @@ describe('readers/sheets/cells', () => {
         assert.deepEqual(['A1', 'Z9', 'AA10', 'xfd3'].map(lib.refCol), [0, 25, 26, 16383]);
     });
 
+    it('cell ranges: corners, single cells, "$", reversed, unreadable', () => {
+        assert.deepEqual(lib.cellRange('B3:D6'), { r0: 2, c0: 1, r1: 5, c1: 3 });
+        assert.deepEqual(lib.cellRange('$A$1'), { r0: 0, c0: 0, r1: 0, c1: 0 });
+        assert.deepEqual(lib.cellRange('D6:B3'), { r0: 2, c0: 1, r1: 5, c1: 3 });
+        assert.equal(lib.cellRange('Sheet1!A1'), null);
+        assert.equal(lib.rangeText({ r0: 2, c0: 1, r1: 5, c1: 3 }), 'B3:D6');
+    });
+
     it('format by file extension', () => {
         assert.equal(lib.sheetFormat('a.xlsx'), 'Excel (XLSX)');
         assert.equal(lib.sheetFormat('b.ODS'), 'OpenDocument spreadsheet (ODS)');

@@ -43,4 +43,36 @@ describe('readers/sheets/xlsb', () => {
         const d = XLSB_PARTS.sheet(bytes, ['s0'], [], false);
         assert.deepEqual(d.rows, [['s0', '5', 'TRUE'], [], ['text', '#DIV/0!']]);
     });
+    it('table: range, header and totals rows, names, column captions', () => {
+        const none = u32(0xffffffff);
+        // BrtBeginList: range (rows 2-5, columns 1-3), type, id, header, totals, flags, 6 styles, connection
+        const list = [...u32(2), ...u32(5), ...u32(1), ...u32(3), ...u32(0), ...u32(1), ...u32(1), ...u32(1)];
+        const fixed = [...list, ...u32(0), ...Array(6).fill(none).flat(), ...u32(0)];
+        // BrtBeginListCol: id, total function, 3 styles, query field; name (none), caption
+        const col = (caption) => [
+            ...u32(1),
+            ...u32(0),
+            ...none,
+            ...none,
+            ...none,
+            ...u32(0),
+            ...none,
+            ...wide(caption),
+        ];
+        const bytes = new Uint8Array([
+            ...rec(343, [...fixed, ...wide('Table1'), ...wide('Stock'), ...none]),
+            ...rec(345, u32(2)),
+            ...rec(347, col('fruit')),
+            ...rec(348),
+            ...rec(347, col('kg')),
+            ...rec(348),
+        ]);
+        assert.deepEqual(XLSB_PARTS.table(bytes), {
+            name: 'Stock',
+            range: { r0: 2, r1: 5, c0: 1, c1: 3 },
+            header: 1,
+            totals: 1,
+            columns: ['fruit', 'kg'],
+        });
+    });
 });

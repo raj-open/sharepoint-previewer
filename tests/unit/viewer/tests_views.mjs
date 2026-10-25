@@ -1,4 +1,4 @@
-// View switch: table view, colour choice per view, sheet drop-down
+// View switch: table view, colour choice per view, sheet and table drop-downs
 import assert from 'node:assert/strict';
 import { describe } from 'node:test';
 import { it } from 'node:test';
@@ -32,11 +32,28 @@ describe('viewer/views', () => {
             { name: 'B <x>', hidden: true, kind: 'sheet', data: undefined },
             { name: 'C', hidden: false, kind: 'chart', data: null },
         ];
-        showSheets(v, { isSheet: true, sheets, current: 0 });
+        showSheets(v, { isSheet: true, sheets, tables: [], mode: 'sheets', current: 0 });
         assert.equal(v.sheetSelect.hidden, false);
+        assert.equal(v.sheetModeSelect.hidden, true); // no tables: no choice
         assert.match(v.sheetSelect.innerHTML, /● A<\/option>.*○ B &lt;x&gt; \(hidden\)<\/option>.*● C \(chart\)/s);
         assert.equal(v.titleSheet.innerHTML, ' · <strong>Sheet:</strong> A');
         showSheets(v, null);
         assert.equal(v.sheetSelect.hidden, true);
+    });
+    it('table drop-down: name and sheet, cached marks, name in title', () => {
+        const v = fakeViewer();
+        const sheets = [
+            { name: 'Sales', hidden: false, kind: 'sheet', data: { rows: [], cols: 0 } },
+            { name: 'Stock', hidden: false, kind: 'sheet', data: undefined },
+        ];
+        const tables = [
+            { name: 'Orders', sheet: 0 },
+            { name: 'Stock', sheet: 1 },
+        ];
+        showSheets(v, { isSheet: true, sheets, tables, mode: 'tables', current: 0 });
+        assert.equal(v.sheetModeSelect.hidden, false);
+        assert.equal(v.sheetModeSelect.value, 'tables');
+        assert.match(v.sheetSelect.innerHTML, /● Orders \(Sales\)<\/option>.*○ Stock \(Stock\)<\/option>/s);
+        assert.equal(v.titleSheet.innerHTML, ' · <strong>Table:</strong> Orders');
     });
 });

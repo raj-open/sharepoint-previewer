@@ -12,6 +12,7 @@ import { showCached } from './status.js';
 /** @typedef {import('../_core/types.js').Source} Source */
 /** @typedef {import('../_core/types.js').Viewer} Viewer */
 /** @typedef {import('../_core/types.js').Sheet} Sheet */
+/** @typedef {import('../_core/types.js').Table} Table */
 
 // ===========================================================================
 // METHODS
@@ -42,14 +43,22 @@ export function colourOn(v) {
     return colourPrefs[colourKey(v)];
 }
 
-// Sheet choice (spreadsheets only): drop-down next to table button, sheet name in title
+// Sheet or table choice (spreadsheets only): drop-downs next to table button, name in title
 /** @param {Viewer} v @param {Source|null} src @returns {void} */
 export function showSheets(v, src) {
     /** @type {Sheet[]|null} */
     const sheets = src?.isSheet ? src.sheets : null;
+    /** @type {Table[]} */
+    const tables = (sheets && src?.tables) || [];
     v.sheetSelect.hidden = !sheets;
     v.titleSheet.hidden = !sheets;
+    v.sheetModeSelect.hidden = !tables.length;
     if (!sheets || !src) return;
+    if (tables.length) {
+        v.sheetModeSelect.value = src.mode;
+        v.sheetModeSelect.title = `Show sheets (${sheets.length}) or tables (${tables.length})`;
+    }
+    if (src.mode === 'tables') return void showTables(v, src, tables);
     const s = sheets[src.current];
     v.sheetSelect.innerHTML = sheets
         .map((x, i) => {
@@ -61,4 +70,21 @@ export function showSheets(v, src) {
     v.sheetSelect.value = String(src.current);
     v.sheetSelect.title = `Sheet ${src.current + 1} of ${sheets.length} (● cached, ○ not cached yet)`;
     v.titleSheet.innerHTML = ` · <strong>Sheet:</strong> ${esc(s.name)}`;
+}
+
+// Table choice: name and sheet of each table (● its sheet cached, ○ not yet)
+/** @param {Viewer} v @param {Source} src @param {Table[]} tables @returns {void} */
+function showTables(v, src, tables) {
+    /** @type {Sheet[]} */
+    const sheets = src.sheets;
+    const t = tables[src.current];
+    v.sheetSelect.innerHTML = tables
+        .map((x, i) => {
+            const s = sheets[x.sheet];
+            return `<option value="${i}">${s.data === undefined ? '○' : '●'} ${esc(x.name)} (${esc(s.name)})</option>`;
+        })
+        .join('');
+    v.sheetSelect.value = String(src.current);
+    v.sheetSelect.title = `Table ${src.current + 1} of ${tables.length} (● cached, ○ not cached yet)`;
+    v.titleSheet.innerHTML = ` · <strong>Table:</strong> ${esc(t.name)}`;
 }

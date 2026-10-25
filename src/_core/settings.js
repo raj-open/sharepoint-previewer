@@ -25,6 +25,9 @@ export const DEFAULTS = {
     // Column colours in table view of spreadsheets (start value; rows stay striped)
     'colours-sheet': false,
 
+    // Spreadsheets show 'sheets' or 'tables' (start value; sheets if a file has no tables)
+    'spreadsheet-view': 'sheets',
+
     // Bytes per cache step ("Cache next"); 512 KB ≈ 10,000 lines of code
     'cache-chunk-bytes': 512 * 1024,
 
@@ -103,6 +106,7 @@ export const {
     'colours-text': DEFAULT_COLOURS,
     'colours-table': DEFAULT_TABLE_COLOURS,
     'colours-sheet': DEFAULT_SHEET_COLOURS,
+    'spreadsheet-view': DEFAULT_SHEET_VIEW,
     'cache-chunk-bytes': MAX_BYTES,
     'parquet-rows': PARQUET_ROWS,
     'memory-cache-bytes': MEMORY_CACHE_BYTES,

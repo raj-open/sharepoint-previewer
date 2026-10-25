@@ -376,7 +376,7 @@ const CSS = `
   .tp-viewer .tp-view-btn:disabled { opacity: .4; cursor: default; }
   .tp-viewer .tp-view-btn:not(:disabled):not([aria-pressed="true"]):hover { background: var(--tp-hover); }
   /* Sheet choice (spreadsheets): segment right of the table button */
-  .tp-viewer .tp-sheet-select {
+  .tp-viewer .tp-sheet-select, .tp-viewer .tp-sheet-mode {
     height: 22px;
     max-width: 200px;
     padding: 0 4px;
@@ -388,8 +388,8 @@ const CSS = `
     font: 12px sans-serif;
     cursor: pointer;
   }
-  .tp-viewer .tp-sheet-select:hover { background: var(--tp-hover); }
-  .tp-viewer .tp-sheet-select option { background: var(--tp-bg); color: var(--tp-fg); }
+  .tp-viewer .tp-sheet-select:hover, .tp-viewer .tp-sheet-mode:hover { background: var(--tp-hover); }
+  .tp-viewer .tp-sheet-select option, .tp-viewer .tp-sheet-mode option { background: var(--tp-bg); color: var(--tp-fg); }
   .tp-viewer .tp-sheet-select + .tp-view-btn { border-left: 1px solid var(--tp-border); }
   .tp-progress-bar {
     width: 140px;

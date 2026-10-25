@@ -30,14 +30,19 @@
   /** @typedef {{ size: number, head: Uint8Array, dates: Object, read: ByteReader, fetched: () => number, whole: () => boolean }} RangeFile */
   /** @typedef {{ name: string, method: number, packed: number, size: number, offset: number, head: number }} ZipEntry */
   /** @typedef {{ rows: string[][], cols: number, cut: boolean }} SheetData cells as text, rows without gaps */
+  /** @typedef {{ r0: number, c0: number, r1: number, c1: number }} CellRange corners of a cell range (0-based, inclusive) */
+  /** @typedef {{ name: string, range: CellRange, header: number, totals: number, columns: string[] }} TablePart table (list object) of a sheet: header and totals rows, column names (may be empty) */
+  /** @typedef {TablePart & { sheet: number }} Table table and the index of its sheet */
+  /** @typedef {'sheets'|'tables'} SheetMode what a spreadsheet shows: its sheets or its tables */
+  /** @typedef {{ rows: string[][], header: string[], note: string, text: string }} SheetShown sheet or table shown: rows, column names, note if no rows, text view (CSV) */
   /** @typedef {{ name: string, hidden: boolean, kind: string, size: number, path?: string, data?: SheetData|null, note?: string }} Sheet data: undefined = not read yet, null = no cells */
-  /** @typedef {{ entry: (path?: string) => ZipEntry|undefined, bytes: (path?: string) => Promise<Uint8Array|null>, text: (path?: string) => Promise<string|null> }} Package parts of a ZIP-based document by path */
+  /** @typedef {{ paths: () => string[], entry: (path?: string) => ZipEntry|undefined, bytes: (path?: string) => Promise<Uint8Array|null>, text: (path?: string) => Promise<string|null> }} Package parts of a ZIP-based document by path */
   /** @typedef {{ deferred: string, size: number, dates: Object<string, *> }} Deferred big file: shown only after "cache all" */
   /** @typedef {{ sort: { col: number, dir: number }|null, filters: Map<number, { values: Set<string>|null, text: string }>, widths?: Map<number, number> }} TableState sort, filters, column widths of a table view */
   /** @typedef {string[] & { raw?: string }} CsvRow cells of a CSV line; raw: its text as in the file (unedited rows are written back as they were) */
   /** @typedef {Event & { target: HTMLElement }} TargetEvent event whose target is an element (handlers read e.target) */
-  /** @typedef {{ workbook: (bytes: Uint8Array) => { sheets: { name: string, id: string, hidden: boolean }[], active: number, date1904: boolean }, strings: (bytes: Uint8Array) => string[], styles: (bytes: Uint8Array) => string[], sheet: (bytes: Uint8Array, strings: string[], kinds: string[], date1904: boolean) => SheetData }} SheetParts readers of a workbook's parts (XML or binary) */
-  /** @typedef {{ format: string, sheets: Sheet[], active: number, date1904: boolean, load: (i: number) => Promise<SheetData|null> }} Book */
+  /** @typedef {{ workbook: (bytes: Uint8Array) => { sheets: { name: string, id: string, hidden: boolean }[], active: number, date1904: boolean }, strings: (bytes: Uint8Array) => string[], styles: (bytes: Uint8Array) => string[], sheet: (bytes: Uint8Array, strings: string[], kinds: string[], date1904: boolean) => SheetData, table: (bytes: Uint8Array) => TablePart|null }} SheetParts readers of a workbook's parts (XML or binary) */
+  /** @typedef {{ format: string, sheets: Sheet[], active: number, date1904: boolean, load: (i: number) => Promise<SheetData|null>, tables?: Table[] }} Book tables: undefined if the format has none that are read */
 
   // Module: _core/settings.js
 
@@ -67,6 +72,9 @@
 
       // Column colours in table view of spreadsheets (start value; rows stay striped)
       'colours-sheet': false,
+
+      // Spreadsheets show 'sheets' or 'tables' (start value; sheets if a file has no tables)
+      'spreadsheet-view': 'sheets',
 
       // Bytes per cache step ("Cache next"); 512 KB ≈ 10,000 lines of code
       'cache-chunk-bytes': 512 * 1024,
@@ -146,6 +154,7 @@
       'colours-text': DEFAULT_COLOURS,
       'colours-table': DEFAULT_TABLE_COLOURS,
       'colours-sheet': DEFAULT_SHEET_COLOURS,
+      'spreadsheet-view': DEFAULT_SHEET_VIEW,
       'cache-chunk-bytes': MAX_BYTES,
       'parquet-rows': PARQUET_ROWS,
       'memory-cache-bytes': MEMORY_CACHE_BYTES,
@@ -1150,7 +1159,7 @@
 
   // Module: _core/prefs.js
 
-  // Preferences kept in the browser (localStorage): theme, colours, wrap, CSV format, view choices
+  // Preferences kept in the browser (localStorage): theme, colours, wrap, CSV format, view choices (some per file)
 
   // ===========================================================================
   // IMPORTS
@@ -1170,6 +1179,10 @@
   const COLOUR_TABLE_KEY = 'tp-preview-colours-table';
   const COLOUR_SHEET_KEY = 'tp-preview-colours-sheet';
   const COLOUR_KEYS = { text: COLOUR_KEY, table: COLOUR_TABLE_KEY, sheet: COLOUR_SHEET_KEY };
+
+  // Spreadsheets: sheets or tables, per file (most recent first, the oldest dropped)
+  const SHEET_MODES_KEY = 'tp-preview-sheet-modes';
+  const MAX_SHEET_MODES = 500;
 
   // ===========================================================================
   // METHODS
@@ -1197,6 +1210,32 @@
       try {
           localStorage.setItem(key, value);
       } catch {}
+  }
+
+  // Sheets or tables chosen for a spreadsheet (file path -> mode)
+  /** @returns {Object<string, SheetMode>} */
+  function sheetModes() {
+      try {
+          const modes = JSON.parse(loadPref(SHEET_MODES_KEY, '{}'));
+          return modes && typeof modes === 'object' && !Array.isArray(modes) ? modes : {};
+      } catch {
+          return {};
+      }
+  }
+
+  // View of a spreadsheet: last choice for this file, else the setting
+  /** @param {string} url @returns {SheetMode} */
+  function sheetMode(url) {
+      const mode = sheetModes()[url] ?? DEFAULT_SHEET_VIEW;
+      return mode === 'tables' ? 'tables' : 'sheets';
+  }
+
+  /** @param {string} url @param {SheetMode} mode @returns {void} */
+  function rememberSheetMode(url, mode) {
+      const modes = sheetModes();
+      delete modes[url];
+      const kept = Object.entries(modes).slice(0, MAX_SHEET_MODES - 1);
+      savePref(SHEET_MODES_KEY, JSON.stringify(Object.fromEntries([[url, mode], ...kept])));
   }
 
   // Delimiter / quote style chosen in write mode ('' = keep file's own)
@@ -1319,6 +1358,7 @@
       ['colours-text', 'Syntax highlighting (text view)'],
       ['colours-table', 'Syntax highlighting (table view)'],
       ['colours-sheet', 'Column colours (spreadsheets)'],
+      ['spreadsheet-view', 'Spreadsheets show', ['sheets', 'tables']],
       ['cache-chunk-bytes', 'Cache chunk size', 'KB'],
       ['memory-cache-bytes', 'Cache limit (all files)', 'MB'],
       ['cache-all-confirm-bytes', 'Warn full file cache if file size exceeds', 'MB'],
@@ -1346,6 +1386,7 @@
       'colours-text': 'tp-preview-colours-text',
       'colours-table': 'tp-preview-colours-table',
       'colours-sheet': 'tp-preview-colours-sheet',
+      'spreadsheet-view': 'tp-preview-sheet-modes',
   };
   const SETTINGS_POS_KEY = 'tp-preview-settings-pos';
   const POPUP_POS_KEY = 'tp-preview-popup-pos';
@@ -2140,7 +2181,7 @@
     .tp-viewer .tp-view-btn:disabled { opacity: .4; cursor: default; }
     .tp-viewer .tp-view-btn:not(:disabled):not([aria-pressed="true"]):hover { background: var(--tp-hover); }
     /* Sheet choice (spreadsheets): segment right of the table button */
-    .tp-viewer .tp-sheet-select {
+    .tp-viewer .tp-sheet-select, .tp-viewer .tp-sheet-mode {
       height: 22px;
       max-width: 200px;
       padding: 0 4px;
@@ -2152,8 +2193,8 @@
       font: 12px sans-serif;
       cursor: pointer;
     }
-    .tp-viewer .tp-sheet-select:hover { background: var(--tp-hover); }
-    .tp-viewer .tp-sheet-select option { background: var(--tp-bg); color: var(--tp-fg); }
+    .tp-viewer .tp-sheet-select:hover, .tp-viewer .tp-sheet-mode:hover { background: var(--tp-hover); }
+    .tp-viewer .tp-sheet-select option, .tp-viewer .tp-sheet-mode option { background: var(--tp-bg); color: var(--tp-fg); }
     .tp-viewer .tp-sheet-select + .tp-view-btn { border-left: 1px solid var(--tp-border); }
     .tp-progress-bar {
       width: 140px;
@@ -4121,6 +4162,21 @@
       return s;
   }
 
+  // Cell range "A1:C4" or "A1" ("$" ignored) <-> corners (0-based); null if unreadable
+  /** @param {string} ref @returns {CellRange|null} */
+  function cellRange(ref) {
+      const m = /^\$?([A-Za-z]{1,3})\$?(\d{1,7})(?::\$?([A-Za-z]{1,3})\$?(\d{1,7}))?$/.exec(ref.trim());
+      if (!m) return null;
+      const r0 = Number(m[2]) - 1;
+      const c0 = refCol(m[1]);
+      const r1 = m[4] ? Number(m[4]) - 1 : r0;
+      const c1 = m[3] ? refCol(m[3]) : c0;
+      return { r0: Math.min(r0, r1), c0: Math.min(c0, c1), r1: Math.max(r0, r1), c1: Math.max(c0, c1) };
+  }
+
+  /** @param {CellRange} range @returns {string} */
+  const rangeText = ({ r0, c0, r1, c1 }) => `${colName(c0)}${r0 + 1}:${colName(c1)}${r1 + 1}`;
+
   // Cells of one sheet -> rows (no gaps between rows; missing cells are empty)
   /** @returns {{ set: (r: number, c: number, text: string) => boolean, done: () => SheetData }} */
   function sheetGrid() {
@@ -4227,20 +4283,34 @@
 
   // Module: readers/sheets/ods.js
 
-  // OpenDocument spreadsheet: all sheets in content.xml, cells with their display text
+  // OpenDocument spreadsheet: all sheets in content.xml, cells with their display text;
+  // named database ranges as tables
 
   // ===========================================================================
   // IMPORTS
   // ===========================================================================
 
   // ===========================================================================
+  // CONSTANTS
+  // ===========================================================================
+
+  // Range address "Sheet1.A1:Sheet1.D9", "'My sheet'.$A$1:.$D$9": sheet, first cell, last cell
+  const ODS_RANGE_RE =
+      /^\$?('(?:[^']|'')*'|[^.']*)\.([$A-Za-z]+[$\d]+)(?::\$?(?:'(?:[^']|'')*'|[^.']*)\.([$A-Za-z]+[$\d]+))?$/;
+
+  // Ranges LibreOffice makes itself (e.g. for a filter): not named by the user
+  const ODS_ANONYMOUS_RE = /^__Anonymous_Sheet_DB__/;
+
+  // ===========================================================================
   // METHODS
   // ===========================================================================
 
-  /** @param {string} xml @returns {{ name: string, data: SheetData }[]} */
+  /** @param {string} xml @returns {{ sheets: { name: string, data: SheetData }[], ranges: Object<string, string>[] }} */
   function odsSheets(xml) {
       /** @type {{ name: string, data: SheetData }[]} */
       const sheets = [];
+      /** @type {Object<string, string>[]} */
+      const ranges = []; // attributes of database ranges
       /** @type {ReturnType<typeof sheetGrid>|null} */
       let grid = null;
       let name = '';
@@ -4261,6 +4331,7 @@
       scanXml(
           xml,
           (n, a) => {
+              if (n === 'database-range' && !depth) return void ranges.push(xmlAttrs(a));
               if (n === 'table') {
                   if (depth++) return;
                   grid = sheetGrid();
@@ -4319,7 +4390,26 @@
           },
           (raw) => add(xmlText(raw)),
       );
-      return sheets;
+      return { sheets, ranges };
+  }
+
+  // Named database ranges -> tables (header row unless contains-header="false", totals row if
+  // contains-footer="true" (LibreOffice extension); no column names)
+  /** @param {Object<string, string>[]} ranges @param {string[]} names sheet names @returns {Table[]} */
+  function odsTables(ranges, names) {
+      /** @type {Table[]} */
+      const tables = [];
+      for (const at of ranges) {
+          const m = ODS_RANGE_RE.exec(at['target-range-address'] || '');
+          if (!m || !at.name || ODS_ANONYMOUS_RE.test(at.name)) continue;
+          const sheet = names.indexOf(m[1].replace(/^'|'$/g, '').replace(/''/g, "'"));
+          const range = cellRange(m[3] ? `${m[2]}:${m[3]}` : m[2]);
+          if (sheet < 0 || !range) continue;
+          const header = at['contains-header'] === 'false' ? 0 : 1;
+          const totals = at['contains-footer'] === 'true' ? 1 : 0;
+          tables.push({ name: at.name, range, header, totals, columns: [], sheet });
+      }
+      return tables;
   }
 
   // Typed value as the Excel formats show it (ISO dates, plain numbers); null = use cell text
@@ -4343,10 +4433,14 @@
       }
       const found = odsSheets(xmlString(await pkg.bytes('content.xml')));
       // all sheets come with content.xml: cached at once
-      const sheets = found.map((s) => ({ name: s.name, hidden: false, kind: 'sheet', size: 0, data: s.data }));
+      const sheets = found.sheets.map((s) => ({ name: s.name, hidden: false, kind: 'sheet', size: 0, data: s.data }));
       return {
           format: 'OpenDocument spreadsheet',
           sheets,
+          tables: odsTables(
+              found.ranges,
+              sheets.map((s) => s.name),
+          ),
           active: 0,
           date1904: false,
           load: async (i) => sheets[i].data,
@@ -4721,7 +4815,8 @@
           const b = await bytes(path);
           return b ? xmlString(b) : null;
       };
-      return { entry, bytes, text };
+      const paths = () => [...byName.keys()];
+      return { paths, entry, bytes, text };
   }
 
   // Path of target, relative to folder of `base` (or from root with leading "/")
@@ -4889,6 +4984,39 @@
           });
           return grid.done();
       },
+
+      // Table: BrtBeginList (range, header and totals rows, names), BrtBeginListCol (column names)
+      table(bytes) {
+          /** @type {TablePart|null} */
+          let out = null;
+          /** @type {string[]} */
+          const columns = [];
+          biff12Records(bytes, (type, d) => {
+              const dv = dataView(d);
+              if (type === 343 && d.length >= 68 && !out) {
+                  // range: first and last row, first and last column; names after 13 fixed fields
+                  const name = wideString(d, 64);
+                  const shown = wideString(d, name.end).text;
+                  out = {
+                      name: shown || name.text,
+                      range: {
+                          r0: dv.getUint32(0, true),
+                          r1: dv.getUint32(4, true),
+                          c0: dv.getUint32(8, true),
+                          c1: dv.getUint32(12, true),
+                      },
+                      header: dv.getUint32(24, true),
+                      totals: dv.getUint32(28, true),
+                      columns,
+                  };
+              } else if (type === 347 && d.length >= 28) {
+                  // name (often none), then caption shown in the header row
+                  const name = wideString(d, 24);
+                  columns.push(wideString(d, name.end).text || name.text);
+              }
+          });
+          return out;
+      },
   };
 
   // Module: readers/sheets/xlsx.js
@@ -5037,15 +5165,52 @@
               return v.trim() === '' ? '' : numberText(Number(v), kinds[s] || '', date1904);
           }
       },
+
+      // Table (ECMA-376 part 1, 18.5): name shown in Excel, range, header and totals rows, column names
+      /** @param {Uint8Array} bytes @returns {TablePart|null} */
+      table(bytes) {
+          /** @type {TablePart|null} */
+          let out = null;
+          /** @type {string[]} */
+          const columns = [];
+          scanXml(
+              xmlString(bytes),
+              (n, a) => {
+                  const at = xmlAttrs(a);
+                  if (n === 'table' && !out) {
+                      const range = cellRange(at.ref || '');
+                      if (!range) return;
+                      out = {
+                          name: at.displayName || at.name || '',
+                          range,
+                          header: at.headerRowCount === undefined ? 1 : Number(at.headerRowCount) || 0,
+                          totals: Number(at.totalsRowCount) || 0,
+                          columns,
+                      };
+                  } else if (n === 'tableColumn') columns.push(ooxmlText(at.name || ''));
+              },
+              () => {},
+          );
+          return out;
+      },
   };
 
   // Module: readers/sheets/ooxml.js
 
-  // OOXML workbooks (.xlsx, .xlsm, .xlsb): parts read from the ZIP by range
+  // OOXML workbooks (.xlsx, .xlsm, .xlsb): parts read from the ZIP by range; tables of the sheets
 
   // ===========================================================================
   // IMPORTS
   // ===========================================================================
+
+  /** @typedef {{ path: string, kind: string }} SheetPath */
+
+  // ===========================================================================
+  // CONSTANTS
+  // ===========================================================================
+
+  // Table parts (Excel keeps them in xl/tables)
+  const TABLE_PART_RE = /(^|\/)tables\/[^/]+\.(xml|bin)$/i;
 
   // ===========================================================================
   // METHODS
@@ -5087,6 +5252,7 @@
       return {
           format: `Excel (${binary ? 'XLSB' : 'XLSX'})`,
           sheets,
+          tables: await readTables(pkg, sheets, parts),
           active: wb.active,
           date1904: wb.date1904,
           load: async (i) => {
@@ -5095,6 +5261,23 @@
               return parts.sheet(/** @type {Uint8Array} */ (await pkg.bytes(s.path)), strings, kinds, wb.date1904); // entry checked above
           },
       };
+  }
+
+  // Tables of all sheets, from the sheets' relationships (only looked for if the package has table parts)
+  /** @param {Package} pkg @param {SheetPath[]} sheets @param {SheetParts} parts @returns {Promise<Table[]>} */
+  async function readTables(pkg, sheets, parts) {
+      /** @type {Table[]} */
+      const tables = [];
+      if (!pkg.paths().some((p) => TABLE_PART_RE.test(p))) return tables;
+      for (const [i, s] of sheets.entries()) {
+          if (s.kind !== 'sheet') continue;
+          for (const rel of (await partRels(pkg, s.path)).values()) {
+              if (!rel.type.endsWith('/table') || !pkg.entry(rel.path)) continue;
+              const t = parts.table(/** @type {Uint8Array} */ (await pkg.bytes(rel.path))); // entry checked above
+              if (t && t.range.r0 <= t.range.r1 && t.range.c0 <= t.range.c1) tables.push({ ...t, sheet: i });
+          }
+      }
+      return tables;
   }
 
   // Module: readers/sheets/cfb.js
@@ -5499,9 +5682,14 @@
       return pkg.entry('content.xml') && !pkg.entry('[Content_Types].xml') ? readOds(pkg) : readOoxml(pkg);
   }
 
-  // Spreadsheet source like openSource(): text = sheet shown, as CSV; more() = next sheet not cached
-  /** @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload @param {(loaded: number, total: number) => void} onProgress @returns {Promise<Source|{ error: string }>} */
-  async function openSheetSource(url, getSignal, reload, onProgress) {
+  // Spreadsheet source like openSource(): text = sheet or table shown, as CSV; more() = next sheet not cached.
+  // Sheets are the unit cached; a table is shown once its sheet is.
+  /**
+   * @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload
+   * @param {(loaded: number, total: number) => void} onProgress @param {SheetMode} [mode] start view (sheets if there are no tables)
+   * @returns {Promise<Source|{ error: string }>}
+   */
+  async function openSheetSource(url, getSignal, reload, onProgress, mode = 'sheets') {
       const file = await openRanges(url, getSignal, reload, onProgress);
       if ('error' in file) return file;
       /** @type {Book} */
@@ -5513,6 +5701,11 @@
           return { error: `Not shown: ${/** @type {Error} */ (err).message}` };
       }
       const { sheets } = book;
+      // tables in reading order: by sheet, then top to bottom, left to right
+      /** @type {Table[]} */
+      const tables = [...(book.tables || [])].sort(
+          (a, b) => a.sheet - b.sheet || a.range.r0 - b.range.r0 || a.range.c0 - b.range.c0,
+      );
       if (!sheets.length) return { error: 'Not shown: no sheets in this workbook' };
       const cached = () => sheets.filter((s) => s.data !== undefined).length;
 
@@ -5535,6 +5728,27 @@
           src.loaded = src.done ? file.size : Math.min(file.fetched(), file.size - 1);
       };
 
+      // First sheet: active when saved (else first visible worksheet)
+      /** @param {number} i */
+      const usable = (i) => sheets[i] && sheets[i].kind === 'sheet' && !sheets[i].hidden;
+      const firstSheet = usable(book.active)
+          ? book.active
+          : Math.max(
+                0,
+                sheets.findIndex((_, i) => usable(i)),
+            );
+      // Entry a view starts with: the sheet shown, or the first table on it (else the first table)
+      /** @param {SheetMode} m @returns {number} */
+      const startOf = (m) => {
+          const at = src.sheetOf(src.current);
+          return m === 'sheets'
+              ? at
+              : Math.max(
+                    0,
+                    tables.findIndex((t) => t.sheet === at),
+                );
+      };
+
       /** @type {Source} */
       const src = {
           total: file.size,
@@ -5545,35 +5759,49 @@
           dates: file.dates,
           format: book.format,
           sheets,
-          current: 0,
+          tables,
+          mode: /** @type {SheetMode} */ ('sheets'),
+          current: firstSheet,
+          /** @type {SheetShown} */
+          shown: { rows: [], header: [], note: '', text: '' },
           text: '',
           label: () => `${cached().toLocaleString()} of ${sheets.length.toLocaleString()} sheets cached`,
           nextLabel: 'Cache next sheet',
           get info() {
-              const s = sheets[src.current];
-              const d = s.data;
+              const { rows, header } = src.shown;
               const hidden = sheets.filter((x) => x.hidden).length;
-              const shape = d?.rows.length ? `: ${d.rows.length.toLocaleString()} rows × ${d.cols} columns` : '';
+              const shape = rows.length ? `: ${rows.length.toLocaleString()} rows × ${header.length} columns` : '';
               const hiddenNote = hidden ? ` (${hidden} hidden)` : '';
-              const cutNote = d?.cut ? ` (first ${MAX_SHEET_CELLS.toLocaleString()} cells)` : '';
-              const info = [
-                  ['sheets', `${sheets.length}${hiddenNote}`],
-                  ['sheet', `${s.name}${shape}${cutNote}`],
-              ];
+              const info = [['sheets', `${sheets.length}${hiddenNote}`]];
+              if (book.tables) info.push(['tables', tables.length.toLocaleString()]);
+              if (src.mode === 'tables') {
+                  const t = tables[src.current];
+                  info.push(['table', `${t.name} (${sheets[t.sheet].name}!${rangeText(t.range)})${shape}`]);
+              } else {
+                  const s = sheets[src.current];
+                  const cutNote = s.data?.cut ? ` (first ${MAX_SHEET_CELLS.toLocaleString()} cells)` : '';
+                  info.push(['sheet', `${s.name}${shape}${cutNote}`]);
+              }
               if (book.date1904) info.push(['dates', '1904 system']);
               return info;
           },
           loadSheet,
-          /** @param {number} i @returns {void} */
-          select: (i) => {
+          startOf,
+          // Sheet behind entry i of a view (its table's sheet for tables)
+          /** @param {number} i @param {SheetMode} [m] @returns {number} */
+          sheetOf: (i, m = src.mode) => (m === 'tables' ? tables[i].sheet : i),
+          // Shows entry i of a view (its sheet cached before)
+          /** @param {number} i @param {SheetMode} [m] @returns {void} */
+          select: (i, m = src.mode) => {
+              src.mode = m === 'tables' && tables[i] ? 'tables' : 'sheets';
               src.current = i;
-              const d = sheets[i].data;
-              src.text = d ? csvRows(d.rows, d.cols) : '';
+              src.shown = src.mode === 'tables' ? tableShown(tables[i], sheets[tables[i].sheet]) : sheetShown(sheets[i]);
+              src.text = src.shown.text;
           },
-          header: () => Array.from({ length: sheets[src.current].data?.cols || 0 }, (_, c) => colName(c)),
           more: async () => {
+              const at = src.sheetOf(src.current);
               for (let k = 1; k <= sheets.length; k++) {
-                  const i = (src.current + k) % sheets.length;
+                  const i = (at + k) % sheets.length;
                   if (sheets[i].data === undefined) return loadSheet(i);
               }
           },
@@ -5582,28 +5810,50 @@
           },
       };
 
-      // First: sheet active when saved (else first visible worksheet)
-      /** @param {number} i */
-      const usable = (i) => sheets[i] && sheets[i].kind === 'sheet' && !sheets[i].hidden;
-      const first = usable(book.active)
-          ? book.active
-          : Math.max(
-                0,
-                sheets.findIndex((_, i) => usable(i)),
-            );
-      await loadSheet(first);
-      src.select(first);
+      const start = mode === 'tables' && tables.length ? 'tables' : 'sheets';
+      const first = startOf(start);
+      await loadSheet(src.sheetOf(first, start));
+      src.select(first, start);
       return src;
   }
 
-  // Rows as CSV, padded to all columns
-  /** @param {string[][]} rows @param {number} cols @returns {string} */
-  function csvRows(rows, cols) {
+  // Sheet shown: rows as they are, columns A, B, …; its text with column letters and row numbers (as in Excel)
+  /** @param {Sheet} s @returns {SheetShown} */
+  function sheetShown(s) {
+      const d = s.data;
+      if (!d?.rows.length) return { rows: [], header: [], note: s.note || 'Empty sheet: no cells.', text: '' };
+      const header = Array.from({ length: d.cols }, (_, c) => colName(c));
+      return { rows: d.rows, header, note: '', text: csvRows([header].concat(d.rows), d.cols, true) };
+  }
+
+  // Table shown: its rows below the header row, without totals rows; column names as header
+  /** @param {Table} t @param {Sheet} s @returns {SheetShown} */
+  function tableShown(t, s) {
+      const d = s.data;
+      if (!d) return { rows: [], header: [], note: s.note || 'No cells to show.', text: '' };
+      const { r0, c0 } = t.range;
+      // not beyond the sheet's cells (against damaged or hostile ranges)
+      const c1 = Math.min(t.range.c1, Math.max(d.cols, c0 + t.columns.length) - 1);
+      const r1 = Math.min(t.range.r1 - t.totals, d.rows.length - 1);
+      const width = Math.max(0, c1 - c0 + 1);
+      /** @param {number} r @returns {string[]} */
+      const cells = (r) => Array.from({ length: width }, (_, k) => d.rows[r]?.[c0 + k] ?? '');
+      const names = t.header ? cells(r0) : [];
+      const header = Array.from({ length: width }, (_, k) => t.columns[k] || names[k] || colName(c0 + k));
+      const rows = [];
+      for (let r = r0 + t.header; r <= r1; r++) rows.push(cells(r));
+      const note = rows.length ? '' : 'Empty table: no rows below its header.';
+      return { rows, header, note, text: rows.length ? csvRows([header].concat(rows), width) : '' };
+  }
+
+  // Rows as CSV, padded to all columns; numbered: row numbers first (none for the header row)
+  /** @param {string[][]} rows @param {number} cols @param {boolean} [numbered] @returns {string} */
+  function csvRows(rows, cols, numbered = false) {
       const out = new Array(rows.length);
       for (let i = 0; i < rows.length; i++) {
           const r = rows[i];
-          let line = '';
-          for (let c = 0; c < cols; c++) line += (c ? ',' : '') + csvCell(r[c] ?? '');
+          let line = numbered && i ? String(i) : '';
+          for (let c = 0; c < cols; c++) line += (c || numbered ? ',' : '') + csvCell(r[c] ?? '');
           out[i] = line;
       }
       return out.join('\n');
@@ -7300,14 +7550,22 @@
       return colourPrefs[colourKey(v)];
   }
 
-  // Sheet choice (spreadsheets only): drop-down next to table button, sheet name in title
+  // Sheet or table choice (spreadsheets only): drop-downs next to table button, name in title
   /** @param {Viewer} v @param {Source|null} src @returns {void} */
   function showSheets(v, src) {
       /** @type {Sheet[]|null} */
       const sheets = src?.isSheet ? src.sheets : null;
+      /** @type {Table[]} */
+      const tables = (sheets && src?.tables) || [];
       v.sheetSelect.hidden = !sheets;
       v.titleSheet.hidden = !sheets;
+      v.sheetModeSelect.hidden = !tables.length;
       if (!sheets || !src) return;
+      if (tables.length) {
+          v.sheetModeSelect.value = src.mode;
+          v.sheetModeSelect.title = `Show sheets (${sheets.length}) or tables (${tables.length})`;
+      }
+      if (src.mode === 'tables') return void showTables(v, src, tables);
       const s = sheets[src.current];
       v.sheetSelect.innerHTML = sheets
           .map((x, i) => {
@@ -7319,6 +7577,23 @@
       v.sheetSelect.value = String(src.current);
       v.sheetSelect.title = `Sheet ${src.current + 1} of ${sheets.length} (● cached, ○ not cached yet)`;
       v.titleSheet.innerHTML = ` · <strong>Sheet:</strong> ${esc(s.name)}`;
+  }
+
+  // Table choice: name and sheet of each table (● its sheet cached, ○ not yet)
+  /** @param {Viewer} v @param {Source} src @param {Table[]} tables @returns {void} */
+  function showTables(v, src, tables) {
+      /** @type {Sheet[]} */
+      const sheets = src.sheets;
+      const t = tables[src.current];
+      v.sheetSelect.innerHTML = tables
+          .map((x, i) => {
+              const s = sheets[x.sheet];
+              return `<option value="${i}">${s.data === undefined ? '○' : '●'} ${esc(x.name)} (${esc(s.name)})</option>`;
+          })
+          .join('');
+      v.sheetSelect.value = String(src.current);
+      v.sheetSelect.title = `Table ${src.current + 1} of ${tables.length} (● cached, ○ not cached yet)`;
+      v.titleSheet.innerHTML = ` · <strong>Table:</strong> ${esc(t.name)}`;
   }
 
   // Module: viewer/view3d.js
@@ -7666,7 +7941,11 @@
       };
       const textBtn = viewBtn(TEXT_SVG, 'Text', 'Text view');
       const tableBtn = viewBtn(TABLE_SVG, 'Table', 'Table view (CSV, Parquet, spreadsheets)');
-      // Sheet of spreadsheet shown (● cached, ○ not yet); hidden for other files
+      // Spreadsheets with tables: sheets or tables; then the sheet or table shown (● cached, ○ not yet)
+      const sheetModeSelect = document.createElement('select');
+      sheetModeSelect.className = 'tp-sheet-mode';
+      sheetModeSelect.hidden = true;
+      sheetModeSelect.innerHTML = '<option value="sheets">Sheets</option><option value="tables">Tables</option>';
       const sheetSelect = document.createElement('select');
       sheetSelect.className = 'tp-sheet-select';
       sheetSelect.hidden = true;
@@ -7981,7 +8260,7 @@
       statusBar.className = 'tp-statusbar';
       const views = document.createElement('div');
       views.className = 'tp-views';
-      views.append(textBtn, tableBtn, sheetSelect, view3dBtn);
+      views.append(textBtn, tableBtn, sheetModeSelect, sheetSelect, view3dBtn);
       statusBar.append(progress, views);
       box.append(header, csvBar, content, stage3d, editorWrap, loadMoreBtn, statusBar, splitter);
 
@@ -8009,6 +8288,7 @@
           writeBtn,
           textBtn,
           tableBtn,
+          sheetModeSelect,
           sheetSelect,
           view3dBtn,
           stage3d,
@@ -8106,6 +8386,7 @@
           savePref('tp-preview-3d', on ? '1' : '0');
       };
       sheetSelect.onchange = () => v.selectSheet?.(Number(sheetSelect.value));
+      sheetModeSelect.onchange = () => v.selectSheetMode?.(sheetModeSelect.value);
       view3dBtn.onclick = () => {
           if (v.view3d) return;
           set3d(true);
@@ -8311,7 +8592,7 @@
           const result = PARQUET_RE.test(fileName)
               ? await openParquetSource(fetchUrl, getSignal, reload, onProgress, force)
               : SHEET_RE.test(fileName)
-                ? await openSheetSource(fetchUrl, getSignal, reload, onProgress)
+                ? await openSheetSource(fetchUrl, getSignal, reload, onProgress, sheetMode(hops[0]))
                 : ZIP_RE.test(fileName)
                   ? await openZipSource(fetchUrl, getSignal, reload, onProgress, force)
                   : await openSource(fetchUrl, getSignal, reload, onProgress);
@@ -8663,12 +8944,12 @@
           return t.split(/\r?\n/);
       };
 
-      // Table view: sort and filters stay while this file is open (also across "Cache next"); per sheet
+      // Table view: sort and filters stay while this file is open (also across "Cache next"); per sheet or table
       /** @type {TableState} */
       const tableState = { sort: null, filters: new Map() };
-      /** @type {Map<number, TableState>} */
+      /** @type {Map<string, TableState>} */
       const sheetStates = new Map();
-      /** @param {number} i */
+      /** @param {string} i e.g. "sheets 0" */
       const sheetState = (i) => {
           if (!sheetStates.has(i)) sheetStates.set(i, { sort: null, filters: new Map() });
           return /** @type {TableState} */ (sheetStates.get(i)); // set just above
@@ -8720,14 +9001,15 @@
               return line.slice(0, MAX_LINE_CHARS);
           });
           v.lineView?.stop();
-          const sheet = src.isSheet ? src.sheets[src.current] : null;
-          if (sheet && !sheet.data?.rows.length) {
-              // chart sheet, empty or unreadable sheet: a note instead
-              v.lineView = mountLines(v.content, renderLines([['', sheet.note || 'Empty sheet: no cells.']], new Map()));
+          /** @type {SheetShown|null} */
+          const shown = src.isSheet ? src.shown : null;
+          if (shown && !shown.rows.length) {
+              // chart sheet, empty or unreadable sheet, empty table: a note instead
+              v.lineView = mountLines(v.content, renderLines([['', shown.note]], new Map()));
               v.content.firstElementChild.classList.add('tp-notice');
-          } else if (sheet && view.table) {
-              v.lineView = mountTable(v.content, src.header(), sheet.data.rows, {
-                  state: sheetState(src.current),
+          } else if (shown && view.table) {
+              v.lineView = mountTable(v.content, shown.header, shown.rows, {
+                  state: sheetState(`${src.mode} ${src.current}`),
                   colour: colourOn(v),
               });
           } else if (view.table && lang === 'csv') {
@@ -8855,25 +9137,35 @@
       };
       v.loadMoreBtn.onclick = () => load(false);
 
-      // Other sheet: cached on first choice (stop keeps the sheet shown before)
-      v.selectSheet = async (/** @type {number} */ i) => {
-          if (!src.isSheet || i === src.current || !src.sheets[i]) return;
-          if (src.sheets[i].data === undefined) {
+      // Other sheet or table: its sheet cached on first choice (stop keeps what was shown before)
+      /** @param {number} i @param {SheetMode} [mode] */
+      v.selectSheet = async (i, mode = src.mode) => {
+          if (!src.isSheet || !(mode === 'tables' ? src.tables : src.sheets)[i]) return;
+          if (mode === src.mode && i === src.current) return;
+          const s = src.sheetOf(i, mode);
+          if (src.sheets[s].data === undefined) {
               const job = async () => {
-                  await src.loadSheet(i);
-                  src.select(i);
+                  await src.loadSheet(s);
+                  src.select(i, mode);
               };
-              const ok = await load(false, job, src.sheets[i].size);
+              const ok = await load(false, job, src.sheets[s].size);
               if (!current()) return;
-              if (!ok) return void showSheets(v, src); // drop-down back to sheet shown
+              if (!ok) return void showSheets(v, src); // drop-downs back to what is shown
           }
-          if (src.current !== i) {
-              src.select(i);
+          if (src.mode !== mode || src.current !== i) {
+              src.select(i, mode);
               v.text = src.text;
               render();
           }
           v.content.scrollTop = 0;
           v.content.scrollLeft = 0;
+      };
+      // Sheets or tables: remembered for this file
+      /** @param {SheetMode} mode */
+      v.selectSheetMode = (mode) => {
+          if (!src.isSheet || mode === src.mode) return;
+          rememberSheetMode(url, mode);
+          v.selectSheet(src.startOf(mode), mode);
       };
 
       if (LINTERS[lang] && !src.done) {
