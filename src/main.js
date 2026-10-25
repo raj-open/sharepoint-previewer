@@ -288,6 +288,14 @@
       <path d="M3.5 7.25L12 12l8.5-4.75M12 12v9.5"/>
     </svg>
   `;
+  // Page with M and down arrow (Markdown view)
+  const MARKDOWN_SVG = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="2" y="5" width="20" height="14" rx="2"/>
+      <path d="M5.5 15V9l3 3.5 3-3.5v6M17 9v6M14.5 12.5 17 15l2.5-2.5"/>
+    </svg>
+  `;
   const TABLE_SVG = `
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -748,7 +756,7 @@
           opts.onEdit?.();
       };
 
-      const ROW_HEIGHT = 23;
+      const ROW_HEIGHT = 23 * (Number(content.style?.getPropertyValue?.('--tp-zoom')) || 1); // text size (panel)
       /** @param {number} h */
       const spacer = (h) => `<tr class="tp-spacer"><td colspan="${cols + 1}" style="height:${h}px"></td></tr>`;
 
@@ -1174,6 +1182,8 @@
   const THEME_KEY = 'tp-preview-theme';
   const COLOUR_KEY = 'tp-preview-colours-text';
   const WRAP_KEY = 'tp-preview-wrap';
+  const ZOOM_KEY = 'tp-preview-zoom'; // text size in the content area (1 = 100 %)
+  const ZOOM_RANGE = [0.5, 3];
   const PROPS_KEY = 'tp-preview-properties'; // properties line shown (default) or hidden
   const CSV_SEP_KEY = 'tp-preview-csv-sep'; // '' = as in file
   const CSV_QUOTE_KEY = 'tp-preview-csv-quote'; // '' = as in file
@@ -1266,6 +1276,10 @@
       wrap: loadPref(WRAP_KEY, DEFAULT_WRAP ? '1' : '0') === '1',
       // 3D view chosen by user
       show3d: loadPref('tp-preview-3d', '0') === '1',
+      // Markdown rendered (else its text)
+      markdown: loadPref('tp-preview-markdown', '1') === '1',
+      // Text size in the content area (text, table, Markdown, editor)
+      zoom: Math.max(ZOOM_RANGE[0], Math.min(ZOOM_RANGE[1], Number(loadPref(ZOOM_KEY, '1')) || 1)),
   };
 
   // Module: ui/move.js
@@ -1982,7 +1996,7 @@
       min-height: 0;
       overflow: auto;
       outline: none;
-      font: 13px/1.45 Consolas, "Courier New", monospace;
+      font: calc(13px * var(--tp-zoom, 1))/1.45 Consolas, "Courier New", monospace;
       color: var(--tp-fg);
       background: var(--tp-bg);
     }
@@ -2001,7 +2015,7 @@
       padding: 4px 10px 12px 8px;
       overflow: hidden;
       text-align: right;
-      font: 13px/1.45 Consolas, "Courier New", monospace;
+      font: calc(13px * var(--tp-zoom, 1))/1.45 Consolas, "Courier New", monospace;
       color: var(--tp-ln-fg);
       background: var(--tp-ln-bg);
       border-right: 1px solid var(--tp-ln-border);
@@ -2020,7 +2034,7 @@
       outline: none;
       resize: none;
       box-sizing: border-box;
-      font: 13px/1.45 Consolas, "Courier New", monospace;
+      font: calc(13px * var(--tp-zoom, 1))/1.45 Consolas, "Courier New", monospace;
       color: var(--tp-fg);
       background: var(--tp-bg);
       white-space: pre;
@@ -2029,7 +2043,7 @@
     .tp-table {
       border-collapse: separate;
       border-spacing: 0;
-      font: 12px/1.4 sans-serif;
+      font: calc(12px * var(--tp-zoom, 1))/1.4 sans-serif;
       color: var(--tp-fg);
     }
     .tp-table th {
@@ -2183,6 +2197,10 @@
     .tp-viewer .tp-view-btn[aria-pressed="true"] { background: #0078d4; color: #fff; }
     .tp-viewer .tp-view-btn:disabled { opacity: .4; cursor: default; }
     .tp-viewer .tp-view-btn:not(:disabled):not([aria-pressed="true"]):hover { background: var(--tp-hover); }
+    /* Text size: − 100 % + (left of the view switch) */
+    .tp-zoom + .tp-views { margin-left: 0; }
+    .tp-viewer .tp-zoom .tp-view-btn { padding: 0 8px; font-size: 13px; }
+    .tp-viewer .tp-zoom .tp-zoom-value { min-width: 52px; justify-content: center; font-size: 11px; }
     /* Sheet or table choice (spreadsheets): segment right of the table button; menu above it */
     .tp-viewer .tp-picker {
       height: 22px;
@@ -2330,6 +2348,48 @@
     .tp-warn .tp-ln { color: var(--tp-warn-ln-fg); background: var(--tp-warn-ln-bg); }
     .tp-warn .tp-code { background: var(--tp-warn-bg); }
     .tp-flash .tp-code { background: var(--tp-flash) !important; transition: background .3s; }
+
+    /* Markdown view */
+    .tp-md {
+      max-width: 920px;
+      padding: 8px 24px 24px;
+      font: calc(14px * var(--tp-zoom, 1))/1.6 -apple-system, "Segoe UI", sans-serif;
+      overflow-wrap: anywhere;
+    }
+    .tp-md h1, .tp-md h2, .tp-md h3, .tp-md h4, .tp-md h5, .tp-md h6 { margin: 1.2em 0 .5em; line-height: 1.25; font-weight: 600; }
+    .tp-md h1 { font-size: 1.9em; padding-bottom: .25em; border-bottom: 1px solid var(--tp-border); }
+    .tp-md h2 { font-size: 1.45em; padding-bottom: .25em; border-bottom: 1px solid var(--tp-border); }
+    .tp-md h3 { font-size: 1.2em; }
+    .tp-md h4 { font-size: 1em; }
+    .tp-md h5, .tp-md h6 { font-size: .9em; }
+    .tp-md p, .tp-md ul, .tp-md ol, .tp-md blockquote, .tp-md pre, .tp-md table { margin: 0 0 .9em; }
+    .tp-md ul, .tp-md ol { padding-left: 2em; }
+    .tp-md li > ul, .tp-md li > ol { margin: 0; }
+    .tp-md li.tp-md-task { list-style: none; }
+    .tp-md li.tp-md-task input { margin: 0 .4em 0 -1.4em; vertical-align: middle; }
+    .tp-md a { color: var(--tp-accent); }
+    .tp-md code {
+      padding: .1em .35em;
+      border-radius: 4px;
+      background: var(--tp-ln-bg);
+      font: .9em Consolas, "Courier New", monospace;
+    }
+    .tp-md pre {
+      padding: 10px 12px;
+      overflow: auto;
+      border: 1px solid var(--tp-ln-border);
+      border-radius: 6px;
+      background: var(--tp-ln-bg);
+      line-height: 1.45;
+    }
+    .tp-md pre code { padding: 0; background: none; white-space: pre; }
+    .tp-md blockquote { padding: 0 1em; border-left: 4px solid var(--tp-border); opacity: .85; }
+    .tp-md blockquote > :last-child { margin-bottom: 0; }
+    .tp-md hr { border: none; border-top: 2px solid var(--tp-border); margin: 1.4em 0; }
+    .tp-md table { border-collapse: collapse; display: block; overflow: auto; }
+    .tp-md th, .tp-md td { padding: 4px 12px; border: 1px solid var(--tp-border); }
+    .tp-md th { font-weight: 600; background: var(--tp-header-bg); }
+    .tp-md img { max-width: 100%; }
 
     .tp-key { color: var(--tp-key); }
     .tp-str { color: var(--tp-str); }
@@ -7432,6 +7492,286 @@
       }
   }
 
+  // Module: view/markdown.js
+
+  // Render: Markdown -> HTML (CommonMark core + GFM tables, task lists, strikethrough); raw HTML shown as text
+
+  // ===========================================================================
+  // IMPORTS
+  // ===========================================================================
+
+  /** @typedef {{ colour?: boolean, base?: string }} MarkdownOptions */
+
+  // ===========================================================================
+  // CONSTANTS
+  // ===========================================================================
+
+  // Info strings of fenced code -> highlighter
+  /** @type {Object<string, string>} */
+  const CODE_LANGS = {
+      python: 'py',
+      javascript: 'js',
+      yml: 'yaml',
+      html: 'xml',
+      svg: 'xml',
+      markdown: 'md',
+      powerquery: 'm',
+      tsv: 'csv',
+  };
+
+  const FENCE_RE = /^ {0,3}(`{3,}|~{3,})\s*([\w+-]*)/;
+  const HEADING_RE = /^ {0,3}(#{1,6})(?:\s+(.*?))?(?:\s+#+)?\s*$/;
+  const RULE_RE = /^ {0,3}([-*_])(?:\s*\1){2,}\s*$/;
+  const SETEXT_RE = /^ {0,3}(=+|-+)\s*$/;
+  const QUOTE_RE = /^ {0,3}> ?/;
+  const ITEM_RE = /^( {0,3})([-*+]|\d{1,9}[.)])(\s+|$)/;
+  const TABLE_RULE_RE = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+  const UNSAFE_URL_RE = /^\s*(javascript|vbscript|data|file):/i;
+
+  // ===========================================================================
+  // METHODS
+  // ===========================================================================
+
+  // ---------------------------------------------------------------------------
+  // Inline: code, links, images, emphasis, line breaks
+  // ---------------------------------------------------------------------------
+
+  // Link target against the file's folder; null: not followed (scripts, data)
+  /** @param {string} url @param {string} base @returns {string|null} */
+  function resolveUrl(url, base) {
+      if (UNSAFE_URL_RE.test(url)) return null;
+      if (url.startsWith('#')) return url;
+      try {
+          return new URL(url, base || location.href).href;
+      } catch {
+          return null;
+      }
+  }
+
+  // Same site: images from the library are shown, others only linked (nothing fetched from elsewhere)
+  /** @param {string} href @returns {boolean} */
+  const sameSite = (href) => href.startsWith(`${location.origin}/`);
+
+  /** @param {string} text @returns {string} */
+  const slug = (text) =>
+      text
+          .toLowerCase()
+          .replace(/<[^>]*>|&\w+;/g, '')
+          .replace(/[^\p{L}\p{N}\s_-]/gu, '')
+          .trim()
+          .replace(/\s+/g, '-');
+
+  /** @param {string} text @param {MarkdownOptions} [opts] @param {string[]} [kept] finished HTML, out of reach of later rules @returns {string} */
+  function inlineHtml(text, opts = {}, kept = []) {
+      /** @param {string} html */
+      const keep = (html) => `\uE000${kept.push(html) - 1}\uE000`;
+      const base = opts.base || '';
+
+      let s = text
+          .replace(/(`+)([\s\S]*?[^`])\1(?!`)/g, (_, _q, code) =>
+              keep(`<code>${esc(code.replace(/^ (.+) $/, '$1'))}</code>`),
+          )
+          .replace(/\\([!-/:-@[-`{-~])/g, (_, c) => keep(esc(c)))
+          .replace(/!\[([^\]]*)\]\(\s*<?((?:[^\s()<>]|\([^\s()]*\))*)>?(?:\s+"([^"]*)")?\s*\)/g, (_, alt, url, title) => {
+              const href = resolveUrl(url, base);
+              if (!href) return keep(esc(alt));
+              const t = title ? ` title="${esc(title)}"` : '';
+              if (sameSite(href)) return keep(`<img src="${esc(href)}" alt="${esc(alt)}"${t} loading="lazy">`);
+              return keep(
+                  `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer"${t}>🖼 ${esc(alt || href)}</a>`,
+              );
+          })
+          .replace(/\[([^\]]+)\]\(\s*<?((?:[^\s()<>]|\([^\s()]*\))*)>?(?:\s+"([^"]*)")?\s*\)/g, (_, label, url, title) => {
+              const href = resolveUrl(url, base);
+              const inner = inlineHtml(label, opts, kept);
+              if (!href) return keep(inner);
+              const t = title ? ` title="${esc(title)}"` : '';
+              const target = href.startsWith('#') ? '' : ' target="_blank" rel="noopener noreferrer"';
+              return keep(`<a href="${esc(href)}"${target}${t}>${inner}</a>`);
+          })
+          .replace(/<((?:https?:\/\/|mailto:)[^\s<>]+)>/g, (_, url) =>
+              keep(`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url)}</a>`),
+          );
+
+      s = esc(s)
+          .replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, '<strong>$2</strong>')
+          .replace(/\*(?=\S)([\s\S]*?\S)\*|(^|[^\p{L}\p{N}_])_(?=\S)([\s\S]*?\S)_(?![\p{L}\p{N}_])/gu, (_, a, pre, b) =>
+              a !== undefined ? `<em>${a}</em>` : `${pre}<em>${b}</em>`,
+          )
+          .replace(/~~(?=\S)([\s\S]*?\S)~~/g, '<del>$1</del>')
+          .replace(/(?: {2,}|\\)\n/g, '<br>\n');
+      return s.replace(/\uE000(\d+)\uE000/g, (_, i) => kept[Number(i)]);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Blocks: headings, paragraphs, lists, quotes, code, tables, rules
+  // ---------------------------------------------------------------------------
+
+  /** @param {string} line @returns {string[]} */
+  const tableCells = (line) =>
+      line
+          .trim()
+          .replace(/^\||\|$/g, '')
+          .split(/(?<!\\)\|/)
+          .map((c) => c.trim());
+
+  /** @param {string} code @param {string} info @param {MarkdownOptions} opts @returns {string} */
+  function codeHtml(code, info, opts) {
+      const lang = CODE_LANGS[info.toLowerCase()] || info.toLowerCase();
+      const highlight = opts.colour ? HIGHLIGHTERS[lang] : null;
+      if (!highlight) return esc(code);
+      return highlight(code)
+          .map(([cls, t]) => (cls ? `<span class="tp-${cls}">${esc(t)}</span>` : esc(t)))
+          .join('');
+  }
+
+  // Starts a block other than a paragraph (ends a paragraph before it)
+  /** @param {string} line @returns {boolean} */
+  const opensBlock = (line) =>
+      FENCE_RE.test(line) || HEADING_RE.test(line) || RULE_RE.test(line) || QUOTE_RE.test(line) || ITEM_RE.test(line);
+
+  /** @param {string[]} lines @param {MarkdownOptions} opts @returns {string} */
+  function blocksHtml(lines, opts) {
+      /** @type {string[]} */
+      const out = [];
+      let i = 0;
+      while (i < lines.length) {
+          const line = lines[i];
+          const fence = FENCE_RE.exec(line);
+          const heading = HEADING_RE.exec(line);
+          if (!line.trim()) {
+              i++;
+          } else if (fence) {
+              const end = lines.findIndex((l, j) => j > i && l.trimStart().startsWith(fence[1]));
+              const stop = end < 0 ? lines.length : end;
+              const code = lines.slice(i + 1, stop).join('\n');
+              out.push(`<pre><code>${codeHtml(code, fence[2], opts)}</code></pre>`);
+              i = stop + 1;
+          } else if (heading) {
+              const n = heading[1].length;
+              const html = inlineHtml(heading[2] || '', opts);
+              out.push(`<h${n} data-anchor="${esc(slug(html))}">${html}</h${n}>`);
+              i++;
+          } else if (RULE_RE.test(line)) {
+              out.push('<hr>');
+              i++;
+          } else if (QUOTE_RE.test(line)) {
+              const inner = [];
+              while (i < lines.length && lines[i].trim() && (QUOTE_RE.test(lines[i]) || !opensBlock(lines[i])))
+                  inner.push(lines[i++].replace(QUOTE_RE, ''));
+              out.push(`<blockquote>${blocksHtml(inner, opts)}</blockquote>`);
+          } else if (ITEM_RE.test(line)) {
+              i = listHtml(lines, i, opts, out);
+          } else if (line.includes('|') && TABLE_RULE_RE.test(lines[i + 1] || '') && lines[i + 1].includes('-')) {
+              const head = tableCells(line);
+              const align = tableCells(lines[i + 1]).map((c) =>
+                  c.endsWith(':') ? (c.startsWith(':') ? 'center' : 'right') : c.startsWith(':') ? 'left' : '',
+              );
+              /** @param {string[]} cells @param {string} tag */
+              const row = (cells, tag) =>
+                  cells
+                      .map((c, j) => {
+                          const a = align[j] ? ` style="text-align:${align[j]}"` : '';
+                          return `<${tag}${a}>${inlineHtml(c, opts)}</${tag}>`;
+                      })
+                      .join('');
+              const body = [];
+              i += 2;
+              while (i < lines.length && lines[i].includes('|') && lines[i].trim()) body.push(tableCells(lines[i++]));
+              const rows = body.map((r) => `<tr>${row(r.slice(0, head.length), 'td')}</tr>`).join('');
+              out.push(`<table><thead><tr>${row(head, 'th')}</tr></thead><tbody>${rows}</tbody></table>`);
+          } else if (/^ {4}/.test(line)) {
+              const code = [];
+              while (i < lines.length && (/^ {4}/.test(lines[i]) || !lines[i].trim())) code.push(lines[i++].slice(4));
+              while (code.length && !code[code.length - 1].trim()) code.pop();
+              out.push(`<pre><code>${esc(code.join('\n'))}</code></pre>`);
+          } else {
+              const para = [line];
+              i++;
+              while (i < lines.length && lines[i].trim() && !opensBlock(lines[i]) && !SETEXT_RE.test(lines[i]))
+                  para.push(lines[i++]);
+              const setext = i < lines.length && SETEXT_RE.exec(lines[i]);
+              const html = inlineHtml(para.map((l) => l.replace(/^\s+/, '')).join('\n'), opts);
+              if (setext) {
+                  const n = setext[1][0] === '=' ? 1 : 2;
+                  out.push(`<h${n} data-anchor="${esc(slug(html))}">${html}</h${n}>`);
+                  i++;
+              } else out.push(`<p>${html}</p>`);
+          }
+      }
+      return out.join('\n');
+  }
+
+  // List from line `start`: items of one kind, their lines dedented to the item's text; returns next line
+  /** @param {string[]} lines @param {number} start @param {MarkdownOptions} opts @param {string[]} out @returns {number} */
+  function listHtml(lines, start, opts, out) {
+      const first = /** @type {RegExpExecArray} */ (ITEM_RE.exec(lines[start]));
+      const ordered = /\d/.test(first[2]);
+      const marker = ordered ? first[2].slice(-1) : first[2];
+      /** @type {string[][]} */
+      const items = [];
+      let loose = false;
+      let i = start;
+      while (i < lines.length) {
+          const m = ITEM_RE.exec(lines[i]);
+          if (!m || (ordered ? m[2].slice(-1) !== marker : m[2] !== marker)) break;
+          const pad = ' '.repeat(Math.max(m[0].length, m[1].length + m[2].length + 1)); // text column of the item
+          const item = [lines[i].slice(m[0].length)];
+          for (i++; i < lines.length; i++) {
+              const l = lines[i];
+              const next = lines[i + 1];
+              if (l.startsWith(pad)) item.push(l.slice(pad.length));
+              else if (l.trim() && !opensBlock(l) && item[item.length - 1].trim())
+                  item.push(l); // lazy line
+              else if (l.trim() || next === undefined || !(next.startsWith(pad) || ITEM_RE.test(next))) break;
+              else {
+                  loose = true; // blank line inside the list
+                  item.push('');
+              }
+          }
+          items.push(item);
+      }
+      const startAt = ordered && Number.parseInt(first[2], 10) !== 1 ? ` start="${Number.parseInt(first[2], 10)}"` : '';
+      const html = items.map((item) => {
+          const task = /^\[([ xX])\]\s+/.exec(item[0]);
+          if (task) item[0] = item[0].slice(task[0].length);
+          let body = blocksHtml(item, opts);
+          if (!loose) body = body.replace(/<p>([\s\S]*?)<\/p>/g, '$1');
+          const box = task ? `<input type="checkbox" disabled${task[1] === ' ' ? '' : ' checked'}> ` : '';
+          const cls = task ? ' class="tp-md-task"' : '';
+          return `<li${cls}>${box}${body}</li>`;
+      });
+      const tag = ordered ? 'ol' : 'ul';
+      out.push(`<${tag}${startAt}>${html.join('')}</${tag}>`);
+      return i;
+  }
+
+  /** @param {string} text @param {MarkdownOptions} [opts] @returns {string} */
+  function markdownHtml(text, opts = {}) {
+      return blocksHtml(text.replace(/\r\n?/g, '\n').replace(/\t/g, '    ').split('\n'), opts);
+  }
+
+  // ---------------------------------------------------------------------------
+  // View
+  // ---------------------------------------------------------------------------
+
+  // Whole document at once (Markdown files are small); links to headings scroll within the view
+  /** @param {HTMLElement} content @param {string} text @param {MarkdownOptions} [opts] @returns {LineView} */
+  function mountMarkdown(content, text, opts = {}) {
+      const doc = document.createElement('div');
+      doc.className = 'tp-md';
+      doc.innerHTML = markdownHtml(text, opts);
+      doc.addEventListener('click', (e) => {
+          const a = /** @type {HTMLElement} */ (e.target).closest('a[href^="#"]');
+          if (!a) return;
+          e.preventDefault();
+          const name = decodeURIComponent((a.getAttribute('href') || '').slice(1)).toLowerCase();
+          doc.querySelector(`[data-anchor="${CSS.escape(name)}"]`)?.scrollIntoView({ block: 'start' });
+      });
+      content.replaceChildren(doc);
+      return { stop: () => {}, show: () => {} };
+  }
+
   // Module: viewer/messages.js
 
   // Messages in the viewer: plain notices, lint results
@@ -7714,25 +8054,61 @@
   // ===========================================================================
 
   // ===========================================================================
+  // CONSTANTS
+  // ===========================================================================
+
+  // Preview (view switch, right of Text): one per file type; its look follows the file shown
+  /** @type {Object<PreviewKind, { svg: string, label: string, title: string }>} */
+  const PREVIEWS = {
+      table: { svg: TABLE_SVG, label: 'Table', title: 'Table view (CSV, Parquet, spreadsheets)' },
+      '3d': { svg: CUBE_SVG, label: '3D', title: '3D view (IFC, IFCZIP)' },
+      md: { svg: MARKDOWN_SVG, label: 'Markdown', title: 'Markdown view' },
+  };
+
+  // ===========================================================================
   // METHODS
   // ===========================================================================
 
+  /** @typedef {'table'|'3d'|'md'} PreviewKind */
+
+  // Preview of a language (as in Viewer.lang); null: text only
+  /** @param {string|null|undefined} lang @returns {PreviewKind|null} */
+  function previewOf(lang) {
+      if (lang === 'csv' || lang === 'parquet' || lang === 'sheet') return 'table';
+      if (lang === 'ifc') return '3d';
+      if (lang === 'md') return 'md';
+      return null;
+  }
+
   /** @param {Viewer} v @returns {boolean} */
-  const tableView = (v) => ['csv', 'parquet', 'sheet'].includes(v.lang) && view.table;
+  const tableView = (v) => previewOf(v.lang) === 'table' && view.table;
+
+  // Markdown shown rendered (not while edited: the editor shows its text)
+  /** @param {Viewer} v @returns {boolean} */
+  const markdownView = (v) => v.lang === 'md' && view.markdown && !v.writeMode;
+
+  // Preview button for a file type: icon, label, tooltip; `reason` (or no preview): disabled
+  /** @param {Viewer} v @param {PreviewKind|null} kind @param {string} [reason] @returns {void} */
+  function setPreview(v, kind, reason = '') {
+      const p = kind ? PREVIEWS[kind] : null;
+      const label = p ? p.label : 'Preview';
+      v.previewBtn.innerHTML = `${p ? p.svg : EYE_FULL_SVG}<span>${label}</span>`;
+      v.previewBtn.disabled = !p || !!reason;
+      v.previewBtn.title = reason || (p ? p.title : 'No preview for this file type');
+  }
 
   // Colour choice of view shown: text, table (CSV / Parquet) or sheet (spreadsheets: own choice)
   /** @param {Viewer} v @returns {'text'|'table'|'sheet'} */
   const colourKey = (v) => (!tableView(v) ? 'text' : v.lang === 'sheet' ? 'sheet' : 'table');
 
-  // View switch state (pressed = current view) and idle cache bar
+  // View switch state (pressed = current view: Text or Preview) and idle cache bar
   /** @param {Viewer} v @returns {void} */
   function updateViews(v) {
-      const table = !v.view3d && tableView(v);
+      const preview = !!v.view3d || tableView(v) || markdownView(v);
       const shown = !!v.source && !v.source.deferred; // content on screen
       v.textBtn.disabled = !shown;
-      v.textBtn.setAttribute('aria-pressed', String(shown && !v.view3d && !table));
-      v.tableBtn.setAttribute('aria-pressed', String(table && !v.tableBtn.disabled));
-      v.view3dBtn.setAttribute('aria-pressed', String(!!v.view3d));
+      v.textBtn.setAttribute('aria-pressed', String(shown && !preview));
+      v.previewBtn.setAttribute('aria-pressed', String(preview && !v.previewBtn.disabled));
       if (!v.busy) showCached(v);
   }
 
@@ -7988,7 +8364,7 @@
   async function toggle3d(v) {
       if (v.view3d) return close3d(v);
       const src = v.source;
-      if (!src || v.view3dBtn.disabled) return;
+      if (!src || v.previewBtn.disabled) return;
       if (!(/** @type {Navigator & { gpu?: unknown }} */ (navigator).gpu)) {
           alert('3D view needs WebGPU (current Chrome or Edge).');
           return;
@@ -8056,6 +8432,13 @@
   // CONSTANTS
   // ===========================================================================
 
+  // Preferences of the views switched by Text / Preview
+  /** @type {Object<string, string>} */
+  const VIEW_KEYS = { table: 'tp-preview-table', markdown: 'tp-preview-markdown' };
+
+  const ZOOM_STEP = 0.1;
+  const WHEEL_STEP = 40; // wheel distance per zoom step (mouse notch ~100, touchpad pinch: small steps)
+
   const SQUARE_BTN_CSS = `
     position: absolute;
     z-index: 1;
@@ -8120,7 +8503,7 @@
           disabled: true,
       });
       const uploadBtn = button(UPLOAD_SVG, 'Upload the saved changes to SharePoint', 190, ROW1, { disabled: true });
-      // View switch (status bar, bottom right): Text | Table | 3D
+      // View switch (status bar, bottom right): Text | Preview (Table, 3D or Markdown, by file type)
       /** @param {string} svg @param {string} label @param {string} title */
       const viewBtn = (svg, label, title) => {
           const b = document.createElement('button');
@@ -8133,9 +8516,7 @@
           return b;
       };
       const textBtn = viewBtn(TEXT_SVG, 'Text', 'Text view');
-      const tableBtn = viewBtn(TABLE_SVG, 'Table', 'Table view (CSV, Parquet, spreadsheets)');
-
-      const view3dBtn = viewBtn(CUBE_SVG, '3D', '3D view (IFC, IFCZIP)');
+      const previewBtn = viewBtn('', 'Preview', ''); // look set per file (setPreview)
       const moreBtn = button(MORE_SVG, 'More', 0);
       moreBtn.style.left = '';
       moreBtn.style.right = '86px';
@@ -8448,8 +8829,16 @@
       const sheetPicker = createPicker(statusBar, (list, i) => v.selectSheet?.(i, list ? 'tables' : 'sheets'));
       const views = document.createElement('div');
       views.className = 'tp-views';
-      views.append(textBtn, tableBtn, sheetPicker.button, view3dBtn);
-      statusBar.append(progress, views);
+      views.append(textBtn, previewBtn, sheetPicker.button);
+      // Text size: − 100 % + (value: back to 100 %)
+      const zoomBar = document.createElement('div');
+      zoomBar.className = 'tp-views tp-zoom';
+      zoomBar.innerHTML = `
+      <button type="button" class="tp-view-btn" title="Smaller text (Ctrl −, Ctrl + wheel)">−</button>
+      <button type="button" class="tp-view-btn tp-zoom-value" title="Text size: back to 100 % (Ctrl 0)"></button>
+      <button type="button" class="tp-view-btn" title="Larger text (Ctrl +, Ctrl + wheel)">+</button>`;
+      const [zoomOut, zoomValue, zoomIn] = /** @type {HTMLButtonElement[]} */ ([...zoomBar.children]);
+      statusBar.append(progress, zoomBar, views);
       box.append(header, csvBar, content, stage3d, editorWrap, loadMoreBtn, statusBar, splitter);
 
       // Keep panel's events away from SharePoint's handlers (split mode: inside its DOM)
@@ -8475,9 +8864,8 @@
           uploadBtn,
           writeBtn,
           textBtn,
-          tableBtn,
+          previewBtn,
           sheetPicker,
-          view3dBtn,
           stage3d,
           canvas3d,
           status3d,
@@ -8504,6 +8892,7 @@
           loadToken: 0,
           originalBodyStyle: document.body.getAttribute('style'),
       };
+      setPreview(v, null);
 
       // Popup: drag header (not its buttons, menus or properties grip) to move window
       header.addEventListener('pointerdown', (e) => {
@@ -8574,43 +8963,38 @@
           savePref('tp-preview-3d', on ? '1' : '0');
       };
 
-      view3dBtn.onclick = () => {
-          if (v.view3d) return;
-          set3d(true);
-          toggle3d(v);
-      };
       textBtn.onclick = () => {
           if (v.view3d) {
               set3d(false);
               close3d(v);
           }
-          if (tableView(v)) toggleTable();
+          if (tableView(v)) showView('table', false);
+          else if (markdownView(v)) showView('markdown', false);
           updateViews(v);
       };
-      tableBtn.onclick = () => {
-          if (v.view3d) {
-              set3d(false);
-              close3d(v);
-          }
-          if (!view.table) toggleTable();
+      previewBtn.onclick = () => {
+          const kind = previewOf(v.lang);
+          if (kind === '3d' && !v.view3d) {
+              set3d(true);
+              toggle3d(v);
+          } else if (kind === 'table' && !tableView(v)) showView('table', true);
+          else if (kind === 'md' && !markdownView(v)) showView('markdown', true);
           updateViews(v);
       };
-      const toggleTable = () => {
+      // Table or Markdown view on / off (remembered for files of its type)
+      /** @param {'table'|'markdown'} key @param {boolean} on */
+      const showView = (key, on) => {
           if (v.writeMode && v.dirty) {
               alert('Please save your changes first, then switch the view.');
               return void flash(saveBtn);
           }
-          close3d(v); // back to text / table
-          view.table = !view.table;
-          savePref('tp-preview-table', view.table ? '1' : '0');
+          close3d(v); // back to text / table / Markdown
+          view[key] = on;
+          savePref(VIEW_KEYS[key], on ? '1' : '0');
           applyColour(); // each view has its own colour choice
-          if (v.writeMode) {
-              // edit on in other view (table <-> text), on saved text
-              exitWriteView(v);
-              enterWrite(v);
-          } else {
-              v.rerender?.();
-          }
+          if (!v.writeMode) return void v.rerender?.();
+          exitWriteView(v); // Markdown: shown from saved text, edit ends
+          if (key === 'table') enterWrite(v); // edit on in other view (table <-> text), on saved text
       };
       // Back to read mode (edit button again): unsaved edits only after asking
       const leaveWrite = () => {
@@ -8691,6 +9075,84 @@
           applyWrap();
       };
       applyWrap();
+
+      // Text size (content area and editor): CSS variable; text and table views are laid out anew
+      // (their unfilled blocks keep heights measured at the old size), keeping the position in the file
+      /** @param {number} z */
+      const applyZoom = (z) => {
+          for (const el of [content, editorWrap]) el.style.setProperty('--tp-zoom', String(z));
+          zoomValue.textContent = `${Math.round(z * 100)} %`;
+          zoomOut.disabled = z <= ZOOM_RANGE[0];
+          zoomIn.disabled = z >= ZOOM_RANGE[1];
+      };
+      applyZoom(view.zoom);
+      let relayout = 0;
+      let scrollShare = 0;
+      /** @param {number} z */
+      const setZoom = (z) => {
+          z = Math.round(Math.max(ZOOM_RANGE[0], Math.min(ZOOM_RANGE[1], z)) * 100) / 100;
+          if (z === view.zoom) return;
+          view.zoom = z;
+          savePref(ZOOM_KEY, String(z));
+          applyZoom(z);
+          if (v.writeMode || v.view3d) return; // editor: CSS alone; CSV cell edits are not redrawn
+          if (!relayout) scrollShare = content.scrollTop / Math.max(1, content.scrollHeight);
+          clearTimeout(relayout);
+          relayout = setTimeout(() => {
+              relayout = 0;
+              if (viewer !== v || v.writeMode || v.view3d) return;
+              v.rerender?.();
+              content.scrollTop = scrollShare * content.scrollHeight;
+          }, 150);
+      };
+      /** @param {number} steps */
+      const zoomBy = (steps) => setZoom(view.zoom + steps * ZOOM_STEP);
+      zoomOut.onclick = () => zoomBy(-1);
+      zoomIn.onclick = () => zoomBy(1);
+      zoomValue.onclick = () => setZoom(1);
+      let wheel = 0;
+      box.addEventListener(
+          'wheel',
+          (e) => {
+              const t = /** @type {Node} */ (e.target);
+              if (!(e.ctrlKey || e.metaKey) || !(content.contains(t) || editorWrap.contains(t))) return;
+              e.preventDefault(); // not the page's zoom
+              wheel += e.deltaY;
+              const steps = Math.trunc(wheel / WHEEL_STEP);
+              if (!steps) return;
+              wheel -= steps * WHEEL_STEP;
+              zoomBy(-steps);
+          },
+          { passive: false },
+      );
+
+      // Text view: whole file selected (also lines not drawn yet), and copied as such
+      const selectAll = () => {
+          const lines = content.firstElementChild;
+          if (!lines?.classList.contains('tp-lines')) return false; // table, Markdown: as the browser does
+          getSelection()?.selectAllChildren(lines);
+          return true;
+      };
+      content.addEventListener('copy', (e) => {
+          const lines = content.firstElementChild;
+          const s = getSelection();
+          if (!lines || !s || !v.text || s.anchorNode !== lines || s.focusNode !== lines) return;
+          const ends = [s.anchorOffset, s.focusOffset].sort((a, b) => a - b);
+          if (ends[0] !== 0 || ends[1] !== lines.childNodes.length) return;
+          e.clipboardData?.setData('text/plain', v.text);
+          e.preventDefault();
+      });
+
+      // Keys in the content area (once clicked into) or editor: Ctrl / ⌘ with + − 0 (text size), A (select all)
+      box.addEventListener('keydown', (e) => {
+          const t = /** @type {Node} */ (e.target);
+          if (!(e.ctrlKey || e.metaKey) || e.altKey || !(content.contains(t) || t === editor)) return;
+          if (e.key === '+' || e.key === '=') zoomBy(1);
+          else if (e.key === '-') zoomBy(-1);
+          else if (e.key === '0') setZoom(1);
+          else if (e.key.toLowerCase() !== 'a' || t !== content || !selectAll()) return;
+          e.preventDefault();
+      });
 
       copyBtn.onclick = async () => {
           try {
@@ -8853,7 +9315,8 @@
       v.rerender = null;
       v.relint = null;
       v.text = '';
-      for (const b of [v.copyBtn, v.loadAllBtn, v.writeBtn, v.tableBtn, v.view3dBtn, v.clearBtn]) b.disabled = true;
+      for (const b of [v.copyBtn, v.loadAllBtn, v.writeBtn, v.clearBtn]) b.disabled = true;
+      setPreview(v, null);
       showSheets(v, null);
       updateViews(v);
       v.titleName.textContent = '–';
@@ -8910,6 +9373,7 @@
       v.titleName.textContent = name;
       v.titleName.title = url;
       // what is known before the content: format, then size (from the first response)
+      const earlyLang = PARQUET_RE.test(name) ? 'parquet' : sheetFormat(name) ? 'sheet' : langOf(name);
       const earlyFormat = PARQUET_RE.test(name)
           ? 'Parquet'
           : sheetFormat(name) || LANG_NAMES[langOf(name) ?? ''] || 'Text';
@@ -8927,8 +9391,7 @@
       v.copyBtn.disabled = true;
       v.loadAllBtn.disabled = true;
       v.writeBtn.disabled = true;
-      v.tableBtn.disabled = true;
-      v.view3dBtn.disabled = true;
+      setPreview(v, previewOf(earlyLang), 'Preview: once the file is cached');
       showSheets(v, null);
       updateViews(v);
       v.clearBtn.disabled = false;
@@ -9067,6 +9530,7 @@
           v.rerender = null;
           v.relint = null;
           v.loadAllBtn.disabled = false;
+          setPreview(v, previewOf(earlyLang), 'Preview: once the whole file is cached');
           v.loadAll = async () => {
               forcedUrls.add(url);
               await showFile(name, url, false);
@@ -9092,6 +9556,7 @@
           v.rerender = null;
           v.relint = null;
           v.loadAllBtn.disabled = true;
+          setPreview(v, null);
           showPlain(v, message);
           showCached(v); // nothing cached (not the last file's state)
           return;
@@ -9106,13 +9571,10 @@
       v.writeBtn.title = src.isSheet
           ? 'Edit: not available for spreadsheets (read only)'
           : 'Edit (beta, text files only)';
-      v.tableBtn.disabled = !['parquet', 'sheet', 'csv'].includes(v.lang);
+      const kind = previewOf(v.lang);
       const ifcSize = src.ifcBytes ? src.ifcBytes.length : src.total;
-      const tooBig = ifcSize > MAX_3D_BYTES;
-      v.view3dBtn.disabled = langOf(fileName) !== 'ifc' || tooBig;
-      v.view3dBtn.title = tooBig
-          ? `3D view: only for IFC files up to ${formatBytes(MAX_3D_BYTES)}`
-          : '3D view (IFC, IFCZIP)';
+      const tooBig = kind === '3d' && ifcSize > MAX_3D_BYTES;
+      setPreview(v, kind, tooBig ? `3D view: only for IFC files up to ${formatBytes(MAX_3D_BYTES)}` : '');
       updateViews(v);
       v.text = src.text;
 
@@ -9175,6 +9637,9 @@
           v.metaLine.title = pairs.join('\n');
       };
 
+      // Markdown: relative links and images point into the file's folder
+      const folderUrl = new URL(fetchUrl.replace(/[^/]*$/, ''), location.origin).href;
+
       // Very long lines (e.g. minified files) are cut for display; copy still gets everything
       const render = () => {
           rendered = true;
@@ -9210,6 +9675,8 @@
                   format: v.tableEditing ? csvFormat : null,
                   onEdit: () => markEdited(v),
               });
+          } else if (markdownView(v)) {
+              v.lineView = mountMarkdown(v.content, lines.join('\n'), { colour: colourOn(v), base: folderUrl });
           } else {
               const tokens = (colourOn(v) ? highlight : plain)(visible.join('\n'));
               v.lineView = mountLines(v.content, renderLines(tokens, problemsByLine, truncated));
@@ -9367,7 +9834,7 @@
       if (src.fullJob || (forced && !src.done)) load(true);
 
       // 3D view chosen before: show it again, but only if its library is already loaded
-      if (view.show3d && ifcLibraryReady && !v.view3dBtn.disabled) toggle3d(v);
+      if (view.show3d && ifcLibraryReady && kind === '3d' && !v.previewBtn.disabled) toggle3d(v);
   }
 
   // Module: viewer/layout.js

@@ -8,6 +8,7 @@ import { load } from '../helpers.mjs';
 gm.local.set('tp-preview-mode', 'popup');
 gm.local.set('tp-preview-meta-lines', '42'); // out of range: clamped
 gm.local.set('tp-preview-csv-sep', 'nonsense'); // unknown delimiter: as in the file
+gm.local.set('tp-preview-zoom', '9'); // out of range: clamped
 const prefs = await load('_core/prefs.js');
 
 describe('prefs', () => {
@@ -17,6 +18,10 @@ describe('prefs', () => {
         assert.equal(prefs.view.table, true);
     });
     it('lines of properties are kept in 1 … 6', () => assert.equal(prefs.view.metaLines, 6));
+    it('text size kept in range; Markdown rendered by default', () => {
+        assert.equal(prefs.view.zoom, prefs.ZOOM_RANGE[1]);
+        assert.equal(prefs.view.markdown, true);
+    });
     it('unknown CSV delimiter falls back to the file', () => assert.equal(prefs.csvFormat.sep, ''));
     it('save, load, remove', () => {
         prefs.savePref('k', 'v');

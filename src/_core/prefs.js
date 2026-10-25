@@ -23,6 +23,8 @@ import { THEME } from './settings.js';
 export const THEME_KEY = 'tp-preview-theme';
 const COLOUR_KEY = 'tp-preview-colours-text';
 export const WRAP_KEY = 'tp-preview-wrap';
+export const ZOOM_KEY = 'tp-preview-zoom'; // text size in the content area (1 = 100 %)
+export const ZOOM_RANGE = [0.5, 3];
 export const PROPS_KEY = 'tp-preview-properties'; // properties line shown (default) or hidden
 export const CSV_SEP_KEY = 'tp-preview-csv-sep'; // '' = as in file
 export const CSV_QUOTE_KEY = 'tp-preview-csv-quote'; // '' = as in file
@@ -115,4 +117,8 @@ export const view = {
     wrap: loadPref(WRAP_KEY, DEFAULT_WRAP ? '1' : '0') === '1',
     // 3D view chosen by user
     show3d: loadPref('tp-preview-3d', '0') === '1',
+    // Markdown rendered (else its text)
+    markdown: loadPref('tp-preview-markdown', '1') === '1',
+    // Text size in the content area (text, table, Markdown, editor)
+    zoom: Math.max(ZOOM_RANGE[0], Math.min(ZOOM_RANGE[1], Number(loadPref(ZOOM_KEY, '1')) || 1)),
 };

@@ -42,6 +42,7 @@ import { lintFile } from '../text/lint/worker.js';
 import { LOAD_ALL_SVG } from '../ui/icons.js';
 import { mountLines } from '../view/lines.js';
 import { renderLines } from '../view/lines.js';
+import { mountMarkdown } from '../view/markdown.js';
 import { mountTable } from '../view/table.js';
 import { parseCsv } from '../view/table.js';
 import { QUOTE_MODES } from '../view/table.js';
@@ -69,6 +70,9 @@ import { close3d } from './view3d.js';
 import { ifcLibraryReady } from './view3d.js';
 import { toggle3d } from './view3d.js';
 import { colourOn } from './views.js';
+import { markdownView } from './views.js';
+import { previewOf } from './views.js';
+import { setPreview } from './views.js';
 import { showSheets } from './views.js';
 import { updateViews } from './views.js';
 
@@ -198,7 +202,8 @@ function showEmpty(v) {
     v.rerender = null;
     v.relint = null;
     v.text = '';
-    for (const b of [v.copyBtn, v.loadAllBtn, v.writeBtn, v.tableBtn, v.view3dBtn, v.clearBtn]) b.disabled = true;
+    for (const b of [v.copyBtn, v.loadAllBtn, v.writeBtn, v.clearBtn]) b.disabled = true;
+    setPreview(v, null);
     showSheets(v, null);
     updateViews(v);
     v.titleName.textContent = '–';
@@ -255,6 +260,7 @@ export async function showFile(name, url, reload) {
     v.titleName.textContent = name;
     v.titleName.title = url;
     // what is known before the content: format, then size (from the first response)
+    const earlyLang = PARQUET_RE.test(name) ? 'parquet' : sheetFormat(name) ? 'sheet' : langOf(name);
     const earlyFormat = PARQUET_RE.test(name)
         ? 'Parquet'
         : sheetFormat(name) || LANG_NAMES[langOf(name) ?? ''] || 'Text';
@@ -272,8 +278,7 @@ export async function showFile(name, url, reload) {
     v.copyBtn.disabled = true;
     v.loadAllBtn.disabled = true;
     v.writeBtn.disabled = true;
-    v.tableBtn.disabled = true;
-    v.view3dBtn.disabled = true;
+    setPreview(v, previewOf(earlyLang), 'Preview: once the file is cached');
     showSheets(v, null);
     updateViews(v);
     v.clearBtn.disabled = false;
@@ -412,6 +417,7 @@ export async function showFile(name, url, reload) {
         v.rerender = null;
         v.relint = null;
         v.loadAllBtn.disabled = false;
+        setPreview(v, previewOf(earlyLang), 'Preview: once the whole file is cached');
         v.loadAll = async () => {
             forcedUrls.add(url);
             await showFile(name, url, false);
@@ -437,6 +443,7 @@ export async function showFile(name, url, reload) {
         v.rerender = null;
         v.relint = null;
         v.loadAllBtn.disabled = true;
+        setPreview(v, null);
         showPlain(v, message);
         showCached(v); // nothing cached (not the last file's state)
         return;
@@ -451,13 +458,10 @@ export async function showFile(name, url, reload) {
     v.writeBtn.title = src.isSheet
         ? 'Edit: not available for spreadsheets (read only)'
         : 'Edit (beta, text files only)';
-    v.tableBtn.disabled = !['parquet', 'sheet', 'csv'].includes(v.lang);
+    const kind = previewOf(v.lang);
     const ifcSize = src.ifcBytes ? src.ifcBytes.length : src.total;
-    const tooBig = ifcSize > MAX_3D_BYTES;
-    v.view3dBtn.disabled = langOf(fileName) !== 'ifc' || tooBig;
-    v.view3dBtn.title = tooBig
-        ? `3D view: only for IFC files up to ${formatBytes(MAX_3D_BYTES)}`
-        : '3D view (IFC, IFCZIP)';
+    const tooBig = kind === '3d' && ifcSize > MAX_3D_BYTES;
+    setPreview(v, kind, tooBig ? `3D view: only for IFC files up to ${formatBytes(MAX_3D_BYTES)}` : '');
     updateViews(v);
     v.text = src.text;
 
@@ -520,6 +524,9 @@ export async function showFile(name, url, reload) {
         v.metaLine.title = pairs.join('\n');
     };
 
+    // Markdown: relative links and images point into the file's folder
+    const folderUrl = new URL(fetchUrl.replace(/[^/]*$/, ''), location.origin).href;
+
     // Very long lines (e.g. minified files) are cut for display; copy still gets everything
     const render = () => {
         rendered = true;
@@ -555,6 +562,8 @@ export async function showFile(name, url, reload) {
                 format: v.tableEditing ? csvFormat : null,
                 onEdit: () => markEdited(v),
             });
+        } else if (markdownView(v)) {
+            v.lineView = mountMarkdown(v.content, lines.join('\n'), { colour: colourOn(v), base: folderUrl });
         } else {
             const tokens = (colourOn(v) ? highlight : plain)(visible.join('\n'));
             v.lineView = mountLines(v.content, renderLines(tokens, problemsByLine, truncated));
@@ -712,5 +721,5 @@ export async function showFile(name, url, reload) {
     if (src.fullJob || (forced && !src.done)) load(true);
 
     // 3D view chosen before: show it again, but only if its library is already loaded
-    if (view.show3d && ifcLibraryReady && !v.view3dBtn.disabled) toggle3d(v);
+    if (view.show3d && ifcLibraryReady && kind === '3d' && !v.previewBtn.disabled) toggle3d(v);
 }

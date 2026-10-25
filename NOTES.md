@@ -4,8 +4,9 @@ A userscript (Tampermonkey)
 that adds a preview column to SharePoint Online document libraries.
 It shows text-like files directly in the browser,
 including files SharePoint itself cannot preview.
-It displays CSV, Parquet and spreadsheets (Excel, OpenDocument) as sortable tables
-and IFC building models in 3D,
+It displays CSV, Parquet and spreadsheets (Excel, OpenDocument) as sortable tables,
+IFC building models in 3D
+and Markdown as formatted text,
 and offers a simple editor for plain-text files.
 
 This document is written for IT staff
@@ -60,13 +61,21 @@ and where it stores data.
   - left: cache progress
     (blue while caching, neutral when idle or complete),
     with a "click to fully cache" hint
-  - right: view switch **Text | Table | 3D**;
+  - right: text size **− 100 % +**
+    (also Ctrl / ⌘ with + − 0, or Ctrl / ⌘ + wheel, in the content area);
+    view switch **Text | Preview**,
+    the preview by file type: **Table** (CSV, Parquet, spreadsheets), **3D** (IFC), **Markdown**;
     for spreadsheets a picker right of **Table**:
     its menu shows the sheets or the tables, switched with ‹ › or ← →
     (● cached, ○ not cached yet; hidden sheets marked);
     picking a table shows tables, picking a sheet shows sheets
     (start value: setting `spreadsheet-view`, then the last choice per file),
     the sheet shown is also named next to the file name
+- **Text view:** Ctrl / ⌘ + A (once clicked into it) selects the whole text, copy gives the whole cached text
+- **Markdown view:** headings, lists, task lists, quotes, code (with colours), tables, links, images;
+  raw HTML is shown as text;
+  links open in a new tab (scripts not followed);
+  images are shown only from the same SharePoint, others only as links (nothing fetched from elsewhere)
 
 The script never changes SharePoint's own UI,
 apart from adding the eye column and making room for the viewer.
@@ -84,6 +93,7 @@ SharePoint page (DOM)
      ├─ Viewer (own DOM elements, own CSS, prefix "tp-")
      │   ├─ text view: syntax colours, whitespace markers, virtualised rendering
      │   ├─ table view: CSV / Parquet / spreadsheets, sort, filter, column widths, CSV editing
+     │   ├─ Markdown view: own small renderer (no library), raw HTML escaped
      │   └─ 3D view: ifc-lite (optional, loaded from your SharePoint on first use)
      ├─ Sources: same-origin fetch with HTTP Range (chunks), in-memory cache (LRU)
      ├─ Decoders built in: Parquet (Thrift, RLE/bit-packing, dictionary, v1/v2 pages),
@@ -132,7 +142,7 @@ The logo setting only accepts `data:` URIs.
 | :--- | :---- | :------- |
 | File contents (cached chunks) | JavaScript memory of the tab | Until reload, "Clear cache", or eviction at the cache limit |
 | Settings (16 values, see §9) | Tampermonkey storage for this script | Until changed / reset / script removed |
-| View choices (layout, split size, theme, colours, wrap, table on/off, 3D on/off, properties lines, CSV format, sheets or tables per spreadsheet path) and window positions | `localStorage` of the SharePoint origin, keys `tp-preview-*` | Until the user clears site data |
+| View choices (layout, split size, theme, colours, wrap, text size, table / Markdown / 3D on/off, properties lines, CSV format, sheets or tables per spreadsheet path) and window positions | `localStorage` of the SharePoint origin, keys `tp-preview-*` | Until the user clears site data |
 | 3D camera per file | Memory | Until reload |
 
 - **Cache limit:**

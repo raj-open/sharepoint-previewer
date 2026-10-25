@@ -206,7 +206,7 @@ async function open3dModel(lib, wasm, canvas, ifcBytes, onStatus, pose) {
 export async function toggle3d(v) {
     if (v.view3d) return close3d(v);
     const src = v.source;
-    if (!src || v.view3dBtn.disabled) return;
+    if (!src || v.previewBtn.disabled) return;
     if (!(/** @type {Navigator & { gpu?: unknown }} */ (navigator).gpu)) {
         alert('3D view needs WebGPU (current Chrome or Edge).');
         return;

@@ -115,6 +115,14 @@ export const CUBE_SVG = `
     <path d="M3.5 7.25L12 12l8.5-4.75M12 12v9.5"/>
   </svg>
 `;
+// Page with M and down arrow (Markdown view)
+export const MARKDOWN_SVG = `
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <rect x="2" y="5" width="20" height="14" rx="2"/>
+    <path d="M5.5 15V9l3 3.5 3-3.5v6M17 9v6M14.5 12.5 17 15l2.5-2.5"/>
+  </svg>
+`;
 export const TABLE_SVG = `
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

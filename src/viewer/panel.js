@@ -11,6 +11,8 @@ import { savePref } from '../_core/prefs.js';
 import { THEME_KEY } from '../_core/prefs.js';
 import { view } from '../_core/prefs.js';
 import { WRAP_KEY } from '../_core/prefs.js';
+import { ZOOM_KEY } from '../_core/prefs.js';
+import { ZOOM_RANGE } from '../_core/prefs.js';
 import { openSettingsForm } from '../_core/settings-form.js';
 import { POPUP_POS_KEY } from '../_core/settings-form.js';
 import { LARGE_FILE_BYTES } from '../_core/settings.js';
@@ -21,7 +23,6 @@ import { CHECK_SVG } from '../ui/icons.js';
 import { CLEAR_SVG } from '../ui/icons.js';
 import { COLOUR_SVG } from '../ui/icons.js';
 import { COPY_SVG } from '../ui/icons.js';
-import { CUBE_SVG } from '../ui/icons.js';
 import { LOAD_ALL_SVG } from '../ui/icons.js';
 import { MORE_SVG } from '../ui/icons.js';
 import { POPUP_SVG } from '../ui/icons.js';
@@ -32,7 +33,6 @@ import { SETTINGS_SVG } from '../ui/icons.js';
 import { SPLIT_H_SVG } from '../ui/icons.js';
 import { SPLIT_V_SVG } from '../ui/icons.js';
 import { STOP_SVG } from '../ui/icons.js';
-import { TABLE_SVG } from '../ui/icons.js';
 import { TEXT_SVG } from '../ui/icons.js';
 import { THEME_SVG } from '../ui/icons.js';
 import { UPLOAD_SVG } from '../ui/icons.js';
@@ -64,6 +64,9 @@ import { close3d } from './view3d.js';
 import { toggle3d } from './view3d.js';
 import { colourKey } from './views.js';
 import { colourOn } from './views.js';
+import { markdownView } from './views.js';
+import { previewOf } from './views.js';
+import { setPreview } from './views.js';
 import { tableView } from './views.js';
 import { updateViews } from './views.js';
 
@@ -72,6 +75,13 @@ import { updateViews } from './views.js';
 // ===========================================================================
 // CONSTANTS
 // ===========================================================================
+
+// Preferences of the views switched by Text / Preview
+/** @type {Object<string, string>} */
+const VIEW_KEYS = { table: 'tp-preview-table', markdown: 'tp-preview-markdown' };
+
+const ZOOM_STEP = 0.1;
+const WHEEL_STEP = 40; // wheel distance per zoom step (mouse notch ~100, touchpad pinch: small steps)
 
 const SQUARE_BTN_CSS = `
   position: absolute;
@@ -137,7 +147,7 @@ export function createViewer() {
         disabled: true,
     });
     const uploadBtn = button(UPLOAD_SVG, 'Upload the saved changes to SharePoint', 190, ROW1, { disabled: true });
-    // View switch (status bar, bottom right): Text | Table | 3D
+    // View switch (status bar, bottom right): Text | Preview (Table, 3D or Markdown, by file type)
     /** @param {string} svg @param {string} label @param {string} title */
     const viewBtn = (svg, label, title) => {
         const b = document.createElement('button');
@@ -150,9 +160,7 @@ export function createViewer() {
         return b;
     };
     const textBtn = viewBtn(TEXT_SVG, 'Text', 'Text view');
-    const tableBtn = viewBtn(TABLE_SVG, 'Table', 'Table view (CSV, Parquet, spreadsheets)');
-
-    const view3dBtn = viewBtn(CUBE_SVG, '3D', '3D view (IFC, IFCZIP)');
+    const previewBtn = viewBtn('', 'Preview', ''); // look set per file (setPreview)
     const moreBtn = button(MORE_SVG, 'More', 0);
     moreBtn.style.left = '';
     moreBtn.style.right = '86px';
@@ -465,8 +473,16 @@ export function createViewer() {
     const sheetPicker = createPicker(statusBar, (list, i) => v.selectSheet?.(i, list ? 'tables' : 'sheets'));
     const views = document.createElement('div');
     views.className = 'tp-views';
-    views.append(textBtn, tableBtn, sheetPicker.button, view3dBtn);
-    statusBar.append(progress, views);
+    views.append(textBtn, previewBtn, sheetPicker.button);
+    // Text size: − 100 % + (value: back to 100 %)
+    const zoomBar = document.createElement('div');
+    zoomBar.className = 'tp-views tp-zoom';
+    zoomBar.innerHTML = `
+    <button type="button" class="tp-view-btn" title="Smaller text (Ctrl −, Ctrl + wheel)">−</button>
+    <button type="button" class="tp-view-btn tp-zoom-value" title="Text size: back to 100 % (Ctrl 0)"></button>
+    <button type="button" class="tp-view-btn" title="Larger text (Ctrl +, Ctrl + wheel)">+</button>`;
+    const [zoomOut, zoomValue, zoomIn] = /** @type {HTMLButtonElement[]} */ ([...zoomBar.children]);
+    statusBar.append(progress, zoomBar, views);
     box.append(header, csvBar, content, stage3d, editorWrap, loadMoreBtn, statusBar, splitter);
 
     // Keep panel's events away from SharePoint's handlers (split mode: inside its DOM)
@@ -492,9 +508,8 @@ export function createViewer() {
         uploadBtn,
         writeBtn,
         textBtn,
-        tableBtn,
+        previewBtn,
         sheetPicker,
-        view3dBtn,
         stage3d,
         canvas3d,
         status3d,
@@ -521,6 +536,7 @@ export function createViewer() {
         loadToken: 0,
         originalBodyStyle: document.body.getAttribute('style'),
     };
+    setPreview(v, null);
 
     // Popup: drag header (not its buttons, menus or properties grip) to move window
     header.addEventListener('pointerdown', (e) => {
@@ -591,43 +607,38 @@ export function createViewer() {
         savePref('tp-preview-3d', on ? '1' : '0');
     };
 
-    view3dBtn.onclick = () => {
-        if (v.view3d) return;
-        set3d(true);
-        toggle3d(v);
-    };
     textBtn.onclick = () => {
         if (v.view3d) {
             set3d(false);
             close3d(v);
         }
-        if (tableView(v)) toggleTable();
+        if (tableView(v)) showView('table', false);
+        else if (markdownView(v)) showView('markdown', false);
         updateViews(v);
     };
-    tableBtn.onclick = () => {
-        if (v.view3d) {
-            set3d(false);
-            close3d(v);
-        }
-        if (!view.table) toggleTable();
+    previewBtn.onclick = () => {
+        const kind = previewOf(v.lang);
+        if (kind === '3d' && !v.view3d) {
+            set3d(true);
+            toggle3d(v);
+        } else if (kind === 'table' && !tableView(v)) showView('table', true);
+        else if (kind === 'md' && !markdownView(v)) showView('markdown', true);
         updateViews(v);
     };
-    const toggleTable = () => {
+    // Table or Markdown view on / off (remembered for files of its type)
+    /** @param {'table'|'markdown'} key @param {boolean} on */
+    const showView = (key, on) => {
         if (v.writeMode && v.dirty) {
             alert('Please save your changes first, then switch the view.');
             return void flash(saveBtn);
         }
-        close3d(v); // back to text / table
-        view.table = !view.table;
-        savePref('tp-preview-table', view.table ? '1' : '0');
+        close3d(v); // back to text / table / Markdown
+        view[key] = on;
+        savePref(VIEW_KEYS[key], on ? '1' : '0');
         applyColour(); // each view has its own colour choice
-        if (v.writeMode) {
-            // edit on in other view (table <-> text), on saved text
-            exitWriteView(v);
-            enterWrite(v);
-        } else {
-            v.rerender?.();
-        }
+        if (!v.writeMode) return void v.rerender?.();
+        exitWriteView(v); // Markdown: shown from saved text, edit ends
+        if (key === 'table') enterWrite(v); // edit on in other view (table <-> text), on saved text
     };
     // Back to read mode (edit button again): unsaved edits only after asking
     const leaveWrite = () => {
@@ -708,6 +719,84 @@ export function createViewer() {
         applyWrap();
     };
     applyWrap();
+
+    // Text size (content area and editor): CSS variable; text and table views are laid out anew
+    // (their unfilled blocks keep heights measured at the old size), keeping the position in the file
+    /** @param {number} z */
+    const applyZoom = (z) => {
+        for (const el of [content, editorWrap]) el.style.setProperty('--tp-zoom', String(z));
+        zoomValue.textContent = `${Math.round(z * 100)} %`;
+        zoomOut.disabled = z <= ZOOM_RANGE[0];
+        zoomIn.disabled = z >= ZOOM_RANGE[1];
+    };
+    applyZoom(view.zoom);
+    let relayout = 0;
+    let scrollShare = 0;
+    /** @param {number} z */
+    const setZoom = (z) => {
+        z = Math.round(Math.max(ZOOM_RANGE[0], Math.min(ZOOM_RANGE[1], z)) * 100) / 100;
+        if (z === view.zoom) return;
+        view.zoom = z;
+        savePref(ZOOM_KEY, String(z));
+        applyZoom(z);
+        if (v.writeMode || v.view3d) return; // editor: CSS alone; CSV cell edits are not redrawn
+        if (!relayout) scrollShare = content.scrollTop / Math.max(1, content.scrollHeight);
+        clearTimeout(relayout);
+        relayout = setTimeout(() => {
+            relayout = 0;
+            if (viewer !== v || v.writeMode || v.view3d) return;
+            v.rerender?.();
+            content.scrollTop = scrollShare * content.scrollHeight;
+        }, 150);
+    };
+    /** @param {number} steps */
+    const zoomBy = (steps) => setZoom(view.zoom + steps * ZOOM_STEP);
+    zoomOut.onclick = () => zoomBy(-1);
+    zoomIn.onclick = () => zoomBy(1);
+    zoomValue.onclick = () => setZoom(1);
+    let wheel = 0;
+    box.addEventListener(
+        'wheel',
+        (e) => {
+            const t = /** @type {Node} */ (e.target);
+            if (!(e.ctrlKey || e.metaKey) || !(content.contains(t) || editorWrap.contains(t))) return;
+            e.preventDefault(); // not the page's zoom
+            wheel += e.deltaY;
+            const steps = Math.trunc(wheel / WHEEL_STEP);
+            if (!steps) return;
+            wheel -= steps * WHEEL_STEP;
+            zoomBy(-steps);
+        },
+        { passive: false },
+    );
+
+    // Text view: whole file selected (also lines not drawn yet), and copied as such
+    const selectAll = () => {
+        const lines = content.firstElementChild;
+        if (!lines?.classList.contains('tp-lines')) return false; // table, Markdown: as the browser does
+        getSelection()?.selectAllChildren(lines);
+        return true;
+    };
+    content.addEventListener('copy', (e) => {
+        const lines = content.firstElementChild;
+        const s = getSelection();
+        if (!lines || !s || !v.text || s.anchorNode !== lines || s.focusNode !== lines) return;
+        const ends = [s.anchorOffset, s.focusOffset].sort((a, b) => a - b);
+        if (ends[0] !== 0 || ends[1] !== lines.childNodes.length) return;
+        e.clipboardData?.setData('text/plain', v.text);
+        e.preventDefault();
+    });
+
+    // Keys in the content area (once clicked into) or editor: Ctrl / ⌘ with + − 0 (text size), A (select all)
+    box.addEventListener('keydown', (e) => {
+        const t = /** @type {Node} */ (e.target);
+        if (!(e.ctrlKey || e.metaKey) || e.altKey || !(content.contains(t) || t === editor)) return;
+        if (e.key === '+' || e.key === '=') zoomBy(1);
+        else if (e.key === '-') zoomBy(-1);
+        else if (e.key === '0') setZoom(1);
+        else if (e.key.toLowerCase() !== 'a' || t !== content || !selectAll()) return;
+        e.preventDefault();
+    });
 
     copyBtn.onclick = async () => {
         try {
