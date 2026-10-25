@@ -31,14 +31,18 @@ const PREFIX = '/__explore__';
 const PATH_SHIM = path.join(import.meta.dirname, 'tampermonkey.js');
 const VERSION = `${sharepoint.VERSION}-explore`;
 
-// Logo shown in the viewer (setting `logo`): a sprout in soil; base64, as the userscript takes only that
+// Logo shown in the viewer (setting `logo`): a sprout in soil under a sky; base64, as the userscript takes only that
 const LOGO_SVG =
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">' +
-    '<path d="M16 25V14" stroke="#3f8f3a" stroke-width="2.4" stroke-linecap="round" fill="none"/>' +
+    '<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0" stop-color="#4fa3e0"/><stop offset="1" stop-color="#bfe3f7"/></linearGradient></defs>' +
+    '<rect width="32" height="32" rx="7" fill="url(#sky)"/>' +
+    '<circle cx="16" cy="5" r="2.6" fill="#fff3b0"/>' +
+    '<path d="M16 24V14" stroke="#3f8f3a" stroke-width="2.4" stroke-linecap="round" fill="none"/>' +
     '<path d="M16 16C15 10 10 7 4 8c0 6 5 9 12 8z" fill="#5fb548"/>' +
     '<path d="M16 13c1-5 5-8 11-7 0 5-4 8-11 7z" fill="#7cc95e"/>' +
-    '<path d="M2 30c2-5 8-7 14-7s12 2 14 7z" fill="#6b4423"/>' +
-    '<circle cx="9" cy="27.5" r="1" fill="#8a5a33"/><circle cx="21" cy="27" r="1.2" fill="#8a5a33"/></svg>';
+    '<path d="M0 25Q16 19 32 25A7 7 0 0 1 25 32H7A7 7 0 0 1 0 25z" fill="#6b4423"/>' +
+    '<circle cx="9" cy="27.5" r="1" fill="#8a5a33"/><circle cx="22" cy="27" r="1.2" fill="#8a5a33"/></svg>';
 const LOGO = `data:image/svg+xml;base64,${Buffer.from(LOGO_SVG).toString('base64')}`;
 
 const SCRIPT_TYPE = 'application/javascript; charset=utf-8';
