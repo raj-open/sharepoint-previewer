@@ -7,16 +7,25 @@
 name: release
 
 on:
-  push:
-    tags:
-      - "v*"
+  # NOTE: disabled as release should be manually triggered
+  # push:
+  #   tags:
+  #     - "v*"
+
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag'
+        required: true
+        default: 'v0.0.0-test'
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   qa:
-    uses: ./.github/workflows/_qa.yaml
+    uses: ./.github/workflows/_common.yaml
 
   release:
     name: release
@@ -25,56 +34,43 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+
     steps:
       # --------------------------------
       # setup
       # --------------------------------
-      - uses: actions/checkout@v5
+
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-tags: true
           persist-credentials: false
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 22
           cache: npm
 
-      - uses: extractions/setup-just@v3
-
-      - name: tag matches /dist/VERSION
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          expected="$(just tag)"
-          if [[ "${TAG}" != "${expected}" ]]; then
-            echo "::error::tag ${TAG} does not match /dist/VERSION (expected ${expected})"
-            exit 1
-          fi
+      - uses: extractions/setup-just@v4
 
       # --------------------------------
       # build (no browser needed)
       # --------------------------------
+
       - name: build
-        run: |
+        run: |-
           npm ci --no-audit --no-fund
           just build-dist
 
       # --------------------------------
       # release
       # --------------------------------
-      - name: attach artefacts
+
+
+      - name: Upload to GitHub Releases
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.version || github.ref_name }}
+          files: dist/v*
+
         env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          version="$(cat dist/VERSION)"
-          folder="dist/v${version}"
-          if ! gh release view "${TAG}" > /dev/null 2>&1; then
-            flags=(--title "${TAG}" --generate-notes --verify-tag)
-            if [[ "${TAG}" == *-* ]]; then
-              flags+=(--prerelease)
-            fi
-            gh release create "${TAG}" "${flags[@]}"
-          fi
-          gh release upload "${TAG}" "${folder}"/* --clobber
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

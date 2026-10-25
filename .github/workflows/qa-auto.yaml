@@ -5,10 +5,33 @@
 name: qa-auto
 
 on:
-  push:
-    branches:
-      - "**"
+  # NOTE: resort to manual execution instead of run-on-push
+  # push:
+  #   branches:
+  #     - main
+  #     - staging
+
   pull_request:
+    branches:
+      - main
+      - staging
+      - 'dev-*'
+      - 'bugfix-*'
+      - 'hotfix-*'
+      - 'feat-*'
+      - 'feature-*'
+      - 'story-*'
+
+    paths:
+      - '**/*'
+
+    # see <https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#discussion>
+    types:
+      - opened
+      - edited
+      - reopened
+      - ready_for_review
+      - unlocked
 
 permissions:
   contents: read
@@ -19,4 +42,7 @@ concurrency:
 
 jobs:
   qa:
-    uses: ./.github/workflows/_qa.yaml
+    name: QA
+    runs-on: "ubuntu-latest"
+    environment: "local"
+    uses: ./.github/workflows/_common.yaml

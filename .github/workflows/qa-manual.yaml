@@ -6,17 +6,20 @@ name: qa-manual
 
 on:
   workflow_dispatch:
-    inputs:
-      ref:
-        description: branch, tag or commit (empty = the chosen branch)
-        type: string
-        default: ""
+    environment:
+      description: |-
+        Choice of environment for pipeline
+      # NOTE: this option provides dropdown list of choices of environments set on GitHub (enterprise only)
+      type: environment
+      reuired: true
+      default: "local"
 
 permissions:
   contents: read
 
 jobs:
   qa:
-    uses: ./.github/workflows/_qa.yaml
-    with:
-      ref: ${{ inputs.ref }}
+    name: QA
+    runs-on: "ubuntu-latest"
+    environment: "${{ github.event.inputs.environment }}"
+    uses: ./.github/workflows/_common.yaml
