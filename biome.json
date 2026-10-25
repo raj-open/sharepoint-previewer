@@ -15,7 +15,7 @@
             "!src/main.js",
             "!src/main.min.js",
             "tests/**",
-            "!tests/fake-sharepoint/library"
+            "!tests/mocks/mock-sharepoint/library"
         ]
     },
     "formatter": {

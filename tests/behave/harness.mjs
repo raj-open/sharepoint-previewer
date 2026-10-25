@@ -1,12 +1,12 @@
-// Harness for behavioural tests: Chromium (Playwright) on the fake SharePoint,
+// Harness for behavioural tests: Chromium (Playwright) on the mock SharePoint,
 // userscript from /src/main.js injected per page load (as Tampermonkey does at document-idle).
 //
 // Browser once per machine: `npx playwright install chromium` (part of `just build-deps`).
 
 import { chromium } from 'playwright';
-import * as sharepoint from '../fake-sharepoint/server.mjs';
-import { has3dRelease } from '../fake-sharepoint/server.mjs';
-import { userscript } from '../fake-sharepoint/userscript.mjs';
+import * as sharepoint from '../mocks/mock-sharepoint/server.mjs';
+import { has3dRelease } from '../mocks/mock-sharepoint/server.mjs';
+import { userscript } from '../mocks/mock-sharepoint/userscript.mjs';
 
 export const { ORIGIN, LIBRARY, LIST_PAGE, SITE } = sharepoint;
 export { has3dRelease };
@@ -41,7 +41,7 @@ function tampermonkey({ script, settings }) {
 }
 
 /**
- * Browser with the fake SharePoint; one per test file.
+ * Browser with the mock SharePoint; one per test file.
  * @returns {Promise<{ open: (url?: string, opts?: { settings?: Object<string, *> }) => Promise<Session>, close: () => Promise<void> }>}
  *
  * @typedef {{ page: import('playwright').Page, requests: { url: string, method: string, range?: string }[] }} Session
@@ -59,7 +59,7 @@ export async function launch() {
             const req = route.request();
             if (!req.url().startsWith(ORIGIN)) {
                 requests.push({ url: req.url(), method: req.method() });
-                return route.abort(); // nothing leaves the fake SharePoint
+                return route.abort(); // nothing leaves the mock SharePoint
             }
             const headers = req.headers();
             requests.push({ url: req.url(), method: req.method(), range: headers.range });

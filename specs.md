@@ -44,11 +44,11 @@
 
 - `just qa` = lint checks + all tests (unit, behave, integration).
 - `just qa` must pass before merging to staging, before versioning up and before merging to main.
-- Behavioural tests: `/tests/behave`, Playwright (Chromium) on a fake SharePoint (`/tests/fake-sharepoint`);
+- Behavioural tests: `/tests/behave`, Playwright (Chromium) on a mock SharePoint (`/tests/mocks/mock-sharepoint`);
   browser installed by `just build-deps`.
-- Explorative tests: `just tests-explore [folder]` serves the fake SharePoint on `http://localhost:<HTTP_PORT>` (loopback only),
+- Explorative tests: `just tests-explore [folder]` serves the mock SharePoint on `http://localhost:<HTTP_PORT>` (loopback only),
   the userscript injected per page load with a Tampermonkey stand-in (`/tests/explore`);
-  the library shows folders `Mock Data` (`/tests/fake-sharepoint/library`) and `Data` (`/data`, local only),
+  the library shows folders `Mock Data` (`/tests/mocks/mock-sharepoint/library`) and `Data` (`/data`, local only),
   or only `folder` if given; files are read from disk per request (read only);
   the 3D files of the release (`just build`) appear in the library as folder `previewer`,
   empty settings `viewer-3d-folder` (pointing there) and `logo` (a test logo) are filled in on each page load;
