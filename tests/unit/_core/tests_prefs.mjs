@@ -8,6 +8,7 @@ import { load } from '../helpers.mjs';
 gm.local.set('tp-preview-mode', 'popup');
 gm.local.set('tp-preview-meta-lines', '42'); // out of range: clamped
 gm.local.set('tp-preview-csv-sep', 'nonsense'); // unknown delimiter: as in the file
+gm.local.set('tp-preview-zoom', '9'); // out of range: clamped
 const prefs = await load('_core/prefs.js');
 
 describe('prefs', () => {
@@ -17,6 +18,10 @@ describe('prefs', () => {
         assert.equal(prefs.view.table, true);
     });
     it('lines of properties are kept in 1 … 6', () => assert.equal(prefs.view.metaLines, 6));
+    it('text size kept in range; Markdown rendered by default', () => {
+        assert.equal(prefs.view.zoom, prefs.ZOOM_RANGE[1]);
+        assert.equal(prefs.view.markdown, true);
+    });
     it('unknown CSV delimiter falls back to the file', () => assert.equal(prefs.csvFormat.sep, ''));
     it('save, load, remove', () => {
         prefs.savePref('k', 'v');
@@ -27,6 +32,18 @@ describe('prefs', () => {
     it('colour choices per view; sheet colours off', () => {
         assert.deepEqual(Object.keys(prefs.COLOUR_KEYS), ['text', 'table', 'sheet']);
         assert.equal(prefs.colourPrefs.sheet, false);
+    });
+    it('sheets or tables per file: setting first, then the last choice; oldest dropped', () => {
+        assert.equal(prefs.sheetMode('/a.xlsx'), 'sheets');
+        prefs.rememberSheetMode('/a.xlsx', 'tables');
+        prefs.rememberSheetMode('/b.xlsx', 'sheets');
+        assert.equal(prefs.sheetMode('/a.xlsx'), 'tables');
+        assert.equal(prefs.sheetMode('/b.xlsx'), 'sheets');
+        for (let i = 0; i < 500; i++) prefs.rememberSheetMode(`/${i}.xlsx`, 'tables');
+        assert.equal(prefs.sheetMode('/a.xlsx'), 'sheets');
+        assert.equal(Object.keys(JSON.parse(gm.local.get(prefs.SHEET_MODES_KEY))).length, 500);
+        gm.local.set(prefs.SHEET_MODES_KEY, '[broken');
+        assert.equal(prefs.sheetMode('/1.xlsx'), 'sheets');
     });
     it('blocked storage: fallbacks, no errors', () => {
         const saved = globalThis.localStorage;

@@ -1,9 +1,11 @@
-// Fake SharePoint Online: one site with one document library, served from ./library.
+// Fake SharePoint Online: one site with one document library, served from ./library (or another folder,
+// or several folders shown by name in the library root). Read only: files are read from disk per request.
 //
 //   /sites/Test/Shared Documents/Forms/AllItems.aspx[?id=<folder>]  list view (client-side app)
 //   /sites/Test/Shared Documents/<path>                             file (GET / HEAD, byte ranges)
 //   /sites/Test/SitePages/Home.aspx                                 page outside any library
-//   /sites/Test/Shared Documents/previewer/<file>                   3D files of the release (if built)
+//   /sites/Test/Shared Documents/previewer/<file>                   3D files of the release (if built),
+//                                                                   listed as folder "previewer" in the library
 //
 // The list view mimics only what the userscript reads: ARIA grid rows, name fields,
 // folder icons, the scroll card and SharePoint's `display: contents` wrapper.
@@ -15,7 +17,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, '../../..');
+const ROOT = path.resolve(HERE, '../..');
 
 export const ORIGIN = 'https://acme.sharepoint.com';
 export const SITE = '/sites/Test';
@@ -23,11 +25,24 @@ export const LIBRARY = `${SITE}/Shared Documents`;
 export const LIST_PAGE = `${LIBRARY}/Forms/AllItems.aspx`;
 export const PATH_FILES = path.join(HERE, 'library');
 
-const VERSION = fs.readFileSync(path.join(ROOT, 'dist/VERSION'), 'utf8').trim();
+export const VERSION = fs.readFileSync(path.join(ROOT, 'dist/VERSION'), 'utf8').trim();
 export const PATH_RELEASE = path.join(ROOT, 'dist', `v${VERSION}`);
-const RELEASE_FOLDER = `${LIBRARY}/previewer`;
+// 3D files of the release, as a folder of the library (as deployed); setting `viewer-3d-folder`: site-relative
+export const RELEASE_FOLDER = `${LIBRARY}/previewer`;
+export const RELEASE_SETTING = RELEASE_FOLDER.slice(SITE.length + 1);
+const FILES_3D = ['ifc-lite-3d.js', 'ifc-lite_bg.wasm'];
 
 const MODIFIED = new Date('2026-10-01T12:00:00Z');
+
+// Name of the fake tenant (title, suite bar) and its icon: plain shapes, no real logo
+const TENANT = 'TestSharepoint';
+const ICON =
+    'data:image/svg+xml,' +
+    encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">' +
+            '<rect width="32" height="32" rx="7" fill="#0f6c74"/>' +
+            '<circle cx="12" cy="13" r="6" fill="#7fd1d8"/><circle cx="20" cy="20" r="7" fill="#fff" opacity=".85"/></svg>',
+    );
 
 const TYPES = {
     '.csv': 'text/csv',
@@ -48,13 +63,31 @@ const TYPES = {
 /**
  * @typedef {{ name: string, folder: boolean, size: number }} Entry
  * @typedef {{ status: number, headers: Object<string, string>, body: Buffer|string }} Reply
+ * @typedef {string|Object<string, string>} Files library folder, or folders shown by name in the library root
  */
 
-/** @param {string} folder server-relative @returns {string|null} local directory */
-function localPath(folder) {
+/** @param {string} root @param {string} rel @returns {string|null} local path, never outside root (no "..") */
+function within(root, rel) {
+    const local = path.join(root, rel);
+    return local === root || local.startsWith(root + path.sep) ? local : null;
+}
+
+/** @param {Files} files @param {string} folder server-relative @returns {string|null} local path */
+function localPath(files, folder) {
     if (folder !== LIBRARY && !folder.startsWith(`${LIBRARY}/`)) return null;
-    const local = path.join(PATH_FILES, folder.slice(LIBRARY.length));
-    return local.startsWith(PATH_FILES) ? local : null; // no ".." out of the library
+    const rel = folder.slice(LIBRARY.length);
+    if (typeof files === 'string') return within(files, rel);
+    const [name = '', ...rest] = rel.split('/').slice(1);
+    return Object.hasOwn(files, name) ? within(files[name], rest.join('/')) : null;
+}
+
+/** @param {Files} files @returns {Files} with absolute paths; folders not there left out */
+export function resolveFiles(files) {
+    if (typeof files === 'string') return path.resolve(files);
+    const found = Object.entries(files)
+        .map(([name, dir]) => [name, path.resolve(dir)])
+        .filter(([, dir]) => fs.existsSync(dir) && fs.statSync(dir).isDirectory());
+    return Object.fromEntries(found);
 }
 
 /** @param {string} dir @returns {Entry[]} folders first, then files; hidden entries left out */
@@ -70,16 +103,29 @@ function listing(dir) {
         .sort((a, b) => Number(b.folder) - Number(a.folder) || a.name.localeCompare(b.name));
 }
 
-/** @returns {Object<string, Entry[]>} server-relative folder -> entries, for the whole library */
-function tree() {
+/** @returns {boolean} 3D files of this version are built (`just build`) */
+export const has3dRelease = () => FILES_3D.every((name) => fs.existsSync(path.join(PATH_RELEASE, name)));
+
+/** @param {Files} files @returns {Object<string, Entry[]>} server-relative folder -> entries */
+function tree(files) {
     /** @type {Object<string, Entry[]>} */
     const out = {};
+    /** @param {string} folder */
     const walk = (folder) => {
-        const entries = listing(/** @type {string} */ (localPath(folder)));
+        const local = localPath(files, folder);
+        const entries = local
+            ? listing(local)
+            : Object.keys(files) // library root of several folders
+                  .sort((a, b) => a.localeCompare(b))
+                  .map((name) => ({ name, folder: true, size: 0 }));
         out[folder] = entries;
         for (const e of entries) if (e.folder) walk(`${folder}/${e.name}`);
     };
     walk(LIBRARY);
+    if (has3dRelease() && !out[RELEASE_FOLDER]) {
+        out[LIBRARY].unshift({ name: 'previewer', folder: true, size: 0 });
+        out[RELEASE_FOLDER] = listing(PATH_RELEASE).filter((e) => FILES_3D.includes(e.name));
+    }
     return out;
 }
 
@@ -89,13 +135,14 @@ const html = (body) => ({ status: 200, headers: { 'content-type': 'text/html; ch
 /** @param {number} status @returns {Reply} */
 const fail = (status) => ({ status, headers: { 'content-type': 'text/plain' }, body: `Error ${status}` });
 
-/** @returns {Reply} */
-function listPage() {
+/** @param {Files} files @returns {Reply} */
+function listPage(files) {
     return html(`<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Documents - Test</title>
+<title>Documents - ${TENANT}</title>
+<link rel="icon" href="${ICON}">
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; font: 14px "Segoe UI", sans-serif; color: #323130; }
@@ -106,8 +153,11 @@ function listPage() {
   .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .command-bar { flex: none; height: 44px; padding: 12px 16px; border-bottom: 1px solid #edebe9; }
   .breadcrumb { flex: none; padding: 8px 16px; font-size: 18px; }
+  .breadcrumb a { color: inherit; text-decoration: none; }
+  .breadcrumb a:hover { text-decoration: underline; }
   .list-host { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 16px 16px; }
-  .card { flex: 1; min-height: 0; border: 1px solid #e1dfdd; border-radius: 8px; }
+  /* height not from flex alone: the list keeps reaching the bottom when the viewer sets flex: none */
+  .card { flex: 1; height: 100%; min-height: 0; border: 1px solid #e1dfdd; border-radius: 8px; }
   .scroller { height: 100%; overflow-y: auto; }
   [role="row"] { display: flex; align-items: center; height: 42px; border-bottom: 1px solid #f3f2f1; }
   [role="columnheader"], [role="gridcell"], [role="rowheader"] { padding: 0 8px; display: flex; align-items: center; gap: 8px; }
@@ -120,7 +170,7 @@ function listPage() {
 </style>
 </head>
 <body>
-  <div class="suite-bar">SharePoint</div>
+  <div class="suite-bar">${TENANT}</div>
   <div class="app">
     <div class="nav">Home<br>Documents</div>
     <div class="main">
@@ -144,12 +194,26 @@ function listPage() {
     </div>
   </div>
 <script>
-  const TREE = ${JSON.stringify(tree())};
+  const TREE = ${JSON.stringify(tree(files))};
   const LIBRARY = ${JSON.stringify(LIBRARY)};
   const LIST_PAGE = ${JSON.stringify(LIST_PAGE)};
   const grid = document.getElementById('grid');
   const icon = (e) => e.folder ? '/_layouts/15/images/itemtypefolder.svg' : '/_layouts/15/images/itemtypegeneric.svg';
   const size = (e) => e.folder ? '' : e.size + ' bytes';
+  const folderLink = (folder, text) =>
+    '<a href="' + LIST_PAGE + '?id=' + encodeURIComponent(folder) + '" data-folder>' + text + '</a>';
+
+  // Path from the library down: every part but the last leads back to its folder
+  function breadcrumb(folder) {
+    const parts = folder.slice(LIBRARY.length).split('/').filter(Boolean);
+    const names = ['Shared Documents', ...parts];
+    return names
+      .map((name, i) => {
+        const path = [LIBRARY, ...parts.slice(0, i)].join('/');
+        return i < names.length - 1 ? folderLink(path, name) : '<span>' + name + '</span>';
+      })
+      .join(' › ');
+  }
 
   function folderOfUrl() {
     const id = new URLSearchParams(location.search).get('id');
@@ -160,7 +224,7 @@ function listPage() {
   function render() {
     const folder = folderOfUrl();
     const entries = TREE[folder] || [];
-    document.getElementById('breadcrumb').textContent = folder.split('/').slice(3).join(' › ');
+    document.getElementById('breadcrumb').innerHTML = breadcrumb(folder);
     const rows = [...grid.querySelectorAll('[role="row"]:not(.header)')];
     while (rows.length < entries.length) {
       const row = document.createElement('div');
@@ -173,9 +237,7 @@ function listPage() {
       row.hidden = !e;
       if (!e) return void (row.innerHTML = '');
       // Same row element, new cells contents: like SharePoint after navigation
-      const nameField = e.folder
-        ? '<a href="' + LIST_PAGE + '?id=' + encodeURIComponent(folder + '/' + e.name) + '" data-folder>' + e.name + '</a>'
-        : '<button type="button">' + e.name + '</button>';
+      const nameField = e.folder ? folderLink(folder + '/' + e.name, e.name) : '<button type="button">' + e.name + '</button>';
       row.innerHTML =
         '<div role="gridcell" class="c-icon"><img alt="" src="' + icon(e) + '"></div>' +
         '<div role="gridcell" class="c-name" data-automationid="field-LinkFilename">' + nameField + '</div>' +
@@ -234,16 +296,19 @@ function serveFile(file, method, range) {
 /**
  * Answers one request to the fake SharePoint.
  * @param {{ url: string, method: string, headers: Object<string, string> }} request
+ * @param {{ files?: Files }} [opts] library folder (default: ./library), or folders by name in the library root
  * @returns {Reply}
  */
-export function handle({ url, method, headers }) {
+export function handle({ url, method, headers }, { files = PATH_FILES } = {}) {
     const u = new URL(url);
     const pathname = decodeURIComponent(u.pathname);
+    const root = resolveFiles(files);
 
-    if (pathname === LIST_PAGE) return listPage();
+    if (pathname === LIST_PAGE) return listPage(root);
     if (pathname === `${SITE}/SitePages/Home.aspx`) {
         return html(
-            '<!doctype html><title>Home</title><h1>Home</h1><div role="grid"><div role="row">notes.txt</div></div>',
+            `<!doctype html><title>Home - ${TENANT}</title><link rel="icon" href="${ICON}">` +
+                '<h1>Home</h1><div role="grid"><div role="row">notes.txt</div></div>',
         );
     }
     if (pathname.startsWith('/_layouts/')) {
@@ -257,7 +322,7 @@ export function handle({ url, method, headers }) {
         const file = path.join(PATH_RELEASE, path.basename(pathname));
         return fs.existsSync(file) ? serveFile(file, method, headers.range) : fail(404);
     }
-    const file = localPath(pathname);
+    const file = localPath(root, pathname);
     if (!file || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return fail(404);
     return serveFile(file, method, headers.range);
 }

@@ -1,4 +1,4 @@
-// Behavioural tests (preliminary): userscript on the fake SharePoint (cf. ./fake-sharepoint/server.mjs)
+// Behavioural tests (preliminary): userscript on the fake SharePoint (cf. /tests/fake-sharepoint/server.mjs)
 
 import assert from 'node:assert/strict';
 import { after } from 'node:test';
@@ -37,9 +37,18 @@ describe('list view', () => {
         const page = await openFolder(h.LIBRARY);
         await page.locator('a', { hasText: 'Data' }).click();
         await h.eye(page, 'prices.csv').waitFor();
-        await page.locator('a', { hasText: 'Archive' }).click();
+        await page.locator('a', { hasText: 'Reports' }).click();
         await h.eye(page, '2025.csv').waitFor();
         assert.equal(await page.locator('.tp-preview').count(), 1);
+    });
+
+    it('goes back to parent folders by the breadcrumb', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Data/Reports`);
+        await h.eye(page, '2025.csv').waitFor();
+        await page.locator('#breadcrumb a', { hasText: 'Data' }).click();
+        await h.eye(page, 'prices.csv').waitFor();
+        await page.locator('#breadcrumb a', { hasText: 'Shared Documents' }).click();
+        await h.eye(page, 'notes.txt').waitFor();
     });
 
     it('adds nothing outside a library', async () => {
@@ -58,6 +67,7 @@ describe('preview per file type', () => {
         ['/Data', 'sensors.parquet', /Parquet/, 's2'],
         ['/Config', 'settings.xml', /format: XML/, 'retries'],
         ['/Models', 'wall.ifc', /format: IFC/, 'IFCWALL'],
+        ['/Models', 'corner.ifc', /format: IFC/, 'IFCWINDOW'],
         ['/Data', 'harvest.xlsx', /format: Excel \(XLSX\)/, 'banana'],
         ['/Data', 'harvest.xlsb', /format: Excel \(XLSB\)/, 'banana'],
         ['/Data', 'harvest.xls', /format: Excel 97–2003/, 'banana'],
@@ -98,21 +108,19 @@ describe('preview per file type', () => {
         }
     });
 
-    it('spreadsheets: sheet drop-down, read only, sheets cached one by one', async () => {
+    it('spreadsheets: sheet picker, read only, sheets cached one by one', async () => {
         const page = await openFolder(`${h.LIBRARY}/Data`);
         const v = await h.preview(page, 'harvest.xlsx');
-        const select = v.locator('.tp-sheet-select');
-        assert.equal(await select.isVisible(), true);
-        assert.deepEqual(await select.locator('option').allTextContents(), [
-            '● Prices',
-            '○ Notes',
-            '○ Secret (hidden)',
-        ]);
+        const picker = v.locator('.tp-picker');
+        const items = v.locator('.tp-picker-menu .tp-picker-item');
+        assert.equal(await picker.isVisible(), true);
+        await picker.click();
+        assert.deepEqual(await items.allTextContents(), ['● Prices', '○ Notes', '○ Secret (hidden)']);
         assert.match(await v.locator('.tp-title-sheet').textContent(), /Sheet: Prices/);
         assert.equal(await v.locator('.tp-mode-btn[title^="Edit"]').isDisabled(), true);
         assert.equal(await h.eye(page, 'harvest.xlsx').getAttribute('data-eye'), 'half'); // other sheets not cached
 
-        await select.selectOption({ label: '○ Notes' });
+        await items.filter({ hasText: 'Notes' }).click();
         await v.locator('.tp-title-sheet', { hasText: 'Notes' }).waitFor();
         await h.settled(page);
         await v.locator('.tp-content', { hasText: 'after a gap' }).waitFor({ timeout: 5000 });
@@ -123,6 +131,47 @@ describe('preview per file type', () => {
         assert.equal(await h.eye(page, 'harvest.xlsx').getAttribute('data-eye'), 'open');
     });
 
+    it('spreadsheets: sheets and tables in one picker (← →), the choice remembered per file', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Data`);
+        let v = await h.preview(page, 'orders.xlsx');
+        const picker = v.locator('.tp-picker');
+        const menu = v.locator('.tp-picker-menu');
+        assert.match(await properties(v), /sheets: 6 · tables: 10 · sheet: Sales/); // setting: sheets first
+        await picker.click();
+        await page.keyboard.press('ArrowRight');
+        await menu.locator('.tp-picker-tab[aria-pressed="true"]', { hasText: 'Tables' }).waitFor();
+        assert.deepEqual((await menu.locator('.tp-picker-item').allTextContents()).slice(0, 4), [
+            '● Orders (Sales)',
+            '● Regions (Sales)',
+            '● Payments (Sales)',
+            '○ Stock (Stock)',
+        ]);
+        await page.keyboard.press('Enter'); // first table on the sheet shown
+        await v.locator('.tp-title-sheet', { hasText: 'Table: Orders' }).waitFor();
+        assert.match(await properties(v), /table: Orders \(Sales!A1:D14\): 12 rows × 4 columns/);
+
+        await h.preview(page, 'harvest.xlsx');
+        await picker.click();
+        await menu.locator('.tp-picker-tab', { hasText: 'Tables' }).click();
+        await menu.locator('.tp-picker-empty', { hasText: 'No tables' }).waitFor(); // always there, says why
+        await page.keyboard.press('Escape');
+        assert.equal(await menu.isVisible(), false);
+        assert.equal(await v.isVisible(), true); // Esc closed the menu, not the viewer
+
+        await page.reload();
+        await page.locator('.tp-preview').first().waitFor();
+        v = await h.preview(page, 'orders.xlsx');
+        assert.match(await v.locator('.tp-title-sheet').textContent(), /Table: Orders/);
+    });
+
+    it('spreadsheets: text view with column letters and row numbers', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Data`);
+        const v = await h.preview(page, 'harvest.xlsx');
+        await v.locator('.tp-view-btn', { hasText: 'Text' }).click();
+        await v.locator('.tp-content', { hasText: ',A,B,C,D' }).waitFor({ timeout: 5000 });
+        assert.match(await v.locator('.tp-content').textContent(), /1,fruit,price,harvest,ripe/);
+    });
+
     it('spreadsheets: rows striped, column colours off by default', async () => {
         const page = await openFolder(`${h.LIBRARY}/Data`);
         const v = await h.preview(page, 'harvest.xls');
@@ -131,6 +180,31 @@ describe('preview per file type', () => {
         assert.ok((await v.locator('.tp-table tr.tp-stripe').count()) > 0);
         assert.equal(await v.locator('.tp-table td[class^="tp-"]:not(.tp-rn)').count(), 0);
         assert.deepEqual(await v.locator('.tp-table thead .tp-sort').allTextContents(), ['A', 'B', 'C', 'D']);
+    });
+
+    it('Markdown: rendered, Text shows the source; text size − 100 % +; Ctrl+A selects the text only', async () => {
+        const page = await openFolder(h.LIBRARY);
+        const v = await h.preview(page, 'README.md');
+        const preview = v.locator('.tp-view-btn', { hasText: 'Markdown' });
+        if ((await preview.getAttribute('aria-pressed')) !== 'true') await preview.click();
+        await v.locator('.tp-md h1', { hasText: 'Project documents' }).waitFor();
+        assert.equal(await v.locator('.tp-md li').count(), 3);
+        await v.locator('.tp-view-btn', { hasText: 'Text' }).click();
+        await v.locator('.tp-code', { hasText: '# Project documents #' }).waitFor();
+
+        const size = () => v.locator('.tp-content').evaluate((el) => getComputedStyle(el).fontSize);
+        const start = await size();
+        await v.locator('.tp-zoom .tp-view-btn').last().click(); // +
+        assert.notEqual(await size(), start);
+        await v.locator('.tp-zoom-value').click(); // back to 100 %
+        assert.equal(await size(), start);
+
+        await v.locator('.tp-content').click();
+        await page.keyboard.press('ControlOrMeta+A');
+        const selected = await page.evaluate(() => String(getSelection()));
+        assert.match(selected, /Project documents[\s\S]*answer = 42/);
+        assert.doesNotMatch(selected, /Shared Documents/); // not the page around it
+        await preview.click(); // Markdown view stays the remembered choice
     });
 
     it('refuses binary files', async () => {

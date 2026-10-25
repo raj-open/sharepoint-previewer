@@ -32,7 +32,7 @@
   the entry `/src/_core/main.js` starts everything explicitly, in order, at the end of the bundle.
 - Version: `/dist/VERSION` is the single source;
   the build writes it into the userscript's `@version`,
-  off `main` as `<VERSION>-beta.<short commit>` (release files only, not `/src/main.js`).
+  except on the commit tagged `v<VERSION>` as `<VERSION>-beta.<short commit>` (release files only, not `/src/main.js`).
 - 3D hashes: the build writes the SHA-256 of the built 3D files into the userscript;
   the values in `/src/main.js` are only those of the last deployed bundle.
 - Tests: `node --test`, files named `tests_*.mjs` under `/tests/{unit,behave,integration}`.
@@ -44,5 +44,12 @@
 
 - `just qa` = lint checks + all tests (unit, behave, integration).
 - `just qa` must pass before merging to staging, before versioning up and before merging to main.
-- Behavioural tests: `/tests/behave`, Playwright (Chromium) on a fake SharePoint (`/tests/behave/fake-sharepoint`);
+- Behavioural tests: `/tests/behave`, Playwright (Chromium) on a fake SharePoint (`/tests/fake-sharepoint`);
   browser installed by `just build-deps`.
+- Explorative tests: `just tests-explore [folder]` serves the fake SharePoint on `http://localhost:<HTTP_PORT>` (loopback only),
+  the userscript injected per page load with a Tampermonkey stand-in (`/tests/explore`);
+  the library shows folders `Mock Data` (`/tests/fake-sharepoint/library`) and `Data` (`/data`, local only),
+  or only `folder` if given; files are read from disk per request (read only);
+  the 3D files of the release (`just build`) appear in the library as folder `previewer`,
+  empty settings `viewer-3d-folder` (pointing there) and `logo` (a test logo) are filled in on each page load;
+  not part of `just qa`.

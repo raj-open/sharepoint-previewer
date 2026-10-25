@@ -30,14 +30,21 @@
   /** @typedef {{ size: number, head: Uint8Array, dates: Object, read: ByteReader, fetched: () => number, whole: () => boolean }} RangeFile */
   /** @typedef {{ name: string, method: number, packed: number, size: number, offset: number, head: number }} ZipEntry */
   /** @typedef {{ rows: string[][], cols: number, cut: boolean }} SheetData cells as text, rows without gaps */
+  /** @typedef {{ r0: number, c0: number, r1: number, c1: number }} CellRange corners of a cell range (0-based, inclusive) */
+  /** @typedef {{ name: string, range: CellRange, header: number, totals: number, columns: string[] }} TablePart table (list object) of a sheet: header and totals rows, column names (may be empty) */
+  /** @typedef {TablePart & { sheet: number }} Table table and the index of its sheet */
+  /** @typedef {{ label: string, items: { text: string, title?: string }[], empty: string, start: number }} PickerList list of a picker: entries, note if empty, entry marked first */
+  /** @typedef {{ button: HTMLButtonElement, menu: HTMLElement, set: (lists: PickerList[], choice: { list: number, item: number }, label: string, title: string) => void, close: () => void }} Picker drop-down with lists side by side */
+  /** @typedef {'sheets'|'tables'} SheetMode what a spreadsheet shows: its sheets or its tables */
+  /** @typedef {{ rows: string[][], header: string[], note: string, text: string }} SheetShown sheet or table shown: rows, column names, note if no rows, text view (CSV) */
   /** @typedef {{ name: string, hidden: boolean, kind: string, size: number, path?: string, data?: SheetData|null, note?: string }} Sheet data: undefined = not read yet, null = no cells */
-  /** @typedef {{ entry: (path?: string) => ZipEntry|undefined, bytes: (path?: string) => Promise<Uint8Array|null>, text: (path?: string) => Promise<string|null> }} Package parts of a ZIP-based document by path */
+  /** @typedef {{ paths: () => string[], entry: (path?: string) => ZipEntry|undefined, bytes: (path?: string) => Promise<Uint8Array|null>, text: (path?: string) => Promise<string|null> }} Package parts of a ZIP-based document by path */
   /** @typedef {{ deferred: string, size: number, dates: Object<string, *> }} Deferred big file: shown only after "cache all" */
   /** @typedef {{ sort: { col: number, dir: number }|null, filters: Map<number, { values: Set<string>|null, text: string }>, widths?: Map<number, number> }} TableState sort, filters, column widths of a table view */
   /** @typedef {string[] & { raw?: string }} CsvRow cells of a CSV line; raw: its text as in the file (unedited rows are written back as they were) */
   /** @typedef {Event & { target: HTMLElement }} TargetEvent event whose target is an element (handlers read e.target) */
-  /** @typedef {{ workbook: (bytes: Uint8Array) => { sheets: { name: string, id: string, hidden: boolean }[], active: number, date1904: boolean }, strings: (bytes: Uint8Array) => string[], styles: (bytes: Uint8Array) => string[], sheet: (bytes: Uint8Array, strings: string[], kinds: string[], date1904: boolean) => SheetData }} SheetParts readers of a workbook's parts (XML or binary) */
-  /** @typedef {{ format: string, sheets: Sheet[], active: number, date1904: boolean, load: (i: number) => Promise<SheetData|null> }} Book */
+  /** @typedef {{ workbook: (bytes: Uint8Array) => { sheets: { name: string, id: string, hidden: boolean }[], active: number, date1904: boolean }, strings: (bytes: Uint8Array) => string[], styles: (bytes: Uint8Array) => string[], sheet: (bytes: Uint8Array, strings: string[], kinds: string[], date1904: boolean) => SheetData, table: (bytes: Uint8Array) => TablePart|null }} SheetParts readers of a workbook's parts (XML or binary) */
+  /** @typedef {{ format: string, sheets: Sheet[], active: number, date1904: boolean, load: (i: number) => Promise<SheetData|null>, tables?: Table[] }} Book tables: undefined if the format has none that are read */
 
   // Module: _core/settings.js
 
@@ -67,6 +74,9 @@
 
       // Column colours in table view of spreadsheets (start value; rows stay striped)
       'colours-sheet': false,
+
+      // Spreadsheets show 'sheets' or 'tables' (start value; sheets if a file has no tables)
+      'spreadsheet-view': 'sheets',
 
       // Bytes per cache step ("Cache next"); 512 KB ≈ 10,000 lines of code
       'cache-chunk-bytes': 512 * 1024,
@@ -146,6 +156,7 @@
       'colours-text': DEFAULT_COLOURS,
       'colours-table': DEFAULT_TABLE_COLOURS,
       'colours-sheet': DEFAULT_SHEET_COLOURS,
+      'spreadsheet-view': DEFAULT_SHEET_VIEW,
       'cache-chunk-bytes': MAX_BYTES,
       'parquet-rows': PARQUET_ROWS,
       'memory-cache-bytes': MEMORY_CACHE_BYTES,
@@ -275,6 +286,14 @@
          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M12 2.5l8.5 4.75v9.5L12 21.5l-8.5-4.75v-9.5z"/>
       <path d="M3.5 7.25L12 12l8.5-4.75M12 12v9.5"/>
+    </svg>
+  `;
+  // Page with M and down arrow (Markdown view)
+  const MARKDOWN_SVG = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="2" y="5" width="20" height="14" rx="2"/>
+      <path d="M5.5 15V9l3 3.5 3-3.5v6M17 9v6M14.5 12.5 17 15l2.5-2.5"/>
     </svg>
   `;
   const TABLE_SVG = `
@@ -737,7 +756,7 @@
           opts.onEdit?.();
       };
 
-      const ROW_HEIGHT = 23;
+      const ROW_HEIGHT = 23 * (Number(content.style?.getPropertyValue?.('--tp-zoom')) || 1); // text size (panel)
       /** @param {number} h */
       const spacer = (h) => `<tr class="tp-spacer"><td colspan="${cols + 1}" style="height:${h}px"></td></tr>`;
 
@@ -1150,7 +1169,7 @@
 
   // Module: _core/prefs.js
 
-  // Preferences kept in the browser (localStorage): theme, colours, wrap, CSV format, view choices
+  // Preferences kept in the browser (localStorage): theme, colours, wrap, CSV format, view choices (some per file)
 
   // ===========================================================================
   // IMPORTS
@@ -1163,6 +1182,8 @@
   const THEME_KEY = 'tp-preview-theme';
   const COLOUR_KEY = 'tp-preview-colours-text';
   const WRAP_KEY = 'tp-preview-wrap';
+  const ZOOM_KEY = 'tp-preview-zoom'; // text size in the content area (1 = 100 %)
+  const ZOOM_RANGE = [0.5, 3];
   const PROPS_KEY = 'tp-preview-properties'; // properties line shown (default) or hidden
   const CSV_SEP_KEY = 'tp-preview-csv-sep'; // '' = as in file
   const CSV_QUOTE_KEY = 'tp-preview-csv-quote'; // '' = as in file
@@ -1170,6 +1191,10 @@
   const COLOUR_TABLE_KEY = 'tp-preview-colours-table';
   const COLOUR_SHEET_KEY = 'tp-preview-colours-sheet';
   const COLOUR_KEYS = { text: COLOUR_KEY, table: COLOUR_TABLE_KEY, sheet: COLOUR_SHEET_KEY };
+
+  // Spreadsheets: sheets or tables, per file (most recent first, the oldest dropped)
+  const SHEET_MODES_KEY = 'tp-preview-sheet-modes';
+  const MAX_SHEET_MODES = 500;
 
   // ===========================================================================
   // METHODS
@@ -1199,6 +1224,32 @@
       } catch {}
   }
 
+  // Sheets or tables chosen for a spreadsheet (file path -> mode)
+  /** @returns {Object<string, SheetMode>} */
+  function sheetModes() {
+      try {
+          const modes = JSON.parse(loadPref(SHEET_MODES_KEY, '{}'));
+          return modes && typeof modes === 'object' && !Array.isArray(modes) ? modes : {};
+      } catch {
+          return {};
+      }
+  }
+
+  // View of a spreadsheet: last choice for this file, else the setting
+  /** @param {string} url @returns {SheetMode} */
+  function sheetMode(url) {
+      const mode = sheetModes()[url] ?? DEFAULT_SHEET_VIEW;
+      return mode === 'tables' ? 'tables' : 'sheets';
+  }
+
+  /** @param {string} url @param {SheetMode} mode @returns {void} */
+  function rememberSheetMode(url, mode) {
+      const modes = sheetModes();
+      delete modes[url];
+      const kept = Object.entries(modes).slice(0, MAX_SHEET_MODES - 1);
+      savePref(SHEET_MODES_KEY, JSON.stringify(Object.fromEntries([[url, mode], ...kept])));
+  }
+
   // Delimiter / quote style chosen in write mode ('' = keep file's own)
   const csvFormat = { sep: loadPref(CSV_SEP_KEY, '') || '', quote: loadPref(CSV_QUOTE_KEY, '') || '' };
   if (!(csvFormat.sep in SEPARATOR_NAMES)) csvFormat.sep = '';
@@ -1225,6 +1276,10 @@
       wrap: loadPref(WRAP_KEY, DEFAULT_WRAP ? '1' : '0') === '1',
       // 3D view chosen by user
       show3d: loadPref('tp-preview-3d', '0') === '1',
+      // Markdown rendered (else its text)
+      markdown: loadPref('tp-preview-markdown', '1') === '1',
+      // Text size in the content area (text, table, Markdown, editor)
+      zoom: Math.max(ZOOM_RANGE[0], Math.min(ZOOM_RANGE[1], Number(loadPref(ZOOM_KEY, '1')) || 1)),
   };
 
   // Module: ui/move.js
@@ -1319,6 +1374,7 @@
       ['colours-text', 'Syntax highlighting (text view)'],
       ['colours-table', 'Syntax highlighting (table view)'],
       ['colours-sheet', 'Column colours (spreadsheets)'],
+      ['spreadsheet-view', 'Spreadsheets show', ['sheets', 'tables']],
       ['cache-chunk-bytes', 'Cache chunk size', 'KB'],
       ['memory-cache-bytes', 'Cache limit (all files)', 'MB'],
       ['cache-all-confirm-bytes', 'Warn full file cache if file size exceeds', 'MB'],
@@ -1346,6 +1402,7 @@
       'colours-text': 'tp-preview-colours-text',
       'colours-table': 'tp-preview-colours-table',
       'colours-sheet': 'tp-preview-colours-sheet',
+      'spreadsheet-view': 'tp-preview-sheet-modes',
   };
   const SETTINGS_POS_KEY = 'tp-preview-settings-pos';
   const POPUP_POS_KEY = 'tp-preview-popup-pos';
@@ -1939,7 +1996,7 @@
       min-height: 0;
       overflow: auto;
       outline: none;
-      font: 13px/1.45 Consolas, "Courier New", monospace;
+      font: calc(13px * var(--tp-zoom, 1))/1.45 Consolas, "Courier New", monospace;
       color: var(--tp-fg);
       background: var(--tp-bg);
     }
@@ -1958,7 +2015,7 @@
       padding: 4px 10px 12px 8px;
       overflow: hidden;
       text-align: right;
-      font: 13px/1.45 Consolas, "Courier New", monospace;
+      font: calc(13px * var(--tp-zoom, 1))/1.45 Consolas, "Courier New", monospace;
       color: var(--tp-ln-fg);
       background: var(--tp-ln-bg);
       border-right: 1px solid var(--tp-ln-border);
@@ -1977,7 +2034,7 @@
       outline: none;
       resize: none;
       box-sizing: border-box;
-      font: 13px/1.45 Consolas, "Courier New", monospace;
+      font: calc(13px * var(--tp-zoom, 1))/1.45 Consolas, "Courier New", monospace;
       color: var(--tp-fg);
       background: var(--tp-bg);
       white-space: pre;
@@ -1986,7 +2043,7 @@
     .tp-table {
       border-collapse: separate;
       border-spacing: 0;
-      font: 12px/1.4 sans-serif;
+      font: calc(12px * var(--tp-zoom, 1))/1.4 sans-serif;
       color: var(--tp-fg);
     }
     .tp-table th {
@@ -2087,6 +2144,7 @@
     .tp-table th.tp-drop-after { box-shadow: inset -3px 0 0 var(--tp-accent); }
     .tp-table td[contenteditable] { cursor: text; outline: none; }
     .tp-statusbar {
+      position: relative;
       flex: none;
       height: 30px;
       display: flex;
@@ -2139,22 +2197,76 @@
     .tp-viewer .tp-view-btn[aria-pressed="true"] { background: #0078d4; color: #fff; }
     .tp-viewer .tp-view-btn:disabled { opacity: .4; cursor: default; }
     .tp-viewer .tp-view-btn:not(:disabled):not([aria-pressed="true"]):hover { background: var(--tp-hover); }
-    /* Sheet choice (spreadsheets): segment right of the table button */
-    .tp-viewer .tp-sheet-select {
+    /* Text size: − 100 % + (left of the view switch) */
+    .tp-zoom + .tp-views { margin-left: 0; }
+    .tp-viewer .tp-zoom .tp-view-btn { padding: 0 8px; font-size: 13px; }
+    .tp-viewer .tp-zoom .tp-zoom-value { min-width: 52px; justify-content: center; font-size: 11px; }
+    /* Sheet or table choice (spreadsheets): segment right of the table button; menu above it */
+    .tp-viewer .tp-picker {
       height: 22px;
       max-width: 200px;
-      padding: 0 4px;
+      padding: 0 8px;
+      overflow: hidden;
       border: none;
       border-left: 1px solid var(--tp-border);
       border-radius: 0;
       background: transparent;
       color: var(--tp-fg);
       font: 12px sans-serif;
+      white-space: nowrap;
+      text-overflow: ellipsis;
       cursor: pointer;
     }
-    .tp-viewer .tp-sheet-select:hover { background: var(--tp-hover); }
-    .tp-viewer .tp-sheet-select option { background: var(--tp-bg); color: var(--tp-fg); }
-    .tp-viewer .tp-sheet-select + .tp-view-btn { border-left: 1px solid var(--tp-border); }
+    .tp-viewer .tp-picker:hover, .tp-viewer .tp-picker[aria-expanded="true"] { background: var(--tp-hover); }
+    .tp-viewer .tp-picker + .tp-view-btn { border-left: 1px solid var(--tp-border); }
+    .tp-picker-menu {
+      position: absolute;
+      z-index: 6;
+      display: flex;
+      flex-direction: column;
+      width: 260px;
+      max-height: min(60vh, 340px);
+      background: var(--tp-bg);
+      border: 1px solid var(--tp-border);
+      border-radius: 6px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.3);
+      outline: none;
+    }
+    .tp-picker-menu[hidden] { display: none; }
+    .tp-picker-head { flex: none; display: flex; gap: 2px; padding: 4px; border-bottom: 1px solid var(--tp-border); }
+    .tp-picker-head button {
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--tp-fg);
+      font: 12px sans-serif;
+      cursor: pointer;
+    }
+    .tp-picker-head button:hover { background: var(--tp-hover); }
+    .tp-picker-step { flex: none; width: 24px; font-size: 15px !important; }
+    .tp-picker-tab { flex: 1; padding: 4px 6px; }
+    .tp-picker-tab span { opacity: .6; }
+    .tp-picker-tab[aria-pressed="true"] { background: #0078d4 !important; color: #fff !important; }
+    .tp-picker-list { flex: 1; min-height: 0; overflow-y: auto; padding: 4px; }
+    .tp-picker-item {
+      display: block;
+      width: 100%;
+      padding: 5px 8px;
+      overflow: hidden;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--tp-fg);
+      font: 12px sans-serif;
+      text-align: left;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      cursor: pointer;
+    }
+    .tp-picker-item:hover, .tp-picker-item.tp-active { background: var(--tp-hover); }
+    .tp-picker-item.tp-chosen { font-weight: 600; }
+    .tp-picker-item.tp-chosen::after { content: ' ✓'; color: var(--tp-accent); }
+    .tp-picker-empty { padding: 8px; font: 12px sans-serif; color: var(--tp-fg); opacity: .6; }
     .tp-progress-bar {
       width: 140px;
       height: 3px;
@@ -2236,6 +2348,48 @@
     .tp-warn .tp-ln { color: var(--tp-warn-ln-fg); background: var(--tp-warn-ln-bg); }
     .tp-warn .tp-code { background: var(--tp-warn-bg); }
     .tp-flash .tp-code { background: var(--tp-flash) !important; transition: background .3s; }
+
+    /* Markdown view */
+    .tp-md {
+      max-width: 920px;
+      padding: 8px 24px 24px;
+      font: calc(14px * var(--tp-zoom, 1))/1.6 -apple-system, "Segoe UI", sans-serif;
+      overflow-wrap: anywhere;
+    }
+    .tp-md h1, .tp-md h2, .tp-md h3, .tp-md h4, .tp-md h5, .tp-md h6 { margin: 1.2em 0 .5em; line-height: 1.25; font-weight: 600; }
+    .tp-md h1 { font-size: 1.9em; padding-bottom: .25em; border-bottom: 1px solid var(--tp-border); }
+    .tp-md h2 { font-size: 1.45em; padding-bottom: .25em; border-bottom: 1px solid var(--tp-border); }
+    .tp-md h3 { font-size: 1.2em; }
+    .tp-md h4 { font-size: 1em; }
+    .tp-md h5, .tp-md h6 { font-size: .9em; }
+    .tp-md p, .tp-md ul, .tp-md ol, .tp-md blockquote, .tp-md pre, .tp-md table { margin: 0 0 .9em; }
+    .tp-md ul, .tp-md ol { padding-left: 2em; }
+    .tp-md li > ul, .tp-md li > ol { margin: 0; }
+    .tp-md li.tp-md-task { list-style: none; }
+    .tp-md li.tp-md-task input { margin: 0 .4em 0 -1.4em; vertical-align: middle; }
+    .tp-md a { color: var(--tp-accent); }
+    .tp-md code {
+      padding: .1em .35em;
+      border-radius: 4px;
+      background: var(--tp-ln-bg);
+      font: .9em Consolas, "Courier New", monospace;
+    }
+    .tp-md pre {
+      padding: 10px 12px;
+      overflow: auto;
+      border: 1px solid var(--tp-ln-border);
+      border-radius: 6px;
+      background: var(--tp-ln-bg);
+      line-height: 1.45;
+    }
+    .tp-md pre code { padding: 0; background: none; white-space: pre; }
+    .tp-md blockquote { padding: 0 1em; border-left: 4px solid var(--tp-border); opacity: .85; }
+    .tp-md blockquote > :last-child { margin-bottom: 0; }
+    .tp-md hr { border: none; border-top: 2px solid var(--tp-border); margin: 1.4em 0; }
+    .tp-md table { border-collapse: collapse; display: block; overflow: auto; }
+    .tp-md th, .tp-md td { padding: 4px 12px; border: 1px solid var(--tp-border); }
+    .tp-md th { font-weight: 600; background: var(--tp-header-bg); }
+    .tp-md img { max-width: 100%; }
 
     .tp-key { color: var(--tp-key); }
     .tp-str { color: var(--tp-str); }
@@ -4121,6 +4275,21 @@
       return s;
   }
 
+  // Cell range "A1:C4" or "A1" ("$" ignored) <-> corners (0-based); null if unreadable
+  /** @param {string} ref @returns {CellRange|null} */
+  function cellRange(ref) {
+      const m = /^\$?([A-Za-z]{1,3})\$?(\d{1,7})(?::\$?([A-Za-z]{1,3})\$?(\d{1,7}))?$/.exec(ref.trim());
+      if (!m) return null;
+      const r0 = Number(m[2]) - 1;
+      const c0 = refCol(m[1]);
+      const r1 = m[4] ? Number(m[4]) - 1 : r0;
+      const c1 = m[3] ? refCol(m[3]) : c0;
+      return { r0: Math.min(r0, r1), c0: Math.min(c0, c1), r1: Math.max(r0, r1), c1: Math.max(c0, c1) };
+  }
+
+  /** @param {CellRange} range @returns {string} */
+  const rangeText = ({ r0, c0, r1, c1 }) => `${colName(c0)}${r0 + 1}:${colName(c1)}${r1 + 1}`;
+
   // Cells of one sheet -> rows (no gaps between rows; missing cells are empty)
   /** @returns {{ set: (r: number, c: number, text: string) => boolean, done: () => SheetData }} */
   function sheetGrid() {
@@ -4227,20 +4396,34 @@
 
   // Module: readers/sheets/ods.js
 
-  // OpenDocument spreadsheet: all sheets in content.xml, cells with their display text
+  // OpenDocument spreadsheet: all sheets in content.xml, cells with their display text;
+  // named database ranges as tables
 
   // ===========================================================================
   // IMPORTS
   // ===========================================================================
 
   // ===========================================================================
+  // CONSTANTS
+  // ===========================================================================
+
+  // Range address "Sheet1.A1:Sheet1.D9", "'My sheet'.$A$1:.$D$9": sheet, first cell, last cell
+  const ODS_RANGE_RE =
+      /^\$?('(?:[^']|'')*'|[^.']*)\.([$A-Za-z]+[$\d]+)(?::\$?(?:'(?:[^']|'')*'|[^.']*)\.([$A-Za-z]+[$\d]+))?$/;
+
+  // Ranges LibreOffice makes itself (e.g. for a filter): not named by the user
+  const ODS_ANONYMOUS_RE = /^__Anonymous_Sheet_DB__/;
+
+  // ===========================================================================
   // METHODS
   // ===========================================================================
 
-  /** @param {string} xml @returns {{ name: string, data: SheetData }[]} */
+  /** @param {string} xml @returns {{ sheets: { name: string, data: SheetData }[], ranges: Object<string, string>[] }} */
   function odsSheets(xml) {
       /** @type {{ name: string, data: SheetData }[]} */
       const sheets = [];
+      /** @type {Object<string, string>[]} */
+      const ranges = []; // attributes of database ranges
       /** @type {ReturnType<typeof sheetGrid>|null} */
       let grid = null;
       let name = '';
@@ -4261,6 +4444,7 @@
       scanXml(
           xml,
           (n, a) => {
+              if (n === 'database-range' && !depth) return void ranges.push(xmlAttrs(a));
               if (n === 'table') {
                   if (depth++) return;
                   grid = sheetGrid();
@@ -4319,7 +4503,26 @@
           },
           (raw) => add(xmlText(raw)),
       );
-      return sheets;
+      return { sheets, ranges };
+  }
+
+  // Named database ranges -> tables (header row unless contains-header="false", totals row if
+  // contains-footer="true" (LibreOffice extension); no column names)
+  /** @param {Object<string, string>[]} ranges @param {string[]} names sheet names @returns {Table[]} */
+  function odsTables(ranges, names) {
+      /** @type {Table[]} */
+      const tables = [];
+      for (const at of ranges) {
+          const m = ODS_RANGE_RE.exec(at['target-range-address'] || '');
+          if (!m || !at.name || ODS_ANONYMOUS_RE.test(at.name)) continue;
+          const sheet = names.indexOf(m[1].replace(/^'|'$/g, '').replace(/''/g, "'"));
+          const range = cellRange(m[3] ? `${m[2]}:${m[3]}` : m[2]);
+          if (sheet < 0 || !range) continue;
+          const header = at['contains-header'] === 'false' ? 0 : 1;
+          const totals = at['contains-footer'] === 'true' ? 1 : 0;
+          tables.push({ name: at.name, range, header, totals, columns: [], sheet });
+      }
+      return tables;
   }
 
   // Typed value as the Excel formats show it (ISO dates, plain numbers); null = use cell text
@@ -4343,10 +4546,14 @@
       }
       const found = odsSheets(xmlString(await pkg.bytes('content.xml')));
       // all sheets come with content.xml: cached at once
-      const sheets = found.map((s) => ({ name: s.name, hidden: false, kind: 'sheet', size: 0, data: s.data }));
+      const sheets = found.sheets.map((s) => ({ name: s.name, hidden: false, kind: 'sheet', size: 0, data: s.data }));
       return {
           format: 'OpenDocument spreadsheet',
           sheets,
+          tables: odsTables(
+              found.ranges,
+              sheets.map((s) => s.name),
+          ),
           active: 0,
           date1904: false,
           load: async (i) => sheets[i].data,
@@ -4721,7 +4928,8 @@
           const b = await bytes(path);
           return b ? xmlString(b) : null;
       };
-      return { entry, bytes, text };
+      const paths = () => [...byName.keys()];
+      return { paths, entry, bytes, text };
   }
 
   // Path of target, relative to folder of `base` (or from root with leading "/")
@@ -4889,6 +5097,39 @@
           });
           return grid.done();
       },
+
+      // Table: BrtBeginList (range, header and totals rows, names), BrtBeginListCol (column names)
+      table(bytes) {
+          /** @type {TablePart|null} */
+          let out = null;
+          /** @type {string[]} */
+          const columns = [];
+          biff12Records(bytes, (type, d) => {
+              const dv = dataView(d);
+              if (type === 343 && d.length >= 68 && !out) {
+                  // range: first and last row, first and last column; names after 13 fixed fields
+                  const name = wideString(d, 64);
+                  const shown = wideString(d, name.end).text;
+                  out = {
+                      name: shown || name.text,
+                      range: {
+                          r0: dv.getUint32(0, true),
+                          r1: dv.getUint32(4, true),
+                          c0: dv.getUint32(8, true),
+                          c1: dv.getUint32(12, true),
+                      },
+                      header: dv.getUint32(24, true),
+                      totals: dv.getUint32(28, true),
+                      columns,
+                  };
+              } else if (type === 347 && d.length >= 28) {
+                  // name (often none), then caption shown in the header row
+                  const name = wideString(d, 24);
+                  columns.push(wideString(d, name.end).text || name.text);
+              }
+          });
+          return out;
+      },
   };
 
   // Module: readers/sheets/xlsx.js
@@ -5037,15 +5278,52 @@
               return v.trim() === '' ? '' : numberText(Number(v), kinds[s] || '', date1904);
           }
       },
+
+      // Table (ECMA-376 part 1, 18.5): name shown in Excel, range, header and totals rows, column names
+      /** @param {Uint8Array} bytes @returns {TablePart|null} */
+      table(bytes) {
+          /** @type {TablePart|null} */
+          let out = null;
+          /** @type {string[]} */
+          const columns = [];
+          scanXml(
+              xmlString(bytes),
+              (n, a) => {
+                  const at = xmlAttrs(a);
+                  if (n === 'table' && !out) {
+                      const range = cellRange(at.ref || '');
+                      if (!range) return;
+                      out = {
+                          name: at.displayName || at.name || '',
+                          range,
+                          header: at.headerRowCount === undefined ? 1 : Number(at.headerRowCount) || 0,
+                          totals: Number(at.totalsRowCount) || 0,
+                          columns,
+                      };
+                  } else if (n === 'tableColumn') columns.push(ooxmlText(at.name || ''));
+              },
+              () => {},
+          );
+          return out;
+      },
   };
 
   // Module: readers/sheets/ooxml.js
 
-  // OOXML workbooks (.xlsx, .xlsm, .xlsb): parts read from the ZIP by range
+  // OOXML workbooks (.xlsx, .xlsm, .xlsb): parts read from the ZIP by range; tables of the sheets
 
   // ===========================================================================
   // IMPORTS
   // ===========================================================================
+
+  /** @typedef {{ path: string, kind: string }} SheetPath */
+
+  // ===========================================================================
+  // CONSTANTS
+  // ===========================================================================
+
+  // Table parts (Excel keeps them in xl/tables)
+  const TABLE_PART_RE = /(^|\/)tables\/[^/]+\.(xml|bin)$/i;
 
   // ===========================================================================
   // METHODS
@@ -5087,6 +5365,7 @@
       return {
           format: `Excel (${binary ? 'XLSB' : 'XLSX'})`,
           sheets,
+          tables: await readTables(pkg, sheets, parts),
           active: wb.active,
           date1904: wb.date1904,
           load: async (i) => {
@@ -5095,6 +5374,23 @@
               return parts.sheet(/** @type {Uint8Array} */ (await pkg.bytes(s.path)), strings, kinds, wb.date1904); // entry checked above
           },
       };
+  }
+
+  // Tables of all sheets, from the sheets' relationships (only looked for if the package has table parts)
+  /** @param {Package} pkg @param {SheetPath[]} sheets @param {SheetParts} parts @returns {Promise<Table[]>} */
+  async function readTables(pkg, sheets, parts) {
+      /** @type {Table[]} */
+      const tables = [];
+      if (!pkg.paths().some((p) => TABLE_PART_RE.test(p))) return tables;
+      for (const [i, s] of sheets.entries()) {
+          if (s.kind !== 'sheet') continue;
+          for (const rel of (await partRels(pkg, s.path)).values()) {
+              if (!rel.type.endsWith('/table') || !pkg.entry(rel.path)) continue;
+              const t = parts.table(/** @type {Uint8Array} */ (await pkg.bytes(rel.path))); // entry checked above
+              if (t && t.range.r0 <= t.range.r1 && t.range.c0 <= t.range.c1) tables.push({ ...t, sheet: i });
+          }
+      }
+      return tables;
   }
 
   // Module: readers/sheets/cfb.js
@@ -5499,9 +5795,14 @@
       return pkg.entry('content.xml') && !pkg.entry('[Content_Types].xml') ? readOds(pkg) : readOoxml(pkg);
   }
 
-  // Spreadsheet source like openSource(): text = sheet shown, as CSV; more() = next sheet not cached
-  /** @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload @param {(loaded: number, total: number) => void} onProgress @returns {Promise<Source|{ error: string }>} */
-  async function openSheetSource(url, getSignal, reload, onProgress) {
+  // Spreadsheet source like openSource(): text = sheet or table shown, as CSV; more() = next sheet not cached.
+  // Sheets are the unit cached; a table is shown once its sheet is.
+  /**
+   * @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload
+   * @param {(loaded: number, total: number) => void} onProgress @param {SheetMode} [mode] start view (sheets if there are no tables)
+   * @returns {Promise<Source|{ error: string }>}
+   */
+  async function openSheetSource(url, getSignal, reload, onProgress, mode = 'sheets') {
       const file = await openRanges(url, getSignal, reload, onProgress);
       if ('error' in file) return file;
       /** @type {Book} */
@@ -5513,6 +5814,11 @@
           return { error: `Not shown: ${/** @type {Error} */ (err).message}` };
       }
       const { sheets } = book;
+      // tables in reading order: by sheet, then top to bottom, left to right
+      /** @type {Table[]} */
+      const tables = [...(book.tables || [])].sort(
+          (a, b) => a.sheet - b.sheet || a.range.r0 - b.range.r0 || a.range.c0 - b.range.c0,
+      );
       if (!sheets.length) return { error: 'Not shown: no sheets in this workbook' };
       const cached = () => sheets.filter((s) => s.data !== undefined).length;
 
@@ -5535,6 +5841,27 @@
           src.loaded = src.done ? file.size : Math.min(file.fetched(), file.size - 1);
       };
 
+      // First sheet: active when saved (else first visible worksheet)
+      /** @param {number} i */
+      const usable = (i) => sheets[i] && sheets[i].kind === 'sheet' && !sheets[i].hidden;
+      const firstSheet = usable(book.active)
+          ? book.active
+          : Math.max(
+                0,
+                sheets.findIndex((_, i) => usable(i)),
+            );
+      // Entry a view starts with: the sheet shown, or the first table on it (else the first table)
+      /** @param {SheetMode} m @returns {number} */
+      const startOf = (m) => {
+          const at = src.sheetOf(src.current);
+          return m === 'sheets'
+              ? at
+              : Math.max(
+                    0,
+                    tables.findIndex((t) => t.sheet === at),
+                );
+      };
+
       /** @type {Source} */
       const src = {
           total: file.size,
@@ -5545,35 +5872,50 @@
           dates: file.dates,
           format: book.format,
           sheets,
-          current: 0,
+          tables,
+          tablesRead: !!book.tables, // false: format without tables read (.xls)
+          mode: /** @type {SheetMode} */ ('sheets'),
+          current: firstSheet,
+          /** @type {SheetShown} */
+          shown: { rows: [], header: [], note: '', text: '' },
           text: '',
           label: () => `${cached().toLocaleString()} of ${sheets.length.toLocaleString()} sheets cached`,
           nextLabel: 'Cache next sheet',
           get info() {
-              const s = sheets[src.current];
-              const d = s.data;
+              const { rows, header } = src.shown;
               const hidden = sheets.filter((x) => x.hidden).length;
-              const shape = d?.rows.length ? `: ${d.rows.length.toLocaleString()} rows × ${d.cols} columns` : '';
+              const shape = rows.length ? `: ${rows.length.toLocaleString()} rows × ${header.length} columns` : '';
               const hiddenNote = hidden ? ` (${hidden} hidden)` : '';
-              const cutNote = d?.cut ? ` (first ${MAX_SHEET_CELLS.toLocaleString()} cells)` : '';
-              const info = [
-                  ['sheets', `${sheets.length}${hiddenNote}`],
-                  ['sheet', `${s.name}${shape}${cutNote}`],
-              ];
+              const info = [['sheets', `${sheets.length}${hiddenNote}`]];
+              if (book.tables) info.push(['tables', tables.length.toLocaleString()]);
+              if (src.mode === 'tables') {
+                  const t = tables[src.current];
+                  info.push(['table', `${t.name} (${sheets[t.sheet].name}!${rangeText(t.range)})${shape}`]);
+              } else {
+                  const s = sheets[src.current];
+                  const cutNote = s.data?.cut ? ` (first ${MAX_SHEET_CELLS.toLocaleString()} cells)` : '';
+                  info.push(['sheet', `${s.name}${shape}${cutNote}`]);
+              }
               if (book.date1904) info.push(['dates', '1904 system']);
               return info;
           },
           loadSheet,
-          /** @param {number} i @returns {void} */
-          select: (i) => {
+          startOf,
+          // Sheet behind entry i of a view (its table's sheet for tables)
+          /** @param {number} i @param {SheetMode} [m] @returns {number} */
+          sheetOf: (i, m = src.mode) => (m === 'tables' ? tables[i].sheet : i),
+          // Shows entry i of a view (its sheet cached before)
+          /** @param {number} i @param {SheetMode} [m] @returns {void} */
+          select: (i, m = src.mode) => {
+              src.mode = m === 'tables' && tables[i] ? 'tables' : 'sheets';
               src.current = i;
-              const d = sheets[i].data;
-              src.text = d ? csvRows(d.rows, d.cols) : '';
+              src.shown = src.mode === 'tables' ? tableShown(tables[i], sheets[tables[i].sheet]) : sheetShown(sheets[i]);
+              src.text = src.shown.text;
           },
-          header: () => Array.from({ length: sheets[src.current].data?.cols || 0 }, (_, c) => colName(c)),
           more: async () => {
+              const at = src.sheetOf(src.current);
               for (let k = 1; k <= sheets.length; k++) {
-                  const i = (src.current + k) % sheets.length;
+                  const i = (at + k) % sheets.length;
                   if (sheets[i].data === undefined) return loadSheet(i);
               }
           },
@@ -5582,28 +5924,50 @@
           },
       };
 
-      // First: sheet active when saved (else first visible worksheet)
-      /** @param {number} i */
-      const usable = (i) => sheets[i] && sheets[i].kind === 'sheet' && !sheets[i].hidden;
-      const first = usable(book.active)
-          ? book.active
-          : Math.max(
-                0,
-                sheets.findIndex((_, i) => usable(i)),
-            );
-      await loadSheet(first);
-      src.select(first);
+      const start = mode === 'tables' && tables.length ? 'tables' : 'sheets';
+      const first = startOf(start);
+      await loadSheet(src.sheetOf(first, start));
+      src.select(first, start);
       return src;
   }
 
-  // Rows as CSV, padded to all columns
-  /** @param {string[][]} rows @param {number} cols @returns {string} */
-  function csvRows(rows, cols) {
+  // Sheet shown: rows as they are, columns A, B, …; its text with column letters and row numbers (as in Excel)
+  /** @param {Sheet} s @returns {SheetShown} */
+  function sheetShown(s) {
+      const d = s.data;
+      if (!d?.rows.length) return { rows: [], header: [], note: s.note || 'Empty sheet: no cells.', text: '' };
+      const header = Array.from({ length: d.cols }, (_, c) => colName(c));
+      return { rows: d.rows, header, note: '', text: csvRows([header].concat(d.rows), d.cols, true) };
+  }
+
+  // Table shown: its rows below the header row, without totals rows; column names as header
+  /** @param {Table} t @param {Sheet} s @returns {SheetShown} */
+  function tableShown(t, s) {
+      const d = s.data;
+      if (!d) return { rows: [], header: [], note: s.note || 'No cells to show.', text: '' };
+      const { r0, c0 } = t.range;
+      // not beyond the sheet's cells (against damaged or hostile ranges)
+      const c1 = Math.min(t.range.c1, Math.max(d.cols, c0 + t.columns.length) - 1);
+      const r1 = Math.min(t.range.r1 - t.totals, d.rows.length - 1);
+      const width = Math.max(0, c1 - c0 + 1);
+      /** @param {number} r @returns {string[]} */
+      const cells = (r) => Array.from({ length: width }, (_, k) => d.rows[r]?.[c0 + k] ?? '');
+      const names = t.header ? cells(r0) : [];
+      const header = Array.from({ length: width }, (_, k) => t.columns[k] || names[k] || colName(c0 + k));
+      const rows = [];
+      for (let r = r0 + t.header; r <= r1; r++) rows.push(cells(r));
+      const note = rows.length ? '' : 'Empty table: no rows below its header.';
+      return { rows, header, note, text: rows.length ? csvRows([header].concat(rows), width) : '' };
+  }
+
+  // Rows as CSV, padded to all columns; numbered: row numbers first (none for the header row)
+  /** @param {string[][]} rows @param {number} cols @param {boolean} [numbered] @returns {string} */
+  function csvRows(rows, cols, numbered = false) {
       const out = new Array(rows.length);
       for (let i = 0; i < rows.length; i++) {
           const r = rows[i];
-          let line = '';
-          for (let c = 0; c < cols; c++) line += (c ? ',' : '') + csvCell(r[c] ?? '');
+          let line = numbered && i ? String(i) : '';
+          for (let c = 0; c < cols; c++) line += (c || numbered ? ',' : '') + csvCell(r[c] ?? '');
           out[i] = line;
       }
       return out.join('\n');
@@ -7128,6 +7492,289 @@
       }
   }
 
+  // Module: view/markdown.js
+
+  // Render: Markdown -> HTML (CommonMark core + GFM tables, task lists, strikethrough); raw HTML shown as text
+
+  // ===========================================================================
+  // IMPORTS
+  // ===========================================================================
+
+  /** @typedef {{ colour?: boolean, base?: string }} MarkdownOptions */
+
+  // ===========================================================================
+  // CONSTANTS
+  // ===========================================================================
+
+  // Info strings of fenced code -> highlighter
+  /** @type {Object<string, string>} */
+  const CODE_LANGS = {
+      python: 'py',
+      javascript: 'js',
+      yml: 'yaml',
+      html: 'xml',
+      svg: 'xml',
+      markdown: 'md',
+      powerquery: 'm',
+      tsv: 'csv',
+  };
+
+  const FENCE_RE = /^ {0,3}(`{3,}|~{3,})\s*([\w+-]*)/;
+  const HEADING_RE = /^ {0,3}(#{1,6})(?:\s+(.*?))?(?:\s+#+)?\s*$/;
+  const RULE_RE = /^ {0,3}([-*_])(?:\s*\1){2,}\s*$/;
+  const SETEXT_RE = /^ {0,3}(=+|-+)\s*$/;
+  const QUOTE_RE = /^ {0,3}> ?/;
+  const ITEM_RE = /^( {0,3})([-*+]|\d{1,9}[.)])(\s+|$)/;
+  const TABLE_RULE_RE = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+  const UNSAFE_URL_RE = /^\s*(javascript|vbscript|data|file):/i;
+
+  // ===========================================================================
+  // METHODS
+  // ===========================================================================
+
+  // ---------------------------------------------------------------------------
+  // Inline: code, links, images, emphasis, line breaks
+  // ---------------------------------------------------------------------------
+
+  // Link target against the file's folder; null: not followed (scripts, data)
+  /** @param {string} url @param {string} base @returns {string|null} */
+  function resolveUrl(url, base) {
+      if (UNSAFE_URL_RE.test(url)) return null;
+      if (url.startsWith('#')) return url;
+      try {
+          return new URL(url, base || location.href).href;
+      } catch {
+          return null;
+      }
+  }
+
+  // Same site: images from the library are shown, others only linked (nothing fetched from elsewhere)
+  /** @param {string} href @returns {boolean} */
+  const sameSite = (href) => href.startsWith(`${location.origin}/`);
+
+  /** @param {string} text @returns {string} */
+  const slug = (text) =>
+      text
+          .toLowerCase()
+          .replace(/<[^>]*>|&\w+;/g, '')
+          .replace(/[^\p{L}\p{N}\s_-]/gu, '')
+          .trim()
+          .replace(/\s+/g, '-');
+
+  /** @param {string} text @param {MarkdownOptions} [opts] @param {string[]} [kept] finished HTML, out of reach of later rules @returns {string} */
+  function inlineHtml(text, opts = {}, kept = []) {
+      /** @param {string} html */
+      const keep = (html) => `\uE000${kept.push(html) - 1}\uE000`;
+      const base = opts.base || '';
+
+      let s = text
+          .replace(/(`+)([\s\S]*?[^`])\1(?!`)/g, (_, _q, code) =>
+              keep(`<code>${esc(code.replace(/^ (.+) $/, '$1'))}</code>`),
+          )
+          .replace(/\\([!-/:-@[-`{-~])/g, (_, c) => keep(esc(c)))
+          .replace(/!\[([^\]]*)\]\(\s*<?((?:[^\s()<>]|\([^\s()]*\))*)>?(?:\s+"([^"]*)")?\s*\)/g, (_, alt, url, title) => {
+              const href = resolveUrl(url, base);
+              if (!href) return keep(esc(alt));
+              const t = title ? ` title="${esc(title)}"` : '';
+              if (sameSite(href)) return keep(`<img src="${esc(href)}" alt="${esc(alt)}"${t} loading="lazy">`);
+              return keep(
+                  `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer"${t}>🖼 ${esc(alt || href)}</a>`,
+              );
+          })
+          .replace(
+              /\[([^\]]+)\]\(\s*<?((?:[^\s()<>]|\([^\s()]*\))*)>?(?:\s+"([^"]*)")?\s*\)/g,
+              (_, label, url, title) => {
+                  const href = resolveUrl(url, base);
+                  const inner = inlineHtml(label, opts, kept);
+                  if (!href) return keep(inner);
+                  const t = title ? ` title="${esc(title)}"` : '';
+                  const target = href.startsWith('#') ? '' : ' target="_blank" rel="noopener noreferrer"';
+                  return keep(`<a href="${esc(href)}"${target}${t}>${inner}</a>`);
+              },
+          )
+          .replace(/<((?:https?:\/\/|mailto:)[^\s<>]+)>/g, (_, url) =>
+              keep(`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url)}</a>`),
+          );
+
+      s = esc(s)
+          .replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, '<strong>$2</strong>')
+          .replace(/\*(?=\S)([\s\S]*?\S)\*|(^|[^\p{L}\p{N}_])_(?=\S)([\s\S]*?\S)_(?![\p{L}\p{N}_])/gu, (_, a, pre, b) =>
+              a !== undefined ? `<em>${a}</em>` : `${pre}<em>${b}</em>`,
+          )
+          .replace(/~~(?=\S)([\s\S]*?\S)~~/g, '<del>$1</del>')
+          .replace(/(?: {2,}|\\)\n/g, '<br>\n');
+      return s.replace(/\uE000(\d+)\uE000/g, (_, i) => kept[Number(i)]);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Blocks: headings, paragraphs, lists, quotes, code, tables, rules
+  // ---------------------------------------------------------------------------
+
+  /** @param {string} line @returns {string[]} */
+  const tableCells = (line) =>
+      line
+          .trim()
+          .replace(/^\||\|$/g, '')
+          .split(/(?<!\\)\|/)
+          .map((c) => c.trim());
+
+  /** @param {string} code @param {string} info @param {MarkdownOptions} opts @returns {string} */
+  function codeHtml(code, info, opts) {
+      const lang = CODE_LANGS[info.toLowerCase()] || info.toLowerCase();
+      const highlight = opts.colour ? HIGHLIGHTERS[lang] : null;
+      if (!highlight) return esc(code);
+      return highlight(code)
+          .map(([cls, t]) => (cls ? `<span class="tp-${cls}">${esc(t)}</span>` : esc(t)))
+          .join('');
+  }
+
+  // Starts a block other than a paragraph (ends a paragraph before it)
+  /** @param {string} line @returns {boolean} */
+  const opensBlock = (line) =>
+      FENCE_RE.test(line) || HEADING_RE.test(line) || RULE_RE.test(line) || QUOTE_RE.test(line) || ITEM_RE.test(line);
+
+  /** @param {string[]} lines @param {MarkdownOptions} opts @returns {string} */
+  function blocksHtml(lines, opts) {
+      /** @type {string[]} */
+      const out = [];
+      let i = 0;
+      while (i < lines.length) {
+          const line = lines[i];
+          const fence = FENCE_RE.exec(line);
+          const heading = HEADING_RE.exec(line);
+          if (!line.trim()) {
+              i++;
+          } else if (fence) {
+              const end = lines.findIndex((l, j) => j > i && l.trimStart().startsWith(fence[1]));
+              const stop = end < 0 ? lines.length : end;
+              const code = lines.slice(i + 1, stop).join('\n');
+              out.push(`<pre><code>${codeHtml(code, fence[2], opts)}</code></pre>`);
+              i = stop + 1;
+          } else if (heading) {
+              const n = heading[1].length;
+              const html = inlineHtml(heading[2] || '', opts);
+              out.push(`<h${n} data-anchor="${esc(slug(html))}">${html}</h${n}>`);
+              i++;
+          } else if (RULE_RE.test(line)) {
+              out.push('<hr>');
+              i++;
+          } else if (QUOTE_RE.test(line)) {
+              const inner = [];
+              while (i < lines.length && lines[i].trim() && (QUOTE_RE.test(lines[i]) || !opensBlock(lines[i])))
+                  inner.push(lines[i++].replace(QUOTE_RE, ''));
+              out.push(`<blockquote>${blocksHtml(inner, opts)}</blockquote>`);
+          } else if (ITEM_RE.test(line)) {
+              i = listHtml(lines, i, opts, out);
+          } else if (line.includes('|') && TABLE_RULE_RE.test(lines[i + 1] || '') && lines[i + 1].includes('-')) {
+              const head = tableCells(line);
+              const align = tableCells(lines[i + 1]).map((c) =>
+                  c.endsWith(':') ? (c.startsWith(':') ? 'center' : 'right') : c.startsWith(':') ? 'left' : '',
+              );
+              /** @param {string[]} cells @param {string} tag */
+              const row = (cells, tag) =>
+                  cells
+                      .map((c, j) => {
+                          const a = align[j] ? ` style="text-align:${align[j]}"` : '';
+                          return `<${tag}${a}>${inlineHtml(c, opts)}</${tag}>`;
+                      })
+                      .join('');
+              const body = [];
+              i += 2;
+              while (i < lines.length && lines[i].includes('|') && lines[i].trim()) body.push(tableCells(lines[i++]));
+              const rows = body.map((r) => `<tr>${row(r.slice(0, head.length), 'td')}</tr>`).join('');
+              out.push(`<table><thead><tr>${row(head, 'th')}</tr></thead><tbody>${rows}</tbody></table>`);
+          } else if (/^ {4}/.test(line)) {
+              const code = [];
+              while (i < lines.length && (/^ {4}/.test(lines[i]) || !lines[i].trim())) code.push(lines[i++].slice(4));
+              while (code.length && !code[code.length - 1].trim()) code.pop();
+              out.push(`<pre><code>${esc(code.join('\n'))}</code></pre>`);
+          } else {
+              const para = [line];
+              i++;
+              while (i < lines.length && lines[i].trim() && !opensBlock(lines[i]) && !SETEXT_RE.test(lines[i]))
+                  para.push(lines[i++]);
+              const setext = i < lines.length && SETEXT_RE.exec(lines[i]);
+              const html = inlineHtml(para.map((l) => l.replace(/^\s+/, '')).join('\n'), opts);
+              if (setext) {
+                  const n = setext[1][0] === '=' ? 1 : 2;
+                  out.push(`<h${n} data-anchor="${esc(slug(html))}">${html}</h${n}>`);
+                  i++;
+              } else out.push(`<p>${html}</p>`);
+          }
+      }
+      return out.join('\n');
+  }
+
+  // List from line `start`: items of one kind, their lines dedented to the item's text; returns next line
+  /** @param {string[]} lines @param {number} start @param {MarkdownOptions} opts @param {string[]} out @returns {number} */
+  function listHtml(lines, start, opts, out) {
+      const first = /** @type {RegExpExecArray} */ (ITEM_RE.exec(lines[start]));
+      const ordered = /\d/.test(first[2]);
+      const marker = ordered ? first[2].slice(-1) : first[2];
+      /** @type {string[][]} */
+      const items = [];
+      let loose = false;
+      let i = start;
+      while (i < lines.length) {
+          const m = ITEM_RE.exec(lines[i]);
+          if (!m || (ordered ? m[2].slice(-1) !== marker : m[2] !== marker)) break;
+          const pad = ' '.repeat(Math.max(m[0].length, m[1].length + m[2].length + 1)); // text column of the item
+          const item = [lines[i].slice(m[0].length)];
+          for (i++; i < lines.length; i++) {
+              const l = lines[i];
+              const next = lines[i + 1];
+              if (l.startsWith(pad)) item.push(l.slice(pad.length));
+              else if (l.trim() && !opensBlock(l) && item[item.length - 1].trim())
+                  item.push(l); // lazy line
+              else if (l.trim() || next === undefined || !(next.startsWith(pad) || ITEM_RE.test(next))) break;
+              else {
+                  loose = true; // blank line inside the list
+                  item.push('');
+              }
+          }
+          items.push(item);
+      }
+      const startAt = ordered && Number.parseInt(first[2], 10) !== 1 ? ` start="${Number.parseInt(first[2], 10)}"` : '';
+      const html = items.map((item) => {
+          const task = /^\[([ xX])\]\s+/.exec(item[0]);
+          if (task) item[0] = item[0].slice(task[0].length);
+          let body = blocksHtml(item, opts);
+          if (!loose) body = body.replace(/<p>([\s\S]*?)<\/p>/g, '$1');
+          const box = task ? `<input type="checkbox" disabled${task[1] === ' ' ? '' : ' checked'}> ` : '';
+          const cls = task ? ' class="tp-md-task"' : '';
+          return `<li${cls}>${box}${body}</li>`;
+      });
+      const tag = ordered ? 'ol' : 'ul';
+      out.push(`<${tag}${startAt}>${html.join('')}</${tag}>`);
+      return i;
+  }
+
+  /** @param {string} text @param {MarkdownOptions} [opts] @returns {string} */
+  function markdownHtml(text, opts = {}) {
+      return blocksHtml(text.replace(/\r\n?/g, '\n').replace(/\t/g, '    ').split('\n'), opts);
+  }
+
+  // ---------------------------------------------------------------------------
+  // View
+  // ---------------------------------------------------------------------------
+
+  // Whole document at once (Markdown files are small); links to headings scroll within the view
+  /** @param {HTMLElement} content @param {string} text @param {MarkdownOptions} [opts] @returns {LineView} */
+  function mountMarkdown(content, text, opts = {}) {
+      const doc = document.createElement('div');
+      doc.className = 'tp-md';
+      doc.innerHTML = markdownHtml(text, opts);
+      doc.addEventListener('click', (e) => {
+          const a = /** @type {HTMLElement} */ (e.target).closest('a[href^="#"]');
+          if (!a) return;
+          e.preventDefault();
+          const name = decodeURIComponent((a.getAttribute('href') || '').slice(1)).toLowerCase();
+          doc.querySelector(`[data-anchor="${CSS.escape(name)}"]`)?.scrollIntoView({ block: 'start' });
+      });
+      content.replaceChildren(doc);
+      return { stop: () => {}, show: () => {} };
+  }
+
   // Module: viewer/messages.js
 
   // Messages in the viewer: plain notices, lint results
@@ -7203,6 +7850,144 @@
       };
   }
 
+  // Module: ui/picker.js
+
+  // Drop-down with several lists side by side (e.g. sheets and tables of a workbook):
+  // ← → (or the tabs) switch the list shown, ↑ ↓ move, Enter picks, Esc closes
+
+  // ===========================================================================
+  // IMPORTS
+  // ===========================================================================
+
+  // ===========================================================================
+  // METHODS
+  // ===========================================================================
+
+  // Button (shows the entry chosen) and its menu; the menu opens above the button, inside `host`
+  /** @param {HTMLElement} host positioned element the menu is placed in @param {(list: number, item: number) => void} onPick @returns {Picker} */
+  function createPicker(host, onPick) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'tp-picker';
+      button.hidden = true;
+      button.setAttribute('aria-haspopup', 'listbox');
+      const menu = document.createElement('div');
+      menu.className = 'tp-picker-menu';
+      menu.hidden = true;
+      menu.tabIndex = -1;
+      host.append(menu);
+
+      /** @type {PickerList[]} */
+      let lists = [];
+      let chosen = { list: 0, item: 0 };
+      let shown = 0; // list shown in the menu
+      let active = 0; // entry marked for the keyboard
+
+      /** @param {number} list */
+      const show = (list) => {
+          shown = (list + lists.length) % lists.length;
+          active = shown === chosen.list ? chosen.item : lists[shown].start;
+          draw();
+      };
+
+      const draw = () => {
+          const tabs = lists
+              .map((l, i) => {
+                  const count = l.items.length.toLocaleString();
+                  return `<button type="button" class="tp-picker-tab" data-list="${i}" aria-pressed="${i === shown}">${esc(l.label)} <span>${count}</span></button>`;
+              })
+              .join('');
+          const { items, empty } = lists[shown];
+          const rows = items.map((x, i) => {
+              const marks = [i === active && 'tp-active', shown === chosen.list && i === chosen.item && 'tp-chosen'];
+              const cls = marks.filter(Boolean).join(' ');
+              const title = x.title ? ` title="${esc(x.title)}"` : '';
+              return `<button type="button" class="tp-picker-item ${cls}" role="option" data-item="${i}"${title}>${esc(x.text)}</button>`;
+          });
+          const body = rows.length ? rows.join('') : `<div class="tp-picker-empty">${esc(empty)}</div>`;
+          const head = `<button type="button" class="tp-picker-step" data-step="-1" title="Previous list (←)">‹</button>${tabs}<button type="button" class="tp-picker-step" data-step="1" title="Next list (→)">›</button>`;
+          menu.innerHTML = `<div class="tp-picker-head">${head}</div><div class="tp-picker-list" role="listbox">${body}</div>`;
+          menu.querySelector('.tp-active')?.scrollIntoView({ block: 'nearest' });
+      };
+
+      const close = () => {
+          menu.hidden = true;
+          button.setAttribute('aria-expanded', 'false');
+          document.removeEventListener('pointerdown', outside, true);
+      };
+      /** @param {Event} e */
+      const outside = (e) => {
+          const t = /** @type {Node} */ (e.target);
+          if (!menu.contains(t) && !button.contains(t)) close();
+      };
+      const open = () => {
+          // above the button, right edges aligned
+          const b = button.getBoundingClientRect();
+          const h = host.getBoundingClientRect();
+          menu.style.right = `${Math.round(h.right - b.right)}px`;
+          menu.style.bottom = `${Math.round(h.bottom - b.top + 4)}px`;
+          menu.hidden = false;
+          button.setAttribute('aria-expanded', 'true');
+          show(chosen.list);
+          menu.focus();
+          document.addEventListener('pointerdown', outside, true);
+      };
+      /** @param {number} list @param {number} item */
+      const pick = (list, item) => {
+          close();
+          button.focus();
+          if (list !== chosen.list || item !== chosen.item) onPick(list, item);
+      };
+
+      button.onclick = () => (menu.hidden ? open() : close());
+      menu.onclick = (e) => {
+          const t = /** @type {HTMLElement} */ (e.target).closest('[data-list], [data-step], [data-item]');
+          if (!(t instanceof HTMLElement)) return;
+          if (t.dataset.list) show(Number(t.dataset.list));
+          else if (t.dataset.step) show(shown + Number(t.dataset.step));
+          else pick(shown, Number(t.dataset.item));
+          if (!menu.hidden) menu.focus();
+      };
+      menu.onkeydown = (e) => {
+          const n = lists[shown].items.length;
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') show(shown + (e.key === 'ArrowLeft' ? -1 : 1));
+          else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && n) {
+              active = (active + (e.key === 'ArrowUp' ? -1 : 1) + n) % n;
+              draw();
+          } else if (e.key === 'Home' && n) {
+              active = 0;
+              draw();
+          } else if (e.key === 'End' && n) {
+              active = n - 1;
+              draw();
+          } else if (e.key === 'Enter' && n) pick(shown, active);
+          else if (e.key === 'Escape' || e.key === 'Tab') {
+              close();
+              button.focus();
+          } else return;
+          e.preventDefault();
+      };
+      button.onkeydown = (e) => {
+          if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+          e.preventDefault();
+          open();
+      };
+
+      return {
+          button,
+          menu,
+          // New lists and the entry chosen; label: text of the button
+          set(next, choice, label, title) {
+              lists = next;
+              chosen = choice;
+              button.textContent = `${label} ▾`;
+              button.title = title;
+              if (!menu.hidden) show(shown);
+          },
+          close,
+      };
+  }
+
   // Module: viewer/status.js
 
   // Status: busy state, progress, cache bar
@@ -7272,25 +8057,61 @@
   // ===========================================================================
 
   // ===========================================================================
+  // CONSTANTS
+  // ===========================================================================
+
+  // Preview (view switch, right of Text): one per file type; its look follows the file shown
+  /** @type {Object<PreviewKind, { svg: string, label: string, title: string }>} */
+  const PREVIEWS = {
+      table: { svg: TABLE_SVG, label: 'Table', title: 'Table view (CSV, Parquet, spreadsheets)' },
+      '3d': { svg: CUBE_SVG, label: '3D', title: '3D view (IFC, IFCZIP)' },
+      md: { svg: MARKDOWN_SVG, label: 'Markdown', title: 'Markdown view' },
+  };
+
+  // ===========================================================================
   // METHODS
   // ===========================================================================
 
+  /** @typedef {'table'|'3d'|'md'} PreviewKind */
+
+  // Preview of a language (as in Viewer.lang); null: text only
+  /** @param {string|null|undefined} lang @returns {PreviewKind|null} */
+  function previewOf(lang) {
+      if (lang === 'csv' || lang === 'parquet' || lang === 'sheet') return 'table';
+      if (lang === 'ifc') return '3d';
+      if (lang === 'md') return 'md';
+      return null;
+  }
+
   /** @param {Viewer} v @returns {boolean} */
-  const tableView = (v) => ['csv', 'parquet', 'sheet'].includes(v.lang) && view.table;
+  const tableView = (v) => previewOf(v.lang) === 'table' && view.table;
+
+  // Markdown shown rendered (not while edited: the editor shows its text)
+  /** @param {Viewer} v @returns {boolean} */
+  const markdownView = (v) => v.lang === 'md' && view.markdown && !v.writeMode;
+
+  // Preview button for a file type: icon, label, tooltip; `reason` (or no preview): disabled
+  /** @param {Viewer} v @param {PreviewKind|null} kind @param {string} [reason] @returns {void} */
+  function setPreview(v, kind, reason = '') {
+      const p = kind ? PREVIEWS[kind] : null;
+      const label = p ? p.label : 'Preview';
+      v.previewBtn.innerHTML = `${p ? p.svg : EYE_FULL_SVG}<span>${label}</span>`;
+      v.previewBtn.disabled = !p || !!reason;
+      v.previewBtn.title = reason || (p ? p.title : 'No preview for this file type');
+  }
 
   // Colour choice of view shown: text, table (CSV / Parquet) or sheet (spreadsheets: own choice)
   /** @param {Viewer} v @returns {'text'|'table'|'sheet'} */
   const colourKey = (v) => (!tableView(v) ? 'text' : v.lang === 'sheet' ? 'sheet' : 'table');
 
-  // View switch state (pressed = current view) and idle cache bar
+  // View switch state (pressed = current view: Text or Preview) and idle cache bar
   /** @param {Viewer} v @returns {void} */
   function updateViews(v) {
-      const table = !v.view3d && tableView(v);
+      const preview = !!v.view3d || tableView(v) || markdownView(v);
       const shown = !!v.source && !v.source.deferred; // content on screen
       v.textBtn.disabled = !shown;
-      v.textBtn.setAttribute('aria-pressed', String(shown && !v.view3d && !table));
-      v.tableBtn.setAttribute('aria-pressed', String(table && !v.tableBtn.disabled));
-      v.view3dBtn.setAttribute('aria-pressed', String(!!v.view3d));
+      v.textBtn.setAttribute('aria-pressed', String(shown && !preview));
+      v.previewBtn.setAttribute('aria-pressed', String(preview && !v.previewBtn.disabled));
       if (!v.busy) showCached(v);
   }
 
@@ -7300,25 +8121,51 @@
       return colourPrefs[colourKey(v)];
   }
 
-  // Sheet choice (spreadsheets only): drop-down next to table button, sheet name in title
+  // Sheet or table choice (spreadsheets only): picker next to table button, name in title.
+  // Its menu lists sheets and tables side by side (● cached, ○ not cached yet).
   /** @param {Viewer} v @param {Source|null} src @returns {void} */
   function showSheets(v, src) {
-      /** @type {Sheet[]|null} */
-      const sheets = src?.isSheet ? src.sheets : null;
-      v.sheetSelect.hidden = !sheets;
-      v.titleSheet.hidden = !sheets;
-      if (!sheets || !src) return;
-      const s = sheets[src.current];
-      v.sheetSelect.innerHTML = sheets
-          .map((x, i) => {
-              const notes = [x.hidden && 'hidden', x.kind !== 'sheet' && x.kind].filter(Boolean).join(', ');
-              const suffix = notes ? ` (${notes})` : '';
-              return `<option value="${i}">${x.data === undefined ? '○' : '●'} ${esc(x.name)}${suffix}</option>`;
-          })
-          .join('');
-      v.sheetSelect.value = String(src.current);
-      v.sheetSelect.title = `Sheet ${src.current + 1} of ${sheets.length} (● cached, ○ not cached yet)`;
-      v.titleSheet.innerHTML = ` · <strong>Sheet:</strong> ${esc(s.name)}`;
+      const lists = src?.isSheet ? sheetLists(src) : null;
+      v.sheetPicker.button.hidden = !lists;
+      v.titleSheet.hidden = !lists;
+      if (!lists || !src) return v.sheetPicker.close();
+      const tables = src.mode === 'tables';
+      const list = lists[tables ? 1 : 0];
+      const name = tables ? src.tables[src.current].name : src.sheets[src.current].name;
+      const kind = tables ? 'Table' : 'Sheet';
+      const counts = `${src.sheets.length} sheets, ${src.tables.length} tables`;
+      const title = `${kind} ${src.current + 1} of ${list.items.length} (${counts}; ← → in the menu: sheets or tables)`;
+      v.sheetPicker.set(lists, { list: tables ? 1 : 0, item: src.current }, name, title);
+      v.titleSheet.innerHTML = ` · <strong>${kind}:</strong> ${esc(name)}`;
+  }
+
+  // Lists of the picker: sheets (hidden and chart sheets marked), tables (with their sheet)
+  /** @param {Source} src @returns {PickerList[]} */
+  function sheetLists(src) {
+      /** @type {Sheet[]} */
+      const sheets = src.sheets;
+      /** @type {Table[]} */
+      const tables = src.tables;
+      /** @param {Sheet} s */
+      const mark = (s) => (s.data === undefined ? '○' : '●');
+      return [
+          {
+              label: 'Sheets',
+              items: sheets.map((s) => {
+                  const notes = [s.hidden && 'hidden', s.kind !== 'sheet' && s.kind].filter(Boolean).join(', ');
+                  const suffix = notes ? ` (${notes})` : '';
+                  return { text: `${mark(s)} ${s.name}${suffix}` };
+              }),
+              empty: 'No sheets',
+              start: src.startOf('sheets'),
+          },
+          {
+              label: 'Tables',
+              items: tables.map((t) => ({ text: `${mark(sheets[t.sheet])} ${t.name} (${sheets[t.sheet].name})` })),
+              empty: src.tablesRead ? 'No tables in this file' : 'Tables are not read from this format',
+              start: src.startOf('tables'),
+          },
+      ];
   }
 
   // Module: viewer/view3d.js
@@ -7520,7 +8367,7 @@
   async function toggle3d(v) {
       if (v.view3d) return close3d(v);
       const src = v.source;
-      if (!src || v.view3dBtn.disabled) return;
+      if (!src || v.previewBtn.disabled) return;
       if (!(/** @type {Navigator & { gpu?: unknown }} */ (navigator).gpu)) {
           alert('3D view needs WebGPU (current Chrome or Edge).');
           return;
@@ -7588,6 +8435,13 @@
   // CONSTANTS
   // ===========================================================================
 
+  // Preferences of the views switched by Text / Preview
+  /** @type {Object<string, string>} */
+  const VIEW_KEYS = { table: 'tp-preview-table', markdown: 'tp-preview-markdown' };
+
+  const ZOOM_STEP = 0.1;
+  const WHEEL_STEP = 40; // wheel distance per zoom step (mouse notch ~100, touchpad pinch: small steps)
+
   const SQUARE_BTN_CSS = `
     position: absolute;
     z-index: 1;
@@ -7652,7 +8506,7 @@
           disabled: true,
       });
       const uploadBtn = button(UPLOAD_SVG, 'Upload the saved changes to SharePoint', 190, ROW1, { disabled: true });
-      // View switch (status bar, bottom right): Text | Table | 3D
+      // View switch (status bar, bottom right): Text | Preview (Table, 3D or Markdown, by file type)
       /** @param {string} svg @param {string} label @param {string} title */
       const viewBtn = (svg, label, title) => {
           const b = document.createElement('button');
@@ -7665,12 +8519,7 @@
           return b;
       };
       const textBtn = viewBtn(TEXT_SVG, 'Text', 'Text view');
-      const tableBtn = viewBtn(TABLE_SVG, 'Table', 'Table view (CSV, Parquet, spreadsheets)');
-      // Sheet of spreadsheet shown (● cached, ○ not yet); hidden for other files
-      const sheetSelect = document.createElement('select');
-      sheetSelect.className = 'tp-sheet-select';
-      sheetSelect.hidden = true;
-      const view3dBtn = viewBtn(CUBE_SVG, '3D', '3D view (IFC, IFCZIP)');
+      const previewBtn = viewBtn('', 'Preview', ''); // look set per file (setPreview)
       const moreBtn = button(MORE_SVG, 'More', 0);
       moreBtn.style.left = '';
       moreBtn.style.right = '86px';
@@ -7979,10 +8828,20 @@
       // Status bar (fixed height): cache state left, view switch right
       const statusBar = document.createElement('div');
       statusBar.className = 'tp-statusbar';
+      // Spreadsheets: sheet or table shown; its menu lists sheets and tables side by side
+      const sheetPicker = createPicker(statusBar, (list, i) => v.selectSheet?.(i, list ? 'tables' : 'sheets'));
       const views = document.createElement('div');
       views.className = 'tp-views';
-      views.append(textBtn, tableBtn, sheetSelect, view3dBtn);
-      statusBar.append(progress, views);
+      views.append(textBtn, previewBtn, sheetPicker.button);
+      // Text size: − 100 % + (value: back to 100 %)
+      const zoomBar = document.createElement('div');
+      zoomBar.className = 'tp-views tp-zoom';
+      zoomBar.innerHTML = `
+      <button type="button" class="tp-view-btn" title="Smaller text (Ctrl −, Ctrl + wheel)">−</button>
+      <button type="button" class="tp-view-btn tp-zoom-value" title="Text size: back to 100 % (Ctrl 0)"></button>
+      <button type="button" class="tp-view-btn" title="Larger text (Ctrl +, Ctrl + wheel)">+</button>`;
+      const [zoomOut, zoomValue, zoomIn] = /** @type {HTMLButtonElement[]} */ ([...zoomBar.children]);
+      statusBar.append(progress, zoomBar, views);
       box.append(header, csvBar, content, stage3d, editorWrap, loadMoreBtn, statusBar, splitter);
 
       // Keep panel's events away from SharePoint's handlers (split mode: inside its DOM)
@@ -8008,9 +8867,8 @@
           uploadBtn,
           writeBtn,
           textBtn,
-          tableBtn,
-          sheetSelect,
-          view3dBtn,
+          previewBtn,
+          sheetPicker,
           stage3d,
           canvas3d,
           status3d,
@@ -8037,6 +8895,7 @@
           loadToken: 0,
           originalBodyStyle: document.body.getAttribute('style'),
       };
+      setPreview(v, null);
 
       // Popup: drag header (not its buttons, menus or properties grip) to move window
       header.addEventListener('pointerdown', (e) => {
@@ -8055,6 +8914,7 @@
       const onEscape = (e) => {
           if (e.key === 'Escape' && viewer === v) {
               e.stopPropagation();
+              if (!sheetPicker.menu.hidden) return void sheetPicker.close(); // open drop-down first
               closeViewer();
           }
       };
@@ -8105,44 +8965,39 @@
           view.show3d = on;
           savePref('tp-preview-3d', on ? '1' : '0');
       };
-      sheetSelect.onchange = () => v.selectSheet?.(Number(sheetSelect.value));
-      view3dBtn.onclick = () => {
-          if (v.view3d) return;
-          set3d(true);
-          toggle3d(v);
-      };
+
       textBtn.onclick = () => {
           if (v.view3d) {
               set3d(false);
               close3d(v);
           }
-          if (tableView(v)) toggleTable();
+          if (tableView(v)) showView('table', false);
+          else if (markdownView(v)) showView('markdown', false);
           updateViews(v);
       };
-      tableBtn.onclick = () => {
-          if (v.view3d) {
-              set3d(false);
-              close3d(v);
-          }
-          if (!view.table) toggleTable();
+      previewBtn.onclick = () => {
+          const kind = previewOf(v.lang);
+          if (kind === '3d' && !v.view3d) {
+              set3d(true);
+              toggle3d(v);
+          } else if (kind === 'table' && !tableView(v)) showView('table', true);
+          else if (kind === 'md' && !markdownView(v)) showView('markdown', true);
           updateViews(v);
       };
-      const toggleTable = () => {
+      // Table or Markdown view on / off (remembered for files of its type)
+      /** @param {'table'|'markdown'} key @param {boolean} on */
+      const showView = (key, on) => {
           if (v.writeMode && v.dirty) {
               alert('Please save your changes first, then switch the view.');
               return void flash(saveBtn);
           }
-          close3d(v); // back to text / table
-          view.table = !view.table;
-          savePref('tp-preview-table', view.table ? '1' : '0');
+          close3d(v); // back to text / table / Markdown
+          view[key] = on;
+          savePref(VIEW_KEYS[key], on ? '1' : '0');
           applyColour(); // each view has its own colour choice
-          if (v.writeMode) {
-              // edit on in other view (table <-> text), on saved text
-              exitWriteView(v);
-              enterWrite(v);
-          } else {
-              v.rerender?.();
-          }
+          if (!v.writeMode) return void v.rerender?.();
+          exitWriteView(v); // Markdown: shown from saved text, edit ends
+          if (key === 'table') enterWrite(v); // edit on in other view (table <-> text), on saved text
       };
       // Back to read mode (edit button again): unsaved edits only after asking
       const leaveWrite = () => {
@@ -8223,6 +9078,84 @@
           applyWrap();
       };
       applyWrap();
+
+      // Text size (content area and editor): CSS variable; text and table views are laid out anew
+      // (their unfilled blocks keep heights measured at the old size), keeping the position in the file
+      /** @param {number} z */
+      const applyZoom = (z) => {
+          for (const el of [content, editorWrap]) el.style.setProperty('--tp-zoom', String(z));
+          zoomValue.textContent = `${Math.round(z * 100)} %`;
+          zoomOut.disabled = z <= ZOOM_RANGE[0];
+          zoomIn.disabled = z >= ZOOM_RANGE[1];
+      };
+      applyZoom(view.zoom);
+      let relayout = 0;
+      let scrollShare = 0;
+      /** @param {number} z */
+      const setZoom = (z) => {
+          z = Math.round(Math.max(ZOOM_RANGE[0], Math.min(ZOOM_RANGE[1], z)) * 100) / 100;
+          if (z === view.zoom) return;
+          view.zoom = z;
+          savePref(ZOOM_KEY, String(z));
+          applyZoom(z);
+          if (v.writeMode || v.view3d) return; // editor: CSS alone; CSV cell edits are not redrawn
+          if (!relayout) scrollShare = content.scrollTop / Math.max(1, content.scrollHeight);
+          clearTimeout(relayout);
+          relayout = setTimeout(() => {
+              relayout = 0;
+              if (viewer !== v || v.writeMode || v.view3d) return;
+              v.rerender?.();
+              content.scrollTop = scrollShare * content.scrollHeight;
+          }, 150);
+      };
+      /** @param {number} steps */
+      const zoomBy = (steps) => setZoom(view.zoom + steps * ZOOM_STEP);
+      zoomOut.onclick = () => zoomBy(-1);
+      zoomIn.onclick = () => zoomBy(1);
+      zoomValue.onclick = () => setZoom(1);
+      let wheel = 0;
+      box.addEventListener(
+          'wheel',
+          (e) => {
+              const t = /** @type {Node} */ (e.target);
+              if (!(e.ctrlKey || e.metaKey) || !(content.contains(t) || editorWrap.contains(t))) return;
+              e.preventDefault(); // not the page's zoom
+              wheel += e.deltaY;
+              const steps = Math.trunc(wheel / WHEEL_STEP);
+              if (!steps) return;
+              wheel -= steps * WHEEL_STEP;
+              zoomBy(-steps);
+          },
+          { passive: false },
+      );
+
+      // Text view: whole file selected (also lines not drawn yet), and copied as such
+      const selectAll = () => {
+          const lines = content.firstElementChild;
+          if (!lines?.classList.contains('tp-lines')) return false; // table, Markdown: as the browser does
+          getSelection()?.selectAllChildren(lines);
+          return true;
+      };
+      content.addEventListener('copy', (e) => {
+          const lines = content.firstElementChild;
+          const s = getSelection();
+          if (!lines || !s || !v.text || s.anchorNode !== lines || s.focusNode !== lines) return;
+          const ends = [s.anchorOffset, s.focusOffset].sort((a, b) => a - b);
+          if (ends[0] !== 0 || ends[1] !== lines.childNodes.length) return;
+          e.clipboardData?.setData('text/plain', v.text);
+          e.preventDefault();
+      });
+
+      // Keys in the content area (once clicked into) or editor: Ctrl / ⌘ with + − 0 (text size), A (select all)
+      box.addEventListener('keydown', (e) => {
+          const t = /** @type {Node} */ (e.target);
+          if (!(e.ctrlKey || e.metaKey) || e.altKey || !(content.contains(t) || t === editor)) return;
+          if (e.key === '+' || e.key === '=') zoomBy(1);
+          else if (e.key === '-') zoomBy(-1);
+          else if (e.key === '0') setZoom(1);
+          else if (e.key.toLowerCase() !== 'a' || t !== content || !selectAll()) return;
+          e.preventDefault();
+      });
 
       copyBtn.onclick = async () => {
           try {
@@ -8311,7 +9244,7 @@
           const result = PARQUET_RE.test(fileName)
               ? await openParquetSource(fetchUrl, getSignal, reload, onProgress, force)
               : SHEET_RE.test(fileName)
-                ? await openSheetSource(fetchUrl, getSignal, reload, onProgress)
+                ? await openSheetSource(fetchUrl, getSignal, reload, onProgress, sheetMode(hops[0]))
                 : ZIP_RE.test(fileName)
                   ? await openZipSource(fetchUrl, getSignal, reload, onProgress, force)
                   : await openSource(fetchUrl, getSignal, reload, onProgress);
@@ -8385,7 +9318,8 @@
       v.rerender = null;
       v.relint = null;
       v.text = '';
-      for (const b of [v.copyBtn, v.loadAllBtn, v.writeBtn, v.tableBtn, v.view3dBtn, v.clearBtn]) b.disabled = true;
+      for (const b of [v.copyBtn, v.loadAllBtn, v.writeBtn, v.clearBtn]) b.disabled = true;
+      setPreview(v, null);
       showSheets(v, null);
       updateViews(v);
       v.titleName.textContent = '–';
@@ -8442,6 +9376,7 @@
       v.titleName.textContent = name;
       v.titleName.title = url;
       // what is known before the content: format, then size (from the first response)
+      const earlyLang = PARQUET_RE.test(name) ? 'parquet' : sheetFormat(name) ? 'sheet' : langOf(name);
       const earlyFormat = PARQUET_RE.test(name)
           ? 'Parquet'
           : sheetFormat(name) || LANG_NAMES[langOf(name) ?? ''] || 'Text';
@@ -8459,8 +9394,7 @@
       v.copyBtn.disabled = true;
       v.loadAllBtn.disabled = true;
       v.writeBtn.disabled = true;
-      v.tableBtn.disabled = true;
-      v.view3dBtn.disabled = true;
+      setPreview(v, previewOf(earlyLang), 'Preview: once the file is cached');
       showSheets(v, null);
       updateViews(v);
       v.clearBtn.disabled = false;
@@ -8599,6 +9533,7 @@
           v.rerender = null;
           v.relint = null;
           v.loadAllBtn.disabled = false;
+          setPreview(v, previewOf(earlyLang), 'Preview: once the whole file is cached');
           v.loadAll = async () => {
               forcedUrls.add(url);
               await showFile(name, url, false);
@@ -8624,6 +9559,7 @@
           v.rerender = null;
           v.relint = null;
           v.loadAllBtn.disabled = true;
+          setPreview(v, null);
           showPlain(v, message);
           showCached(v); // nothing cached (not the last file's state)
           return;
@@ -8638,13 +9574,10 @@
       v.writeBtn.title = src.isSheet
           ? 'Edit: not available for spreadsheets (read only)'
           : 'Edit (beta, text files only)';
-      v.tableBtn.disabled = !['parquet', 'sheet', 'csv'].includes(v.lang);
+      const kind = previewOf(v.lang);
       const ifcSize = src.ifcBytes ? src.ifcBytes.length : src.total;
-      const tooBig = ifcSize > MAX_3D_BYTES;
-      v.view3dBtn.disabled = langOf(fileName) !== 'ifc' || tooBig;
-      v.view3dBtn.title = tooBig
-          ? `3D view: only for IFC files up to ${formatBytes(MAX_3D_BYTES)}`
-          : '3D view (IFC, IFCZIP)';
+      const tooBig = kind === '3d' && ifcSize > MAX_3D_BYTES;
+      setPreview(v, kind, tooBig ? `3D view: only for IFC files up to ${formatBytes(MAX_3D_BYTES)}` : '');
       updateViews(v);
       v.text = src.text;
 
@@ -8663,12 +9596,12 @@
           return t.split(/\r?\n/);
       };
 
-      // Table view: sort and filters stay while this file is open (also across "Cache next"); per sheet
+      // Table view: sort and filters stay while this file is open (also across "Cache next"); per sheet or table
       /** @type {TableState} */
       const tableState = { sort: null, filters: new Map() };
-      /** @type {Map<number, TableState>} */
+      /** @type {Map<string, TableState>} */
       const sheetStates = new Map();
-      /** @param {number} i */
+      /** @param {string} i e.g. "sheets 0" */
       const sheetState = (i) => {
           if (!sheetStates.has(i)) sheetStates.set(i, { sort: null, filters: new Map() });
           return /** @type {TableState} */ (sheetStates.get(i)); // set just above
@@ -8707,6 +9640,9 @@
           v.metaLine.title = pairs.join('\n');
       };
 
+      // Markdown: relative links and images point into the file's folder
+      const folderUrl = new URL(fetchUrl.replace(/[^/]*$/, ''), location.origin).href;
+
       // Very long lines (e.g. minified files) are cut for display; copy still gets everything
       const render = () => {
           rendered = true;
@@ -8720,14 +9656,15 @@
               return line.slice(0, MAX_LINE_CHARS);
           });
           v.lineView?.stop();
-          const sheet = src.isSheet ? src.sheets[src.current] : null;
-          if (sheet && !sheet.data?.rows.length) {
-              // chart sheet, empty or unreadable sheet: a note instead
-              v.lineView = mountLines(v.content, renderLines([['', sheet.note || 'Empty sheet: no cells.']], new Map()));
+          /** @type {SheetShown|null} */
+          const shown = src.isSheet ? src.shown : null;
+          if (shown && !shown.rows.length) {
+              // chart sheet, empty or unreadable sheet, empty table: a note instead
+              v.lineView = mountLines(v.content, renderLines([['', shown.note]], new Map()));
               v.content.firstElementChild.classList.add('tp-notice');
-          } else if (sheet && view.table) {
-              v.lineView = mountTable(v.content, src.header(), sheet.data.rows, {
-                  state: sheetState(src.current),
+          } else if (shown && view.table) {
+              v.lineView = mountTable(v.content, shown.header, shown.rows, {
+                  state: sheetState(`${src.mode} ${src.current}`),
                   colour: colourOn(v),
               });
           } else if (view.table && lang === 'csv') {
@@ -8741,6 +9678,8 @@
                   format: v.tableEditing ? csvFormat : null,
                   onEdit: () => markEdited(v),
               });
+          } else if (markdownView(v)) {
+              v.lineView = mountMarkdown(v.content, lines.join('\n'), { colour: colourOn(v), base: folderUrl });
           } else {
               const tokens = (colourOn(v) ? highlight : plain)(visible.join('\n'));
               v.lineView = mountLines(v.content, renderLines(tokens, problemsByLine, truncated));
@@ -8855,20 +9794,25 @@
       };
       v.loadMoreBtn.onclick = () => load(false);
 
-      // Other sheet: cached on first choice (stop keeps the sheet shown before)
-      v.selectSheet = async (/** @type {number} */ i) => {
-          if (!src.isSheet || i === src.current || !src.sheets[i]) return;
-          if (src.sheets[i].data === undefined) {
+      // Other sheet or table: its sheet cached on first choice (stop keeps what was shown before);
+      // sheets or tables: remembered for this file
+      /** @param {number} i @param {SheetMode} [mode] */
+      v.selectSheet = async (i, mode = src.mode) => {
+          if (!src.isSheet || !(mode === 'tables' ? src.tables : src.sheets)[i]) return;
+          if (mode === src.mode && i === src.current) return;
+          if (mode !== src.mode) rememberSheetMode(url, mode);
+          const s = src.sheetOf(i, mode);
+          if (src.sheets[s].data === undefined) {
               const job = async () => {
-                  await src.loadSheet(i);
-                  src.select(i);
+                  await src.loadSheet(s);
+                  src.select(i, mode);
               };
-              const ok = await load(false, job, src.sheets[i].size);
+              const ok = await load(false, job, src.sheets[s].size);
               if (!current()) return;
-              if (!ok) return void showSheets(v, src); // drop-down back to sheet shown
+              if (!ok) return void showSheets(v, src); // drop-downs back to what is shown
           }
-          if (src.current !== i) {
-              src.select(i);
+          if (src.mode !== mode || src.current !== i) {
+              src.select(i, mode);
               v.text = src.text;
               render();
           }
@@ -8893,7 +9837,7 @@
       if (src.fullJob || (forced && !src.done)) load(true);
 
       // 3D view chosen before: show it again, but only if its library is already loaded
-      if (view.show3d && ifcLibraryReady && !v.view3dBtn.disabled) toggle3d(v);
+      if (view.show3d && ifcLibraryReady && kind === '3d' && !v.previewBtn.disabled) toggle3d(v);
   }
 
   // Module: viewer/layout.js

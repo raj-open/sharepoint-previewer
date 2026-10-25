@@ -3,34 +3,13 @@
 //
 // Browser once per machine: `npx playwright install chromium` (part of `just build-deps`).
 
-import crypto from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
 import { chromium } from 'playwright';
-import * as sharepoint from './fake-sharepoint/server.mjs';
-
-const ROOT = path.resolve(import.meta.dirname, '../..');
+import * as sharepoint from '../fake-sharepoint/server.mjs';
+import { has3dRelease } from '../fake-sharepoint/server.mjs';
+import { userscript } from '../fake-sharepoint/userscript.mjs';
 
 export const { ORIGIN, LIBRARY, LIST_PAGE, SITE } = sharepoint;
-
-/** @param {string} file @returns {string} */
-const sha256 = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-
-/** @returns {boolean} 3D files of this version are built (`just build`) */
-export const has3dRelease = () =>
-    ['ifc-lite-3d.js', 'ifc-lite_bg.wasm'].every((name) => fs.existsSync(path.join(sharepoint.PATH_RELEASE, name)));
-
-// Userscript as the build stamps it: hashes of the 3D files of this release (if built)
-function userscript() {
-    let text = fs.readFileSync(path.join(ROOT, 'src/main.js'), 'utf8');
-    if (has3dRelease()) {
-        const hash = (name) => sha256(path.join(sharepoint.PATH_RELEASE, name));
-        text = text
-            .replace(/(VIEWER_3D_JS_SHA256 ?= ?["'])[0-9a-f]*/, `$1${hash('ifc-lite-3d.js')}`)
-            .replace(/(VIEWER_3D_WASM_SHA256 ?= ?["'])[0-9a-f]*/, `$1${hash('ifc-lite_bg.wasm')}`);
-    }
-    return text;
-}
+export { has3dRelease };
 
 // Runs in page before its own scripts: Tampermonkey API, then the userscript at DOMContentLoaded
 /** @param {{ script: string, settings: Object<string, *> }} args */

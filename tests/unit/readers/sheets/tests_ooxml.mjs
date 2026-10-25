@@ -31,6 +31,23 @@ describe('readers/sheets/ooxml', () => {
                 ],
             );
             assert.equal((await book.load(2)).rows[0][0], 'hidden value');
+            assert.deepEqual(book.tables, []); // no table parts: none looked for
         });
     }
+    it('tables of the sheets: name, range, header and totals rows, column names', async () => {
+        const book = await open('Data/orders.xlsx');
+        assert.deepEqual(
+            book.tables.map((t) => [t.name, book.sheets[t.sheet].name, t.header, t.totals]),
+            [
+                ['Orders', 'Sales', 1, 1],
+                ['Regions', 'Sales', 1, 0],
+                ['Payments', 'Sales', 1, 0],
+                ['Stock', 'Stock', 1, 0],
+                ...[40, 41, 42, 43, 44].map((week) => [`Week${week}`, 'Harvest', 1, 0]),
+                ['PriceList', 'Prices', 1, 0],
+            ],
+        );
+        assert.deepEqual(book.tables[3].range, { r0: 2, c0: 1, r1: 6, c1: 3 }); // B3:D7, below title and notes
+        assert.deepEqual(book.tables[3].columns, ['fruit', 'kg', 'ripe']);
+    });
 });

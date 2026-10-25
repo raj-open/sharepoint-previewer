@@ -1,4 +1,4 @@
-// Preferences kept in the browser (localStorage): theme, colours, wrap, CSV format, view choices
+// Preferences kept in the browser (localStorage): theme, colours, wrap, CSV format, view choices (some per file)
 
 // ===========================================================================
 // IMPORTS
@@ -9,9 +9,12 @@ import { QUOTE_MODES } from '../view/table.js';
 import { DEFAULT_COLOURS } from './settings.js';
 import { DEFAULT_MODE } from './settings.js';
 import { DEFAULT_SHEET_COLOURS } from './settings.js';
+import { DEFAULT_SHEET_VIEW } from './settings.js';
 import { DEFAULT_TABLE_COLOURS } from './settings.js';
 import { DEFAULT_WRAP } from './settings.js';
 import { THEME } from './settings.js';
+
+/** @typedef {import('./types.js').SheetMode} SheetMode */
 
 // ===========================================================================
 // CONSTANTS
@@ -20,6 +23,8 @@ import { THEME } from './settings.js';
 export const THEME_KEY = 'tp-preview-theme';
 const COLOUR_KEY = 'tp-preview-colours-text';
 export const WRAP_KEY = 'tp-preview-wrap';
+export const ZOOM_KEY = 'tp-preview-zoom'; // text size in the content area (1 = 100 %)
+export const ZOOM_RANGE = [0.5, 3];
 export const PROPS_KEY = 'tp-preview-properties'; // properties line shown (default) or hidden
 export const CSV_SEP_KEY = 'tp-preview-csv-sep'; // '' = as in file
 export const CSV_QUOTE_KEY = 'tp-preview-csv-quote'; // '' = as in file
@@ -27,6 +32,10 @@ export const CSV_QUOTE_KEY = 'tp-preview-csv-quote'; // '' = as in file
 const COLOUR_TABLE_KEY = 'tp-preview-colours-table';
 const COLOUR_SHEET_KEY = 'tp-preview-colours-sheet';
 export const COLOUR_KEYS = { text: COLOUR_KEY, table: COLOUR_TABLE_KEY, sheet: COLOUR_SHEET_KEY };
+
+// Spreadsheets: sheets or tables, per file (most recent first, the oldest dropped)
+export const SHEET_MODES_KEY = 'tp-preview-sheet-modes';
+const MAX_SHEET_MODES = 500;
 
 // ===========================================================================
 // METHODS
@@ -56,6 +65,32 @@ export function savePref(key, value) {
     } catch {}
 }
 
+// Sheets or tables chosen for a spreadsheet (file path -> mode)
+/** @returns {Object<string, SheetMode>} */
+function sheetModes() {
+    try {
+        const modes = JSON.parse(loadPref(SHEET_MODES_KEY, '{}'));
+        return modes && typeof modes === 'object' && !Array.isArray(modes) ? modes : {};
+    } catch {
+        return {};
+    }
+}
+
+// View of a spreadsheet: last choice for this file, else the setting
+/** @param {string} url @returns {SheetMode} */
+export function sheetMode(url) {
+    const mode = sheetModes()[url] ?? DEFAULT_SHEET_VIEW;
+    return mode === 'tables' ? 'tables' : 'sheets';
+}
+
+/** @param {string} url @param {SheetMode} mode @returns {void} */
+export function rememberSheetMode(url, mode) {
+    const modes = sheetModes();
+    delete modes[url];
+    const kept = Object.entries(modes).slice(0, MAX_SHEET_MODES - 1);
+    savePref(SHEET_MODES_KEY, JSON.stringify(Object.fromEntries([[url, mode], ...kept])));
+}
+
 // Delimiter / quote style chosen in write mode ('' = keep file's own)
 export const csvFormat = { sep: loadPref(CSV_SEP_KEY, '') || '', quote: loadPref(CSV_QUOTE_KEY, '') || '' };
 if (!(csvFormat.sep in SEPARATOR_NAMES)) csvFormat.sep = '';
@@ -82,4 +117,8 @@ export const view = {
     wrap: loadPref(WRAP_KEY, DEFAULT_WRAP ? '1' : '0') === '1',
     // 3D view chosen by user
     show3d: loadPref('tp-preview-3d', '0') === '1',
+    // Markdown rendered (else its text)
+    markdown: loadPref('tp-preview-markdown', '1') === '1',
+    // Text size in the content area (text, table, Markdown, editor)
+    zoom: Math.max(ZOOM_RANGE[0], Math.min(ZOOM_RANGE[1], Number(loadPref(ZOOM_KEY, '1')) || 1)),
 };

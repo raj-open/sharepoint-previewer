@@ -1,11 +1,12 @@
-// View switch: table view, colour choice per view, sheet drop-down
+// View switch: table view, colour choice per view, sheet and table picker
 import assert from 'node:assert/strict';
 import { describe } from 'node:test';
 import { it } from 'node:test';
 import { fakeViewer } from '../helpers.mjs';
 import { load } from '../helpers.mjs';
 
-const { tableView, colourKey, showSheets } = await load('viewer/views.js');
+const { tableView, colourKey, showSheets, sheetLists } = await load('viewer/views.js');
+const { markdownView, previewOf, setPreview, updateViews } = await load('viewer/views.js');
 const { view } = await load('_core/prefs.js');
 
 describe('viewer/views', () => {
@@ -18,6 +19,46 @@ describe('viewer/views', () => {
         view.table = false;
         assert.equal(tableView({ lang: 'csv' }), false);
     });
+    it('preview by file type: table, 3D, Markdown, none', () => {
+        assert.deepEqual(['csv', 'parquet', 'sheet', 'ifc', 'md', 'json', null].map(previewOf), [
+            'table',
+            'table',
+            'table',
+            '3d',
+            'md',
+            null,
+            null,
+        ]);
+    });
+    it('preview button: look follows the file type; disabled with a reason or without preview', () => {
+        const v = fakeViewer();
+        setPreview(v, 'md');
+        assert.match(v.previewBtn.innerHTML, /<span>Markdown<\/span>/);
+        assert.equal(v.previewBtn.disabled, false);
+        setPreview(v, '3d', 'too big');
+        assert.match(v.previewBtn.innerHTML, /<span>3D<\/span>/);
+        assert.deepEqual([v.previewBtn.disabled, v.previewBtn.title], [true, 'too big']);
+        setPreview(v, null);
+        assert.match(v.previewBtn.innerHTML, /<span>Preview<\/span>/);
+        assert.equal(v.previewBtn.disabled, true);
+    });
+    it('Markdown view: while chosen, not while edited; Text or Preview pressed', () => {
+        view.markdown = true;
+        const v = fakeViewer({ lang: 'md', source: { text: '' }, busy: true });
+        assert.equal(markdownView(v), true);
+        setPreview(v, 'md');
+        updateViews(v);
+        assert.deepEqual(
+            [v.textBtn.getAttribute('aria-pressed'), v.previewBtn.getAttribute('aria-pressed')],
+            ['false', 'true'],
+        );
+        v.writeMode = true;
+        assert.equal(markdownView(v), false);
+        updateViews(v);
+        assert.equal(v.textBtn.getAttribute('aria-pressed'), 'true');
+        view.markdown = false;
+        assert.equal(markdownView({ lang: 'md' }), false);
+    });
     it('colour choice: text, table, sheet', () => {
         view.table = true;
         assert.deepEqual(
@@ -25,18 +66,39 @@ describe('viewer/views', () => {
             ['text', 'table', 'sheet'],
         );
     });
-    it('sheet drop-down: cached marks, hidden and chart sheets, name in title', () => {
+    it('picker: sheets (cached, hidden, chart) and tables side by side; name in title', () => {
         const v = fakeViewer();
         const sheets = [
             { name: 'A', hidden: false, kind: 'sheet', data: { rows: [], cols: 0 } },
             { name: 'B <x>', hidden: true, kind: 'sheet', data: undefined },
             { name: 'C', hidden: false, kind: 'chart', data: null },
         ];
-        showSheets(v, { isSheet: true, sheets, current: 0 });
-        assert.equal(v.sheetSelect.hidden, false);
-        assert.match(v.sheetSelect.innerHTML, /● A<\/option>.*○ B &lt;x&gt; \(hidden\)<\/option>.*● C \(chart\)/s);
+        const tables = [{ name: 'T', sheet: 1 }];
+        const src = { isSheet: true, sheets, tables, tablesRead: true, mode: 'sheets', current: 0, startOf: () => 0 };
+        showSheets(v, src);
+        assert.equal(v.sheetPicker.button.hidden, false);
+        const [lists, choice, label] = v.sheetPicker.last;
+        assert.deepEqual(
+            lists.map((l) => [l.label, l.items.map((x) => x.text)]),
+            [
+                ['Sheets', ['● A', '○ B <x> (hidden)', '● C (chart)']],
+                ['Tables', ['○ T (B <x>)']],
+            ],
+        );
+        assert.deepEqual([choice, label], [{ list: 0, item: 0 }, 'A']);
         assert.equal(v.titleSheet.innerHTML, ' · <strong>Sheet:</strong> A');
+
+        showSheets(v, { ...src, mode: 'tables' });
+        assert.deepEqual(v.sheetPicker.last.slice(1, 3), [{ list: 1, item: 0 }, 'T']);
+        assert.equal(v.titleSheet.innerHTML, ' · <strong>Table:</strong> T');
+
         showSheets(v, null);
-        assert.equal(v.sheetSelect.hidden, true);
+        assert.equal(v.sheetPicker.button.hidden, true);
+    });
+
+    it('picker: no tables (or none read) say why', () => {
+        const src = { isSheet: true, sheets: [], tables: [], mode: 'sheets', current: 0, startOf: () => 0 };
+        assert.equal(sheetLists({ ...src, tablesRead: true })[1].empty, 'No tables in this file');
+        assert.equal(sheetLists({ ...src, tablesRead: false })[1].empty, 'Tables are not read from this format');
     });
 });

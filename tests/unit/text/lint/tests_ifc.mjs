@@ -9,6 +9,8 @@ const text = (f) => new TextDecoder().decode(fixture(f));
 
 describe('text/lint/ifc', () => {
     it('wall.ifc: no problems', () => assert.deepEqual(lintIfc(text('Models/wall.ifc')).problems, []));
+    it('corner.ifc (two walls, window in an opening): no problems', () =>
+        assert.deepEqual(lintIfc(text('Models/corner.ifc')).problems, []));
     it('broken.ifc: errors with lines', () => {
         const errors = lintIfc(text('Models/broken.ifc')).problems.filter((p) => p.severity === 'error');
         assert.ok(errors.length > 0);

@@ -112,7 +112,7 @@ describe('sheet-wise reading', () => {
 });
 
 describe('spreadsheet source', () => {
-    it('opens the active sheet only; others on request; CSV text of the sheet shown', async () => {
+    it('opens the active sheet only; others on request; CSV text with column letters and row numbers', async () => {
         serve({ '/h.xlsx': fixture('Data/harvest.xlsx') });
         const src = await openSheetSource('/h.xlsx', signal, false, () => {});
         assert.equal(src.isSheet, true);
@@ -121,19 +121,83 @@ describe('spreadsheet source', () => {
             src.sheets.map((s) => s.data !== undefined),
             [true, false, false],
         );
-        assert.match(src.text, /^fruit,price,harvest,ripe\napple,1.25,2026-09-01,TRUE/);
+        assert.match(src.text, /^,A,B,C,D\n1,fruit,price,harvest,ripe\n2,apple,1.25,2026-09-01,TRUE/);
         assert.equal(src.done, false);
         assert.ok(src.loaded < src.total);
-        assert.deepEqual(src.header(), ['A', 'B', 'C', 'D']);
+        assert.deepEqual(src.shown.header, ['A', 'B', 'C', 'D']);
         assert.equal(src.label(), '1 of 3 sheets cached');
 
         await src.loadSheet(1);
         src.select(1);
-        assert.equal(src.text, 'note\nfirst line\n\nafter a gap');
+        assert.equal(src.text, ',A\n1,note\n2,first line\n3,\n4,after a gap');
         await src.loadAll();
         assert.equal(src.done, true);
         assert.equal(src.loaded, src.total);
-        assert.deepEqual(Object.fromEntries(src.info), { sheets: '3 (1 hidden)', sheet: 'Notes: 4 rows × 1 columns' });
+        assert.deepEqual(Object.fromEntries(src.info), {
+            sheets: '3 (1 hidden)',
+            tables: '0',
+            sheet: 'Notes: 4 rows × 1 columns',
+        });
+    });
+
+    for (const ext of ['xlsx', 'ods']) {
+        it(`${ext}: tables below their header rows, without totals rows; sheets or tables`, async () => {
+            serve({ [`/o.${ext}`]: fixture(`Data/orders.${ext}`) });
+            const src = await openSheetSource(`/o.${ext}`, signal, false, () => {}, 'tables');
+            assert.equal(src.mode, 'tables');
+            assert.deepEqual(
+                src.tables.map((t) => t.name),
+                [
+                    'Orders',
+                    'Regions',
+                    'Payments',
+                    'Stock',
+                    'Week40',
+                    'Week41',
+                    'Week42',
+                    'Week43',
+                    'Week44',
+                    'PriceList',
+                ], // reading order
+            );
+            assert.equal(src.current, 0); // first table on the active sheet
+            assert.deepEqual(src.shown.header, ['order', 'fruit', 'kg', 'date']);
+            assert.equal(src.shown.rows.length, 12);
+            assert.deepEqual(src.shown.rows.at(-1), ['1012', 'banana', '21.75', '2026-09-23']);
+            assert.match(src.text, /^order,fruit,kg,date\n1001,apple,2.5,2026-09-01\n/);
+            assert.deepEqual(Object.fromEntries(src.info), {
+                sheets: '6',
+                tables: '10',
+                table: 'Orders (Sales!A1:D14): 12 rows × 4 columns',
+            });
+
+            // table below a title and notes: only its own cells
+            await src.loadSheet(src.sheetOf(3));
+            src.select(3);
+            assert.deepEqual(src.shown.header, ['fruit', 'kg', 'ripe']);
+            assert.deepEqual(src.shown.rows[0], ['apple', '140', 'TRUE']);
+            assert.equal(src.shown.rows.length, 4);
+            assert.equal(src.startOf('sheets'), 2); // the sheet of the table shown
+
+            src.select(src.startOf('sheets'), 'sheets');
+            assert.equal(src.mode, 'sheets');
+            assert.equal(src.sheets[src.current].name, 'Stock');
+            assert.match(
+                src.text,
+                /^,A,B,C,D\n1,,Stock of the farm shop,,\n2,,"counted on 2026-10-01, in kg",,\n3,,fruit,kg,ripe\n/,
+            );
+
+            await src.loadSheet(4);
+            src.select(4); // sheet without tables
+            assert.equal(src.startOf('tables'), 0); // none on it: the first table
+        });
+    }
+
+    it('tables asked for, but there are none: sheets', async () => {
+        serve({ '/h.xlsx': fixture('Data/harvest.xlsx') });
+        const src = await openSheetSource('/h.xlsx', signal, false, () => {}, 'tables');
+        assert.equal(src.mode, 'sheets');
+        assert.equal(src.sheets[src.current].name, 'Prices');
     });
 
     it('broken file: message instead of an exception', async () => {

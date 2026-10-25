@@ -7,7 +7,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 
 export const ROOT = path.resolve(import.meta.dirname, '../..');
-export const LIBRARY = path.join(ROOT, 'tests/behave/fake-sharepoint/library');
+export const LIBRARY = path.join(ROOT, 'tests/fake-sharepoint/library');
 export const ORIGIN = 'https://acme.sharepoint.com';
 
 // ----------------------------------------------------------------
@@ -207,9 +207,7 @@ export function fakeViewer(extra = {}) {
         'saveBtn',
         'uploadBtn',
         'textBtn',
-        'tableBtn',
-        'view3dBtn',
-        'sheetSelect',
+        'previewBtn',
         'titleSheet',
         'stage3d',
         'status3d',
@@ -222,5 +220,7 @@ export function fakeViewer(extra = {}) {
     ]) {
         v[name] = element();
     }
+    // picker: what was set last
+    v.sheetPicker = { button: element(), set: (...args) => (v.sheetPicker.last = args), close() {} };
     return Object.assign(v, extra);
 }

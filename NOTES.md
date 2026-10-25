@@ -4,8 +4,9 @@ A userscript (Tampermonkey)
 that adds a preview column to SharePoint Online document libraries.
 It shows text-like files directly in the browser,
 including files SharePoint itself cannot preview.
-It displays CSV, Parquet and spreadsheets (Excel, OpenDocument) as sortable tables
-and IFC building models in 3D,
+It displays CSV, Parquet and spreadsheets (Excel, OpenDocument) as sortable tables,
+IFC building models in 3D
+and Markdown as formatted text,
 and offers a simple editor for plain-text files.
 
 This document is written for IT staff
@@ -55,15 +56,26 @@ and where it stores data.
   size, format, encoding, indentation,
   CSV delimiter and table shape,
   Parquet details,
-  number of sheets and shape of the sheet shown.
+  number of sheets and tables, shape of the sheet or table shown.
 - **Status bar:**
   - left: cache progress
     (blue while caching, neutral when idle or complete),
     with a "click to fully cache" hint
-  - right: view switch **Text | Table | 3D**;
-    for spreadsheets a sheet drop-down right of **Table**
-    (● cached, ○ not cached yet; hidden sheets marked),
+  - right: text size **− 100 % +**
+    (also Ctrl / ⌘ with + − 0, or Ctrl / ⌘ + wheel, in the content area);
+    view switch **Text | Preview**,
+    the preview by file type: **Table** (CSV, Parquet, spreadsheets), **3D** (IFC), **Markdown**;
+    for spreadsheets a picker right of **Table**:
+    its menu shows the sheets or the tables, switched with ‹ › or ← →
+    (● cached, ○ not cached yet; hidden sheets marked);
+    picking a table shows tables, picking a sheet shows sheets
+    (start value: setting `spreadsheet-view`, then the last choice per file),
     the sheet shown is also named next to the file name
+- **Text view:** Ctrl / ⌘ + A (once clicked into it) selects the whole text, copy gives the whole cached text
+- **Markdown view:** headings, lists, task lists, quotes, code (with colours), tables, links, images;
+  raw HTML is shown as text;
+  links open in a new tab (scripts not followed);
+  images are shown only from the same SharePoint, others only as links (nothing fetched from elsewhere)
 
 The script never changes SharePoint's own UI,
 apart from adding the eye column and making room for the viewer.
@@ -81,6 +93,7 @@ SharePoint page (DOM)
      ├─ Viewer (own DOM elements, own CSS, prefix "tp-")
      │   ├─ text view: syntax colours, whitespace markers, virtualised rendering
      │   ├─ table view: CSV / Parquet / spreadsheets, sort, filter, column widths, CSV editing
+     │   ├─ Markdown view: own small renderer (no library), raw HTML escaped
      │   └─ 3D view: ifc-lite (optional, loaded from your SharePoint on first use)
      ├─ Sources: same-origin fetch with HTTP Range (chunks), in-memory cache (LRU)
      ├─ Decoders built in: Parquet (Thrift, RLE/bit-packing, dictionary, v1/v2 pages),
@@ -129,7 +142,7 @@ The logo setting only accepts `data:` URIs.
 | :--- | :---- | :------- |
 | File contents (cached chunks) | JavaScript memory of the tab | Until reload, "Clear cache", or eviction at the cache limit |
 | Settings (16 values, see §9) | Tampermonkey storage for this script | Until changed / reset / script removed |
-| View choices (layout, split size, theme, colours, wrap, table on/off, 3D on/off, properties lines, CSV format) and window positions | `localStorage` of the SharePoint origin, keys `tp-preview-*` | Until the user clears site data |
+| View choices (layout, split size, theme, colours, wrap, text size, table / Markdown / 3D on/off, properties lines, CSV format, sheets or tables per spreadsheet path) and window positions | `localStorage` of the SharePoint origin, keys `tp-preview-*` | Until the user clears site data |
 | 3D camera per file | Memory | Until reload |
 
 - **Cache limit:**
@@ -163,6 +176,13 @@ dates and times as ISO 8601 (`2026-10-24`, `14:30:00`, `2026-10-24 14:30:00`),
 both date systems (1900, 1904).
 Number formats beyond that (decimals, currencies, thousands separators) are not applied.
 Password-protected workbooks are not opened.
+
+Tables (Excel's "Format as Table" in `.xlsx` and `.xlsb`; named database ranges in `.ods`)
+can be shown instead of whole sheets:
+the table's rows below its header row (totals rows left out), its column names as header.
+`.xls` files show sheets only.
+The text view of a sheet shows the column letters as first line and the row numbers as first column,
+as Excel does (`,A,B,C`, then `1,…`).
 
 Other binary files (PDF, Word, PowerPoint, images, archives, …)
 are detected from their first bytes and not shown.
@@ -247,6 +267,7 @@ plus "Reset to defaults".
 | `wrap-lines` | `false` | Wrap long lines |
 | `colours-text` / `colours-table` | `true` / `false` | Syntax colours per view |
 | `colours-sheet` | `false` | Column colours in the table view of spreadsheets (rows are always striped) |
+| `spreadsheet-view` | `sheets` | Spreadsheets show `sheets` or `tables` (sheets if a file has none); the last choice is kept per file, a new value here resets those |
 | `cache-chunk-bytes` | 512 KB | Chunk size; also the threshold for asking before big Parquet / IFCZIP |
 | `memory-cache-bytes` | 256 MB | Cache limit for all files together |
 | `cache-all-confirm-bytes` | 16 MB | "Cache all" asks above this size |

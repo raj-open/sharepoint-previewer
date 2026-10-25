@@ -211,7 +211,7 @@ export function mountTable(content, header, rows, opts) {
         opts.onEdit?.();
     };
 
-    const ROW_HEIGHT = 23;
+    const ROW_HEIGHT = 23 * (Number(content.style?.getPropertyValue?.('--tp-zoom')) || 1); // text size (panel)
     /** @param {number} h */
     const spacer = (h) => `<tr class="tp-spacer"><td colspan="${cols + 1}" style="height:${h}px"></td></tr>`;
 

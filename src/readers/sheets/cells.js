@@ -7,6 +7,7 @@
 // IMPORTS
 // ===========================================================================
 
+/** @typedef {import('../../_core/types.js').CellRange} CellRange */
 /** @typedef {import('../../_core/types.js').SheetData} SheetData */
 
 // ===========================================================================
@@ -126,6 +127,21 @@ export function colName(c) {
     for (let n = c + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
     return s;
 }
+
+// Cell range "A1:C4" or "A1" ("$" ignored) <-> corners (0-based); null if unreadable
+/** @param {string} ref @returns {CellRange|null} */
+export function cellRange(ref) {
+    const m = /^\$?([A-Za-z]{1,3})\$?(\d{1,7})(?::\$?([A-Za-z]{1,3})\$?(\d{1,7}))?$/.exec(ref.trim());
+    if (!m) return null;
+    const r0 = Number(m[2]) - 1;
+    const c0 = refCol(m[1]);
+    const r1 = m[4] ? Number(m[4]) - 1 : r0;
+    const c1 = m[3] ? refCol(m[3]) : c0;
+    return { r0: Math.min(r0, r1), c0: Math.min(c0, c1), r1: Math.max(r0, r1), c1: Math.max(c0, c1) };
+}
+
+/** @param {CellRange} range @returns {string} */
+export const rangeText = ({ r0, c0, r1, c1 }) => `${colName(c0)}${r0 + 1}:${colName(c1)}${r1 + 1}`;
 
 // Cells of one sheet -> rows (no gaps between rows; missing cells are empty)
 /** @returns {{ set: (r: number, c: number, text: string) => boolean, done: () => SheetData }} */

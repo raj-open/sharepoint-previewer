@@ -8,6 +8,7 @@ import { csvCell } from '../../_core/util.js';
 import { openRanges } from '../ranges.js';
 import { colName } from './cells.js';
 import { MAX_SHEET_CELLS } from './cells.js';
+import { rangeText } from './cells.js';
 import { readOds } from './ods.js';
 import { readOoxml } from './ooxml.js';
 import { zipPackage } from './package.js';
@@ -16,6 +17,10 @@ import { readXls } from './xls.js';
 /** @typedef {import('../../_core/types.js').Source} Source */
 /** @typedef {import('../../_core/types.js').ByteReader} ByteReader */
 /** @typedef {import('../../_core/types.js').Book} Book */
+/** @typedef {import('../../_core/types.js').Sheet} Sheet */
+/** @typedef {import('../../_core/types.js').SheetMode} SheetMode */
+/** @typedef {import('../../_core/types.js').SheetShown} SheetShown */
+/** @typedef {import('../../_core/types.js').Table} Table */
 
 // ===========================================================================
 // METHODS
@@ -31,9 +36,14 @@ export async function readBook(read, size, head) {
     return pkg.entry('content.xml') && !pkg.entry('[Content_Types].xml') ? readOds(pkg) : readOoxml(pkg);
 }
 
-// Spreadsheet source like openSource(): text = sheet shown, as CSV; more() = next sheet not cached
-/** @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload @param {(loaded: number, total: number) => void} onProgress @returns {Promise<Source|{ error: string }>} */
-export async function openSheetSource(url, getSignal, reload, onProgress) {
+// Spreadsheet source like openSource(): text = sheet or table shown, as CSV; more() = next sheet not cached.
+// Sheets are the unit cached; a table is shown once its sheet is.
+/**
+ * @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload
+ * @param {(loaded: number, total: number) => void} onProgress @param {SheetMode} [mode] start view (sheets if there are no tables)
+ * @returns {Promise<Source|{ error: string }>}
+ */
+export async function openSheetSource(url, getSignal, reload, onProgress, mode = 'sheets') {
     const file = await openRanges(url, getSignal, reload, onProgress);
     if ('error' in file) return file;
     /** @type {Book} */
@@ -45,6 +55,11 @@ export async function openSheetSource(url, getSignal, reload, onProgress) {
         return { error: `Not shown: ${/** @type {Error} */ (err).message}` };
     }
     const { sheets } = book;
+    // tables in reading order: by sheet, then top to bottom, left to right
+    /** @type {Table[]} */
+    const tables = [...(book.tables || [])].sort(
+        (a, b) => a.sheet - b.sheet || a.range.r0 - b.range.r0 || a.range.c0 - b.range.c0,
+    );
     if (!sheets.length) return { error: 'Not shown: no sheets in this workbook' };
     const cached = () => sheets.filter((s) => s.data !== undefined).length;
 
@@ -67,6 +82,27 @@ export async function openSheetSource(url, getSignal, reload, onProgress) {
         src.loaded = src.done ? file.size : Math.min(file.fetched(), file.size - 1);
     };
 
+    // First sheet: active when saved (else first visible worksheet)
+    /** @param {number} i */
+    const usable = (i) => sheets[i] && sheets[i].kind === 'sheet' && !sheets[i].hidden;
+    const firstSheet = usable(book.active)
+        ? book.active
+        : Math.max(
+              0,
+              sheets.findIndex((_, i) => usable(i)),
+          );
+    // Entry a view starts with: the sheet shown, or the first table on it (else the first table)
+    /** @param {SheetMode} m @returns {number} */
+    const startOf = (m) => {
+        const at = src.sheetOf(src.current);
+        return m === 'sheets'
+            ? at
+            : Math.max(
+                  0,
+                  tables.findIndex((t) => t.sheet === at),
+              );
+    };
+
     /** @type {Source} */
     const src = {
         total: file.size,
@@ -77,35 +113,50 @@ export async function openSheetSource(url, getSignal, reload, onProgress) {
         dates: file.dates,
         format: book.format,
         sheets,
-        current: 0,
+        tables,
+        tablesRead: !!book.tables, // false: format without tables read (.xls)
+        mode: /** @type {SheetMode} */ ('sheets'),
+        current: firstSheet,
+        /** @type {SheetShown} */
+        shown: { rows: [], header: [], note: '', text: '' },
         text: '',
         label: () => `${cached().toLocaleString()} of ${sheets.length.toLocaleString()} sheets cached`,
         nextLabel: 'Cache next sheet',
         get info() {
-            const s = sheets[src.current];
-            const d = s.data;
+            const { rows, header } = src.shown;
             const hidden = sheets.filter((x) => x.hidden).length;
-            const shape = d?.rows.length ? `: ${d.rows.length.toLocaleString()} rows × ${d.cols} columns` : '';
+            const shape = rows.length ? `: ${rows.length.toLocaleString()} rows × ${header.length} columns` : '';
             const hiddenNote = hidden ? ` (${hidden} hidden)` : '';
-            const cutNote = d?.cut ? ` (first ${MAX_SHEET_CELLS.toLocaleString()} cells)` : '';
-            const info = [
-                ['sheets', `${sheets.length}${hiddenNote}`],
-                ['sheet', `${s.name}${shape}${cutNote}`],
-            ];
+            const info = [['sheets', `${sheets.length}${hiddenNote}`]];
+            if (book.tables) info.push(['tables', tables.length.toLocaleString()]);
+            if (src.mode === 'tables') {
+                const t = tables[src.current];
+                info.push(['table', `${t.name} (${sheets[t.sheet].name}!${rangeText(t.range)})${shape}`]);
+            } else {
+                const s = sheets[src.current];
+                const cutNote = s.data?.cut ? ` (first ${MAX_SHEET_CELLS.toLocaleString()} cells)` : '';
+                info.push(['sheet', `${s.name}${shape}${cutNote}`]);
+            }
             if (book.date1904) info.push(['dates', '1904 system']);
             return info;
         },
         loadSheet,
-        /** @param {number} i @returns {void} */
-        select: (i) => {
+        startOf,
+        // Sheet behind entry i of a view (its table's sheet for tables)
+        /** @param {number} i @param {SheetMode} [m] @returns {number} */
+        sheetOf: (i, m = src.mode) => (m === 'tables' ? tables[i].sheet : i),
+        // Shows entry i of a view (its sheet cached before)
+        /** @param {number} i @param {SheetMode} [m] @returns {void} */
+        select: (i, m = src.mode) => {
+            src.mode = m === 'tables' && tables[i] ? 'tables' : 'sheets';
             src.current = i;
-            const d = sheets[i].data;
-            src.text = d ? csvRows(d.rows, d.cols) : '';
+            src.shown = src.mode === 'tables' ? tableShown(tables[i], sheets[tables[i].sheet]) : sheetShown(sheets[i]);
+            src.text = src.shown.text;
         },
-        header: () => Array.from({ length: sheets[src.current].data?.cols || 0 }, (_, c) => colName(c)),
         more: async () => {
+            const at = src.sheetOf(src.current);
             for (let k = 1; k <= sheets.length; k++) {
-                const i = (src.current + k) % sheets.length;
+                const i = (at + k) % sheets.length;
                 if (sheets[i].data === undefined) return loadSheet(i);
             }
         },
@@ -114,28 +165,50 @@ export async function openSheetSource(url, getSignal, reload, onProgress) {
         },
     };
 
-    // First: sheet active when saved (else first visible worksheet)
-    /** @param {number} i */
-    const usable = (i) => sheets[i] && sheets[i].kind === 'sheet' && !sheets[i].hidden;
-    const first = usable(book.active)
-        ? book.active
-        : Math.max(
-              0,
-              sheets.findIndex((_, i) => usable(i)),
-          );
-    await loadSheet(first);
-    src.select(first);
+    const start = mode === 'tables' && tables.length ? 'tables' : 'sheets';
+    const first = startOf(start);
+    await loadSheet(src.sheetOf(first, start));
+    src.select(first, start);
     return src;
 }
 
-// Rows as CSV, padded to all columns
-/** @param {string[][]} rows @param {number} cols @returns {string} */
-function csvRows(rows, cols) {
+// Sheet shown: rows as they are, columns A, B, …; its text with column letters and row numbers (as in Excel)
+/** @param {Sheet} s @returns {SheetShown} */
+function sheetShown(s) {
+    const d = s.data;
+    if (!d?.rows.length) return { rows: [], header: [], note: s.note || 'Empty sheet: no cells.', text: '' };
+    const header = Array.from({ length: d.cols }, (_, c) => colName(c));
+    return { rows: d.rows, header, note: '', text: csvRows([header].concat(d.rows), d.cols, true) };
+}
+
+// Table shown: its rows below the header row, without totals rows; column names as header
+/** @param {Table} t @param {Sheet} s @returns {SheetShown} */
+function tableShown(t, s) {
+    const d = s.data;
+    if (!d) return { rows: [], header: [], note: s.note || 'No cells to show.', text: '' };
+    const { r0, c0 } = t.range;
+    // not beyond the sheet's cells (against damaged or hostile ranges)
+    const c1 = Math.min(t.range.c1, Math.max(d.cols, c0 + t.columns.length) - 1);
+    const r1 = Math.min(t.range.r1 - t.totals, d.rows.length - 1);
+    const width = Math.max(0, c1 - c0 + 1);
+    /** @param {number} r @returns {string[]} */
+    const cells = (r) => Array.from({ length: width }, (_, k) => d.rows[r]?.[c0 + k] ?? '');
+    const names = t.header ? cells(r0) : [];
+    const header = Array.from({ length: width }, (_, k) => t.columns[k] || names[k] || colName(c0 + k));
+    const rows = [];
+    for (let r = r0 + t.header; r <= r1; r++) rows.push(cells(r));
+    const note = rows.length ? '' : 'Empty table: no rows below its header.';
+    return { rows, header, note, text: rows.length ? csvRows([header].concat(rows), width) : '' };
+}
+
+// Rows as CSV, padded to all columns; numbered: row numbers first (none for the header row)
+/** @param {string[][]} rows @param {number} cols @param {boolean} [numbered] @returns {string} */
+function csvRows(rows, cols, numbered = false) {
     const out = new Array(rows.length);
     for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
-        let line = '';
-        for (let c = 0; c < cols; c++) line += (c ? ',' : '') + csvCell(r[c] ?? '');
+        let line = numbered && i ? String(i) : '';
+        for (let c = 0; c < cols; c++) line += (c || numbered ? ',' : '') + csvCell(r[c] ?? '');
         out[i] = line;
     }
     return out.join('\n');
