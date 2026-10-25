@@ -531,7 +531,10 @@ export async function showFile(name, url, reload) {
     const render = () => {
         rendered = true;
         lines = loadedLines();
-        v.content.style.setProperty('--tp-ln-w', `${String(lines.length).length + 1}ch`);
+        // Line numbers: one width for the whole column, max(L, digits(last line) + 2), L = digits(rows of the file)
+        const rowsDigits = String(src?.done ? lines.length : 0).length;
+        const lastDigits = String(lines.length).length;
+        v.content.style.setProperty('--tp-ln-w', `${Math.max(rowsDigits, lastDigits + 2)}ch`);
         const scrollTop = v.content.scrollTop;
         const truncated = new Map();
         const visible = lines.map((line, i) => {
