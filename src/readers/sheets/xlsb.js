@@ -12,6 +12,7 @@ import { SHEET_ERRORS } from './cells.js';
 import { sheetGrid } from './cells.js';
 
 /** @typedef {import('../../_core/types.js').SheetParts} SheetParts */
+/** @typedef {import('../../_core/types.js').TablePart} TablePart */
 
 // ===========================================================================
 // CONSTANTS
@@ -134,5 +135,38 @@ export const XLSB_PARTS = {
             grid.set(r, c, text);
         });
         return grid.done();
+    },
+
+    // Table: BrtBeginList (range, header and totals rows, names), BrtBeginListCol (column names)
+    table(bytes) {
+        /** @type {TablePart|null} */
+        let out = null;
+        /** @type {string[]} */
+        const columns = [];
+        biff12Records(bytes, (type, d) => {
+            const dv = dataView(d);
+            if (type === 343 && d.length >= 68 && !out) {
+                // range: first and last row, first and last column; names after 13 fixed fields
+                const name = wideString(d, 64);
+                const shown = wideString(d, name.end).text;
+                out = {
+                    name: shown || name.text,
+                    range: {
+                        r0: dv.getUint32(0, true),
+                        r1: dv.getUint32(4, true),
+                        c0: dv.getUint32(8, true),
+                        c1: dv.getUint32(12, true),
+                    },
+                    header: dv.getUint32(24, true),
+                    totals: dv.getUint32(28, true),
+                    columns,
+                };
+            } else if (type === 347 && d.length >= 28) {
+                // name (often none), then caption shown in the header row
+                const name = wideString(d, 24);
+                columns.push(wideString(d, name.end).text || name.text);
+            }
+        });
+        return out;
     },
 };

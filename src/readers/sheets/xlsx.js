@@ -5,6 +5,7 @@
 // ===========================================================================
 
 import { BUILTIN_FORMATS } from './cells.js';
+import { cellRange } from './cells.js';
 import { numberText } from './cells.js';
 import { refCol } from './cells.js';
 import { sheetGrid } from './cells.js';
@@ -16,6 +17,7 @@ import { xmlText } from './xml.js';
 
 /** @typedef {import('../../_core/types.js').SheetData} SheetData */
 /** @typedef {import('../../_core/types.js').SheetParts} SheetParts */
+/** @typedef {import('../../_core/types.js').TablePart} TablePart */
 
 // ===========================================================================
 // METHODS
@@ -154,5 +156,33 @@ export const XLSX_PARTS = {
             if (t === 'd') return v.replace('T', ' ').replace(/Z$/, '');
             return v.trim() === '' ? '' : numberText(Number(v), kinds[s] || '', date1904);
         }
+    },
+
+    // Table (ECMA-376 part 1, 18.5): name shown in Excel, range, header and totals rows, column names
+    /** @param {Uint8Array} bytes @returns {TablePart|null} */
+    table(bytes) {
+        /** @type {TablePart|null} */
+        let out = null;
+        /** @type {string[]} */
+        const columns = [];
+        scanXml(
+            xmlString(bytes),
+            (n, a) => {
+                const at = xmlAttrs(a);
+                if (n === 'table' && !out) {
+                    const range = cellRange(at.ref || '');
+                    if (!range) return;
+                    out = {
+                        name: at.displayName || at.name || '',
+                        range,
+                        header: at.headerRowCount === undefined ? 1 : Number(at.headerRowCount) || 0,
+                        totals: Number(at.totalsRowCount) || 0,
+                        columns,
+                    };
+                } else if (n === 'tableColumn') columns.push(ooxmlText(at.name || ''));
+            },
+            () => {},
+        );
+        return out;
     },
 };

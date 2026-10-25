@@ -123,6 +123,40 @@ describe('preview per file type', () => {
         assert.equal(await h.eye(page, 'harvest.xlsx').getAttribute('data-eye'), 'open');
     });
 
+    it('spreadsheets: sheets or tables, the choice remembered per file', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Data`);
+        let v = await h.preview(page, 'orders.xlsx');
+        const mode = v.locator('.tp-sheet-mode');
+        assert.equal(await mode.inputValue(), 'sheets'); // setting: sheets first
+        assert.match(await properties(v), /sheets: 6 · tables: 6 · sheet: Sales/);
+        await mode.selectOption('tables');
+        await v.locator('.tp-title-sheet', { hasText: 'Table: Orders' }).waitFor();
+        assert.deepEqual((await v.locator('.tp-sheet-select option').allTextContents()).slice(0, 4), [
+            '● Orders (Sales)',
+            '● Regions (Sales)',
+            '● Payments (Sales)',
+            '○ Stock (Stock)',
+        ]);
+        assert.match(await properties(v), /table: Orders \(Sales!A1:D14\): 12 rows × 4 columns/);
+
+        await h.preview(page, 'harvest.xlsx');
+        assert.equal(await v.locator('.tp-sheet-mode').isVisible(), false); // no tables: no choice
+
+        await page.reload();
+        await page.locator('.tp-preview').first().waitFor();
+        v = await h.preview(page, 'orders.xlsx');
+        assert.equal(await v.locator('.tp-sheet-mode').inputValue(), 'tables');
+        assert.match(await v.locator('.tp-title-sheet').textContent(), /Table: Orders/);
+    });
+
+    it('spreadsheets: text view with column letters and row numbers', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Data`);
+        const v = await h.preview(page, 'harvest.xlsx');
+        await v.locator('.tp-view-btn', { hasText: 'Text' }).click();
+        await v.locator('.tp-content', { hasText: ',A,B,C,D' }).waitFor({ timeout: 5000 });
+        assert.match(await v.locator('.tp-content').textContent(), /1,fruit,price,harvest,ripe/);
+    });
+
     it('spreadsheets: rows striped, column colours off by default', async () => {
         const page = await openFolder(`${h.LIBRARY}/Data`);
         const v = await h.preview(page, 'harvest.xls');

@@ -1,4 +1,4 @@
-// OpenDocument spreadsheet: typed values, repeated rows and cells, notes, encryption
+// OpenDocument spreadsheet: typed values, repeated rows and cells, notes, encryption, database ranges
 import assert from 'node:assert/strict';
 import { describe } from 'node:test';
 import { it } from 'node:test';
@@ -24,6 +24,42 @@ describe('readers/sheets/ods', () => {
         assert.deepEqual(
             b.sheets.map((s) => s.data.rows.length),
             [4, 4, 1],
+        );
+    });
+
+    it('named database ranges as tables (LibreOffice: Excel tables saved as ODS)', async () => {
+        const bytes = fixture('Data/orders.ods');
+        const b = await readOds(await zipPackage(reader(bytes).read, bytes.length));
+        assert.deepEqual(b.tables.map((t) => [t.name, t.sheet, t.header, t.totals]).sort(), [
+            ['Orders', 1, 1, 1],
+            ['Payments', 1, 1, 0],
+            ['PriceList', 5, 1, 0],
+            ['Regions', 1, 1, 0],
+            ['Stock', 2, 1, 0],
+            ['Suppliers', 3, 1, 0],
+        ]);
+        assert.deepEqual(b.tables.find((t) => t.name === 'Stock').range, { r0: 2, c0: 1, r1: 6, c1: 3 });
+    });
+
+    it('database ranges: quoted sheet names, "$", no header; anonymous and unknown ones left out', async () => {
+        const range = (name, address, extra = '') =>
+            `<table:database-range table:name="${name}" table:target-range-address="${address}"${extra}/>`;
+        const b = await book({
+            'content.xml': `<office:document-content ${NS}><office:body><office:spreadsheet>
+                <table:table table:name="It's here"/><table:table table:name="B"/>
+                <table:database-ranges>
+                ${range('Quoted', "'It''s here'.$A$1:.$C$4")}
+                ${range('Plain', 'B.B2:B.B9', ' table:contains-header="false"')}
+                ${range('__Anonymous_Sheet_DB__0', 'B.A1:B.A2')}
+                ${range('Elsewhere', 'Nowhere.A1:Nowhere.B2')}
+                </table:database-ranges></office:spreadsheet></office:body></office:document-content>`,
+        });
+        assert.deepEqual(
+            b.tables.map((t) => [t.name, t.sheet, t.header, t.range]),
+            [
+                ['Quoted', 0, 1, { r0: 0, c0: 0, r1: 3, c1: 2 }],
+                ['Plain', 1, 0, { r0: 1, c0: 1, r1: 8, c1: 1 }],
+            ],
         );
     });
 

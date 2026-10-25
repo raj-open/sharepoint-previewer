@@ -1,9 +1,11 @@
-// OpenDocument spreadsheet: all sheets in content.xml, cells with their display text
+// OpenDocument spreadsheet: all sheets in content.xml, cells with their display text;
+// named database ranges as tables
 
 // ===========================================================================
 // IMPORTS
 // ===========================================================================
 
+import { cellRange } from './cells.js';
 import { generalText } from './cells.js';
 import { MAX_SHEET_COLS } from './cells.js';
 import { MAX_SHEET_ROWS } from './cells.js';
@@ -15,15 +17,29 @@ import { xmlText } from './xml.js';
 
 /** @typedef {import('../../_core/types.js').SheetData} SheetData */
 /** @typedef {import('../../_core/types.js').Book} Book */
+/** @typedef {import('../../_core/types.js').Table} Table */
+
+// ===========================================================================
+// CONSTANTS
+// ===========================================================================
+
+// Range address "Sheet1.A1:Sheet1.D9", "'My sheet'.$A$1:.$D$9": sheet, first cell, last cell
+const ODS_RANGE_RE =
+    /^\$?('(?:[^']|'')*'|[^.']*)\.([$A-Za-z]+[$\d]+)(?::\$?(?:'(?:[^']|'')*'|[^.']*)\.([$A-Za-z]+[$\d]+))?$/;
+
+// Ranges LibreOffice makes itself (e.g. for a filter): not named by the user
+const ODS_ANONYMOUS_RE = /^__Anonymous_Sheet_DB__/;
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
-/** @param {string} xml @returns {{ name: string, data: SheetData }[]} */
+/** @param {string} xml @returns {{ sheets: { name: string, data: SheetData }[], ranges: Object<string, string>[] }} */
 function odsSheets(xml) {
     /** @type {{ name: string, data: SheetData }[]} */
     const sheets = [];
+    /** @type {Object<string, string>[]} */
+    const ranges = []; // attributes of database ranges
     /** @type {ReturnType<typeof sheetGrid>|null} */
     let grid = null;
     let name = '';
@@ -44,6 +60,7 @@ function odsSheets(xml) {
     scanXml(
         xml,
         (n, a) => {
+            if (n === 'database-range' && !depth) return void ranges.push(xmlAttrs(a));
             if (n === 'table') {
                 if (depth++) return;
                 grid = sheetGrid();
@@ -102,7 +119,26 @@ function odsSheets(xml) {
         },
         (raw) => add(xmlText(raw)),
     );
-    return sheets;
+    return { sheets, ranges };
+}
+
+// Named database ranges -> tables (header row unless contains-header="false", totals row if
+// contains-footer="true" (LibreOffice extension); no column names)
+/** @param {Object<string, string>[]} ranges @param {string[]} names sheet names @returns {Table[]} */
+function odsTables(ranges, names) {
+    /** @type {Table[]} */
+    const tables = [];
+    for (const at of ranges) {
+        const m = ODS_RANGE_RE.exec(at['target-range-address'] || '');
+        if (!m || !at.name || ODS_ANONYMOUS_RE.test(at.name)) continue;
+        const sheet = names.indexOf(m[1].replace(/^'|'$/g, '').replace(/''/g, "'"));
+        const range = cellRange(m[3] ? `${m[2]}:${m[3]}` : m[2]);
+        if (sheet < 0 || !range) continue;
+        const header = at['contains-header'] === 'false' ? 0 : 1;
+        const totals = at['contains-footer'] === 'true' ? 1 : 0;
+        tables.push({ name: at.name, range, header, totals, columns: [], sheet });
+    }
+    return tables;
 }
 
 // Typed value as the Excel formats show it (ISO dates, plain numbers); null = use cell text
@@ -126,10 +162,14 @@ export async function readOds(pkg) {
     }
     const found = odsSheets(xmlString(await pkg.bytes('content.xml')));
     // all sheets come with content.xml: cached at once
-    const sheets = found.map((s) => ({ name: s.name, hidden: false, kind: 'sheet', size: 0, data: s.data }));
+    const sheets = found.sheets.map((s) => ({ name: s.name, hidden: false, kind: 'sheet', size: 0, data: s.data }));
     return {
         format: 'OpenDocument spreadsheet',
         sheets,
+        tables: odsTables(
+            found.ranges,
+            sheets.map((s) => s.name),
+        ),
         active: 0,
         date1904: false,
         load: async (i) => sheets[i].data,

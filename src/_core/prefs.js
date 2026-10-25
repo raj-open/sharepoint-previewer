@@ -1,4 +1,4 @@
-// Preferences kept in the browser (localStorage): theme, colours, wrap, CSV format, view choices
+// Preferences kept in the browser (localStorage): theme, colours, wrap, CSV format, view choices (some per file)
 
 // ===========================================================================
 // IMPORTS
@@ -9,9 +9,12 @@ import { QUOTE_MODES } from '../view/table.js';
 import { DEFAULT_COLOURS } from './settings.js';
 import { DEFAULT_MODE } from './settings.js';
 import { DEFAULT_SHEET_COLOURS } from './settings.js';
+import { DEFAULT_SHEET_VIEW } from './settings.js';
 import { DEFAULT_TABLE_COLOURS } from './settings.js';
 import { DEFAULT_WRAP } from './settings.js';
 import { THEME } from './settings.js';
+
+/** @typedef {import('./types.js').SheetMode} SheetMode */
 
 // ===========================================================================
 // CONSTANTS
@@ -27,6 +30,10 @@ export const CSV_QUOTE_KEY = 'tp-preview-csv-quote'; // '' = as in file
 const COLOUR_TABLE_KEY = 'tp-preview-colours-table';
 const COLOUR_SHEET_KEY = 'tp-preview-colours-sheet';
 export const COLOUR_KEYS = { text: COLOUR_KEY, table: COLOUR_TABLE_KEY, sheet: COLOUR_SHEET_KEY };
+
+// Spreadsheets: sheets or tables, per file (most recent first, the oldest dropped)
+export const SHEET_MODES_KEY = 'tp-preview-sheet-modes';
+const MAX_SHEET_MODES = 500;
 
 // ===========================================================================
 // METHODS
@@ -54,6 +61,32 @@ export function savePref(key, value) {
     try {
         localStorage.setItem(key, value);
     } catch {}
+}
+
+// Sheets or tables chosen for a spreadsheet (file path -> mode)
+/** @returns {Object<string, SheetMode>} */
+function sheetModes() {
+    try {
+        const modes = JSON.parse(loadPref(SHEET_MODES_KEY, '{}'));
+        return modes && typeof modes === 'object' && !Array.isArray(modes) ? modes : {};
+    } catch {
+        return {};
+    }
+}
+
+// View of a spreadsheet: last choice for this file, else the setting
+/** @param {string} url @returns {SheetMode} */
+export function sheetMode(url) {
+    const mode = sheetModes()[url] ?? DEFAULT_SHEET_VIEW;
+    return mode === 'tables' ? 'tables' : 'sheets';
+}
+
+/** @param {string} url @param {SheetMode} mode @returns {void} */
+export function rememberSheetMode(url, mode) {
+    const modes = sheetModes();
+    delete modes[url];
+    const kept = Object.entries(modes).slice(0, MAX_SHEET_MODES - 1);
+    savePref(SHEET_MODES_KEY, JSON.stringify(Object.fromEntries([[url, mode], ...kept])));
 }
 
 // Delimiter / quote style chosen in write mode ('' = keep file's own)

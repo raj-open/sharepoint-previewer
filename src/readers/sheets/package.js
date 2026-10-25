@@ -33,7 +33,8 @@ export async function zipPackage(read, size) {
         const b = await bytes(path);
         return b ? xmlString(b) : null;
     };
-    return { entry, bytes, text };
+    const paths = () => [...byName.keys()];
+    return { paths, entry, bytes, text };
 }
 
 // Path of target, relative to folder of `base` (or from root with leading "/")

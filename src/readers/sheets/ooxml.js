@@ -1,4 +1,4 @@
-// OOXML workbooks (.xlsx, .xlsm, .xlsb): parts read from the ZIP by range
+// OOXML workbooks (.xlsx, .xlsm, .xlsb): parts read from the ZIP by range; tables of the sheets
 
 // ===========================================================================
 // IMPORTS
@@ -11,6 +11,16 @@ import { XLSX_PARTS } from './xlsx.js';
 
 /** @typedef {import('../../_core/types.js').Book} Book */
 /** @typedef {import('../../_core/types.js').Package} Package */
+/** @typedef {import('../../_core/types.js').SheetParts} SheetParts */
+/** @typedef {import('../../_core/types.js').Table} Table */
+/** @typedef {{ path: string, kind: string }} SheetPath */
+
+// ===========================================================================
+// CONSTANTS
+// ===========================================================================
+
+// Table parts (Excel keeps them in xl/tables)
+const TABLE_PART_RE = /(^|\/)tables\/[^/]+\.(xml|bin)$/i;
 
 // ===========================================================================
 // METHODS
@@ -52,6 +62,7 @@ export async function readOoxml(pkg) {
     return {
         format: `Excel (${binary ? 'XLSB' : 'XLSX'})`,
         sheets,
+        tables: await readTables(pkg, sheets, parts),
         active: wb.active,
         date1904: wb.date1904,
         load: async (i) => {
@@ -60,4 +71,21 @@ export async function readOoxml(pkg) {
             return parts.sheet(/** @type {Uint8Array} */ (await pkg.bytes(s.path)), strings, kinds, wb.date1904); // entry checked above
         },
     };
+}
+
+// Tables of all sheets, from the sheets' relationships (only looked for if the package has table parts)
+/** @param {Package} pkg @param {SheetPath[]} sheets @param {SheetParts} parts @returns {Promise<Table[]>} */
+async function readTables(pkg, sheets, parts) {
+    /** @type {Table[]} */
+    const tables = [];
+    if (!pkg.paths().some((p) => TABLE_PART_RE.test(p))) return tables;
+    for (const [i, s] of sheets.entries()) {
+        if (s.kind !== 'sheet') continue;
+        for (const rel of (await partRels(pkg, s.path)).values()) {
+            if (!rel.type.endsWith('/table') || !pkg.entry(rel.path)) continue;
+            const t = parts.table(/** @type {Uint8Array} */ (await pkg.bytes(rel.path))); // entry checked above
+            if (t && t.range.r0 <= t.range.r1 && t.range.c0 <= t.range.c1) tables.push({ ...t, sheet: i });
+        }
+    }
+    return tables;
 }
