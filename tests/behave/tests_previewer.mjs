@@ -14,9 +14,9 @@ before(async () => {
 });
 after(() => browser.close());
 
-/** @param {string} folder @returns {Promise<import('playwright').Page>} list view, once eyes are in */
-async function openFolder(folder) {
-    const { page } = await browser.open(h.folderUrl(folder));
+/** @param {string} folder @param {Object<string, *>} [settings] @returns {Promise<import('playwright').Page>} list view, once eyes are in */
+async function openFolder(folder, settings = {}) {
+    const { page } = await browser.open(h.folderUrl(folder), { settings });
     await page.locator('.tp-preview').first().waitFor();
     return page;
 }
@@ -132,7 +132,7 @@ describe('preview per file type', () => {
     });
 
     it('spreadsheets: sheets and tables in one picker (← →), the choice remembered per file', async () => {
-        const page = await openFolder(`${h.LIBRARY}/Data`);
+        const page = await openFolder(`${h.LIBRARY}/Data`, { 'spreadsheet-view': 'sheets' });
         let v = await h.preview(page, 'orders.xlsx');
         const picker = v.locator('.tp-picker');
         const menu = v.locator('.tp-picker-menu');
@@ -162,6 +162,17 @@ describe('preview per file type', () => {
         await page.locator('.tp-preview').first().waitFor();
         v = await h.preview(page, 'orders.xlsx');
         assert.match(await v.locator('.tp-title-sheet').textContent(), /Table: Orders/);
+    });
+
+    it('spreadsheets: tables first by default, sheets if a file has no tables', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Data`);
+        let v = await h.preview(page, 'orders.xlsx');
+        await v.locator('.tp-title-sheet', { hasText: 'Table: Orders' }).waitFor();
+        assert.match(await properties(v), /table: Orders \(Sales!A1:D14\)/);
+        v = await h.preview(page, 'harvest.xlsx'); // no tables
+        await h.settled(page);
+        assert.doesNotMatch(await properties(v), /table: /);
+        assert.match(await properties(v), /sheet: /);
     });
 
     it('spreadsheets: text view with column letters and row numbers', async () => {
