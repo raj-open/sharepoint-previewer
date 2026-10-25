@@ -29,6 +29,16 @@ const RELEASE_FOLDER = `${LIBRARY}/previewer`;
 
 const MODIFIED = new Date('2026-10-01T12:00:00Z');
 
+// Name of the fake tenant (title, suite bar) and its icon: plain shapes, no real logo
+const TENANT = 'TestSharepoint';
+const ICON =
+    'data:image/svg+xml,' +
+    encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">' +
+            '<rect width="32" height="32" rx="7" fill="#0f6c74"/>' +
+            '<circle cx="12" cy="13" r="6" fill="#7fd1d8"/><circle cx="20" cy="20" r="7" fill="#fff" opacity=".85"/></svg>',
+    );
+
 const TYPES = {
     '.csv': 'text/csv',
     '.ifc': 'application/octet-stream',
@@ -95,7 +105,8 @@ function listPage(files) {
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Documents - Test</title>
+<title>Documents - ${TENANT}</title>
+<link rel="icon" href="${ICON}">
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; font: 14px "Segoe UI", sans-serif; color: #323130; }
@@ -106,8 +117,11 @@ function listPage(files) {
   .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .command-bar { flex: none; height: 44px; padding: 12px 16px; border-bottom: 1px solid #edebe9; }
   .breadcrumb { flex: none; padding: 8px 16px; font-size: 18px; }
+  .breadcrumb a { color: inherit; text-decoration: none; }
+  .breadcrumb a:hover { text-decoration: underline; }
   .list-host { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 16px 16px; }
-  .card { flex: 1; min-height: 0; border: 1px solid #e1dfdd; border-radius: 8px; }
+  /* height not from flex alone: the list keeps reaching the bottom when the viewer sets flex: none */
+  .card { flex: 1; height: 100%; min-height: 0; border: 1px solid #e1dfdd; border-radius: 8px; }
   .scroller { height: 100%; overflow-y: auto; }
   [role="row"] { display: flex; align-items: center; height: 42px; border-bottom: 1px solid #f3f2f1; }
   [role="columnheader"], [role="gridcell"], [role="rowheader"] { padding: 0 8px; display: flex; align-items: center; gap: 8px; }
@@ -120,7 +134,7 @@ function listPage(files) {
 </style>
 </head>
 <body>
-  <div class="suite-bar">SharePoint</div>
+  <div class="suite-bar">${TENANT}</div>
   <div class="app">
     <div class="nav">Home<br>Documents</div>
     <div class="main">
@@ -150,6 +164,20 @@ function listPage(files) {
   const grid = document.getElementById('grid');
   const icon = (e) => e.folder ? '/_layouts/15/images/itemtypefolder.svg' : '/_layouts/15/images/itemtypegeneric.svg';
   const size = (e) => e.folder ? '' : e.size + ' bytes';
+  const folderLink = (folder, text) =>
+    '<a href="' + LIST_PAGE + '?id=' + encodeURIComponent(folder) + '" data-folder>' + text + '</a>';
+
+  // Path from the library down: every part but the last leads back to its folder
+  function breadcrumb(folder) {
+    const parts = folder.slice(LIBRARY.length).split('/').filter(Boolean);
+    const names = ['Shared Documents', ...parts];
+    return names
+      .map((name, i) => {
+        const path = [LIBRARY, ...parts.slice(0, i)].join('/');
+        return i < names.length - 1 ? folderLink(path, name) : '<span>' + name + '</span>';
+      })
+      .join(' › ');
+  }
 
   function folderOfUrl() {
     const id = new URLSearchParams(location.search).get('id');
@@ -160,7 +188,7 @@ function listPage(files) {
   function render() {
     const folder = folderOfUrl();
     const entries = TREE[folder] || [];
-    document.getElementById('breadcrumb').textContent = folder.split('/').slice(3).join(' › ');
+    document.getElementById('breadcrumb').innerHTML = breadcrumb(folder);
     const rows = [...grid.querySelectorAll('[role="row"]:not(.header)')];
     while (rows.length < entries.length) {
       const row = document.createElement('div');
@@ -173,9 +201,7 @@ function listPage(files) {
       row.hidden = !e;
       if (!e) return void (row.innerHTML = '');
       // Same row element, new cells contents: like SharePoint after navigation
-      const nameField = e.folder
-        ? '<a href="' + LIST_PAGE + '?id=' + encodeURIComponent(folder + '/' + e.name) + '" data-folder>' + e.name + '</a>'
-        : '<button type="button">' + e.name + '</button>';
+      const nameField = e.folder ? folderLink(folder + '/' + e.name, e.name) : '<button type="button">' + e.name + '</button>';
       row.innerHTML =
         '<div role="gridcell" class="c-icon"><img alt="" src="' + icon(e) + '"></div>' +
         '<div role="gridcell" class="c-name" data-automationid="field-LinkFilename">' + nameField + '</div>' +
@@ -245,7 +271,8 @@ export function handle({ url, method, headers }, { files = PATH_FILES } = {}) {
     if (pathname === LIST_PAGE) return listPage(root);
     if (pathname === `${SITE}/SitePages/Home.aspx`) {
         return html(
-            '<!doctype html><title>Home</title><h1>Home</h1><div role="grid"><div role="row">notes.txt</div></div>',
+            `<!doctype html><title>Home - ${TENANT}</title><link rel="icon" href="${ICON}">` +
+                '<h1>Home</h1><div role="grid"><div role="row">notes.txt</div></div>',
         );
     }
     if (pathname.startsWith('/_layouts/')) {

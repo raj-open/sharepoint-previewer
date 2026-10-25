@@ -37,9 +37,18 @@ describe('list view', () => {
         const page = await openFolder(h.LIBRARY);
         await page.locator('a', { hasText: 'Data' }).click();
         await h.eye(page, 'prices.csv').waitFor();
-        await page.locator('a', { hasText: 'Archive' }).click();
+        await page.locator('a', { hasText: 'Reports' }).click();
         await h.eye(page, '2025.csv').waitFor();
         assert.equal(await page.locator('.tp-preview').count(), 1);
+    });
+
+    it('goes back to parent folders by the breadcrumb', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Data/Reports`);
+        await h.eye(page, '2025.csv').waitFor();
+        await page.locator('#breadcrumb a', { hasText: 'Data' }).click();
+        await h.eye(page, 'prices.csv').waitFor();
+        await page.locator('#breadcrumb a', { hasText: 'Shared Documents' }).click();
+        await h.eye(page, 'notes.txt').waitFor();
     });
 
     it('adds nothing outside a library', async () => {
@@ -58,6 +67,7 @@ describe('preview per file type', () => {
         ['/Data', 'sensors.parquet', /Parquet/, 's2'],
         ['/Config', 'settings.xml', /format: XML/, 'retries'],
         ['/Models', 'wall.ifc', /format: IFC/, 'IFCWALL'],
+        ['/Models', 'corner.ifc', /format: IFC/, 'IFCWINDOW'],
         ['/Data', 'harvest.xlsx', /format: Excel \(XLSX\)/, 'banana'],
         ['/Data', 'harvest.xlsb', /format: Excel \(XLSB\)/, 'banana'],
         ['/Data', 'harvest.xls', /format: Excel 97–2003/, 'banana'],
