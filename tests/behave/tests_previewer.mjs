@@ -21,6 +21,10 @@ async function openFolder(folder, settings = {}) {
     return page;
 }
 
+// Pickers in the status bar: format (left of the text size), sheet or table (right of Table)
+const SHEET_PICKER = '.tp-views:not(.tp-format) > .tp-picker';
+const FORMAT_PICKER = '.tp-format > .tp-picker';
+
 /** @param {import('playwright').Locator} v @returns {Promise<string>} "Properties: …" line */
 const properties = (v) => v.locator('.tp-title').nth(1).textContent();
 
@@ -116,6 +120,8 @@ describe('preview per file type', () => {
         assert.equal(await v.locator('.tp-table').count(), 0);
         await table.click();
         await v.locator('.tp-table').waitFor();
+        const colours = v.locator('.tp-menu-item', { hasText: 'Syntax colours' });
+        assert.equal(await colours.getAttribute('aria-pressed'), 'true'); // log table: colours on by default
         assert.deepEqual(await v.locator('.tp-table th[data-c] .tp-sort').allTextContents(), [
             'line',
             'time',
@@ -150,8 +156,8 @@ describe('preview per file type', () => {
     it('spreadsheets: sheet picker, read only, sheets cached one by one', async () => {
         const page = await openFolder(`${h.LIBRARY}/Data`);
         const v = await h.preview(page, 'harvest.xlsx');
-        const picker = v.locator('.tp-picker');
-        const items = v.locator('.tp-picker-menu .tp-picker-item');
+        const picker = v.locator(SHEET_PICKER);
+        const items = v.locator('.tp-picker-menu').first().locator('.tp-picker-item');
         assert.equal(await picker.isVisible(), true);
         await picker.click();
         assert.deepEqual(await items.allTextContents(), ['● Prices', '○ Notes', '○ Secret (hidden)']);
@@ -173,8 +179,8 @@ describe('preview per file type', () => {
     it('spreadsheets: sheets and tables in one picker (← →), the choice remembered per file', async () => {
         const page = await openFolder(`${h.LIBRARY}/Data`, { 'spreadsheet-view': 'sheets' });
         let v = await h.preview(page, 'orders.xlsx');
-        const picker = v.locator('.tp-picker');
-        const menu = v.locator('.tp-picker-menu');
+        const picker = v.locator(SHEET_PICKER);
+        const menu = v.locator('.tp-picker-menu').first(); // sheet picker's menu (format picker's second)
         assert.match(await properties(v), /sheets: 6 · tables: 10 · sheet: Sales/); // setting: sheets first
         await picker.click();
         await page.keyboard.press('ArrowRight');
@@ -230,6 +236,54 @@ describe('preview per file type', () => {
         assert.ok((await v.locator('.tp-table tr.tp-stripe').count()) > 0);
         assert.equal(await v.locator('.tp-table td[class^="tp-"]:not(.tp-rn)').count(), 0);
         assert.deepEqual(await v.locator('.tp-table thead .tp-sort').allTextContents(), ['A', 'B', 'C', 'D']);
+    });
+
+    it('spreadsheets: large files wait until a sheet or table is chosen', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Data`, { 'spreadsheet-autoload-bytes': 1024 });
+        const v = await h.preview(page, 'harvest.xlsx'); // 6 KB
+        await v.locator('.tp-content', { hasText: 'select a sheet or table first' }).waitFor();
+        const picker = v.locator(SHEET_PICKER);
+        assert.equal(await picker.textContent(), 'Select sheet or table ▾');
+        assert.equal(await v.locator('.tp-title-sheet').isVisible(), false);
+        await picker.click();
+        const items = v.locator('.tp-picker-menu').first().locator('.tp-picker-item');
+        assert.deepEqual(await items.allTextContents(), ['○ Prices', '○ Notes', '○ Secret (hidden)']);
+        await items.filter({ hasText: 'Prices' }).click();
+        await v.locator('.tp-title-sheet', { hasText: 'Sheet: Prices' }).waitFor();
+        await v.locator('.tp-content', { hasText: 'banana' }).waitFor({ timeout: 5000 });
+    });
+
+    it('format: recognised one bottom right before the text size; any format can be chosen', async () => {
+        const page = await openFolder(h.LIBRARY);
+        const v = await h.preview(page, 'notes.txt');
+        const known = ['tp-progress', 'tp-views', 'tp-format', 'tp-zoom'];
+        const bar = await v
+            .locator('.tp-statusbar > div:not(.tp-picker-menu)')
+            .evaluateAll((els, k) => els.map((el) => [...el.classList].filter((c) => k.includes(c)).join(' ')), known);
+        assert.deepEqual(bar, ['tp-progress', 'tp-views tp-format', 'tp-views tp-zoom', 'tp-views']);
+        const picker = v.locator(FORMAT_PICKER);
+        const menu = v.locator('.tp-picker-menu').last();
+        assert.equal(await picker.textContent(), 'Text ▾');
+        /** @param {'Text'|'Files'} list @param {string} name */
+        const choose = async (list, name) => {
+            await picker.click();
+            await menu.locator('.tp-picker-tab', { hasText: list }).click();
+            await menu.locator('.tp-picker-item', { hasText: name }).first().click();
+            await h.settled(page);
+        };
+
+        await choose('Text', 'CSV'); // wrong format: read as CSV all the same
+        await v.locator(`${FORMAT_PICKER}.tp-chosen`, { hasText: 'CSV' }).waitFor();
+        assert.match(await properties(v), /format: CSV/);
+        assert.equal(await v.locator('.tp-view-btn', { hasText: 'Table' }).isDisabled(), false);
+
+        await choose('Files', 'Spreadsheet'); // other reader: says why it cannot
+        await v.locator('.tp-content', { hasText: 'not a spreadsheet file' }).waitFor();
+        assert.equal(await picker.isVisible(), true); // can be changed back
+
+        await choose('Text', 'Text (recognised)');
+        await v.locator(`${FORMAT_PICKER}:not(.tp-chosen)`, { hasText: 'Text' }).waitFor();
+        await v.locator('.tp-content', { hasText: 'Meeting notes' }).waitFor();
     });
 
     it('Markdown: rendered, Text shows the source; text size − 100 % +; Ctrl+A selects the text only', async () => {

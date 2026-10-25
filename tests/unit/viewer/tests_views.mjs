@@ -7,6 +7,7 @@ import { load } from '../helpers.mjs';
 
 const { tableView, colourKey, showSheets, sheetLists } = await load('viewer/views.js');
 const { markdownView, previewOf, setPreview, updateViews, viewKey } = await load('viewer/views.js');
+const { showFormat } = await load('viewer/views.js');
 const { view } = await load('_core/prefs.js');
 
 describe('viewer/views', () => {
@@ -82,12 +83,39 @@ describe('viewer/views', () => {
         view.markdown = false;
         assert.equal(markdownView({ lang: 'md' }), false);
     });
-    it('colour choice: text, table, sheet', () => {
+    it('colour choice: text, table, sheet, log table', () => {
         view.table = true;
         assert.deepEqual(
             ['json', 'csv', 'sheet'].map((lang) => colourKey({ lang })),
             ['text', 'table', 'sheet'],
         );
+        view.logTable = true;
+        assert.equal(colourKey(fakeViewer({ lang: 'log' })), 'log');
+        view.logTable = false;
+        assert.equal(colourKey(fakeViewer({ lang: 'log' })), 'text');
+    });
+    it('format picker: recognised or chosen; text and file formats side by side; hidden without file', () => {
+        const v = fakeViewer();
+        showFormat(v, 'csv', 'csv');
+        assert.equal(v.formatPicker.button.hidden, false);
+        const [lists, choice, label, title] = v.formatPicker.last;
+        assert.deepEqual(
+            lists.map((l) => l.label),
+            ['Text', 'Files'],
+        );
+        assert.equal(lists[0].items[choice.item].text, 'CSV (recognised)');
+        assert.deepEqual([choice.list, label], [0, 'CSV']);
+        assert.match(title, /recognised from the file name/);
+        assert.equal(v.formatPicker.button.classList.contains('tp-chosen'), false);
+
+        showFormat(v, 'sheet', 'log');
+        const [, chosen, , chosenTitle] = v.formatPicker.last;
+        assert.deepEqual([chosen.list, lists[1].items[chosen.item].text], [1, 'Spreadsheet']);
+        assert.match(chosenTitle, /chosen; recognised: Log/);
+        assert.equal(v.formatPicker.button.classList.contains('tp-chosen'), true);
+
+        showFormat(v, null);
+        assert.equal(v.formatPicker.button.hidden, true);
     });
     it('picker: sheets (cached, hidden, chart) and tables side by side; name in title', () => {
         const v = fakeViewer();
@@ -114,6 +142,10 @@ describe('viewer/views', () => {
         showSheets(v, { ...src, mode: 'tables' });
         assert.deepEqual(v.sheetPicker.last.slice(1, 3), [{ list: 1, item: 0 }, 'T']);
         assert.equal(v.titleSheet.innerHTML, ' · <strong>Table:</strong> T');
+
+        showSheets(v, { ...src, waiting: true });
+        assert.deepEqual(v.sheetPicker.last.slice(1, 3), [{ list: 0, item: -1 }, 'Select sheet or table']);
+        assert.equal(v.titleSheet.hidden, true);
 
         showSheets(v, null);
         assert.equal(v.sheetPicker.button.hidden, true);

@@ -18,15 +18,19 @@ export const DEFAULTS = {
     // Wrap long lines (start value)
     'wrap-lines': false,
 
-    // Syntax colours: text view, table view (start values)
+    // Syntax colours: text view, table view, table view of logs (start values)
     'colours-text': true,
     'colours-table': false,
+    'colours-log': true,
 
     // Column colours in table view of spreadsheets (start value; rows stay striped)
     'colours-sheet': false,
 
     // Spreadsheets show 'sheets' or 'tables' (start value; sheets if a file has no tables)
     'spreadsheet-view': 'tables',
+
+    // Spreadsheets up to this size show their first sheet or table at once; larger ones wait for a choice
+    'spreadsheet-autoload-bytes': 512 * 1024,
 
     // Bytes per cache step ("Cache next"); 512 KB ≈ 10,000 lines of code
     'cache-chunk-bytes': 512 * 1024,
@@ -105,8 +109,10 @@ export const {
     'wrap-lines': DEFAULT_WRAP,
     'colours-text': DEFAULT_COLOURS,
     'colours-table': DEFAULT_TABLE_COLOURS,
+    'colours-log': DEFAULT_LOG_COLOURS,
     'colours-sheet': DEFAULT_SHEET_COLOURS,
     'spreadsheet-view': DEFAULT_SHEET_VIEW,
+    'spreadsheet-autoload-bytes': SHEET_AUTOLOAD_BYTES,
     'cache-chunk-bytes': MAX_BYTES,
     'parquet-rows': PARQUET_ROWS,
     'memory-cache-bytes': MEMORY_CACHE_BYTES,

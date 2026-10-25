@@ -20,23 +20,23 @@ import { MAX_LINK_HOPS } from '../_core/settings.js';
 import { esc } from '../_core/util.js';
 import { formatBytes } from '../_core/util.js';
 import { nextFrame } from '../_core/util.js';
+import { formatName } from '../readers/formats.js';
+import { formatOf } from '../readers/formats.js';
+import { langOfFormat } from '../readers/formats.js';
+import { readerOf } from '../readers/formats.js';
 import { linkTarget } from '../readers/links.js';
-import { PARQUET_RE } from '../readers/parquet/meta.js';
 import { openParquetSource } from '../readers/parquet/source.js';
 import { findFile } from '../readers/search.js';
 import { lookupNotes } from '../readers/search.js';
-import { SHEET_RE } from '../readers/sheets/cells.js';
 import { sheetFormat } from '../readers/sheets/cells.js';
 import { openSheetSource } from '../readers/sheets/index.js';
 import { openSource } from '../readers/text.js';
 import { openZipSource } from '../readers/zip.js';
-import { ZIP_RE } from '../readers/zip.js';
 import { csvSeparator } from '../text/highlight/csv.js';
 import { SEPARATOR_NAMES } from '../text/highlight/csv.js';
 import { HIGHLIGHTERS } from '../text/highlight/index.js';
 import { indentation } from '../text/lang.js';
 import { LANG_NAMES } from '../text/lang.js';
-import { langOf } from '../text/lang.js';
 import { LINTERS } from '../text/lint/index.js';
 import { lintFile } from '../text/lint/worker.js';
 import { LOAD_ALL_SVG } from '../ui/icons.js';
@@ -77,6 +77,7 @@ import { colourOn } from './views.js';
 import { markdownView } from './views.js';
 import { previewOf } from './views.js';
 import { setPreview } from './views.js';
+import { showFormat } from './views.js';
 import { showSheets } from './views.js';
 import { tableView } from './views.js';
 import { updateViews } from './views.js';
@@ -99,6 +100,7 @@ export let viewer = null; // single open viewer, if any
 
 export const pendingOpens = new Map(); // url -> first fetch still running { promise, relay, ctl }
 export const forcedUrls = new Set(); // big Parquet / IFCZIP files the user chose to cache in full
+export const formatChoices = new Map(); // url -> format chosen by the user (while the page is open)
 const knownSizes = new Map(); // url -> file size seen before (shown right away next time)
 
 // ===========================================================================
@@ -126,18 +128,22 @@ export function closeViewer() {
 /**
  * @param {string} fetchUrl @param {string} fileName @param {string[]} hops @param {() => AbortSignal} getSignal @param {boolean} reload
  * @param {(loaded: number, total: number) => void} onProgress @param {(message: string) => void} onLink @param {boolean} force
+ * @param {string|null} format chosen by the user for the file as listed (its links are then not followed)
  * @returns {Promise<{ src: Source|null, deferred?: Deferred, message: string|null, fileName: string, hops: string[] }>}
  */
-async function openFile(fetchUrl, fileName, hops, getSignal, reload, onProgress, onLink, force) {
+async function openFile(fetchUrl, fileName, hops, getSignal, reload, onProgress, onLink, force, format) {
     hops = [...hops];
     for (let hop = 0; ; hop++) {
-        const result = PARQUET_RE.test(fileName)
-            ? await openParquetSource(fetchUrl, getSignal, reload, onProgress, force)
-            : SHEET_RE.test(fileName)
-              ? await openSheetSource(fetchUrl, getSignal, reload, onProgress, sheetMode(hops[0]))
-              : ZIP_RE.test(fileName)
-                ? await openZipSource(fetchUrl, getSignal, reload, onProgress, force)
-                : await openSource(fetchUrl, getSignal, reload, onProgress);
+        const chosen = hop === 0 ? format : null;
+        const reader = readerOf(chosen || formatOf(fileName));
+        const result =
+            reader === 'parquet'
+                ? await openParquetSource(fetchUrl, getSignal, reload, onProgress, force)
+                : reader === 'sheet'
+                  ? await openSheetSource(fetchUrl, getSignal, reload, onProgress, sheetMode(hops[0]))
+                  : reader === 'ifczip'
+                    ? await openZipSource(fetchUrl, getSignal, reload, onProgress, force)
+                    : await openSource(fetchUrl, getSignal, reload, onProgress);
         if ('deferred' in result)
             return { src: null, deferred: /** @type {Deferred} */ (result), message: null, fileName, hops };
         if ('error' in result) {
@@ -160,13 +166,26 @@ async function openFile(fetchUrl, fileName, hops, getSignal, reload, onProgress,
             };
         }
         if (hop > 0 && result.name) fileName = result.name;
-        const target = FOLLOW_LINKS && hop < MAX_LINK_HOPS && result.done ? linkTarget(fileName, result.text) : null;
+        const follow = FOLLOW_LINKS && !chosen && hop < MAX_LINK_HOPS && result.done;
+        const target = follow ? linkTarget(fileName, result.text) : null;
         if (!target) return { src: result, message: null, fileName, hops };
         hops.push(target.display);
         fileName = target.name;
         fetchUrl = target.fetchUrl;
         onLink(`Link → ${target.display}`);
     }
+}
+
+// Open file viewed as another format (a wrong one too: that format's reader tries);
+// the recognised format drops the choice
+/** @param {string} format @returns {void} */
+export function chooseFormat(format) {
+    const v = viewer;
+    if (!v?.file || !confirmDiscard(v)) return;
+    const { name, url } = v.file;
+    if (format === formatOf(name)) formatChoices.delete(url);
+    else formatChoices.set(url, format);
+    showFile(name, url, false);
 }
 
 // Same file, any encoding / case of path
@@ -211,6 +230,7 @@ function showEmpty(v) {
     for (const b of [v.copyBtn, v.loadAllBtn, v.writeBtn, v.clearBtn]) b.disabled = true;
     setPreview(v, null);
     showSheets(v, null);
+    showFormat(v, null);
     updateViews(v);
     v.titleName.textContent = '–';
     v.titleName.title = '';
@@ -265,11 +285,12 @@ export async function showFile(name, url, reload) {
 
     v.titleName.textContent = name;
     v.titleName.title = url;
-    // what is known before the content: format, then size (from the first response)
-    const earlyLang = PARQUET_RE.test(name) ? 'parquet' : sheetFormat(name) ? 'sheet' : langOf(name);
-    const earlyFormat = PARQUET_RE.test(name)
-        ? 'Parquet'
-        : sheetFormat(name) || LANG_NAMES[langOf(name) ?? ''] || 'Text';
+    // what is known before the content: format (recognised or chosen), then size (from the first response)
+    const chosen = formatChoices.get(url) || null;
+    const early = chosen || formatOf(name);
+    const reader = readerOf(early); // cached copies of another reader are read anew
+    const earlyLang = langOfFormat(early);
+    const earlyFormat = (!chosen && sheetFormat(name)) || formatName(early);
     /** @param {number} total */
     const earlyMeta = (total) => {
         const parts = [
@@ -286,6 +307,7 @@ export async function showFile(name, url, reload) {
     v.writeBtn.disabled = true;
     setPreview(v, previewOf(earlyLang), 'Preview: once the file is cached');
     showSheets(v, null);
+    showFormat(v, early, formatOf(name));
     updateViews(v);
     v.clearBtn.disabled = false;
     setBusy(v, true);
@@ -329,6 +351,7 @@ export async function showFile(name, url, reload) {
     /** @param {number} loaded @param {number} total */
     const relayed = (loaded, total) => relay.fn?.(loaded, total);
     if (reload && memoryCache.delete(url)) refreshEyes(); // refresh: fetch anew
+    if (memoryCache.get(url)?.reader !== reader && memoryCache.delete(url)) refreshEyes(); // other format chosen
     const kept = memoryCache.get(url);
     // New file and the cache at its limit: clear the others first (OK / Cancel)
     if (!kept && !pendingOpens.has(url) && !makeRoom(v, Math.min(MAX_BYTES, knownSizes.get(url) || MAX_BYTES))) {
@@ -352,11 +375,13 @@ export async function showFile(name, url, reload) {
             // The first fetch (Parquet / IFCZIP: often the whole file) goes on when the user moves
             // to another file; coming back joins it instead of starting anew
             let pending = pendingOpens.get(url);
-            if (pending) pending.relay.fn = progress;
+            if (pending?.reader !== reader) pending?.ctl.abort(); // other format chosen meanwhile
+            if (pending?.reader === reader) pending.relay.fn = progress;
             else {
                 const ctl = new AbortController();
                 relay.controller = ctl;
                 pending = {
+                    reader,
                     relay,
                     ctl,
                     promise: openFile(
@@ -368,23 +393,25 @@ export async function showFile(name, url, reload) {
                         relayed,
                         (/** @type {string} */ m) => current() && showPlain(v, m),
                         forcedUrls.has(url),
+                        chosen,
                     ),
                 };
-                pendingOpens.set(url, pending);
+                const own = pending;
+                pendingOpens.set(url, own);
                 refreshEyes(); // half open while it caches
                 pending.promise
                     .then(
                         (/** @type {Awaited<ReturnType<typeof openFile>>} */ r) => {
                             if (r.src) {
                                 r.src.relay = relay;
-                                keepInMemory(url, { src: r.src, fileName: r.fileName, hops: [...r.hops] });
+                                keepInMemory(url, { src: r.src, fileName: r.fileName, hops: [...r.hops], reader });
                             }
                         },
                         () => {},
                     )
                     .finally(() => {
                         relay.controller = null;
-                        pendingOpens.delete(url);
+                        if (pendingOpens.get(url) === own) pendingOpens.delete(url);
                         refreshEyes();
                     });
             }
@@ -458,7 +485,8 @@ export async function showFile(name, url, reload) {
     // Copy gets whole file: rest is cached first if needed
     v.source = src;
     v.fileName = fileName;
-    v.lang = PARQUET_RE.test(fileName) ? 'parquet' : src.isSheet ? 'sheet' : langOf(fileName);
+    const format = chosen || formatOf(fileName);
+    v.lang = langOfFormat(format);
     v.linked = hops.length > 1;
     v.writeBtn.disabled = !canWrite(v);
     v.writeBtn.title = src.isSheet
@@ -468,10 +496,11 @@ export async function showFile(name, url, reload) {
     const ifcSize = src.ifcBytes ? src.ifcBytes.length : src.total;
     const tooBig = kind === '3d' && ifcSize > MAX_3D_BYTES;
     setPreview(v, kind, tooBig ? `3D view: only for IFC files up to ${formatBytes(MAX_3D_BYTES)}` : '');
+    showFormat(v, format, formatOf(fileName));
     updateViews(v);
     v.text = src.text;
 
-    const lang = ['parquet', 'sheet'].includes(v.lang) ? 'csv' : (langOf(fileName) ?? ''); // their rows come as CSV; '' plain text
+    const lang = ['parquet', 'sheet'].includes(v.lang ?? '') ? 'csv' : (v.lang ?? ''); // their rows come as CSV; '' plain text
     /** @param {string} t @returns {Token[]} */
     const plain = (t) => [['', t]];
     const highlight = HIGHLIGHTERS[lang] || plain;
@@ -717,7 +746,7 @@ export async function showFile(name, url, reload) {
     /** @param {number} i @param {SheetMode} [mode] */
     v.selectSheet = async (i, mode = src.mode) => {
         if (!src.isSheet || !(mode === 'tables' ? src.tables : src.sheets)[i]) return;
-        if (mode === src.mode && i === src.current) return;
+        if (mode === src.mode && i === src.current && !src.waiting) return;
         if (mode !== src.mode) rememberSheetMode(url, mode);
         const s = src.sheetOf(i, mode);
         if (src.sheets[s].data === undefined) {
@@ -729,7 +758,7 @@ export async function showFile(name, url, reload) {
             if (!current()) return;
             if (!ok) return void showSheets(v, src); // drop-downs back to what is shown
         }
-        if (src.mode !== mode || src.current !== i) {
+        if (src.mode !== mode || src.current !== i || src.waiting) {
             src.select(i, mode);
             v.text = src.text;
             render();
