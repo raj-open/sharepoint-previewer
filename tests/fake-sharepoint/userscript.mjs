@@ -33,8 +33,8 @@ export function userscript() {
     if (has3dRelease()) {
         const hash = (name) => sha256(path.join(PATH_RELEASE, name));
         text = text
-            .replace(/(VIEWER_3D_JS_SHA256 ?= ?["'])[0-9a-f]*/, `$1${hash('ifc-lite-3d.js')}`)
-            .replace(/(VIEWER_3D_WASM_SHA256 ?= ?["'])[0-9a-f]*/, `$1${hash('ifc-lite_bg.wasm')}`);
+            .replace(/(VIEWER_3D_JS_SHA256\s*=\s*["'])[^"']*/, `$1${hash('ifc-lite-3d.js')}`)
+            .replace(/(VIEWER_3D_WASM_SHA256\s*=\s*["'])[^"']*/, `$1${hash('ifc-lite_bg.wasm')}`);
     }
     return text;
 }

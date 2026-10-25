@@ -97,12 +97,14 @@ build-dist: build-src build-3d
         [ "$(git tag --points-at HEAD 2>/dev/null | grep -Fx "v{{VERSION}}")" != "v{{VERSION}}" ]; then
         version="{{VERSION}}-beta.$(git rev-parse --short HEAD)"
     fi
+    # quoted value: opening quote, then anything up to the closing quote
+    quote='"'"'";
     for pair in "{{PATH_SRC}}:{{NAME}}.js" "{{PATH_MIN}}:{{NAME}}.min.js"; do
         path="{{PATH_RELEASE}}/${pair#*:}"
         sed -E \
             -e "s|^(// @version[[:space:]]+).*$|\1${version}|" \
-            -e "s|(VIEWER_3D_JS_SHA256 ?= ?.)[0-9a-f]*|\1${hash_js}|" \
-            -e "s|(VIEWER_3D_WASM_SHA256 ?= ?.)[0-9a-f]*|\1${hash_wasm}|" \
+            -e "s|(VIEWER_3D_JS_SHA256[[:space:]]*=[[:space:]]*[${quote}])[^${quote}]*|\1${hash_js}|" \
+            -e "s|(VIEWER_3D_WASM_SHA256[[:space:]]*=[[:space:]]*[${quote}])[^${quote}]*|\1${hash_wasm}|" \
             "${pair%%:*}" > "${path}"
         node --check "${path}"
     done
