@@ -209,8 +209,6 @@ export function fakeViewer(extra = {}) {
         'textBtn',
         'tableBtn',
         'view3dBtn',
-        'sheetModeSelect',
-        'sheetSelect',
         'titleSheet',
         'stage3d',
         'status3d',
@@ -223,5 +221,7 @@ export function fakeViewer(extra = {}) {
     ]) {
         v[name] = element();
     }
+    // picker: what was set last
+    v.sheetPicker = { button: element(), set: (...args) => (v.sheetPicker.last = args), close() {} };
     return Object.assign(v, extra);
 }

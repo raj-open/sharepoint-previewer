@@ -13,6 +13,8 @@
 /** @typedef {{ r0: number, c0: number, r1: number, c1: number }} CellRange corners of a cell range (0-based, inclusive) */
 /** @typedef {{ name: string, range: CellRange, header: number, totals: number, columns: string[] }} TablePart table (list object) of a sheet: header and totals rows, column names (may be empty) */
 /** @typedef {TablePart & { sheet: number }} Table table and the index of its sheet */
+/** @typedef {{ label: string, items: { text: string, title?: string }[], empty: string, start: number }} PickerList list of a picker: entries, note if empty, entry marked first */
+/** @typedef {{ button: HTMLButtonElement, menu: HTMLElement, set: (lists: PickerList[], choice: { list: number, item: number }, label: string, title: string) => void, close: () => void }} Picker drop-down with lists side by side */
 /** @typedef {'sheets'|'tables'} SheetMode what a spreadsheet shows: its sheets or its tables */
 /** @typedef {{ rows: string[][], header: string[], note: string, text: string }} SheetShown sheet or table shown: rows, column names, note if no rows, text view (CSV) */
 /** @typedef {{ name: string, hidden: boolean, kind: string, size: number, path?: string, data?: SheetData|null, note?: string }} Sheet data: undefined = not read yet, null = no cells */

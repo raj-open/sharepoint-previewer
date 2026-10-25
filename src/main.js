@@ -33,6 +33,8 @@
   /** @typedef {{ r0: number, c0: number, r1: number, c1: number }} CellRange corners of a cell range (0-based, inclusive) */
   /** @typedef {{ name: string, range: CellRange, header: number, totals: number, columns: string[] }} TablePart table (list object) of a sheet: header and totals rows, column names (may be empty) */
   /** @typedef {TablePart & { sheet: number }} Table table and the index of its sheet */
+  /** @typedef {{ label: string, items: { text: string, title?: string }[], empty: string, start: number }} PickerList list of a picker: entries, note if empty, entry marked first */
+  /** @typedef {{ button: HTMLButtonElement, menu: HTMLElement, set: (lists: PickerList[], choice: { list: number, item: number }, label: string, title: string) => void, close: () => void }} Picker drop-down with lists side by side */
   /** @typedef {'sheets'|'tables'} SheetMode what a spreadsheet shows: its sheets or its tables */
   /** @typedef {{ rows: string[][], header: string[], note: string, text: string }} SheetShown sheet or table shown: rows, column names, note if no rows, text view (CSV) */
   /** @typedef {{ name: string, hidden: boolean, kind: string, size: number, path?: string, data?: SheetData|null, note?: string }} Sheet data: undefined = not read yet, null = no cells */
@@ -2128,6 +2130,7 @@
     .tp-table th.tp-drop-after { box-shadow: inset -3px 0 0 var(--tp-accent); }
     .tp-table td[contenteditable] { cursor: text; outline: none; }
     .tp-statusbar {
+      position: relative;
       flex: none;
       height: 30px;
       display: flex;
@@ -2180,22 +2183,72 @@
     .tp-viewer .tp-view-btn[aria-pressed="true"] { background: #0078d4; color: #fff; }
     .tp-viewer .tp-view-btn:disabled { opacity: .4; cursor: default; }
     .tp-viewer .tp-view-btn:not(:disabled):not([aria-pressed="true"]):hover { background: var(--tp-hover); }
-    /* Sheet choice (spreadsheets): segment right of the table button */
-    .tp-viewer .tp-sheet-select, .tp-viewer .tp-sheet-mode {
+    /* Sheet or table choice (spreadsheets): segment right of the table button; menu above it */
+    .tp-viewer .tp-picker {
       height: 22px;
       max-width: 200px;
-      padding: 0 4px;
+      padding: 0 8px;
+      overflow: hidden;
       border: none;
       border-left: 1px solid var(--tp-border);
       border-radius: 0;
       background: transparent;
       color: var(--tp-fg);
       font: 12px sans-serif;
+      white-space: nowrap;
+      text-overflow: ellipsis;
       cursor: pointer;
     }
-    .tp-viewer .tp-sheet-select:hover, .tp-viewer .tp-sheet-mode:hover { background: var(--tp-hover); }
-    .tp-viewer .tp-sheet-select option, .tp-viewer .tp-sheet-mode option { background: var(--tp-bg); color: var(--tp-fg); }
-    .tp-viewer .tp-sheet-select + .tp-view-btn { border-left: 1px solid var(--tp-border); }
+    .tp-viewer .tp-picker:hover, .tp-viewer .tp-picker[aria-expanded="true"] { background: var(--tp-hover); }
+    .tp-viewer .tp-picker + .tp-view-btn { border-left: 1px solid var(--tp-border); }
+    .tp-picker-menu {
+      position: absolute;
+      z-index: 6;
+      display: flex;
+      flex-direction: column;
+      width: 260px;
+      max-height: min(60vh, 340px);
+      background: var(--tp-bg);
+      border: 1px solid var(--tp-border);
+      border-radius: 6px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.3);
+      outline: none;
+    }
+    .tp-picker-menu[hidden] { display: none; }
+    .tp-picker-head { flex: none; display: flex; gap: 2px; padding: 4px; border-bottom: 1px solid var(--tp-border); }
+    .tp-picker-head button {
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--tp-fg);
+      font: 12px sans-serif;
+      cursor: pointer;
+    }
+    .tp-picker-head button:hover { background: var(--tp-hover); }
+    .tp-picker-step { flex: none; width: 24px; font-size: 15px !important; }
+    .tp-picker-tab { flex: 1; padding: 4px 6px; }
+    .tp-picker-tab span { opacity: .6; }
+    .tp-picker-tab[aria-pressed="true"] { background: #0078d4 !important; color: #fff !important; }
+    .tp-picker-list { flex: 1; min-height: 0; overflow-y: auto; padding: 4px; }
+    .tp-picker-item {
+      display: block;
+      width: 100%;
+      padding: 5px 8px;
+      overflow: hidden;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--tp-fg);
+      font: 12px sans-serif;
+      text-align: left;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      cursor: pointer;
+    }
+    .tp-picker-item:hover, .tp-picker-item.tp-active { background: var(--tp-hover); }
+    .tp-picker-item.tp-chosen { font-weight: 600; }
+    .tp-picker-item.tp-chosen::after { content: ' ✓'; color: var(--tp-accent); }
+    .tp-picker-empty { padding: 8px; font: 12px sans-serif; color: var(--tp-fg); opacity: .6; }
     .tp-progress-bar {
       width: 140px;
       height: 3px;
@@ -5760,6 +5813,7 @@
           format: book.format,
           sheets,
           tables,
+          tablesRead: !!book.tables, // false: format without tables read (.xls)
           mode: /** @type {SheetMode} */ ('sheets'),
           current: firstSheet,
           /** @type {SheetShown} */
@@ -7453,6 +7507,144 @@
       };
   }
 
+  // Module: ui/picker.js
+
+  // Drop-down with several lists side by side (e.g. sheets and tables of a workbook):
+  // ← → (or the tabs) switch the list shown, ↑ ↓ move, Enter picks, Esc closes
+
+  // ===========================================================================
+  // IMPORTS
+  // ===========================================================================
+
+  // ===========================================================================
+  // METHODS
+  // ===========================================================================
+
+  // Button (shows the entry chosen) and its menu; the menu opens above the button, inside `host`
+  /** @param {HTMLElement} host positioned element the menu is placed in @param {(list: number, item: number) => void} onPick @returns {Picker} */
+  function createPicker(host, onPick) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'tp-picker';
+      button.hidden = true;
+      button.setAttribute('aria-haspopup', 'listbox');
+      const menu = document.createElement('div');
+      menu.className = 'tp-picker-menu';
+      menu.hidden = true;
+      menu.tabIndex = -1;
+      host.append(menu);
+
+      /** @type {PickerList[]} */
+      let lists = [];
+      let chosen = { list: 0, item: 0 };
+      let shown = 0; // list shown in the menu
+      let active = 0; // entry marked for the keyboard
+
+      /** @param {number} list */
+      const show = (list) => {
+          shown = (list + lists.length) % lists.length;
+          active = shown === chosen.list ? chosen.item : lists[shown].start;
+          draw();
+      };
+
+      const draw = () => {
+          const tabs = lists
+              .map((l, i) => {
+                  const count = l.items.length.toLocaleString();
+                  return `<button type="button" class="tp-picker-tab" data-list="${i}" aria-pressed="${i === shown}">${esc(l.label)} <span>${count}</span></button>`;
+              })
+              .join('');
+          const { items, empty } = lists[shown];
+          const rows = items.map((x, i) => {
+              const marks = [i === active && 'tp-active', shown === chosen.list && i === chosen.item && 'tp-chosen'];
+              const cls = marks.filter(Boolean).join(' ');
+              const title = x.title ? ` title="${esc(x.title)}"` : '';
+              return `<button type="button" class="tp-picker-item ${cls}" role="option" data-item="${i}"${title}>${esc(x.text)}</button>`;
+          });
+          const body = rows.length ? rows.join('') : `<div class="tp-picker-empty">${esc(empty)}</div>`;
+          const head = `<button type="button" class="tp-picker-step" data-step="-1" title="Previous list (←)">‹</button>${tabs}<button type="button" class="tp-picker-step" data-step="1" title="Next list (→)">›</button>`;
+          menu.innerHTML = `<div class="tp-picker-head">${head}</div><div class="tp-picker-list" role="listbox">${body}</div>`;
+          menu.querySelector('.tp-active')?.scrollIntoView({ block: 'nearest' });
+      };
+
+      const close = () => {
+          menu.hidden = true;
+          button.setAttribute('aria-expanded', 'false');
+          document.removeEventListener('pointerdown', outside, true);
+      };
+      /** @param {Event} e */
+      const outside = (e) => {
+          const t = /** @type {Node} */ (e.target);
+          if (!menu.contains(t) && !button.contains(t)) close();
+      };
+      const open = () => {
+          // above the button, right edges aligned
+          const b = button.getBoundingClientRect();
+          const h = host.getBoundingClientRect();
+          menu.style.right = `${Math.round(h.right - b.right)}px`;
+          menu.style.bottom = `${Math.round(h.bottom - b.top + 4)}px`;
+          menu.hidden = false;
+          button.setAttribute('aria-expanded', 'true');
+          show(chosen.list);
+          menu.focus();
+          document.addEventListener('pointerdown', outside, true);
+      };
+      /** @param {number} list @param {number} item */
+      const pick = (list, item) => {
+          close();
+          button.focus();
+          if (list !== chosen.list || item !== chosen.item) onPick(list, item);
+      };
+
+      button.onclick = () => (menu.hidden ? open() : close());
+      menu.onclick = (e) => {
+          const t = /** @type {HTMLElement} */ (e.target).closest('[data-list], [data-step], [data-item]');
+          if (!(t instanceof HTMLElement)) return;
+          if (t.dataset.list) show(Number(t.dataset.list));
+          else if (t.dataset.step) show(shown + Number(t.dataset.step));
+          else pick(shown, Number(t.dataset.item));
+          if (!menu.hidden) menu.focus();
+      };
+      menu.onkeydown = (e) => {
+          const n = lists[shown].items.length;
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') show(shown + (e.key === 'ArrowLeft' ? -1 : 1));
+          else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && n) {
+              active = (active + (e.key === 'ArrowUp' ? -1 : 1) + n) % n;
+              draw();
+          } else if (e.key === 'Home' && n) {
+              active = 0;
+              draw();
+          } else if (e.key === 'End' && n) {
+              active = n - 1;
+              draw();
+          } else if (e.key === 'Enter' && n) pick(shown, active);
+          else if (e.key === 'Escape' || e.key === 'Tab') {
+              close();
+              button.focus();
+          } else return;
+          e.preventDefault();
+      };
+      button.onkeydown = (e) => {
+          if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+          e.preventDefault();
+          open();
+      };
+
+      return {
+          button,
+          menu,
+          // New lists and the entry chosen; label: text of the button
+          set(next, choice, label, title) {
+              lists = next;
+              chosen = choice;
+              button.textContent = `${label} ▾`;
+              button.title = title;
+              if (!menu.hidden) show(shown);
+          },
+          close,
+      };
+  }
+
   // Module: viewer/status.js
 
   // Status: busy state, progress, cache bar
@@ -7550,50 +7742,51 @@
       return colourPrefs[colourKey(v)];
   }
 
-  // Sheet or table choice (spreadsheets only): drop-downs next to table button, name in title
+  // Sheet or table choice (spreadsheets only): picker next to table button, name in title.
+  // Its menu lists sheets and tables side by side (● cached, ○ not cached yet).
   /** @param {Viewer} v @param {Source|null} src @returns {void} */
   function showSheets(v, src) {
-      /** @type {Sheet[]|null} */
-      const sheets = src?.isSheet ? src.sheets : null;
-      /** @type {Table[]} */
-      const tables = (sheets && src?.tables) || [];
-      v.sheetSelect.hidden = !sheets;
-      v.titleSheet.hidden = !sheets;
-      v.sheetModeSelect.hidden = !tables.length;
-      if (!sheets || !src) return;
-      if (tables.length) {
-          v.sheetModeSelect.value = src.mode;
-          v.sheetModeSelect.title = `Show sheets (${sheets.length}) or tables (${tables.length})`;
-      }
-      if (src.mode === 'tables') return void showTables(v, src, tables);
-      const s = sheets[src.current];
-      v.sheetSelect.innerHTML = sheets
-          .map((x, i) => {
-              const notes = [x.hidden && 'hidden', x.kind !== 'sheet' && x.kind].filter(Boolean).join(', ');
-              const suffix = notes ? ` (${notes})` : '';
-              return `<option value="${i}">${x.data === undefined ? '○' : '●'} ${esc(x.name)}${suffix}</option>`;
-          })
-          .join('');
-      v.sheetSelect.value = String(src.current);
-      v.sheetSelect.title = `Sheet ${src.current + 1} of ${sheets.length} (● cached, ○ not cached yet)`;
-      v.titleSheet.innerHTML = ` · <strong>Sheet:</strong> ${esc(s.name)}`;
+      const lists = src?.isSheet ? sheetLists(src) : null;
+      v.sheetPicker.button.hidden = !lists;
+      v.titleSheet.hidden = !lists;
+      if (!lists || !src) return v.sheetPicker.close();
+      const tables = src.mode === 'tables';
+      const list = lists[tables ? 1 : 0];
+      const name = tables ? src.tables[src.current].name : src.sheets[src.current].name;
+      const kind = tables ? 'Table' : 'Sheet';
+      const counts = `${src.sheets.length} sheets, ${src.tables.length} tables`;
+      const title = `${kind} ${src.current + 1} of ${list.items.length} (${counts}; ← → in the menu: sheets or tables)`;
+      v.sheetPicker.set(lists, { list: tables ? 1 : 0, item: src.current }, name, title);
+      v.titleSheet.innerHTML = ` · <strong>${kind}:</strong> ${esc(name)}`;
   }
 
-  // Table choice: name and sheet of each table (● its sheet cached, ○ not yet)
-  /** @param {Viewer} v @param {Source} src @param {Table[]} tables @returns {void} */
-  function showTables(v, src, tables) {
+  // Lists of the picker: sheets (hidden and chart sheets marked), tables (with their sheet)
+  /** @param {Source} src @returns {PickerList[]} */
+  function sheetLists(src) {
       /** @type {Sheet[]} */
       const sheets = src.sheets;
-      const t = tables[src.current];
-      v.sheetSelect.innerHTML = tables
-          .map((x, i) => {
-              const s = sheets[x.sheet];
-              return `<option value="${i}">${s.data === undefined ? '○' : '●'} ${esc(x.name)} (${esc(s.name)})</option>`;
-          })
-          .join('');
-      v.sheetSelect.value = String(src.current);
-      v.sheetSelect.title = `Table ${src.current + 1} of ${tables.length} (● cached, ○ not cached yet)`;
-      v.titleSheet.innerHTML = ` · <strong>Table:</strong> ${esc(t.name)}`;
+      /** @type {Table[]} */
+      const tables = src.tables;
+      /** @param {Sheet} s */
+      const mark = (s) => (s.data === undefined ? '○' : '●');
+      return [
+          {
+              label: 'Sheets',
+              items: sheets.map((s) => {
+                  const notes = [s.hidden && 'hidden', s.kind !== 'sheet' && s.kind].filter(Boolean).join(', ');
+                  const suffix = notes ? ` (${notes})` : '';
+                  return { text: `${mark(s)} ${s.name}${suffix}` };
+              }),
+              empty: 'No sheets',
+              start: src.startOf('sheets'),
+          },
+          {
+              label: 'Tables',
+              items: tables.map((t) => ({ text: `${mark(sheets[t.sheet])} ${t.name} (${sheets[t.sheet].name})` })),
+              empty: src.tablesRead ? 'No tables in this file' : 'Tables are not read from this format',
+              start: src.startOf('tables'),
+          },
+      ];
   }
 
   // Module: viewer/view3d.js
@@ -7941,14 +8134,7 @@
       };
       const textBtn = viewBtn(TEXT_SVG, 'Text', 'Text view');
       const tableBtn = viewBtn(TABLE_SVG, 'Table', 'Table view (CSV, Parquet, spreadsheets)');
-      // Spreadsheets with tables: sheets or tables; then the sheet or table shown (● cached, ○ not yet)
-      const sheetModeSelect = document.createElement('select');
-      sheetModeSelect.className = 'tp-sheet-mode';
-      sheetModeSelect.hidden = true;
-      sheetModeSelect.innerHTML = '<option value="sheets">Sheets</option><option value="tables">Tables</option>';
-      const sheetSelect = document.createElement('select');
-      sheetSelect.className = 'tp-sheet-select';
-      sheetSelect.hidden = true;
+
       const view3dBtn = viewBtn(CUBE_SVG, '3D', '3D view (IFC, IFCZIP)');
       const moreBtn = button(MORE_SVG, 'More', 0);
       moreBtn.style.left = '';
@@ -8258,9 +8444,11 @@
       // Status bar (fixed height): cache state left, view switch right
       const statusBar = document.createElement('div');
       statusBar.className = 'tp-statusbar';
+      // Spreadsheets: sheet or table shown; its menu lists sheets and tables side by side
+      const sheetPicker = createPicker(statusBar, (list, i) => v.selectSheet?.(i, list ? 'tables' : 'sheets'));
       const views = document.createElement('div');
       views.className = 'tp-views';
-      views.append(textBtn, tableBtn, sheetModeSelect, sheetSelect, view3dBtn);
+      views.append(textBtn, tableBtn, sheetPicker.button, view3dBtn);
       statusBar.append(progress, views);
       box.append(header, csvBar, content, stage3d, editorWrap, loadMoreBtn, statusBar, splitter);
 
@@ -8288,8 +8476,7 @@
           writeBtn,
           textBtn,
           tableBtn,
-          sheetModeSelect,
-          sheetSelect,
+          sheetPicker,
           view3dBtn,
           stage3d,
           canvas3d,
@@ -8335,6 +8522,7 @@
       const onEscape = (e) => {
           if (e.key === 'Escape' && viewer === v) {
               e.stopPropagation();
+              if (!sheetPicker.menu.hidden) return void sheetPicker.close(); // open drop-down first
               closeViewer();
           }
       };
@@ -8385,8 +8573,7 @@
           view.show3d = on;
           savePref('tp-preview-3d', on ? '1' : '0');
       };
-      sheetSelect.onchange = () => v.selectSheet?.(Number(sheetSelect.value));
-      sheetModeSelect.onchange = () => v.selectSheetMode?.(sheetModeSelect.value);
+
       view3dBtn.onclick = () => {
           if (v.view3d) return;
           set3d(true);
@@ -9137,11 +9324,13 @@
       };
       v.loadMoreBtn.onclick = () => load(false);
 
-      // Other sheet or table: its sheet cached on first choice (stop keeps what was shown before)
+      // Other sheet or table: its sheet cached on first choice (stop keeps what was shown before);
+      // sheets or tables: remembered for this file
       /** @param {number} i @param {SheetMode} [mode] */
       v.selectSheet = async (i, mode = src.mode) => {
           if (!src.isSheet || !(mode === 'tables' ? src.tables : src.sheets)[i]) return;
           if (mode === src.mode && i === src.current) return;
+          if (mode !== src.mode) rememberSheetMode(url, mode);
           const s = src.sheetOf(i, mode);
           if (src.sheets[s].data === undefined) {
               const job = async () => {
@@ -9159,13 +9348,6 @@
           }
           v.content.scrollTop = 0;
           v.content.scrollLeft = 0;
-      };
-      // Sheets or tables: remembered for this file
-      /** @param {SheetMode} mode */
-      v.selectSheetMode = (mode) => {
-          if (!src.isSheet || mode === src.mode) return;
-          rememberSheetMode(url, mode);
-          v.selectSheet(src.startOf(mode), mode);
       };
 
       if (LINTERS[lang] && !src.done) {

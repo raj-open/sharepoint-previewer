@@ -13,6 +13,7 @@ import { showCached } from './status.js';
 /** @typedef {import('../_core/types.js').Viewer} Viewer */
 /** @typedef {import('../_core/types.js').Sheet} Sheet */
 /** @typedef {import('../_core/types.js').Table} Table */
+/** @typedef {import('../_core/types.js').PickerList} PickerList */
 
 // ===========================================================================
 // METHODS
@@ -43,48 +44,49 @@ export function colourOn(v) {
     return colourPrefs[colourKey(v)];
 }
 
-// Sheet or table choice (spreadsheets only): drop-downs next to table button, name in title
+// Sheet or table choice (spreadsheets only): picker next to table button, name in title.
+// Its menu lists sheets and tables side by side (● cached, ○ not cached yet).
 /** @param {Viewer} v @param {Source|null} src @returns {void} */
 export function showSheets(v, src) {
-    /** @type {Sheet[]|null} */
-    const sheets = src?.isSheet ? src.sheets : null;
-    /** @type {Table[]} */
-    const tables = (sheets && src?.tables) || [];
-    v.sheetSelect.hidden = !sheets;
-    v.titleSheet.hidden = !sheets;
-    v.sheetModeSelect.hidden = !tables.length;
-    if (!sheets || !src) return;
-    if (tables.length) {
-        v.sheetModeSelect.value = src.mode;
-        v.sheetModeSelect.title = `Show sheets (${sheets.length}) or tables (${tables.length})`;
-    }
-    if (src.mode === 'tables') return void showTables(v, src, tables);
-    const s = sheets[src.current];
-    v.sheetSelect.innerHTML = sheets
-        .map((x, i) => {
-            const notes = [x.hidden && 'hidden', x.kind !== 'sheet' && x.kind].filter(Boolean).join(', ');
-            const suffix = notes ? ` (${notes})` : '';
-            return `<option value="${i}">${x.data === undefined ? '○' : '●'} ${esc(x.name)}${suffix}</option>`;
-        })
-        .join('');
-    v.sheetSelect.value = String(src.current);
-    v.sheetSelect.title = `Sheet ${src.current + 1} of ${sheets.length} (● cached, ○ not cached yet)`;
-    v.titleSheet.innerHTML = ` · <strong>Sheet:</strong> ${esc(s.name)}`;
+    const lists = src?.isSheet ? sheetLists(src) : null;
+    v.sheetPicker.button.hidden = !lists;
+    v.titleSheet.hidden = !lists;
+    if (!lists || !src) return v.sheetPicker.close();
+    const tables = src.mode === 'tables';
+    const list = lists[tables ? 1 : 0];
+    const name = tables ? src.tables[src.current].name : src.sheets[src.current].name;
+    const kind = tables ? 'Table' : 'Sheet';
+    const counts = `${src.sheets.length} sheets, ${src.tables.length} tables`;
+    const title = `${kind} ${src.current + 1} of ${list.items.length} (${counts}; ← → in the menu: sheets or tables)`;
+    v.sheetPicker.set(lists, { list: tables ? 1 : 0, item: src.current }, name, title);
+    v.titleSheet.innerHTML = ` · <strong>${kind}:</strong> ${esc(name)}`;
 }
 
-// Table choice: name and sheet of each table (● its sheet cached, ○ not yet)
-/** @param {Viewer} v @param {Source} src @param {Table[]} tables @returns {void} */
-function showTables(v, src, tables) {
+// Lists of the picker: sheets (hidden and chart sheets marked), tables (with their sheet)
+/** @param {Source} src @returns {PickerList[]} */
+export function sheetLists(src) {
     /** @type {Sheet[]} */
     const sheets = src.sheets;
-    const t = tables[src.current];
-    v.sheetSelect.innerHTML = tables
-        .map((x, i) => {
-            const s = sheets[x.sheet];
-            return `<option value="${i}">${s.data === undefined ? '○' : '●'} ${esc(x.name)} (${esc(s.name)})</option>`;
-        })
-        .join('');
-    v.sheetSelect.value = String(src.current);
-    v.sheetSelect.title = `Table ${src.current + 1} of ${tables.length} (● cached, ○ not cached yet)`;
-    v.titleSheet.innerHTML = ` · <strong>Table:</strong> ${esc(t.name)}`;
+    /** @type {Table[]} */
+    const tables = src.tables;
+    /** @param {Sheet} s */
+    const mark = (s) => (s.data === undefined ? '○' : '●');
+    return [
+        {
+            label: 'Sheets',
+            items: sheets.map((s) => {
+                const notes = [s.hidden && 'hidden', s.kind !== 'sheet' && s.kind].filter(Boolean).join(', ');
+                const suffix = notes ? ` (${notes})` : '';
+                return { text: `${mark(s)} ${s.name}${suffix}` };
+            }),
+            empty: 'No sheets',
+            start: src.startOf('sheets'),
+        },
+        {
+            label: 'Tables',
+            items: tables.map((t) => ({ text: `${mark(sheets[t.sheet])} ${t.name} (${sheets[t.sheet].name})` })),
+            empty: src.tablesRead ? 'No tables in this file' : 'Tables are not read from this format',
+            start: src.startOf('tables'),
+        },
+    ];
 }

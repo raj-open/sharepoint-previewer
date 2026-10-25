@@ -147,7 +147,18 @@ describe('spreadsheet source', () => {
             assert.equal(src.mode, 'tables');
             assert.deepEqual(
                 src.tables.map((t) => t.name),
-                ['Orders', 'Regions', 'Payments', 'Stock', 'Suppliers', 'PriceList'], // reading order
+                [
+                    'Orders',
+                    'Regions',
+                    'Payments',
+                    'Stock',
+                    'Week40',
+                    'Week41',
+                    'Week42',
+                    'Week43',
+                    'Week44',
+                    'PriceList',
+                ], // reading order
             );
             assert.equal(src.current, 0); // first table on the active sheet
             assert.deepEqual(src.shown.header, ['order', 'fruit', 'kg', 'date']);
@@ -156,7 +167,7 @@ describe('spreadsheet source', () => {
             assert.match(src.text, /^order,fruit,kg,date\n1001,apple,2.5,2026-09-01\n/);
             assert.deepEqual(Object.fromEntries(src.info), {
                 sheets: '6',
-                tables: '6',
+                tables: '10',
                 table: 'Orders (Sales!A1:D14): 12 rows × 4 columns',
             });
 

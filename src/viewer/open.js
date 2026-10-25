@@ -669,11 +669,13 @@ export async function showFile(name, url, reload) {
     };
     v.loadMoreBtn.onclick = () => load(false);
 
-    // Other sheet or table: its sheet cached on first choice (stop keeps what was shown before)
+    // Other sheet or table: its sheet cached on first choice (stop keeps what was shown before);
+    // sheets or tables: remembered for this file
     /** @param {number} i @param {SheetMode} [mode] */
     v.selectSheet = async (i, mode = src.mode) => {
         if (!src.isSheet || !(mode === 'tables' ? src.tables : src.sheets)[i]) return;
         if (mode === src.mode && i === src.current) return;
+        if (mode !== src.mode) rememberSheetMode(url, mode);
         const s = src.sheetOf(i, mode);
         if (src.sheets[s].data === undefined) {
             const job = async () => {
@@ -691,13 +693,6 @@ export async function showFile(name, url, reload) {
         }
         v.content.scrollTop = 0;
         v.content.scrollLeft = 0;
-    };
-    // Sheets or tables: remembered for this file
-    /** @param {SheetMode} mode */
-    v.selectSheetMode = (mode) => {
-        if (!src.isSheet || mode === src.mode) return;
-        rememberSheetMode(url, mode);
-        v.selectSheet(src.startOf(mode), mode);
     };
 
     if (LINTERS[lang] && !src.done) {
