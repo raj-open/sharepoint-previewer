@@ -23,6 +23,6 @@ describe('ui/styles', () => {
         assert.ok(style);
         assert.match(style.textContent, /\.tp-light \{/);
         assert.match(style.textContent, /\.tp-dark \{/);
-        assert.match(style.textContent, /\.tp-sheet-select/);
+        assert.match(style.textContent, /\.tp-picker-menu/);
     });
 });

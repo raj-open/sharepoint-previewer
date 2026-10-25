@@ -114,6 +114,7 @@ export async function openSheetSource(url, getSignal, reload, onProgress, mode =
         format: book.format,
         sheets,
         tables,
+        tablesRead: !!book.tables, // false: format without tables read (.xls)
         mode: /** @type {SheetMode} */ ('sheets'),
         current: firstSheet,
         /** @type {SheetShown} */

@@ -108,21 +108,19 @@ describe('preview per file type', () => {
         }
     });
 
-    it('spreadsheets: sheet drop-down, read only, sheets cached one by one', async () => {
+    it('spreadsheets: sheet picker, read only, sheets cached one by one', async () => {
         const page = await openFolder(`${h.LIBRARY}/Data`);
         const v = await h.preview(page, 'harvest.xlsx');
-        const select = v.locator('.tp-sheet-select');
-        assert.equal(await select.isVisible(), true);
-        assert.deepEqual(await select.locator('option').allTextContents(), [
-            '● Prices',
-            '○ Notes',
-            '○ Secret (hidden)',
-        ]);
+        const picker = v.locator('.tp-picker');
+        const items = v.locator('.tp-picker-menu .tp-picker-item');
+        assert.equal(await picker.isVisible(), true);
+        await picker.click();
+        assert.deepEqual(await items.allTextContents(), ['● Prices', '○ Notes', '○ Secret (hidden)']);
         assert.match(await v.locator('.tp-title-sheet').textContent(), /Sheet: Prices/);
         assert.equal(await v.locator('.tp-mode-btn[title^="Edit"]').isDisabled(), true);
         assert.equal(await h.eye(page, 'harvest.xlsx').getAttribute('data-eye'), 'half'); // other sheets not cached
 
-        await select.selectOption({ label: '○ Notes' });
+        await items.filter({ hasText: 'Notes' }).click();
         await v.locator('.tp-title-sheet', { hasText: 'Notes' }).waitFor();
         await h.settled(page);
         await v.locator('.tp-content', { hasText: 'after a gap' }).waitFor({ timeout: 5000 });
@@ -133,29 +131,36 @@ describe('preview per file type', () => {
         assert.equal(await h.eye(page, 'harvest.xlsx').getAttribute('data-eye'), 'open');
     });
 
-    it('spreadsheets: sheets or tables, the choice remembered per file', async () => {
+    it('spreadsheets: sheets and tables in one picker (← →), the choice remembered per file', async () => {
         const page = await openFolder(`${h.LIBRARY}/Data`);
         let v = await h.preview(page, 'orders.xlsx');
-        const mode = v.locator('.tp-sheet-mode');
-        assert.equal(await mode.inputValue(), 'sheets'); // setting: sheets first
-        assert.match(await properties(v), /sheets: 6 · tables: 6 · sheet: Sales/);
-        await mode.selectOption('tables');
-        await v.locator('.tp-title-sheet', { hasText: 'Table: Orders' }).waitFor();
-        assert.deepEqual((await v.locator('.tp-sheet-select option').allTextContents()).slice(0, 4), [
+        const picker = v.locator('.tp-picker');
+        const menu = v.locator('.tp-picker-menu');
+        assert.match(await properties(v), /sheets: 6 · tables: 6 · sheet: Sales/); // setting: sheets first
+        await picker.click();
+        await page.keyboard.press('ArrowRight');
+        await menu.locator('.tp-picker-tab[aria-pressed="true"]', { hasText: 'Tables' }).waitFor();
+        assert.deepEqual((await menu.locator('.tp-picker-item').allTextContents()).slice(0, 4), [
             '● Orders (Sales)',
             '● Regions (Sales)',
             '● Payments (Sales)',
             '○ Stock (Stock)',
         ]);
+        await page.keyboard.press('Enter'); // first table on the sheet shown
+        await v.locator('.tp-title-sheet', { hasText: 'Table: Orders' }).waitFor();
         assert.match(await properties(v), /table: Orders \(Sales!A1:D14\): 12 rows × 4 columns/);
 
         await h.preview(page, 'harvest.xlsx');
-        assert.equal(await v.locator('.tp-sheet-mode').isVisible(), false); // no tables: no choice
+        await picker.click();
+        await menu.locator('.tp-picker-tab', { hasText: 'Tables' }).click();
+        await menu.locator('.tp-picker-empty', { hasText: 'No tables' }).waitFor(); // always there, says why
+        await page.keyboard.press('Escape');
+        assert.equal(await menu.isVisible(), false);
+        assert.equal(await v.isVisible(), true); // Esc closed the menu, not the viewer
 
         await page.reload();
         await page.locator('.tp-preview').first().waitFor();
         v = await h.preview(page, 'orders.xlsx');
-        assert.equal(await v.locator('.tp-sheet-mode').inputValue(), 'tables');
         assert.match(await v.locator('.tp-title-sheet').textContent(), /Table: Orders/);
     });
 

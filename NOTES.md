@@ -61,9 +61,10 @@ and where it stores data.
     (blue while caching, neutral when idle or complete),
     with a "click to fully cache" hint
   - right: view switch **Text | Table | 3D**;
-    for spreadsheets a sheet drop-down right of **Table**
+    for spreadsheets a picker right of **Table**:
+    its menu shows the sheets or the tables, switched with ‹ › or ← →
     (● cached, ○ not cached yet; hidden sheets marked);
-    for spreadsheets with tables also a **Sheets | Tables** choice
+    picking a table shows tables, picking a sheet shows sheets
     (start value: setting `spreadsheet-view`, then the last choice per file),
     the sheet shown is also named next to the file name
 

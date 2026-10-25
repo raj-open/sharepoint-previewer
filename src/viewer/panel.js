@@ -39,6 +39,7 @@ import { UPLOAD_SVG } from '../ui/icons.js';
 import { WRAP_SVG } from '../ui/icons.js';
 import { WRITE_SVG } from '../ui/icons.js';
 import { startMove } from '../ui/move.js';
+import { createPicker } from '../ui/picker.js';
 import { QUOTE_MODES } from '../view/table.js';
 import { cancelLoad } from './cache.js';
 import { clearAllCached } from './cache.js';
@@ -150,14 +151,7 @@ export function createViewer() {
     };
     const textBtn = viewBtn(TEXT_SVG, 'Text', 'Text view');
     const tableBtn = viewBtn(TABLE_SVG, 'Table', 'Table view (CSV, Parquet, spreadsheets)');
-    // Spreadsheets with tables: sheets or tables; then the sheet or table shown (● cached, ○ not yet)
-    const sheetModeSelect = document.createElement('select');
-    sheetModeSelect.className = 'tp-sheet-mode';
-    sheetModeSelect.hidden = true;
-    sheetModeSelect.innerHTML = '<option value="sheets">Sheets</option><option value="tables">Tables</option>';
-    const sheetSelect = document.createElement('select');
-    sheetSelect.className = 'tp-sheet-select';
-    sheetSelect.hidden = true;
+
     const view3dBtn = viewBtn(CUBE_SVG, '3D', '3D view (IFC, IFCZIP)');
     const moreBtn = button(MORE_SVG, 'More', 0);
     moreBtn.style.left = '';
@@ -467,9 +461,11 @@ export function createViewer() {
     // Status bar (fixed height): cache state left, view switch right
     const statusBar = document.createElement('div');
     statusBar.className = 'tp-statusbar';
+    // Spreadsheets: sheet or table shown; its menu lists sheets and tables side by side
+    const sheetPicker = createPicker(statusBar, (list, i) => v.selectSheet?.(i, list ? 'tables' : 'sheets'));
     const views = document.createElement('div');
     views.className = 'tp-views';
-    views.append(textBtn, tableBtn, sheetModeSelect, sheetSelect, view3dBtn);
+    views.append(textBtn, tableBtn, sheetPicker.button, view3dBtn);
     statusBar.append(progress, views);
     box.append(header, csvBar, content, stage3d, editorWrap, loadMoreBtn, statusBar, splitter);
 
@@ -497,8 +493,7 @@ export function createViewer() {
         writeBtn,
         textBtn,
         tableBtn,
-        sheetModeSelect,
-        sheetSelect,
+        sheetPicker,
         view3dBtn,
         stage3d,
         canvas3d,
@@ -544,6 +539,7 @@ export function createViewer() {
     const onEscape = (e) => {
         if (e.key === 'Escape' && viewer === v) {
             e.stopPropagation();
+            if (!sheetPicker.menu.hidden) return void sheetPicker.close(); // open drop-down first
             closeViewer();
         }
     };
@@ -594,8 +590,7 @@ export function createViewer() {
         view.show3d = on;
         savePref('tp-preview-3d', on ? '1' : '0');
     };
-    sheetSelect.onchange = () => v.selectSheet?.(Number(sheetSelect.value));
-    sheetModeSelect.onchange = () => v.selectSheetMode?.(sheetModeSelect.value);
+
     view3dBtn.onclick = () => {
         if (v.view3d) return;
         set3d(true);

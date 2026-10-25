@@ -323,6 +323,7 @@ const CSS = `
   .tp-table th.tp-drop-after { box-shadow: inset -3px 0 0 var(--tp-accent); }
   .tp-table td[contenteditable] { cursor: text; outline: none; }
   .tp-statusbar {
+    position: relative;
     flex: none;
     height: 30px;
     display: flex;
@@ -375,22 +376,72 @@ const CSS = `
   .tp-viewer .tp-view-btn[aria-pressed="true"] { background: #0078d4; color: #fff; }
   .tp-viewer .tp-view-btn:disabled { opacity: .4; cursor: default; }
   .tp-viewer .tp-view-btn:not(:disabled):not([aria-pressed="true"]):hover { background: var(--tp-hover); }
-  /* Sheet choice (spreadsheets): segment right of the table button */
-  .tp-viewer .tp-sheet-select, .tp-viewer .tp-sheet-mode {
+  /* Sheet or table choice (spreadsheets): segment right of the table button; menu above it */
+  .tp-viewer .tp-picker {
     height: 22px;
     max-width: 200px;
-    padding: 0 4px;
+    padding: 0 8px;
+    overflow: hidden;
     border: none;
     border-left: 1px solid var(--tp-border);
     border-radius: 0;
     background: transparent;
     color: var(--tp-fg);
     font: 12px sans-serif;
+    white-space: nowrap;
+    text-overflow: ellipsis;
     cursor: pointer;
   }
-  .tp-viewer .tp-sheet-select:hover, .tp-viewer .tp-sheet-mode:hover { background: var(--tp-hover); }
-  .tp-viewer .tp-sheet-select option, .tp-viewer .tp-sheet-mode option { background: var(--tp-bg); color: var(--tp-fg); }
-  .tp-viewer .tp-sheet-select + .tp-view-btn { border-left: 1px solid var(--tp-border); }
+  .tp-viewer .tp-picker:hover, .tp-viewer .tp-picker[aria-expanded="true"] { background: var(--tp-hover); }
+  .tp-viewer .tp-picker + .tp-view-btn { border-left: 1px solid var(--tp-border); }
+  .tp-picker-menu {
+    position: absolute;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    width: 260px;
+    max-height: min(60vh, 340px);
+    background: var(--tp-bg);
+    border: 1px solid var(--tp-border);
+    border-radius: 6px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.3);
+    outline: none;
+  }
+  .tp-picker-menu[hidden] { display: none; }
+  .tp-picker-head { flex: none; display: flex; gap: 2px; padding: 4px; border-bottom: 1px solid var(--tp-border); }
+  .tp-picker-head button {
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--tp-fg);
+    font: 12px sans-serif;
+    cursor: pointer;
+  }
+  .tp-picker-head button:hover { background: var(--tp-hover); }
+  .tp-picker-step { flex: none; width: 24px; font-size: 15px !important; }
+  .tp-picker-tab { flex: 1; padding: 4px 6px; }
+  .tp-picker-tab span { opacity: .6; }
+  .tp-picker-tab[aria-pressed="true"] { background: #0078d4 !important; color: #fff !important; }
+  .tp-picker-list { flex: 1; min-height: 0; overflow-y: auto; padding: 4px; }
+  .tp-picker-item {
+    display: block;
+    width: 100%;
+    padding: 5px 8px;
+    overflow: hidden;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--tp-fg);
+    font: 12px sans-serif;
+    text-align: left;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+  .tp-picker-item:hover, .tp-picker-item.tp-active { background: var(--tp-hover); }
+  .tp-picker-item.tp-chosen { font-weight: 600; }
+  .tp-picker-item.tp-chosen::after { content: ' ✓'; color: var(--tp-accent); }
+  .tp-picker-empty { padding: 8px; font: 12px sans-serif; color: var(--tp-fg); opacity: .6; }
   .tp-progress-bar {
     width: 140px;
     height: 3px;
