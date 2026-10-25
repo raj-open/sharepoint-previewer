@@ -126,6 +126,7 @@ describe('preview per file type', () => {
         ]);
         assert.match(await properties(v), /11 entries × 6 columns/);
         const expand = v.locator('.tp-table .tp-expand');
+        await expand.first().waitFor(); // rows are filled in once in view
         assert.equal(await expand.count(), 3); // stack trace, JSON, Python dict (with printed JSON after it)
         await v.locator('.tp-table tr', { hasText: 'request' }).locator('.tp-expand').click();
         const detail = v.locator('.tp-table .tp-detail');
@@ -135,9 +136,11 @@ describe('preview per file type', () => {
         await v.locator('.tp-table tr', { hasText: 'request' }).locator('.tp-expand').click();
         assert.equal(await detail.count(), 0);
         const all = v.locator('.tp-table .tp-expand-all');
-        await all.click();
+        await all.click(); // table built anew: wait for its rows
+        await detail.nth(2).waitFor();
         assert.equal(await detail.count(), 3);
         await all.click();
+        await detail.first().waitFor({ state: 'detached' });
         assert.equal(await detail.count(), 0);
         const plain = await h.preview(page, 'plain.log');
         assert.equal(await plain.locator('.tp-view-btn', { hasText: 'Table' }).isDisabled(), true);
