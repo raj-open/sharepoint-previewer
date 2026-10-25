@@ -1,0 +1,16 @@
+=== app 1.4.0 starting (pid 4711) ===
+2026-10-25 08:00:00,012 [main] INFO  app.server - listening on port 8080
+2026-10-25 08:00:01,250 [main] DEBUG app.db - pool size=4 timeout=30
+2026-10-25 08:00:05,731 [worker-1] WARN  app.cache - cache miss rate high: 0.42
+2026-10-25 08:00:09,004 [worker-2] ERROR app.orders - order 1042 failed
+java.lang.IllegalStateException: stock below zero
+	at app.orders.Stock.take(Stock.java:57)
+	at app.orders.Service.place(Service.java:112)
+2026-10-25 08:00:09,010 [worker-2] INFO  app.orders - order 1042 rolled back
+2026-10-25 08:00:12,500 [main] INFO  app.server - health check ok
+2026-10-25 08:00:15,000 [worker-1] INFO  app.api - request {"path": "/orders", "status": 201, "ms": 12.5} done
+2026-10-25 08:00:16,000 [worker-2] DEBUG app.orders - state={'id': 1043, 'paid': True, 'items': ('apple', 'pear')}
+printed by a library: {"queue": 3,
+  "retries": 0}
+2026-10-25 08:00:20,000 [worker-1] FATAL app.db - connection lost
+2026-10-25 08:00:20,100 [main] INFO  app.server - shutting down

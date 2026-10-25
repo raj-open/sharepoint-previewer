@@ -6,7 +6,7 @@ import { fakeViewer } from '../helpers.mjs';
 import { load } from '../helpers.mjs';
 
 const { tableView, colourKey, showSheets, sheetLists } = await load('viewer/views.js');
-const { markdownView, previewOf, setPreview, updateViews } = await load('viewer/views.js');
+const { markdownView, previewOf, setPreview, updateViews, viewKey } = await load('viewer/views.js');
 const { view } = await load('_core/prefs.js');
 
 describe('viewer/views', () => {
@@ -19,8 +19,31 @@ describe('viewer/views', () => {
         view.table = false;
         assert.equal(tableView({ lang: 'csv' }), false);
     });
+    it('log table: own choice (text first), not while edited, only with fields found', () => {
+        const v = fakeViewer({ lang: 'log' });
+        view.table = true;
+        view.logTable = false;
+        assert.equal(tableView(v), false);
+        view.logTable = true;
+        assert.equal(tableView(v), true);
+        v.previewBtn.disabled = true; // no fields found
+        assert.equal(tableView(v), false);
+        v.previewBtn.disabled = false;
+        v.writeMode = true;
+        assert.equal(tableView(v), false);
+        assert.deepEqual(
+            [viewKey(v, 'table'), viewKey({ lang: 'csv' }, 'table'), viewKey(v, 'markdown')],
+            ['logTable', 'table', 'markdown'],
+        );
+    });
+    it('log table: tooltip says it is experimental', () => {
+        const v = fakeViewer({ lang: 'log' });
+        setPreview(v, 'table');
+        assert.match(v.previewBtn.title, /experimental/);
+    });
     it('preview by file type: table, 3D, Markdown, none', () => {
-        assert.deepEqual(['csv', 'parquet', 'sheet', 'ifc', 'md', 'json', null].map(previewOf), [
+        assert.deepEqual(['csv', 'parquet', 'sheet', 'log', 'ifc', 'md', 'json', null].map(previewOf), [
+            'table',
             'table',
             'table',
             'table',
