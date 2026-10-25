@@ -594,6 +594,16 @@ const CSS = `
   .tp-lv-debug { color: var(--tp-trunc); }
   .tp-log-date { color: var(--tp-type); }
   .tp-log-frame { color: var(--tp-trunc); }
+  .tp-table td.tp-multi::before { content: '⏎ '; color: var(--tp-trunc); } /* log message over several lines */
+  .tp-table .tp-expand-all { border: none; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+  .tp-table .tp-expand-all:hover { color: var(--tp-accent); }
+  .tp-table .tp-expand { border: none; background: none; padding: 0 4px 0 0; font: inherit; color: var(--tp-ln-fg); cursor: pointer; }
+  .tp-table .tp-expand:hover { color: var(--tp-accent); }
+  .tp-table tr.tp-detail td, .tp-table tbody tr.tp-detail:not(.tp-spacer):hover td { max-width: none; white-space: normal; background: var(--tp-stripe); }
+  .tp-detail-box { max-width: 80vw; padding: 4px 0; }
+  .tp-seg + .tp-seg { margin-top: 8px; }
+  .tp-seg-label { color: var(--tp-ln-fg); font-style: italic; }
+  .tp-seg pre { margin: 0; font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
   .tp-log-url { color: var(--tp-enum); text-decoration: underline; }
   .tp-sp {
     background-image: radial-gradient(circle, var(--tp-ws) 0.9px, transparent 1.3px);

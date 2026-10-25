@@ -106,6 +106,7 @@ export const colourPrefs = {
 export const view = {
     // View choices: settings are start values, last choice is remembered (localStorage)
     table: loadPref('tp-preview-table', '1') === '1',
+    logTable: loadPref('tp-preview-log-table', '0') === '1', // logs: text first (table experimental)
     // Lines of metadata shown (drag grip below it)
     metaLines: Math.max(1, Math.min(6, Number(loadPref('tp-preview-meta-lines', '1')) || 1)),
     props: loadPref('tp-preview-properties', '0') === '1',

@@ -108,6 +108,45 @@ describe('preview per file type', () => {
         }
     });
 
+    it('logs: text first, table (experimental) with guessed fields; none for logs without fields', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Logs`);
+        const v = await h.preview(page, 'app.log');
+        const table = v.locator('.tp-view-btn', { hasText: 'Table' });
+        assert.match(String(await table.getAttribute('title')), /experimental/);
+        assert.equal(await v.locator('.tp-table').count(), 0);
+        await table.click();
+        await v.locator('.tp-table').waitFor();
+        assert.deepEqual(await v.locator('.tp-table th[data-c] .tp-sort').allTextContents(), [
+            'line',
+            'time',
+            'context',
+            'level',
+            'name',
+            'message',
+        ]);
+        assert.match(await properties(v), /11 entries × 6 columns/);
+        const expand = v.locator('.tp-table .tp-expand');
+        await expand.first().waitFor(); // rows are filled in once in view
+        assert.equal(await expand.count(), 3); // stack trace, JSON, Python dict (with printed JSON after it)
+        await v.locator('.tp-table tr', { hasText: 'request' }).locator('.tp-expand').click();
+        const detail = v.locator('.tp-table .tp-detail');
+        await detail.waitFor();
+        assert.deepEqual(await detail.locator('.tp-seg-label').allTextContents(), ['JSON object']);
+        assert.match(await detail.textContent(), /"status": 201/);
+        await v.locator('.tp-table tr', { hasText: 'request' }).locator('.tp-expand').click();
+        assert.equal(await detail.count(), 0);
+        const all = v.locator('.tp-table .tp-expand-all');
+        await all.click(); // table built anew: wait for its rows
+        await detail.nth(2).waitFor();
+        assert.equal(await detail.count(), 3);
+        await all.click();
+        await detail.first().waitFor({ state: 'detached' });
+        assert.equal(await detail.count(), 0);
+        const plain = await h.preview(page, 'plain.log');
+        assert.equal(await plain.locator('.tp-view-btn', { hasText: 'Table' }).isDisabled(), true);
+        assert.equal(await plain.locator('.tp-table').count(), 0);
+    });
+
     it('spreadsheets: sheet picker, read only, sheets cached one by one', async () => {
         const page = await openFolder(`${h.LIBRARY}/Data`);
         const v = await h.preview(page, 'harvest.xlsx');
