@@ -11,6 +11,7 @@
 !/.gitignore
 !/LICENCE
 !/README.md
+!/TECHNICAL.md
 !/NOTES.md
 !/specs.md
 !/justfile
@@ -19,9 +20,17 @@
 !/biome.json
 !/tsconfig.json
 
+# for github
+!/.github
+!/.github/workflows
+!/.github/workflows/*.yaml
+
 # --------------------------------
 # folders
 # --------------------------------
+
+!/demos
+!/demos/**
 
 !/dist
 !/dist/VERSION

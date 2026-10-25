@@ -1,18 +1,25 @@
 # ----------------------------------------------------------------
-# qa-manual: placeholder, not yet implemented
+# QA (manual): on demand, for any branch, tag or commit
 # ----------------------------------------------------------------
 
 name: qa-manual
 
 on:
   workflow_dispatch:
+    environment:
+      description: |-
+        Choice of environment for pipeline
+      # NOTE: this option provides dropdown list of choices of environments set on GitHub (enterprise only)
+      type: environment
+      reuired: true
+      default: "local"
 
 permissions:
   contents: read
 
 jobs:
-  qa-manual:
-    name: qa-manual
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "not yet implemented"
+  qa:
+    name: QA
+    runs-on: "ubuntu-latest"
+    environment: "${{ github.event.inputs.environment }}"
+    uses: ./.github/workflows/_common.yaml

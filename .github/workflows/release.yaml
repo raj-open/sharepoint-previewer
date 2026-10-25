@@ -1,18 +1,76 @@
 # ----------------------------------------------------------------
-# release: placeholder, not yet implemented
+# RELEASE: on a release tag (v<VERSION>, cf. `just tag`),
+# runs qa, builds /dist/v<VERSION> and attaches its files to the GitHub release
+# (created if missing; pre-release for alpha, beta, rc)
 # ----------------------------------------------------------------
 
 name: release
 
 on:
+  # NOTE: disabled as release should be manually triggered
+  # push:
+  #   tags:
+  #     - "v*"
+
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag'
+        required: true
+        default: 'v0.0.0-test'
+        type: string
 
 permissions:
   contents: read
 
 jobs:
+  qa:
+    uses: ./.github/workflows/_common.yaml
+
   release:
     name: release
+    needs: qa
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
     steps:
-      - run: echo "not yet implemented"
+      # --------------------------------
+      # setup
+      # --------------------------------
+
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-tags: true
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: extractions/setup-just@v4
+
+      # --------------------------------
+      # build (no browser needed)
+      # --------------------------------
+
+      - name: build
+        run: |-
+          npm ci --no-audit --no-fund
+          just build-dist
+
+      # --------------------------------
+      # release
+      # --------------------------------
+
+
+      - name: Upload to GitHub Releases
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.version || github.ref_name }}
+          files: dist/v*
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,76 +1,121 @@
-# SharePoint Previewer #
+# Sharepoint Previewer #
 
-Tampermonkey userscript:
-preview (text, table, 3D, spreadsheets) and editor for files in SharePoint Online document libraries.
+[![qa (main)](../../actions/workflows/qa-auto.yaml/badge.svg?branch=main)](../../actions/workflows/qa-auto.yaml?query=branch%3Amain)
+[![qa (staging)](../../actions/workflows/qa-auto.yaml/badge.svg?branch=staging)](../../actions/workflows/qa-auto.yaml?query=branch%3Astaging)
+[![release](../../actions/workflows/release.yaml/badge.svg)](../../actions/workflows/release.yaml)
+
+[![Tampermonkey](https://img.shields.io/badge/Tampermonkey-userscript-00485B?logo=tampermonkey&logoColor=white)](https://www.tampermonkey.net)
+[![JavaScript](https://img.shields.io/badge/JavaScript-ES%20modules-F7DF1E?logo=javascript&logoColor=black)](https://developer.mozilla.org/docs/Web/JavaScript)
+[![Sharepoint Online](https://img.shields.io/badge/Sharepoint-Online-0078D4?logo=microsoftsharepoint&logoColor=white)](https://www.microsoft.com/microsoft-365/sharepoint)
+[![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A5%2022-5FA04E?logo=nodedotjs&logoColor=white)](https://nodejs.org)
+[![just](https://img.shields.io/badge/task%20runner-just-C9A227)](https://just.systems)
+[![Biome](https://img.shields.io/badge/lint%20%2B%20format-Biome-60A5FA?logo=biome&logoColor=white)](https://biomejs.dev)
+[![TypeScript](https://img.shields.io/badge/type%20check-TypeScript%20(JSDoc)-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/docs/handbook/jsdoc-supported-types.html)
+[![node:test](https://img.shields.io/badge/tests-node%3Atest-5FA04E?logo=nodedotjs&logoColor=white)](https://nodejs.org/api/test.html)
+[![Playwright](https://img.shields.io/badge/behave-Playwright-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev)
+[![licence](https://img.shields.io/badge/licence-MPL--2.0-orange)](LICENCE)
+[![runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-none-brightgreen)](NOTES.md)
+
+It goes without saying: _Microsoft Sharepoint is frustrating_.
+So we set out to solve one very simple problem:
+users should _at bare minimum_ be able to preview plaintext files – regardless of their file extensions!
+
+We built a **previewer** that simply augments the Sharepoint experience to overcome just this issue.
+
+## Demonstration ##
+
+See
+
+- [Overview](demos/overview.md): list view, text, syntax checks, Markdown
+- [Tables and spreadsheets](demos/tables.md): CSV, Excel tables and sheets, logs
+- [3D](demos/3d.md): IFC models
 
 Technical description for IT (behaviour, network, storage, security, deployment):
 see [NOTES.md](NOTES.md).
 
-## Structure ##
+## Motivation ##
 
-| Path | Contents |
-| :--- | :------- |
-| `/src/_core` | entry (`main.js`), Tampermonkey header (`header.js`), settings, preferences, list view, shared types |
-| `/src/{readers,text,ui,view,viewer}` | the other modules (ES modules) |
-| `/src/main.js` | the userscript, bundled from the modules (written by `just build-src`) |
-| `/src/main.min.js` | the same, minified (written by `just build-src`) |
-| `/src/@apis/ifc-lite/main.js` | entry of the ifc-lite bundle for the optional 3D view |
-| `/tests/{unit,behave,integration}` | tests (`tests_*.mjs`, run with `node --test`); unit tests mirror `/src` |
-| `/templates` | templates for local files (e.g. `.env`) |
-| `/dist/VERSION` | version (single source) |
-| `/models` | (reserved) schemata |
-| `specs.md` | public specs and conventions |
+### What? ###
 
-## Requirements ##
+This repository produces a [Tampermonkey](https://www.tampermonkey.net) userscript
+to preview (text, table, 3D, spreadsheets) and edit files in Sharepoint libraries.
 
-- [just](https://just.systems)
-- Node.js (≥ 22)
-- bash (on Windows e.g. Git Bash)
+### Why? ###
 
-## Tasks ##
+After further consideration we built further features into this application.
+Our tool allows users to
 
-```bash
-just setup              # local files (.env, ...) from /templates
-just build              # dependencies (per lock) + all artefacts in /dist
-just build-src          # /src/main.js + /src/main.min.js from the modules
-just build-dist         # artefacts only (dependencies already installed)
-just prettify           # format + lint with fixes (Biome)
-just lint-check         # same, dry run
-just tests              # all tests (tests-unit, tests-behave, tests-integration)
-just tests-explore      # mock SharePoint with the userscript on localhost (HTTP_PORT in .env)
-just clean              # node_modules + built artefacts
-```
+- preview any text file, with syntax colours and checks (JSON, XML, YAML, IFC, ...)
+- view CSV, Parquet, Excel and OpenDocument files as sortable, filterable tables
+- read Markdown rendered and logs as tables (experimental)
+- view IFC models in 3D (optional)
+- edit plaintext files and save them back through Sharepoint's own upload
 
-## Artefacts ##
+> [!NOTE]
+> Our tool involves no API calls or 3rd party usage (beyond an optional IFC-lite viewer).
 
-Each build writes one flat release folder `/dist/v<VERSION>`:
+### For whom? ###
 
-| File | Contents |
-| :--- | :------- |
-| `sharepoint-previewer.js` | userscript to install |
-| `sharepoint-previewer.min.js` | the same, minified (whitespace and syntax; names kept) |
-| `ifc-lite-3d.js` | ifc-lite bundle (esbuild, versions pinned in `package.json`) |
-| `ifc-lite_bg.wasm` | engine binary, copied unchanged from `@ifc-lite/wasm` |
-| `NOTES.md` | technical description for IT |
+This application is design for people who use Sharepoint in a browser.
+e.g. engineers checking models and exports,
+data and BI people looking into tables,
+developers and admins reading logs and configs,
+and IT teams who want all this without another app to roll out.
 
-The build writes into the userscript:
+## Usage ##
 
-- `@version` from `/dist/VERSION`
-- the SHA-256 hashes of the two 3D files
-  (the values in `/src/main.js` are those of the last deployed bundle)
+### System requirements ###
 
-So the userscript and the 3D files of one build are deployed together.
+- Supported by most browsers (e.g. Chrome, Edge).
 
-## Dependencies ##
+- Requires the [Tampermonkey](https://www.tampermonkey.net) extension.
 
-Development only (nothing is loaded at runtime):
+- Write access to any Sharepoint library in your domain.
 
-- `@biomejs/biome` - lint + format (cf. `/biome.json`)
-- `esbuild` - bundles the 3D view
-- `@ifc-lite/geometry`, `@ifc-lite/renderer`, `@ifc-lite/wasm` - 3D view (MPL-2.0)
+> [!IMPORTANT]
+> Ensure you that **user scripts** are enabled on your Tampermonkey extension (see the instructions on <https://www.tampermonkey.net>).
 
-`just build` installs per `package-lock.json`;
-the lock is only rewritten when `package.json` has changed.
+### Setup from releases ###
+
+1. Go to the [releases](./releases) page.
+
+2. Download the release artefacts.
+
+3. Copy the minified `sharepoint-previewer.min.js` into your Tampermonkey extension.
+
+4. (Optional – for IFC-viewer usage) Place the viewer script/artefacts (`ifc-lite-3d.js`, `ifc-lite_bg.wasm`)
+   in a designated Sharepoint library of your choice.
+
+5. Ensure the application `Sharepoint Viewer` is activated in the Tampermonkey extension and refresh your browser.
+
+6. Navigate to any sharepoint library:
+
+    1. (only needed onced) click on the `Sharepoint Viewer` application within the Tampermonkey extension menu,
+      select settings,
+      accept the defaults or adjust as you see fit.
+      In particular the (relative!) path to your ifc-lite artefacts should be set (if you wish to use the IFC-viewer),
+      and an optional company or private logo can be entered as base64 encoding of an image.
+
+    2. You should see an "eye" logo to the left of all files (but not folders). Click on these to preview any plaintext file
+        (as well as a small selection of binaries like `*.xlsx` and `*.parquet` files).
+
+> [!IMPORTANT]
+> The ifc-lite artefacts must be within same domain, but can be placed in different libraries and subsharepoints.
+
+### Setup for developers ###
+
+1. Clone or fork this repository.
+
+2. Ensure you have the [Justfile]() tool.
+
+3. Run `just build` to locally build the artefacts in the [/dist](./dist) subfolder.
+
+4. Follow Instructions 3–6 [above](#setup-from-releases).
+
+## Notes ##
+
+- See [TECHNICAL.md](./TECHNICAL.md) for basic technical notes about this repository.
+- See [NOTES.md](./NOTES.md) for notes on application logic and design.
 
 ## Licence ##
 
