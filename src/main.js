@@ -41,6 +41,7 @@
   /** @typedef {{ paths: () => string[], entry: (path?: string) => ZipEntry|undefined, bytes: (path?: string) => Promise<Uint8Array|null>, text: (path?: string) => Promise<string|null> }} Package parts of a ZIP-based document by path */
   /** @typedef {{ deferred: string, size: number, dates: Object<string, *> }} Deferred big file: shown only after "cache all" */
   /** @typedef {{ sort: { col: number, dir: number }|null, filters: Map<number, { values: Set<string>|null, text: string }>, widths?: Map<number, number> }} TableState sort, filters, column widths of a table view */
+  /** @typedef {{ header: string[], rows: string[][], kinds: string[] }} LogTable log as a table: columns line, fields (kinds: time, level, context, name), message */
   /** @typedef {string[] & { raw?: string }} CsvRow cells of a CSV line; raw: its text as in the file (unedited rows are written back as they were) */
   /** @typedef {Event & { target: HTMLElement }} TargetEvent event whose target is an element (handlers read e.target) */
   /** @typedef {{ workbook: (bytes: Uint8Array) => { sheets: { name: string, id: string, hidden: boolean }[], active: number, date1904: boolean }, strings: (bytes: Uint8Array) => string[], styles: (bytes: Uint8Array) => string[], sheet: (bytes: Uint8Array, strings: string[], kinds: string[], date1904: boolean) => SheetData, table: (bytes: Uint8Array) => TablePart|null }} SheetParts readers of a workbook's parts (XML or binary) */
@@ -633,7 +634,8 @@
   /**
    * @param {HTMLElement} content @param {string[]} header @param {CsvRow[]} rows
    * @param {{ state: TableState,
-   *   editable?: boolean, onEdit?: () => void, sep?: string, colour?: boolean, format?: { sep: string, quote: string }|null }} opts
+   *   editable?: boolean, onEdit?: () => void, sep?: string, colour?: boolean, format?: { sep: string, quote: string }|null,
+   *   classOf?: (c: number, value: string) => string }} opts classOf: own colours per cell (with colour on)
    * @returns {LineView & { csvText: () => string }}
    */
   function mountTable(content, header, rows, opts) {
@@ -688,9 +690,10 @@
               const bin = opts.editable
                   ? `<button class="tp-col-delete" data-c="${c}" draggable="false" title="Delete this column">${BIN_SVG}</button>`
                   : '';
-              const line = opts.colour
-                  ? ` style="border-bottom-color: var(--tp-${CSV_COLOURS[c % CSV_COLOURS.length]})"`
-                  : '';
+              const line =
+                  opts.colour && !opts.classOf
+                      ? ` style="border-bottom-color: var(--tp-${CSV_COLOURS[c % CSV_COLOURS.length]})"`
+                      : '';
               cells +=
                   `<th data-c="${c}"${drag}${line}><span class="tp-sort">${esc(header[c] ?? '')}${sort}</span>` +
                   `<button class="tp-filter${active}" data-c="${c}" title="Filter">▾</button>${bin}` +
@@ -699,8 +702,12 @@
           return `<thead><tr>${cells}</tr></thead>`;
       };
 
-      /** @param {number} c */
-      const colourOf = (c) => (opts.colour ? ` class="tp-${CSV_COLOURS[c % CSV_COLOURS.length]}"` : '');
+      /** @param {number} c @param {string} value */
+      const colourOf = (c, value) => {
+          if (!opts.colour) return '';
+          const cls = opts.classOf ? opts.classOf(c, value) : CSV_COLOURS[c % CSV_COLOURS.length];
+          return cls ? ` class="tp-${cls}"` : '';
+      };
       /** @param {number} i @param {number} pos */
       const rowHtml = (i, pos) => {
           const r = rows[i];
@@ -708,7 +715,7 @@
           let cells = '';
           for (let c = 0; c < cols; c++) {
               const t = esc(r[c] ?? '');
-              cells += `<td data-r="${i}" data-c="${c}"${colourOf(c)} title="${t}"${edit}>${t}</td>`;
+              cells += `<td data-r="${i}" data-c="${c}"${colourOf(c, r[c] ?? '')} title="${t}"${edit}>${t}</td>`;
           }
           const drag = opts.editable ? ' draggable="true" title="Drag to move this row"' : '';
           return `<tr${pos % 2 ? ' class="tp-stripe"' : ''}><td class="tp-rn" data-row="${i}"${drag}>${(i + 1).toLocaleString()}</td>${cells}</tr>`;
@@ -1265,6 +1272,7 @@
   const view = {
       // View choices: settings are start values, last choice is remembered (localStorage)
       table: loadPref('tp-preview-table', '1') === '1',
+      logTable: loadPref('tp-preview-log-table', '0') === '1', // logs: text first (table experimental)
       // Lines of metadata shown (drag grip below it)
       metaLines: Math.max(1, Math.min(6, Number(loadPref('tp-preview-meta-lines', '1')) || 1)),
       props: loadPref('tp-preview-properties', '0') === '1',
@@ -2415,6 +2423,7 @@
     .tp-lv-debug { color: var(--tp-trunc); }
     .tp-log-date { color: var(--tp-type); }
     .tp-log-frame { color: var(--tp-trunc); }
+    .tp-table td.tp-multi::before { content: '⏎ '; color: var(--tp-trunc); } /* log message over several lines */
     .tp-log-url { color: var(--tp-enum); text-decoration: underline; }
     .tp-sp {
       background-image: radial-gradient(circle, var(--tp-ws) 0.9px, transparent 1.3px);
@@ -7494,6 +7503,159 @@
       }
   }
 
+  // Module: view/log.js
+
+  // Log table (experimental): entries and fields guessed from the log's lines
+
+  // ===========================================================================
+  // IMPORTS
+  // ===========================================================================
+
+  // ===========================================================================
+  // CONSTANTS
+  // ===========================================================================
+
+  const SAMPLE_LINES = 1000; // lines looked at to find the fields
+  const MAX_FIELDS = 6;
+  const MIN_STARTS = 0.2; // share of lines that must start an entry
+  const MIN_SHARED = 0.8; // share of entries a field must be in
+
+  // Level words, any case (as in the highlighter)
+  const LEVEL_WORDS = Object.values(LOG_LEVELS).flat().join('|');
+
+  // Fields at the start of an entry (sticky); groups: the value
+  /** @type {[string, RegExp][]} */
+  const FIELDS = [
+      [
+          'time',
+          new RegExp(
+              [
+                  /\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:[.,]\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?/.source, // ISO 8601
+                  /\d{1,2}[./]\d{1,2}[./]\d{2,4}(?:[ ,]+\d{2}:\d{2}(?::\d{2}(?:[.,]\d+)?)?)?/.source, // 24.10.2026
+                  /(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) +\d{1,2} \d{2}:\d{2}:\d{2}/.source, // syslog
+                  /\d{2}:\d{2}:\d{2}(?:[.,]\d+)?/.source, // time
+              ]
+                  .join('|')
+                  .replace(/^(.*)$/, '\\[?($1)\\]?(?![\\w:])'),
+              'y',
+          ),
+      ],
+      ['level', new RegExp(`\\[?(${LEVEL_WORDS})\\]?(?![\\w-])`, 'iy')],
+      ['context', /[[(]([^\])\n]*)[\])]/y], // [thread], (module)
+      ['name', /([A-Za-z_$][\w.$/-]*(?:\[\d+\])?)(?=[ \t]*(?:[-|][ \t]|:|\t))/y], // logger, process[pid]: before a separator
+  ];
+  const SEP_RE = /[ \t]*(?:[-|][ \t]+|:[ \t]*)?[ \t]*/y; // between fields: spaces, " - ", " | ", ":"
+
+  // ===========================================================================
+  // METHODS
+  // ===========================================================================
+
+  // Log text -> table: line of the entry, fields, message (continuation lines joined); null: no fields found
+  /** @param {string} text @returns {LogTable|null} */
+  function parseLog(text) {
+      const lines = text.split(/\r?\n/);
+      const kinds = template(lines.slice(0, SAMPLE_LINES));
+      if (!kinds) return null;
+      const header = ['line', ...names(kinds), 'message'];
+      /** @type {string[][]} */
+      const rows = [];
+      lines.forEach((line, i) => {
+          const head = /^\s/.test(line) ? null : readHead(line);
+          const last = rows[rows.length - 1];
+          if (head && head.kinds[0] === kinds[0]) {
+              const row = [String(i + 1), ...kinds.map(() => '')];
+              let k = 0;
+              for (let f = 0; f < head.kinds.length && k < kinds.length; f++) {
+                  while (k < kinds.length && kinds[k] !== head.kinds[f]) k++;
+                  if (k < kinds.length) row[++k] = head.values[f];
+              }
+              row.push(line.slice(head.end));
+              rows.push(row);
+          } else if (last) last[last.length - 1] += `\n${line}`;
+          else if (line.trim()) rows.push([String(i + 1), ...kinds.map(() => ''), line]); // lines before the first entry
+      });
+      for (const row of rows) row[row.length - 1] = row[row.length - 1].replace(/\s+$/, '');
+      return { header, rows, kinds };
+  }
+
+  // Level class of a value ('lv-err', ...), as in the highlighter; '' if none
+  /** @param {string} value @returns {string} */
+  function levelClass(value) {
+      const word = value.toUpperCase();
+      const entry = Object.entries(LOG_LEVELS).find(([, words]) => words.includes(word));
+      return entry ? entry[0] : '';
+  }
+
+  // ===========================================================================
+  // AUXILIARY METHODS
+  // ===========================================================================
+
+  // Fields at the start of a line: kinds, values, end of the head
+  /** @param {string} line @returns {{ kinds: string[], values: string[], end: number }|null} */
+  function readHead(line) {
+      /** @type {string[]} */
+      const kinds = [];
+      /** @type {string[]} */
+      const values = [];
+      let at = 0;
+      while (kinds.length < MAX_FIELDS) {
+          const found = FIELDS.find(([kind, re]) => {
+              if (kind !== 'context' && kinds.includes(kind)) return false; // brackets may repeat
+              re.lastIndex = at;
+              return re.test(line);
+          });
+          if (!found) break;
+          const [kind, re] = found;
+          re.lastIndex = at;
+          const m = /** @type {RegExpExecArray} */ (re.exec(line)); // matched just above
+          kinds.push(kind);
+          values.push(m[1]);
+          SEP_RE.lastIndex = at + m[0].length;
+          SEP_RE.test(line);
+          at = SEP_RE.lastIndex;
+      }
+      return kinds.length ? { kinds, values, end: at } : null;
+  }
+
+  // Fields shared by the entries: first field starts enough lines, then the longest run most entries share
+  /** @param {string[]} lines @returns {string[]|null} */
+  function template(lines) {
+      const filled = lines.filter((l) => l.trim());
+      const heads = filled.filter((l) => !/^\s/.test(l)).map(readHead);
+      /** @type {Map<string, number>} */
+      const firsts = new Map();
+      for (const h of heads) if (h) firsts.set(h.kinds[0], (firsts.get(h.kinds[0]) || 0) + 1);
+      const [first, count] = [...firsts].sort((a, b) => b[1] - a[1])[0] || ['', 0];
+      if (count < 2 || count < filled.length * MIN_STARTS) return null;
+      const entries = /** @type {{ kinds: string[] }[]} */ (heads.filter((h) => h?.kinds[0] === first));
+      const kinds = [first];
+      while (kinds.length < MAX_FIELDS) {
+          /** @type {Map<string, number>} */
+          const next = new Map();
+          for (const e of entries) {
+              const same = kinds.every((k, i) => e.kinds[i] === k);
+              const k = same ? e.kinds[kinds.length] : undefined;
+              if (k) next.set(k, (next.get(k) || 0) + 1);
+          }
+          const [kind, n] = [...next].sort((a, b) => b[1] - a[1])[0] || ['', 0];
+          if (n < entries.length * MIN_SHARED) break;
+          kinds.push(kind);
+      }
+      return kinds.length > 1 || first === 'time' || first === 'level' ? kinds : null;
+  }
+
+  // Column names of the fields: context, context 2, ...
+  /** @param {string[]} kinds @returns {string[]} */
+  function names(kinds) {
+      /** @type {Map<string, number>} */
+      const seen = new Map();
+      return kinds.map((k) => {
+          const n = (seen.get(k) || 0) + 1;
+          seen.set(k, n);
+          return n > 1 ? `${k} ${n}` : k;
+      });
+  }
+
   // Module: view/markdown.js
 
   // Render: Markdown -> HTML (CommonMark core + GFM tables, task lists, strikethrough); raw HTML shown as text
@@ -8069,6 +8231,7 @@
       '3d': { svg: CUBE_SVG, label: '3D', title: '3D view (IFC, IFCZIP)' },
       md: { svg: MARKDOWN_SVG, label: 'Markdown', title: 'Markdown view' },
   };
+  const LOG_TABLE_TITLE = 'Table view (experimental: fields guessed from the lines of the log)';
 
   // ===========================================================================
   // METHODS
@@ -8079,14 +8242,22 @@
   // Preview of a language (as in Viewer.lang); null: text only
   /** @param {string|null|undefined} lang @returns {PreviewKind|null} */
   function previewOf(lang) {
-      if (lang === 'csv' || lang === 'parquet' || lang === 'sheet') return 'table';
+      if (lang === 'csv' || lang === 'parquet' || lang === 'sheet' || lang === 'log') return 'table';
       if (lang === 'ifc') return '3d';
       if (lang === 'md') return 'md';
       return null;
   }
 
+  // Logs: own choice, read only, only while fields were found (preview enabled)
   /** @param {Viewer} v @returns {boolean} */
-  const tableView = (v) => previewOf(v.lang) === 'table' && view.table;
+  const tableView = (v) =>
+      v.lang === 'log'
+          ? view.logTable && !v.writeMode && !v.previewBtn.disabled
+          : previewOf(v.lang) === 'table' && view.table;
+
+  // View choice (prefs key in `view`) behind the Preview of a file type
+  /** @param {Viewer} v @param {'table'|'markdown'} key @returns {'table'|'logTable'|'markdown'} */
+  const viewKey = (v, key) => (key === 'table' && v.lang === 'log' ? 'logTable' : key);
 
   // Markdown shown rendered (not while edited: the editor shows its text)
   /** @param {Viewer} v @returns {boolean} */
@@ -8099,7 +8270,8 @@
       const label = p ? p.label : 'Preview';
       v.previewBtn.innerHTML = `${p ? p.svg : EYE_FULL_SVG}<span>${label}</span>`;
       v.previewBtn.disabled = !p || !!reason;
-      v.previewBtn.title = reason || (p ? p.title : 'No preview for this file type');
+      const title = kind === 'table' && v.lang === 'log' ? LOG_TABLE_TITLE : p?.title;
+      v.previewBtn.title = reason || title || 'No preview for this file type';
   }
 
   // Colour choice of view shown: text, table (CSV / Parquet) or sheet (spreadsheets: own choice)
@@ -8439,7 +8611,7 @@
 
   // Preferences of the views switched by Text / Preview
   /** @type {Object<string, string>} */
-  const VIEW_KEYS = { table: 'tp-preview-table', markdown: 'tp-preview-markdown' };
+  const VIEW_KEYS = { table: 'tp-preview-table', logTable: 'tp-preview-log-table', markdown: 'tp-preview-markdown' };
 
   const ZOOM_STEP = 0.1;
   const WHEEL_STEP = 40; // wheel distance per zoom step (mouse notch ~100, touchpad pinch: small steps)
@@ -9009,12 +9181,13 @@
               return void flash(saveBtn);
           }
           close3d(v); // back to text / table / Markdown
-          view[key] = on;
-          savePref(VIEW_KEYS[key], on ? '1' : '0');
+          const k = viewKey(v, key); // logs: own choice
+          view[k] = on;
+          savePref(VIEW_KEYS[k], on ? '1' : '0');
           applyColour(); // each view has its own colour choice
           if (!v.writeMode) return void v.rerender?.();
-          exitWriteView(v); // Markdown: shown from saved text, edit ends
-          if (key === 'table') enterWrite(v); // edit on in other view (table <-> text), on saved text
+          exitWriteView(v); // Markdown, log table: shown from saved text, edit ends
+          if (k === 'table') enterWrite(v); // edit on in other view (table <-> text), on saved text
       };
       // Back to read mode (edit button again): unsaved edits only after asking
       const leaveWrite = () => {
@@ -9605,6 +9778,8 @@
       let problemsByLine = new Map();
       /** @type {string[]} */
       let lines = [];
+      /** @type {LogTable|null} */
+      let logShown = null; // log as a table (while shown)
 
       // Cached lines; unfinished last line waits (unless there is no break at all)
       const loadedLines = () => {
@@ -9651,6 +9826,11 @@
                   info.push(['quotes', QUOTE_MODES[csvFormat.quote].replace('Quotes: ', '')]);
               info.push(['shape', `${src.done ? '' : '≥ '}${rows.toLocaleString()} rows × ${cols} columns`]);
           }
+          if (logShown) {
+              const entries = `${src.done ? '' : '≥ '}${logShown.rows.length.toLocaleString()} entries`;
+              info.push(['shape', `${entries} × ${logShown.header.length} columns`]);
+              info.push(['fields', `${logShown.kinds.join(', ')} (guessed)`]);
+          }
           const shown = info.filter(([, x]) => x !== null && x !== undefined && x !== '');
           const pairs = shown.map(([k, x]) => `${k}: ${x}`);
           v.metaLine.innerHTML = `<strong>Properties:</strong> ${esc(pairs.join(' · '))}`;
@@ -9676,6 +9856,13 @@
               return line.slice(0, MAX_LINE_CHARS);
           });
           v.lineView?.stop();
+          // Logs: table only if fields were found (first lines), parsed in full while shown
+          if (v.lang === 'log') {
+              const found = !!parseLog(lines.slice(0, 1000).join('\n'));
+              setPreview(v, 'table', found ? '' : 'Table view: no recognisable fields in this log');
+              updateViews(v);
+          }
+          logShown = v.lang === 'log' && tableView(v) ? parseLog(lines.join('\n')) : null;
           /** @type {SheetShown|null} */
           const shown = src.isSheet ? src.shown : null;
           if (shown && !shown.rows.length) {
@@ -9697,6 +9884,16 @@
                   colour: colourOn(v),
                   format: v.tableEditing ? csvFormat : null,
                   onEdit: () => markEdited(v),
+              });
+          } else if (logShown) {
+              const { header, rows } = logShown;
+              const level = header.indexOf('level');
+              const message = header.length - 1;
+              v.lineView = mountTable(v.content, header, rows, {
+                  state: tableState,
+                  colour: colourOn(v),
+                  classOf: (c, value) =>
+                      c === level ? levelClass(value) : c === message && value.includes('\n') ? 'multi' : '',
               });
           } else if (markdownView(v)) {
               v.lineView = mountMarkdown(v.content, lines.join('\n'), { colour: colourOn(v), base: folderUrl });

@@ -41,6 +41,8 @@ import { LINTERS } from '../text/lint/index.js';
 import { lintFile } from '../text/lint/worker.js';
 import { LOAD_ALL_SVG } from '../ui/icons.js';
 import { mountLines } from '../view/lines.js';
+import { levelClass } from '../view/log.js';
+import { parseLog } from '../view/log.js';
 import { renderLines } from '../view/lines.js';
 import { mountMarkdown } from '../view/markdown.js';
 import { mountTable } from '../view/table.js';
@@ -74,6 +76,7 @@ import { markdownView } from './views.js';
 import { previewOf } from './views.js';
 import { setPreview } from './views.js';
 import { showSheets } from './views.js';
+import { tableView } from './views.js';
 import { updateViews } from './views.js';
 
 /** @typedef {import('../_core/types.js').Source} Source */
@@ -82,6 +85,7 @@ import { updateViews } from './views.js';
 /** @typedef {import('../_core/types.js').Deferred} Deferred */
 /** @typedef {import('../_core/types.js').TableState} TableState */
 /** @typedef {import('../_core/types.js').SheetMode} SheetMode */
+/** @typedef {import('../_core/types.js').LogTable} LogTable */
 /** @typedef {import('../_core/types.js').SheetShown} SheetShown */
 
 // ===========================================================================
@@ -472,6 +476,8 @@ export async function showFile(name, url, reload) {
     let problemsByLine = new Map();
     /** @type {string[]} */
     let lines = [];
+    /** @type {LogTable|null} */
+    let logShown = null; // log as a table (while shown)
 
     // Cached lines; unfinished last line waits (unless there is no break at all)
     const loadedLines = () => {
@@ -518,6 +524,11 @@ export async function showFile(name, url, reload) {
                 info.push(['quotes', QUOTE_MODES[csvFormat.quote].replace('Quotes: ', '')]);
             info.push(['shape', `${src.done ? '' : '≥ '}${rows.toLocaleString()} rows × ${cols} columns`]);
         }
+        if (logShown) {
+            const entries = `${src.done ? '' : '≥ '}${logShown.rows.length.toLocaleString()} entries`;
+            info.push(['shape', `${entries} × ${logShown.header.length} columns`]);
+            info.push(['fields', `${logShown.kinds.join(', ')} (guessed)`]);
+        }
         const shown = info.filter(([, x]) => x !== null && x !== undefined && x !== '');
         const pairs = shown.map(([k, x]) => `${k}: ${x}`);
         v.metaLine.innerHTML = `<strong>Properties:</strong> ${esc(pairs.join(' · '))}`;
@@ -543,6 +554,13 @@ export async function showFile(name, url, reload) {
             return line.slice(0, MAX_LINE_CHARS);
         });
         v.lineView?.stop();
+        // Logs: table only if fields were found (first lines), parsed in full while shown
+        if (v.lang === 'log') {
+            const found = !!parseLog(lines.slice(0, 1000).join('\n'));
+            setPreview(v, 'table', found ? '' : 'Table view: no recognisable fields in this log');
+            updateViews(v);
+        }
+        logShown = v.lang === 'log' && tableView(v) ? parseLog(lines.join('\n')) : null;
         /** @type {SheetShown|null} */
         const shown = src.isSheet ? src.shown : null;
         if (shown && !shown.rows.length) {
@@ -564,6 +582,16 @@ export async function showFile(name, url, reload) {
                 colour: colourOn(v),
                 format: v.tableEditing ? csvFormat : null,
                 onEdit: () => markEdited(v),
+            });
+        } else if (logShown) {
+            const { header, rows } = logShown;
+            const level = header.indexOf('level');
+            const message = header.length - 1;
+            v.lineView = mountTable(v.content, header, rows, {
+                state: tableState,
+                colour: colourOn(v),
+                classOf: (c, value) =>
+                    c === level ? levelClass(value) : c === message && value.includes('\n') ? 'multi' : '',
             });
         } else if (markdownView(v)) {
             v.lineView = mountMarkdown(v.content, lines.join('\n'), { colour: colourOn(v), base: folderUrl });

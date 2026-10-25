@@ -30,6 +30,7 @@ export const PREVIEWS = {
     '3d': { svg: CUBE_SVG, label: '3D', title: '3D view (IFC, IFCZIP)' },
     md: { svg: MARKDOWN_SVG, label: 'Markdown', title: 'Markdown view' },
 };
+const LOG_TABLE_TITLE = 'Table view (experimental: fields guessed from the lines of the log)';
 
 // ===========================================================================
 // METHODS
@@ -40,14 +41,22 @@ export const PREVIEWS = {
 // Preview of a language (as in Viewer.lang); null: text only
 /** @param {string|null|undefined} lang @returns {PreviewKind|null} */
 export function previewOf(lang) {
-    if (lang === 'csv' || lang === 'parquet' || lang === 'sheet') return 'table';
+    if (lang === 'csv' || lang === 'parquet' || lang === 'sheet' || lang === 'log') return 'table';
     if (lang === 'ifc') return '3d';
     if (lang === 'md') return 'md';
     return null;
 }
 
+// Logs: own choice, read only, only while fields were found (preview enabled)
 /** @param {Viewer} v @returns {boolean} */
-export const tableView = (v) => previewOf(v.lang) === 'table' && view.table;
+export const tableView = (v) =>
+    v.lang === 'log'
+        ? view.logTable && !v.writeMode && !v.previewBtn.disabled
+        : previewOf(v.lang) === 'table' && view.table;
+
+// View choice (prefs key in `view`) behind the Preview of a file type
+/** @param {Viewer} v @param {'table'|'markdown'} key @returns {'table'|'logTable'|'markdown'} */
+export const viewKey = (v, key) => (key === 'table' && v.lang === 'log' ? 'logTable' : key);
 
 // Markdown shown rendered (not while edited: the editor shows its text)
 /** @param {Viewer} v @returns {boolean} */
@@ -60,7 +69,8 @@ export function setPreview(v, kind, reason = '') {
     const label = p ? p.label : 'Preview';
     v.previewBtn.innerHTML = `${p ? p.svg : EYE_FULL_SVG}<span>${label}</span>`;
     v.previewBtn.disabled = !p || !!reason;
-    v.previewBtn.title = reason || (p ? p.title : 'No preview for this file type');
+    const title = kind === 'table' && v.lang === 'log' ? LOG_TABLE_TITLE : p?.title;
+    v.previewBtn.title = reason || title || 'No preview for this file type';
 }
 
 // Colour choice of view shown: text, table (CSV / Parquet) or sheet (spreadsheets: own choice)

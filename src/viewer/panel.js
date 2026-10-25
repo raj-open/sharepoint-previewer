@@ -69,6 +69,7 @@ import { previewOf } from './views.js';
 import { setPreview } from './views.js';
 import { tableView } from './views.js';
 import { updateViews } from './views.js';
+import { viewKey } from './views.js';
 
 /** @typedef {import('../_core/types.js').Viewer} Viewer */
 
@@ -78,7 +79,7 @@ import { updateViews } from './views.js';
 
 // Preferences of the views switched by Text / Preview
 /** @type {Object<string, string>} */
-const VIEW_KEYS = { table: 'tp-preview-table', markdown: 'tp-preview-markdown' };
+const VIEW_KEYS = { table: 'tp-preview-table', logTable: 'tp-preview-log-table', markdown: 'tp-preview-markdown' };
 
 const ZOOM_STEP = 0.1;
 const WHEEL_STEP = 40; // wheel distance per zoom step (mouse notch ~100, touchpad pinch: small steps)
@@ -648,12 +649,13 @@ export function createViewer() {
             return void flash(saveBtn);
         }
         close3d(v); // back to text / table / Markdown
-        view[key] = on;
-        savePref(VIEW_KEYS[key], on ? '1' : '0');
+        const k = viewKey(v, key); // logs: own choice
+        view[k] = on;
+        savePref(VIEW_KEYS[k], on ? '1' : '0');
         applyColour(); // each view has its own colour choice
         if (!v.writeMode) return void v.rerender?.();
-        exitWriteView(v); // Markdown: shown from saved text, edit ends
-        if (key === 'table') enterWrite(v); // edit on in other view (table <-> text), on saved text
+        exitWriteView(v); // Markdown, log table: shown from saved text, edit ends
+        if (k === 'table') enterWrite(v); // edit on in other view (table <-> text), on saved text
     };
     // Back to read mode (edit button again): unsaved edits only after asking
     const leaveWrite = () => {

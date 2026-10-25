@@ -108,6 +108,28 @@ describe('preview per file type', () => {
         }
     });
 
+    it('logs: text first, table (experimental) with guessed fields; none for logs without fields', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Logs`);
+        const v = await h.preview(page, 'app.log');
+        const table = v.locator('.tp-view-btn', { hasText: 'Table' });
+        assert.match(String(await table.getAttribute('title')), /experimental/);
+        assert.equal(await v.locator('.tp-table').count(), 0);
+        await table.click();
+        await v.locator('.tp-table').waitFor();
+        assert.deepEqual(await v.locator('.tp-table th[data-c] .tp-sort').allTextContents(), [
+            'line',
+            'time',
+            'context',
+            'level',
+            'name',
+            'message',
+        ]);
+        assert.match(await properties(v), /9 entries × 6 columns/);
+        const plain = await h.preview(page, 'plain.log');
+        assert.equal(await plain.locator('.tp-view-btn', { hasText: 'Table' }).isDisabled(), true);
+        assert.equal(await plain.locator('.tp-table').count(), 0);
+    });
+
     it('spreadsheets: sheet picker, read only, sheets cached one by one', async () => {
         const page = await openFolder(`${h.LIBRARY}/Data`);
         const v = await h.preview(page, 'harvest.xlsx');

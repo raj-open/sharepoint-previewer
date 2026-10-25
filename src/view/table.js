@@ -88,7 +88,8 @@ function csvQuote(value, sep, mode = 'minimal') {
 /**
  * @param {HTMLElement} content @param {string[]} header @param {CsvRow[]} rows
  * @param {{ state: TableState,
- *   editable?: boolean, onEdit?: () => void, sep?: string, colour?: boolean, format?: { sep: string, quote: string }|null }} opts
+ *   editable?: boolean, onEdit?: () => void, sep?: string, colour?: boolean, format?: { sep: string, quote: string }|null,
+ *   classOf?: (c: number, value: string) => string }} opts classOf: own colours per cell (with colour on)
  * @returns {LineView & { csvText: () => string }}
  */
 export function mountTable(content, header, rows, opts) {
@@ -143,9 +144,10 @@ export function mountTable(content, header, rows, opts) {
             const bin = opts.editable
                 ? `<button class="tp-col-delete" data-c="${c}" draggable="false" title="Delete this column">${BIN_SVG}</button>`
                 : '';
-            const line = opts.colour
-                ? ` style="border-bottom-color: var(--tp-${CSV_COLOURS[c % CSV_COLOURS.length]})"`
-                : '';
+            const line =
+                opts.colour && !opts.classOf
+                    ? ` style="border-bottom-color: var(--tp-${CSV_COLOURS[c % CSV_COLOURS.length]})"`
+                    : '';
             cells +=
                 `<th data-c="${c}"${drag}${line}><span class="tp-sort">${esc(header[c] ?? '')}${sort}</span>` +
                 `<button class="tp-filter${active}" data-c="${c}" title="Filter">▾</button>${bin}` +
@@ -154,8 +156,12 @@ export function mountTable(content, header, rows, opts) {
         return `<thead><tr>${cells}</tr></thead>`;
     };
 
-    /** @param {number} c */
-    const colourOf = (c) => (opts.colour ? ` class="tp-${CSV_COLOURS[c % CSV_COLOURS.length]}"` : '');
+    /** @param {number} c @param {string} value */
+    const colourOf = (c, value) => {
+        if (!opts.colour) return '';
+        const cls = opts.classOf ? opts.classOf(c, value) : CSV_COLOURS[c % CSV_COLOURS.length];
+        return cls ? ` class="tp-${cls}"` : '';
+    };
     /** @param {number} i @param {number} pos */
     const rowHtml = (i, pos) => {
         const r = rows[i];
@@ -163,7 +169,7 @@ export function mountTable(content, header, rows, opts) {
         let cells = '';
         for (let c = 0; c < cols; c++) {
             const t = esc(r[c] ?? '');
-            cells += `<td data-r="${i}" data-c="${c}"${colourOf(c)} title="${t}"${edit}>${t}</td>`;
+            cells += `<td data-r="${i}" data-c="${c}"${colourOf(c, r[c] ?? '')} title="${t}"${edit}>${t}</td>`;
         }
         const drag = opts.editable ? ' draggable="true" title="Drag to move this row"' : '';
         return `<tr${pos % 2 ? ' class="tp-stripe"' : ''}><td class="tp-rn" data-row="${i}"${drag}>${(i + 1).toLocaleString()}</td>${cells}</tr>`;

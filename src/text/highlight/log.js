@@ -12,7 +12,7 @@ import { tokenise } from './tokenise.js';
 // CONSTANTS
 // ===========================================================================
 
-const LOG_LEVELS = {
+export const LOG_LEVELS = {
     'lv-err': [
         'FATAL',
         'CRITICAL',

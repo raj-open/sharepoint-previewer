@@ -594,6 +594,7 @@ const CSS = `
   .tp-lv-debug { color: var(--tp-trunc); }
   .tp-log-date { color: var(--tp-type); }
   .tp-log-frame { color: var(--tp-trunc); }
+  .tp-table td.tp-multi::before { content: '⏎ '; color: var(--tp-trunc); } /* log message over several lines */
   .tp-log-url { color: var(--tp-enum); text-decoration: underline; }
   .tp-sp {
     background-image: radial-gradient(circle, var(--tp-ws) 0.9px, transparent 1.3px);

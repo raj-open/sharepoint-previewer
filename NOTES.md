@@ -64,7 +64,7 @@ and where it stores data.
   - right: text size **− 100 % +**
     (also Ctrl / ⌘ with + − 0, or Ctrl / ⌘ + wheel, in the content area);
     view switch **Text | Preview**,
-    the preview by file type: **Table** (CSV, Parquet, spreadsheets), **3D** (IFC), **Markdown**;
+    the preview by file type: **Table** (CSV, Parquet, spreadsheets, logs), **3D** (IFC), **Markdown**;
     for spreadsheets a picker right of **Table**:
     its menu shows the sheets or the tables, switched with ‹ › or ← →
     (● cached, ○ not cached yet; hidden sheets marked);
@@ -92,7 +92,7 @@ SharePoint page (DOM)
      ├─ MutationObserver: finds file rows → adds eye cells (HTML only)
      ├─ Viewer (own DOM elements, own CSS, prefix "tp-")
      │   ├─ text view: syntax colours, whitespace markers, virtualised rendering
-     │   ├─ table view: CSV / Parquet / spreadsheets, sort, filter, column widths, CSV editing
+     │   ├─ table view: CSV / Parquet / spreadsheets / logs, sort, filter, column widths, CSV editing
      │   ├─ Markdown view: own small renderer (no library), raw HTML escaped
      │   └─ 3D view: ifc-lite (optional, loaded from your SharePoint on first use)
      ├─ Sources: same-origin fetch with HTTP Range (chunks), in-memory cache (LRU)
@@ -162,7 +162,8 @@ The logo setting only accepts `data:` URIs.
 | Format | Colours | Check (lint) | Table | 3D | Edit |
 | :----- | :-----: | :----------: | :---: | :-: | :--: |
 | JSON, XML (incl. `.addin`, `.config`, `.csproj`, …) | ✓ | ✓ | | | ✓ |
-| YAML, TOML, log files, Power Query M, JavaScript, Python, SQL, Markdown, reStructuredText, Excel formulas (`.xlf`) | ✓ | YAML, M | | | ✓ |
+| YAML, TOML, Power Query M, JavaScript, Python, SQL, Markdown, reStructuredText, Excel formulas (`.xlf`) | ✓ | YAML, M | | | ✓ |
+| Log files (`.log`) | ✓ | | ✓ (experimental, read only; text first) | | ✓ |
 | CSV / TSV (delimiter detected) | ✓ (per column) | | ✓ (sort, filter, edit cells, rows, columns) | | ✓ |
 | Parquet (Snappy, GZIP, ZSTD, LZ4_RAW, uncompressed) | ✓ | | ✓ (read only) | | |
 | Spreadsheets: Excel `.xlsx` `.xlsm` `.xltx` `.xltm`, `.xlsb`, `.xls` `.xlt` (97–2003, 5.0/95), OpenDocument `.ods` `.ots` | ✓ | | ✓ (read only, per sheet) | | |
@@ -183,6 +184,13 @@ the table's rows below its header row (totals rows left out), its column names a
 `.xls` files show sheets only.
 The text view of a sheet shows the column letters as first line and the row numbers as first column,
 as Excel does (`,A,B,C`, then `1,…`).
+
+Log files (experimental) open as text; their table view is chosen separately (`tp-preview-log-table`).
+It guesses the fields from the start of the lines
+(time, level, `[…]` context, logger or process name before a separator; e.g. Python `logging`, log4j):
+one row per entry with its line number, the fields found and the message;
+lines that do not start an entry (stack traces, printed output) are added to the message (⏎ in the cell, in full in the tooltip).
+Without recognisable fields the table view is not offered.
 
 Other binary files (PDF, Word, PowerPoint, images, archives, …)
 are detected from their first bytes and not shown.
