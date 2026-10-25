@@ -29,9 +29,10 @@ describe('prefs', () => {
         prefs.removePref('k');
         assert.equal(prefs.loadPref('k', 'x'), 'x');
     });
-    it('colour choices per view; sheet colours off', () => {
-        assert.deepEqual(Object.keys(prefs.COLOUR_KEYS), ['text', 'table', 'sheet']);
+    it('colour choices per view; sheet colours off, log table colours on', () => {
+        assert.deepEqual(Object.keys(prefs.COLOUR_KEYS), ['text', 'table', 'sheet', 'log']);
         assert.equal(prefs.colourPrefs.sheet, false);
+        assert.equal(prefs.colourPrefs.log, true);
     });
     it('sheets or tables per file: setting first, then the last choice; oldest dropped', () => {
         assert.equal(prefs.sheetMode('/a.xlsx'), 'tables'); // setting: tables by default

@@ -26,8 +26,10 @@ const SETTING_FORM = [
     ['wrap-lines', 'Wrap long lines'],
     ['colours-text', 'Syntax highlighting (text view)'],
     ['colours-table', 'Syntax highlighting (table view)'],
+    ['colours-log', 'Syntax highlighting (table view of logs)'],
     ['colours-sheet', 'Column colours (spreadsheets)'],
     ['spreadsheet-view', 'Spreadsheets show', ['tables', 'sheets']],
+    ['spreadsheet-autoload-bytes', 'Spreadsheets: show first sheet / table at once up to', 'KB'],
     ['cache-chunk-bytes', 'Cache chunk size', 'KB'],
     ['memory-cache-bytes', 'Cache limit (all files)', 'MB'],
     ['cache-all-confirm-bytes', 'Warn full file cache if file size exceeds', 'MB'],
@@ -54,6 +56,7 @@ const REMEMBERED_BY = {
     'wrap-lines': 'tp-preview-wrap',
     'colours-text': 'tp-preview-colours-text',
     'colours-table': 'tp-preview-colours-table',
+    'colours-log': 'tp-preview-colours-log',
     'colours-sheet': 'tp-preview-colours-sheet',
     'spreadsheet-view': 'tp-preview-sheet-modes',
 };

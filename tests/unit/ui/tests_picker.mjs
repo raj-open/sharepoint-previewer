@@ -36,6 +36,16 @@ describe('ui/picker', () => {
         assert.match(p.menu.innerHTML, /tp-active tp-chosen" role="option" data-item="1">○ Notes/);
     });
 
+    it('nothing chosen yet (item -1): menu marks the list start, any entry is a pick', () => {
+        const picks = [];
+        const p = createPicker(node(), (list, item) => picks.push([list, item]));
+        p.set(LISTS, { list: 0, item: -1 }, 'Select', '');
+        p.button.onclick();
+        assert.match(p.menu.innerHTML, /tp-picker-item tp-active" role="option" data-item="0">● Prices/);
+        key(p, 'Enter');
+        assert.deepEqual(picks, [[0, 0]]);
+    });
+
     it('← → switch lists (round), an empty list says why', () => {
         const p = createPicker(node(), () => {});
         p.set(LISTS, { list: 0, item: 0 }, 'Prices', '');

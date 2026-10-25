@@ -140,6 +140,24 @@ describe('spreadsheet source', () => {
         });
     });
 
+    it('large file: no sheet cached until one is chosen; a note instead', async () => {
+        serve({ '/h.xlsx': fixture('Data/harvest.xlsx') });
+        const src = await openSheetSource('/h.xlsx', signal, false, () => {}, 'sheets', 0);
+        assert.equal(src.waiting, true);
+        assert.deepEqual(
+            src.sheets.map((s) => s.data !== undefined),
+            [false, false, false],
+        );
+        assert.equal(src.text, '');
+        assert.match(src.shown.note, /select a sheet or table first/);
+        assert.equal(Object.fromEntries(src.info).shown, 'none yet (select a sheet or table)');
+
+        await src.more(); // "Cache next sheet": the entry proposed first
+        assert.equal(src.waiting, false);
+        assert.equal(src.sheets[src.current].name, 'Prices');
+        assert.match(src.text, /^,A,B,C,D\n1,fruit/);
+    });
+
     for (const ext of ['xlsx', 'ods']) {
         it(`${ext}: tables below their header rows, without totals rows; sheets or tables`, async () => {
             serve({ [`/o.${ext}`]: fixture(`Data/orders.${ext}`) });

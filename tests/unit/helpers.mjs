@@ -222,5 +222,6 @@ export function fakeViewer(extra = {}) {
     }
     // picker: what was set last
     v.sheetPicker = { button: element(), set: (...args) => (v.sheetPicker.last = args), close() {} };
+    v.formatPicker = { button: element(), set: (...args) => (v.formatPicker.last = args), close() {} };
     return Object.assign(v, extra);
 }

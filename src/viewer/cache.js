@@ -24,7 +24,7 @@ import { showSheets } from './views.js';
 // ===========================================================================
 
 // Previewed files in memory up to MEMORY_CACHE_BYTES (least recently viewed go first)
-export const memoryCache = new Map(); // url -> { src, fileName, hops }
+export const memoryCache = new Map(); // url -> { src, fileName, hops, reader }
 
 // Cleared files: next fetch skips (and replaces) browser's stored copy
 export const clearedUrls = new Set();
@@ -78,7 +78,7 @@ export function trimMemory() {
     refreshEyes();
 }
 
-/** @param {string} url @param {{ src: Source, fileName: string, hops: string[] }} entry @returns {void} */
+/** @param {string} url @param {{ src: Source, fileName: string, hops: string[], reader: string }} entry @returns {void} */
 export function keepInMemory(url, entry) {
     memoryCache.delete(url);
     memoryCache.set(url, entry);

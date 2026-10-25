@@ -4,7 +4,9 @@
 // IMPORTS
 // ===========================================================================
 
+import { SHEET_AUTOLOAD_BYTES } from '../../_core/settings.js';
 import { csvCell } from '../../_core/util.js';
+import { formatBytes } from '../../_core/util.js';
 import { openRanges } from '../ranges.js';
 import { colName } from './cells.js';
 import { MAX_SHEET_CELLS } from './cells.js';
@@ -38,12 +40,21 @@ export async function readBook(read, size, head) {
 
 // Spreadsheet source like openSource(): text = sheet or table shown, as CSV; more() = next sheet not cached.
 // Sheets are the unit cached; a table is shown once its sheet is.
+// Large files (over SHEET_AUTOLOAD_BYTES) cache no sheet until one (or a table) is chosen.
 /**
  * @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload
  * @param {(loaded: number, total: number) => void} onProgress @param {SheetMode} [mode] start view (sheets if there are no tables)
+ * @param {number} [autoload] largest file whose first sheet or table is shown at once
  * @returns {Promise<Source|{ error: string }>}
  */
-export async function openSheetSource(url, getSignal, reload, onProgress, mode = 'sheets') {
+export async function openSheetSource(
+    url,
+    getSignal,
+    reload,
+    onProgress,
+    mode = 'sheets',
+    autoload = SHEET_AUTOLOAD_BYTES,
+) {
     const file = await openRanges(url, getSignal, reload, onProgress);
     if ('error' in file) return file;
     /** @type {Book} */
@@ -117,6 +128,7 @@ export async function openSheetSource(url, getSignal, reload, onProgress, mode =
         tablesRead: !!book.tables, // false: format without tables read (.xls)
         mode: /** @type {SheetMode} */ ('sheets'),
         current: firstSheet,
+        waiting: false, // nothing shown yet: a sheet or table is to be chosen first
         /** @type {SheetShown} */
         shown: { rows: [], header: [], note: '', text: '' },
         text: '',
@@ -129,7 +141,8 @@ export async function openSheetSource(url, getSignal, reload, onProgress, mode =
             const hiddenNote = hidden ? ` (${hidden} hidden)` : '';
             const info = [['sheets', `${sheets.length}${hiddenNote}`]];
             if (book.tables) info.push(['tables', tables.length.toLocaleString()]);
-            if (src.mode === 'tables') {
+            if (src.waiting) info.push(['shown', 'none yet (select a sheet or table)']);
+            else if (src.mode === 'tables') {
                 const t = tables[src.current];
                 info.push(['table', `${t.name} (${sheets[t.sheet].name}!${rangeText(t.range)})${shape}`]);
             } else {
@@ -148,6 +161,7 @@ export async function openSheetSource(url, getSignal, reload, onProgress, mode =
         // Shows entry i of a view (its sheet cached before)
         /** @param {number} i @param {SheetMode} [m] @returns {void} */
         select: (i, m = src.mode) => {
+            src.waiting = false;
             src.mode = m === 'tables' && tables[i] ? 'tables' : 'sheets';
             src.current = i;
             src.shown = src.mode === 'tables' ? tableShown(tables[i], sheets[tables[i].sheet]) : sheetShown(sheets[i]);
@@ -155,6 +169,10 @@ export async function openSheetSource(url, getSignal, reload, onProgress, mode =
         },
         more: async () => {
             const at = src.sheetOf(src.current);
+            if (src.waiting) {
+                await loadSheet(at); // the entry proposed first
+                return src.select(src.current);
+            }
             for (let k = 1; k <= sheets.length; k++) {
                 const i = (at + k) % sheets.length;
                 if (sheets[i].data === undefined) return loadSheet(i);
@@ -162,11 +180,22 @@ export async function openSheetSource(url, getSignal, reload, onProgress, mode =
         },
         loadAll: async () => {
             for (let i = 0; i < sheets.length; i++) await loadSheet(i);
+            if (src.waiting) src.select(src.current);
         },
     };
 
     const start = mode === 'tables' && tables.length ? 'tables' : 'sheets';
     const first = startOf(start);
+    if (file.size > autoload) {
+        src.mode = start;
+        src.current = first;
+        src.waiting = true;
+        src.loaded = Math.min(file.fetched(), file.size - 1);
+        const size = formatBytes(file.size);
+        const note = `Large spreadsheet (${size}): select a sheet or table first (picker bottom right).`;
+        src.shown = { rows: [], header: [], note, text: '' };
+        return src;
+    }
     await loadSheet(src.sheetOf(first, start));
     src.select(first, start);
     return src;

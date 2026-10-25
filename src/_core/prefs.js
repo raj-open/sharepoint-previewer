@@ -7,6 +7,7 @@
 import { SEPARATOR_NAMES } from '../text/highlight/csv.js';
 import { QUOTE_MODES } from '../view/table.js';
 import { DEFAULT_COLOURS } from './settings.js';
+import { DEFAULT_LOG_COLOURS } from './settings.js';
 import { DEFAULT_MODE } from './settings.js';
 import { DEFAULT_SHEET_COLOURS } from './settings.js';
 import { DEFAULT_SHEET_VIEW } from './settings.js';
@@ -31,7 +32,8 @@ export const CSV_QUOTE_KEY = 'tp-preview-csv-quote'; // '' = as in file
 
 const COLOUR_TABLE_KEY = 'tp-preview-colours-table';
 const COLOUR_SHEET_KEY = 'tp-preview-colours-sheet';
-export const COLOUR_KEYS = { text: COLOUR_KEY, table: COLOUR_TABLE_KEY, sheet: COLOUR_SHEET_KEY };
+const COLOUR_LOG_KEY = 'tp-preview-colours-log';
+export const COLOUR_KEYS = { text: COLOUR_KEY, table: COLOUR_TABLE_KEY, sheet: COLOUR_SHEET_KEY, log: COLOUR_LOG_KEY };
 
 // Spreadsheets: sheets or tables, per file (most recent first, the oldest dropped)
 export const SHEET_MODES_KEY = 'tp-preview-sheet-modes';
@@ -100,6 +102,7 @@ export const colourPrefs = {
     text: loadPref(COLOUR_KEY, DEFAULT_COLOURS ? '1' : '0') === '1',
     table: loadPref(COLOUR_TABLE_KEY, DEFAULT_TABLE_COLOURS ? '1' : '0') === '1',
     sheet: loadPref(COLOUR_SHEET_KEY, DEFAULT_SHEET_COLOURS ? '1' : '0') === '1',
+    log: loadPref(COLOUR_LOG_KEY, DEFAULT_LOG_COLOURS ? '1' : '0') === '1',
 };
 
 // Remembered view choices (localStorage); settings give the start values

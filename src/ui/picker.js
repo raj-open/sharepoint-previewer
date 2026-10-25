@@ -37,7 +37,7 @@ export function createPicker(host, onPick) {
     /** @param {number} list */
     const show = (list) => {
         shown = (list + lists.length) % lists.length;
-        active = shown === chosen.list ? chosen.item : lists[shown].start;
+        active = shown === chosen.list && chosen.item >= 0 ? chosen.item : lists[shown].start;
         draw();
     };
 
@@ -127,7 +127,7 @@ export function createPicker(host, onPick) {
     return {
         button,
         menu,
-        // New lists and the entry chosen; label: text of the button
+        // New lists and the entry chosen (item -1: none yet); label: text of the button
         set(next, choice, label, title) {
             lists = next;
             chosen = choice;

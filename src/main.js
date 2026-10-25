@@ -69,15 +69,19 @@
       // Wrap long lines (start value)
       'wrap-lines': false,
 
-      // Syntax colours: text view, table view (start values)
+      // Syntax colours: text view, table view, table view of logs (start values)
       'colours-text': true,
       'colours-table': false,
+      'colours-log': true,
 
       // Column colours in table view of spreadsheets (start value; rows stay striped)
       'colours-sheet': false,
 
       // Spreadsheets show 'sheets' or 'tables' (start value; sheets if a file has no tables)
       'spreadsheet-view': 'tables',
+
+      // Spreadsheets up to this size show their first sheet or table at once; larger ones wait for a choice
+      'spreadsheet-autoload-bytes': 512 * 1024,
 
       // Bytes per cache step ("Cache next"); 512 KB ≈ 10,000 lines of code
       'cache-chunk-bytes': 512 * 1024,
@@ -156,8 +160,10 @@
       'wrap-lines': DEFAULT_WRAP,
       'colours-text': DEFAULT_COLOURS,
       'colours-table': DEFAULT_TABLE_COLOURS,
+      'colours-log': DEFAULT_LOG_COLOURS,
       'colours-sheet': DEFAULT_SHEET_COLOURS,
       'spreadsheet-view': DEFAULT_SHEET_VIEW,
+      'spreadsheet-autoload-bytes': SHEET_AUTOLOAD_BYTES,
       'cache-chunk-bytes': MAX_BYTES,
       'parquet-rows': PARQUET_ROWS,
       'memory-cache-bytes': MEMORY_CACHE_BYTES,
@@ -1244,7 +1250,8 @@
 
   const COLOUR_TABLE_KEY = 'tp-preview-colours-table';
   const COLOUR_SHEET_KEY = 'tp-preview-colours-sheet';
-  const COLOUR_KEYS = { text: COLOUR_KEY, table: COLOUR_TABLE_KEY, sheet: COLOUR_SHEET_KEY };
+  const COLOUR_LOG_KEY = 'tp-preview-colours-log';
+  const COLOUR_KEYS = { text: COLOUR_KEY, table: COLOUR_TABLE_KEY, sheet: COLOUR_SHEET_KEY, log: COLOUR_LOG_KEY };
 
   // Spreadsheets: sheets or tables, per file (most recent first, the oldest dropped)
   const SHEET_MODES_KEY = 'tp-preview-sheet-modes';
@@ -1313,6 +1320,7 @@
       text: loadPref(COLOUR_KEY, DEFAULT_COLOURS ? '1' : '0') === '1',
       table: loadPref(COLOUR_TABLE_KEY, DEFAULT_TABLE_COLOURS ? '1' : '0') === '1',
       sheet: loadPref(COLOUR_SHEET_KEY, DEFAULT_SHEET_COLOURS ? '1' : '0') === '1',
+      log: loadPref(COLOUR_LOG_KEY, DEFAULT_LOG_COLOURS ? '1' : '0') === '1',
   };
 
   // Remembered view choices (localStorage); settings give the start values
@@ -1428,8 +1436,10 @@
       ['wrap-lines', 'Wrap long lines'],
       ['colours-text', 'Syntax highlighting (text view)'],
       ['colours-table', 'Syntax highlighting (table view)'],
+      ['colours-log', 'Syntax highlighting (table view of logs)'],
       ['colours-sheet', 'Column colours (spreadsheets)'],
       ['spreadsheet-view', 'Spreadsheets show', ['tables', 'sheets']],
+      ['spreadsheet-autoload-bytes', 'Spreadsheets: show first sheet / table at once up to', 'KB'],
       ['cache-chunk-bytes', 'Cache chunk size', 'KB'],
       ['memory-cache-bytes', 'Cache limit (all files)', 'MB'],
       ['cache-all-confirm-bytes', 'Warn full file cache if file size exceeds', 'MB'],
@@ -1456,6 +1466,7 @@
       'wrap-lines': 'tp-preview-wrap',
       'colours-text': 'tp-preview-colours-text',
       'colours-table': 'tp-preview-colours-table',
+      'colours-log': 'tp-preview-colours-log',
       'colours-sheet': 'tp-preview-colours-sheet',
       'spreadsheet-view': 'tp-preview-sheet-modes',
   };
@@ -2253,7 +2264,11 @@
     .tp-viewer .tp-view-btn:disabled { opacity: .4; cursor: default; }
     .tp-viewer .tp-view-btn:not(:disabled):not([aria-pressed="true"]):hover { background: var(--tp-hover); }
     /* Text size: − 100 % + (left of the view switch) */
-    .tp-zoom + .tp-views { margin-left: 0; }
+    .tp-zoom + .tp-views, .tp-format + .tp-zoom { margin-left: 0; }
+    /* Format (left of the text size): recognised, or chosen (accent) */
+    .tp-format:has(> .tp-picker[hidden]) { display: none; }
+    .tp-viewer .tp-format .tp-picker { border-left: none; }
+    .tp-viewer .tp-format .tp-picker.tp-chosen { color: var(--tp-accent); font-style: italic; }
     .tp-viewer .tp-zoom .tp-view-btn { padding: 0 8px; font-size: 13px; }
     .tp-viewer .tp-zoom .tp-zoom-value { min-width: 52px; justify-content: center; font-size: 11px; }
     /* Sheet or table choice (spreadsheets): segment right of the table button; menu above it */
@@ -2716,56 +2731,6 @@
       }
   }
 
-  // Module: readers/links.js
-
-  // Links: .url shortcut files ("[InternetShortcut] URL=...") point to another file
-
-  // ===========================================================================
-  // METHODS
-  // ===========================================================================
-
-  /** @param {string} name @param {string} text @returns {{ display: string, name: string, fetchUrl: string }|null} */
-  function linkTarget(name, text) {
-      if (!/\.url$/i.test(name) && !/^\s*\[InternetShortcut\]/i.test(text)) return null;
-      const m = text.match(/^\s*URL\s*=\s*(\S+)\s*$/im);
-      if (!m) return null;
-
-      let target;
-      try {
-          target = new URL(m[1], location.href);
-      } catch {
-          return null;
-      }
-      const display = decodeURIComponent(target.href);
-
-      if (target.hostname === location.hostname) {
-          const params = target.searchParams;
-          // Viewer pages (.../AllItems.aspx?id=/sites/X/file.txt, Doc.aspx?id=...)
-          const id = params.get('id');
-          if (/\.aspx$/i.test(target.pathname) && id) {
-              return {
-                  display,
-                  name: id.split('/').pop() ?? '',
-                  fetchUrl: id.split('/').map(encodeURIComponent).join('/'),
-              };
-          }
-          // Direct links: /:t:/r/sites/X/file.txt?web=1 -> /sites/X/file.txt
-          const direct = target.pathname.match(/^\/:[a-z]:\/r(\/.*)$/i);
-          if (direct) {
-              return { display, name: decodeURIComponent(direct[1]).split('/').pop() ?? '', fetchUrl: direct[1] };
-          }
-          // Share links: /:t:/s/... or /:t:/g/... -> raw file
-          if (/^\/:[a-z]:\/[sg]\//i.test(target.pathname)) {
-              params.delete('web');
-              params.set('download', '1');
-              return { display, name: '', fetchUrl: target.href };
-          }
-      }
-      // Other sites not followed (openSource() refuses other origins)
-      const last = decodeURIComponent(target.pathname).split('/').pop();
-      return { display, name: last ?? '', fetchUrl: target.href };
-  }
-
   // Module: readers/bytes.js
 
   // Bytes and texts of binary formats (shared by the readers)
@@ -2983,6 +2948,623 @@
 
   /** @param {number} max @returns {number} */
   const bitWidth = (max) => 32 - Math.clz32(max);
+
+  // Module: readers/sheets/cells.js
+
+  // Spreadsheets (read only, no library): Excel (.xlsx .xlsm .xltx .xltm, .xlsb, .xls .xlt)
+  // and OpenDocument (.ods .ots). Cached sheet by sheet: workbook, shared strings and styles
+  // first, then only the sheets shown, by range (ODS keeps all sheets in one part).
+  // Formats: ECMA-376 (OOXML), [MS-XLSB], [MS-XLS] in [MS-CFB], OASIS OpenDocument 1.2.
+
+  // ===========================================================================
+  // IMPORTS
+  // ===========================================================================
+
+  // ===========================================================================
+  // CONSTANTS
+  // ===========================================================================
+
+  const SHEET_RE = /\.(xlsx|xlsm|xltx|xltm|xlsb|xls|xlt|ods|ots)$/i;
+
+  // Excel's own limits; cells in total kept per sheet (against damaged or hostile files)
+  const MAX_SHEET_ROWS = 1048576;
+  const MAX_SHEET_COLS = 16384;
+  const MAX_SHEET_CELLS = 10000000;
+
+  /** @type {Object<number, string>} */
+  const SHEET_ERRORS = {
+      0: '#NULL!',
+      7: '#DIV/0!',
+      15: '#VALUE!',
+      23: '#REF!',
+      29: '#NAME?',
+      36: '#NUM!',
+      42: '#N/A',
+      43: '#GETTING_DATA',
+  };
+
+  // Built-in number formats other than plain numbers (ECMA-376 part 1, 18.8.30); only their kind counts
+  /** @type {Object<number, string>} */
+  const BUILTIN_FORMATS = {
+      9: '0%',
+      10: '0.00%',
+      14: 'yyyy-mm-dd',
+      15: 'd-mmm-yy',
+      16: 'd-mmm',
+      17: 'mmm-yy',
+      18: 'h:mm AM/PM',
+      19: 'h:mm:ss AM/PM',
+      20: 'h:mm',
+      21: 'h:mm:ss',
+      22: 'yyyy-mm-dd h:mm',
+      45: 'mm:ss',
+      46: '[h]:mm:ss',
+      47: 'mm:ss.0',
+  };
+  for (const id of [27, 28, 29, 30, 31, 36, 50, 51, 52, 53, 54, 57, 58]) BUILTIN_FORMATS[id] = 'yyyy-mm-dd'; // East Asian
+  for (const id of [32, 33, 34, 35, 55, 56]) BUILTIN_FORMATS[id] = 'h:mm:ss';
+
+  // ===========================================================================
+  // METHODS
+  // ===========================================================================
+
+  // Format by file extension (shown before the file is read)
+  /** @param {string} name @returns {string|null} */
+  function sheetFormat(name) {
+      const ext = (name.match(SHEET_RE) || [])[1];
+      if (!ext) return null;
+      const upper = ext.toUpperCase();
+      return /^o/i.test(ext) ? `OpenDocument spreadsheet (${upper})` : `Excel (${upper})`;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cells: numbers as Excel's "General" (15 digits), dates and times as ISO 8601
+  // ---------------------------------------------------------------------------
+
+  // Number format code -> 'date' | 'time' | 'datetime' | 'elapsed' ([h]:mm) | 'percent' | '' (plain number)
+  /** @param {string} code @returns {string} */
+  function formatKind(code) {
+      if (!code) return '';
+      const plain = code
+          .split(';')[0] // positive part decides
+          .replace(/"[^"]*"|\\.|_.|\*./g, '') // literal text, padding
+          .replace(/\[(?![hms]+\])[^\]]*\]/gi, '') // colours, conditions, locales (not elapsed [h] [m] [s])
+          .replace(/AM\/PM|A\/P/gi, '');
+      if (/\[[hms]+\]/i.test(plain)) return 'elapsed';
+      const time = /[hs]/i.test(plain);
+      const date = /[yd]/i.test(plain) || (/m/i.test(plain) && !time);
+      if (date || time) return date && time ? 'datetime' : date ? 'date' : 'time';
+      return plain.includes('%') ? 'percent' : '';
+  }
+
+  /** @param {number} n @returns {string} */
+  const generalText = (n) => String(Number(n.toPrecision(15)));
+
+  // Serial number -> text; 1900 system counts the non-existent 1900-02-29 (as Lotus 1-2-3 did)
+  /** @param {number} n @param {string} kind @param {boolean} date1904 @returns {string} */
+  function numberText(n, kind, date1904) {
+      if (!Number.isFinite(n)) return String(n);
+      if (kind === 'percent') return `${generalText(n * 100)}%`;
+      if (kind === 'elapsed') {
+          const secs = Math.round(Math.abs(n) * 86400);
+          /** @param {number} x */
+          const pad = (x) => String(x).padStart(2, '0');
+          return `${n < 0 ? '-' : ''}${Math.floor(secs / 3600)}:${pad(Math.floor(secs / 60) % 60)}:${pad(secs % 60)}`;
+      }
+      if (!kind || n < 0 || n >= 2958466) return generalText(n); // dates up to 9999-12-31
+      const days = date1904 ? n + 1462 : n < 60 ? n + 1 : n;
+      const iso = new Date(Math.round((days - 25569) * 86400) * 1000).toISOString(); // 25569 = 1970-01-01
+      if (kind === 'date') return iso.slice(0, 10);
+      if (kind === 'time') return iso.slice(11, 19);
+      return `${iso.slice(0, 10)} ${iso.slice(11, 19)}`;
+  }
+
+  // Column letters <-> index (0-based): A, …, Z, AA, …
+  /** @param {string} ref e.g. "AB12" @returns {number} */
+  function refCol(ref) {
+      let c = 0;
+      for (let i = 0; i < ref.length; i++) {
+          const k = ref.charCodeAt(i) & ~32;
+          if (k < 65 || k > 90) break;
+          c = c * 26 + k - 64;
+      }
+      return c - 1;
+  }
+
+  /** @param {number} c @returns {string} */
+  function colName(c) {
+      let s = '';
+      for (let n = c + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+      return s;
+  }
+
+  // Cell range "A1:C4" or "A1" ("$" ignored) <-> corners (0-based); null if unreadable
+  /** @param {string} ref @returns {CellRange|null} */
+  function cellRange(ref) {
+      const m = /^\$?([A-Za-z]{1,3})\$?(\d{1,7})(?::\$?([A-Za-z]{1,3})\$?(\d{1,7}))?$/.exec(ref.trim());
+      if (!m) return null;
+      const r0 = Number(m[2]) - 1;
+      const c0 = refCol(m[1]);
+      const r1 = m[4] ? Number(m[4]) - 1 : r0;
+      const c1 = m[3] ? refCol(m[3]) : c0;
+      return { r0: Math.min(r0, r1), c0: Math.min(c0, c1), r1: Math.max(r0, r1), c1: Math.max(c0, c1) };
+  }
+
+  /** @param {CellRange} range @returns {string} */
+  const rangeText = ({ r0, c0, r1, c1 }) => `${colName(c0)}${r0 + 1}:${colName(c1)}${r1 + 1}`;
+
+  // Cells of one sheet -> rows (no gaps between rows; missing cells are empty)
+  /** @returns {{ set: (r: number, c: number, text: string) => boolean, done: () => SheetData }} */
+  function sheetGrid() {
+      /** @type {string[][]} */
+      const rows = [];
+      let cols = 0;
+      let cells = 0;
+      let cut = false;
+      return {
+          set(r, c, text) {
+              if (text === '' || !(r >= 0 && r < MAX_SHEET_ROWS && c >= 0 && c < MAX_SHEET_COLS)) return true;
+              if (cells >= MAX_SHEET_CELLS) {
+                  cut = true;
+                  return false;
+              }
+              cells++;
+              if (!rows[r]) rows[r] = [];
+              rows[r][c] = text;
+              if (c >= cols) cols = c + 1;
+              return true;
+          },
+          done() {
+              for (let i = 0; i < rows.length; i++) if (!rows[i]) rows[i] = [];
+              return { rows, cols, cut };
+          },
+      };
+  }
+
+  // Module: readers/text.js
+
+  // Text files: encoding sniffing and range reading
+
+  // ===========================================================================
+  // IMPORTS
+  // ===========================================================================
+
+  // ===========================================================================
+  // CONSTANTS
+  // ===========================================================================
+
+  // Content types that are never plain text
+  const BINARY_TYPE_RE =
+      /^(image|audio|video|font)\/|^application\/(pdf|zip|x-zip|gzip|x-gzip|x-7z|x-rar|x-tar|msword|vnd\.ms-|vnd\.openxmlformats|vnd\.oasis)/i;
+
+  // Signatures of common binary files (PDF, ZIP/Office, PNG, JPEG, GIF, ...)
+  const BINARY_MAGIC = [
+      [0x25, 0x50, 0x44, 0x46], // %PDF
+      [0x50, 0x4b, 0x03, 0x04], // ZIP, docx/xlsx/pptx
+      [0x89, 0x50, 0x4e, 0x47], // PNG
+      [0xff, 0xd8, 0xff], // JPEG
+      [0x47, 0x49, 0x46, 0x38], // GIF
+      [0xd0, 0xcf, 0x11, 0xe0], // old Office (doc/xls)
+      [0x1f, 0x8b], // gzip
+      [0x37, 0x7a, 0xbc, 0xaf], // 7z
+      [0x52, 0x61, 0x72, 0x21], // RAR
+  ];
+
+  // ===========================================================================
+  // METHODS
+  // ===========================================================================
+
+  // Open file in chunks of MAX_BYTES, same origin only (nothing is sent elsewhere).
+  // Ranges if supported, else paused transfer. Returns { error } | { binary } | source.
+  /** @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload @param {(loaded: number, total: number) => void} onProgress @returns {Promise<Source|{ error: string }|{ binary: true, name?: string }>} */
+  async function openSource(url, getSignal, reload, onProgress) {
+      if (!sameOrigin(url)) return { error: OUTSIDE };
+      /** @param {number} from */
+      const request = (from) =>
+          fetch(url, {
+              credentials: 'same-origin',
+              cache: reload ? 'reload' : 'default', // 'reload': fresh copy, which also updates cache
+              headers: { Range: `bytes=${from}-${from + MAX_BYTES - 1}` },
+              signal: getSignal(),
+          });
+
+      let response = await request(0);
+      if (response.status === 416) response = await fetch(url, { credentials: 'same-origin', signal: getSignal() }); // empty file
+      if (!response.ok) return { error: `Error ${response.status} on caching` };
+
+      // File name from SharePoint (share links have none in URL)
+      const cd = response.headers.get('content-disposition') || '';
+      const cdName = (cd.match(/filename\*=UTF-8''([^;]+)/i) || [])[1];
+      const name = cdName ? decodeURIComponent(cdName) : (cd.match(/filename="?([^";]+)"?/i) || [])[1];
+
+      // Obvious binary types: stop before anything is cached
+      if (BINARY_TYPE_RE.test(response.headers.get('content-type') || '')) {
+          response.body?.cancel();
+          return { binary: true, name };
+      }
+
+      const ranged = response.status === 206;
+      /** @type {Object<string, *>} */
+      const src = {
+          name,
+          dates: responseDates(response, cd),
+          total: ranged
+              ? +(response.headers.get('content-range') || '').split('/')[1] || 0
+              : Number(response.headers.get('content-length')) || 0,
+          loaded: 0,
+          done: false,
+          text: '',
+      };
+      /** @type {TextDecoder|null} */
+      let decoder = null; // chosen from first bytes
+      /** @type {ReadableStreamDefaultReader<Uint8Array>|null} */
+      let reader = null; // open transfer (when SharePoint ignores ranges)
+
+      // Add bytes to text; false = binary data (only first bytes decide)
+      /** @param {Uint8Array} bytes */
+      const feed = (bytes) => {
+          if (!decoder) {
+              const encoding = sniffText(bytes);
+              if (!encoding) return false;
+              decoder = new TextDecoder(encoding);
+              src.encoding = encoding.toUpperCase();
+              src.bom = encoding === 'utf-8' && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
+          }
+          src.loaded += bytes.length;
+          src.text += decoder.decode(bytes, { stream: true });
+          onProgress(src.loaded, src.total);
+          return true;
+      };
+
+      const finish = () => {
+          src.done = true;
+          if (decoder) src.text += decoder.decode();
+      };
+
+      // Read `budget` bytes (after `skip`); 'more' | 'end' | 'binary'
+      /** @param {Response|{ body: { getReader: () => ReadableStreamDefaultReader<Uint8Array> }, arrayBuffer?: undefined }} res @param {number} budget @param {number} [skip] */
+      const read = async (res, budget, skip = 0) => {
+          if (!res.body) {
+              const all = new Uint8Array(await /** @type {Response} */ (res).arrayBuffer()).subarray(skip); // response without stream
+              return feed(all) ? 'end' : 'binary';
+          }
+          const r = res.body.getReader();
+          let got = 0;
+          while (got < budget) {
+              const { done, value } = await r.read();
+              if (done) return 'end';
+              let chunk = value;
+              if (skip) {
+                  const drop = Math.min(skip, chunk.length);
+                  skip -= drop;
+                  chunk = chunk.subarray(drop);
+                  if (!chunk.length) continue;
+              }
+              if (!feed(chunk)) {
+                  r.cancel();
+                  return 'binary';
+              }
+              got += chunk.length;
+          }
+          reader = r; // budget reached: keep rest of this transfer for later
+          return 'more';
+      };
+
+      const first = await read(response, MAX_BYTES);
+      if (first === 'binary') return { binary: true, name };
+      if (ranged) {
+          /** @type {ReadableStreamDefaultReader<Uint8Array>|null} */ (reader)?.cancel(); // read() may have set it
+          reader = null;
+          if (src.total && src.loaded >= src.total) finish();
+      } else if (first === 'end') {
+          finish();
+      }
+
+      src.more = async () => {
+          if (src.done) return;
+          let state;
+          if (reader) {
+              // Resume paused transfer; if it was cut off, new request
+              const r = reader;
+              reader = null;
+              const signal = getSignal(); // current one: aborted only by stop from now on
+              try {
+                  state = await read({ body: { getReader: () => r } }, MAX_BYTES);
+              } catch (err) {
+                  if (signal.aborted) throw err; // stopped by user now
+                  state = null;
+              }
+          }
+          if (!state) {
+              // Next range (if SharePoint suddenly sends whole file, skip what we have)
+              const res = await request(src.loaded);
+              if (res.status === 416) {
+                  finish(); // nothing left (size was unknown)
+                  return;
+              }
+              if (!res.ok) throw new Error(`Error ${res.status} on caching`);
+              state = await read(res, MAX_BYTES, res.status === 206 ? 0 : src.loaded);
+              if (res.status === 206) {
+                  /** @type {ReadableStreamDefaultReader<Uint8Array>|null} */ (reader)?.cancel(); // read() may have set it
+                  reader = null;
+              }
+          }
+          if (state === 'end' || (src.total && src.loaded >= src.total)) finish();
+      };
+
+      src.loadAll = async () => {
+          while (!src.done) {
+              const before = src.loaded;
+              await src.more();
+              if (!src.done && src.loaded === before) throw new Error('no progress from SharePoint');
+          }
+      };
+      return /** @type {Source} */ (src);
+  }
+
+  // First bytes -> text encoding, or null for binary
+  /** @param {Uint8Array} bytes @returns {string|null} encoding, or null for binary data */
+  function sniffText(bytes) {
+      if (bytes[0] === 0xff && bytes[1] === 0xfe) return 'utf-16le';
+      if (bytes[0] === 0xfe && bytes[1] === 0xff) return 'utf-16be';
+      if (BINARY_MAGIC.some((sig) => sig.every((b, i) => bytes[i] === b))) return null;
+      const head = bytes.subarray(0, SNIFF_BYTES);
+      if (head.includes(0)) return null; // NUL bytes do not occur in text
+      return 'utf-8';
+  }
+
+  // Module: readers/zip.js
+
+  // ZIP archives (.ifczip, spreadsheets): directory and single entries, read by range
+
+  // ===========================================================================
+  // IMPORTS
+  // ===========================================================================
+
+  // ===========================================================================
+  // CONSTANTS
+  // ===========================================================================
+
+  // .ifczip: ZIP with one IFC file, unpacked by browser (read only)
+  const ZIP_RE = /\.ifczip$/i;
+  const MAX_ZIP_BYTES = 256 * 1024 * 1024; // archive size limit
+
+  // ===========================================================================
+  // METHODS
+  // ===========================================================================
+
+  // Entries of ZIP archive from its central directory (at its end)
+  /** @param {ByteReader} read @param {number} size @returns {Promise<ZipEntry[]>} */
+  async function zipEntries(read, size) {
+      // End record: in last 22 bytes, unless archive has a comment (then up to 64 KB before)
+      let base = 0;
+      /** @type {Uint8Array} */
+      let tail = new Uint8Array(0);
+      let end = -1;
+      for (const span of [4096, 65557]) {
+          base = Math.max(0, size - span);
+          tail = await read(base, size);
+          const dv = dataView(tail);
+          for (let i = tail.length - 22; i >= 0; i--) {
+              if (dv.getUint32(i, true) === 0x06054b50) {
+                  end = i;
+                  break;
+              }
+          }
+          if (end >= 0 || base === 0) break;
+      }
+      if (end < 0) throw new Error('not a ZIP archive');
+      const dv = dataView(tail);
+      const count = dv.getUint16(end + 10, true);
+      const length = dv.getUint32(end + 12, true);
+      const at = dv.getUint32(end + 16, true);
+      if (count === 0xffff || at === 0xffffffff) throw new Error('ZIP64 archives are not supported');
+      const dir = at >= base ? tail.subarray(at - base, at - base + length) : await read(at, at + length);
+      const d = dataView(dir);
+      const entries = [];
+      let p = 0;
+      for (let k = 0; k < count; k++) {
+          if (p + 46 > dir.length || d.getUint32(p, true) !== 0x02014b50) throw new Error('damaged ZIP directory');
+          const nameLen = d.getUint16(p + 28, true);
+          const extraLen = d.getUint16(p + 30, true);
+          const commentLen = d.getUint16(p + 32, true);
+          entries.push({
+              name: utf8.decode(dir.subarray(p + 46, p + 46 + nameLen)),
+              method: d.getUint16(p + 10, true),
+              packed: d.getUint32(p + 20, true),
+              size: d.getUint32(p + 24, true),
+              offset: d.getUint32(p + 42, true),
+              head: 30 + nameLen + extraLen, // local header: usually as long as this one
+          });
+          p += 46 + nameLen + extraLen + commentLen;
+      }
+      return entries;
+  }
+
+  // Bytes of one entry: stored (0) or deflated (8)
+  /** @param {ByteReader} read @param {ZipEntry} entry @returns {Promise<Uint8Array>} */
+  async function zipEntryBytes(read, entry) {
+      const at = entry.offset;
+      let bytes = await read(at, at + entry.head + entry.packed);
+      const dv = dataView(bytes);
+      if (bytes.length < 30 || dv.getUint32(0, true) !== 0x04034b50) throw new Error('damaged ZIP entry');
+      const start = 30 + dv.getUint16(26, true) + dv.getUint16(28, true);
+      if (start + entry.packed > bytes.length) {
+          bytes = concatBytes([bytes, await read(at + bytes.length, at + start + entry.packed)]); // longer local header
+      }
+      const packed = bytes.subarray(start, start + entry.packed);
+      if (entry.method === 0) return packed;
+      if (entry.method !== 8) throw new Error(`ZIP compression ${entry.method} is not supported`);
+      const blob = new Blob([/** @type {BlobPart} */ (packed)]);
+      return new Uint8Array(
+          await new Response(blob.stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer(),
+      );
+  }
+
+  /** @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload @param {(loaded: number, total: number) => void} onProgress @param {boolean} [force] @returns {Promise<Source|Deferred|{ error: string }|{ binary: true }>} */
+  async function openZipSource(url, getSignal, reload, onProgress, force = false) {
+      if (!sameOrigin(url)) return { error: OUTSIDE };
+      const res = await fetch(url, {
+          credentials: 'same-origin',
+          cache: reload ? 'reload' : 'default',
+          signal: getSignal(),
+      });
+      if (!res.ok) return { error: `Error ${res.status} on caching` };
+      const total = Number(res.headers.get('content-length')) || 0;
+      if (total > MAX_ZIP_BYTES) return { error: `Archive larger than ${formatBytes(MAX_ZIP_BYTES)}: not opened` };
+      if (total > MAX_BYTES && !force) {
+          res.body?.cancel(); // asks first
+          return {
+              deferred: 'IFCZIP',
+              size: total,
+              dates: responseDates(res, res.headers.get('content-disposition') || ''),
+          };
+      }
+      const parts = [];
+      let loaded = 0;
+      const reader = /** @type {ReadableStream<Uint8Array>} */ (res.body).getReader(); // ok response: has a body
+      for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          parts.push(value);
+          loaded += value.length;
+          onProgress(loaded, total);
+      }
+      const bytes = concatBytes(parts.length ? parts : [new Uint8Array(0)]);
+      /** @type {ByteReader} */
+      const read = async (from, to) => bytes.subarray(from, to);
+      let entries;
+      try {
+          entries = await zipEntries(read, bytes.length);
+      } catch (err) {
+          return { error: `Not a valid .ifczip (${/** @type {Error} */ (err).message})` };
+      }
+      const entry = entries.find((e) => /\.ifc$/i.test(e.name));
+      if (!entry) return { error: 'No .ifc file inside this archive' };
+      const raw = await zipEntryBytes(read, entry);
+      const encoding = sniffText(raw);
+      if (!encoding) return { binary: true };
+      const text = new TextDecoder(encoding).decode(raw);
+      return {
+          total: loaded,
+          loaded,
+          done: true,
+          isZip: true,
+          zipBytes: bytes, // kept for 3D view
+          ifcBytes: raw,
+          encoding: encoding.toUpperCase(),
+          dates: responseDates(res, res.headers.get('content-disposition') || ''),
+          info: [['archive', `ZIP, ${entry.name} (${formatBytes(raw.length)} unpacked)`]],
+          text,
+          more: async () => {},
+          loadAll: async () => {},
+      };
+  }
+
+  // Module: readers/formats.js
+
+  // Formats: recognised from the file name or chosen by the user; reader and language of each
+
+  // ===========================================================================
+  // IMPORTS
+  // ===========================================================================
+
+  /** @typedef {'text'|'parquet'|'sheet'|'ifczip'} Reader */
+
+  // ===========================================================================
+  // CONSTANTS
+  // ===========================================================================
+
+  // Formats with a reader of their own (binary files); all others are text, coloured by language
+  /** @type {Object<string, string>} */
+  const FILE_FORMATS = {
+      parquet: 'Parquet',
+      sheet: 'Spreadsheet',
+      ifczip: 'IFCZIP',
+  };
+
+  // Lists of the format picker: text formats (plain text first, then by name), file formats
+  /** @type {[string, string[]][]} */
+  const FORMAT_LISTS = [
+      ['Text', ['text', ...Object.keys(LANG_NAMES).sort((a, b) => LANG_NAMES[a].localeCompare(LANG_NAMES[b]))]],
+      ['Files', Object.keys(FILE_FORMATS)],
+  ];
+
+  // ===========================================================================
+  // METHODS
+  // ===========================================================================
+
+  // Format recognised from a file name ('text': plain text)
+  /** @param {string} name @returns {string} */
+  function formatOf(name) {
+      if (PARQUET_RE.test(name)) return 'parquet';
+      if (SHEET_RE.test(name)) return 'sheet';
+      if (ZIP_RE.test(name)) return 'ifczip';
+      return langOf(name) || 'text';
+  }
+
+  /** @param {string} format @returns {Reader} */
+  const readerOf = (format) => /** @type {Reader} */ (format in FILE_FORMATS ? format : 'text');
+
+  // Language of a format, as in Viewer.lang (null: plain text)
+  /** @param {string} format @returns {string|null} */
+  function langOfFormat(format) {
+      if (format === 'ifczip') return 'ifc';
+      return format === 'text' ? null : format;
+  }
+
+  /** @param {string} format @returns {string} */
+  const formatName = (format) => FILE_FORMATS[format] || LANG_NAMES[format] || 'Text';
+
+  // Module: readers/links.js
+
+  // Links: .url shortcut files ("[InternetShortcut] URL=...") point to another file
+
+  // ===========================================================================
+  // METHODS
+  // ===========================================================================
+
+  /** @param {string} name @param {string} text @returns {{ display: string, name: string, fetchUrl: string }|null} */
+  function linkTarget(name, text) {
+      if (!/\.url$/i.test(name) && !/^\s*\[InternetShortcut\]/i.test(text)) return null;
+      const m = text.match(/^\s*URL\s*=\s*(\S+)\s*$/im);
+      if (!m) return null;
+
+      let target;
+      try {
+          target = new URL(m[1], location.href);
+      } catch {
+          return null;
+      }
+      const display = decodeURIComponent(target.href);
+
+      if (target.hostname === location.hostname) {
+          const params = target.searchParams;
+          // Viewer pages (.../AllItems.aspx?id=/sites/X/file.txt, Doc.aspx?id=...)
+          const id = params.get('id');
+          if (/\.aspx$/i.test(target.pathname) && id) {
+              return {
+                  display,
+                  name: id.split('/').pop() ?? '',
+                  fetchUrl: id.split('/').map(encodeURIComponent).join('/'),
+              };
+          }
+          // Direct links: /:t:/r/sites/X/file.txt?web=1 -> /sites/X/file.txt
+          const direct = target.pathname.match(/^\/:[a-z]:\/r(\/.*)$/i);
+          if (direct) {
+              return { display, name: decodeURIComponent(direct[1]).split('/').pop() ?? '', fetchUrl: direct[1] };
+          }
+          // Share links: /:t:/s/... or /:t:/g/... -> raw file
+          if (/^\/:[a-z]:\/[sg]\//i.test(target.pathname)) {
+              params.delete('web');
+              params.set('download', '1');
+              return { display, name: '', fetchUrl: target.href };
+          }
+      }
+      // Other sites not followed (openSource() refuses other origins)
+      const last = decodeURIComponent(target.pathname).split('/').pop();
+      return { display, name: last ?? '', fetchUrl: target.href };
+  }
 
   // Module: readers/ranges.js
 
@@ -4213,178 +4795,6 @@
       return /** @type {Source} */ (src);
   }
 
-  // Module: readers/sheets/cells.js
-
-  // Spreadsheets (read only, no library): Excel (.xlsx .xlsm .xltx .xltm, .xlsb, .xls .xlt)
-  // and OpenDocument (.ods .ots). Cached sheet by sheet: workbook, shared strings and styles
-  // first, then only the sheets shown, by range (ODS keeps all sheets in one part).
-  // Formats: ECMA-376 (OOXML), [MS-XLSB], [MS-XLS] in [MS-CFB], OASIS OpenDocument 1.2.
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
-
-  // ===========================================================================
-  // CONSTANTS
-  // ===========================================================================
-
-  const SHEET_RE = /\.(xlsx|xlsm|xltx|xltm|xlsb|xls|xlt|ods|ots)$/i;
-
-  // Excel's own limits; cells in total kept per sheet (against damaged or hostile files)
-  const MAX_SHEET_ROWS = 1048576;
-  const MAX_SHEET_COLS = 16384;
-  const MAX_SHEET_CELLS = 10000000;
-
-  /** @type {Object<number, string>} */
-  const SHEET_ERRORS = {
-      0: '#NULL!',
-      7: '#DIV/0!',
-      15: '#VALUE!',
-      23: '#REF!',
-      29: '#NAME?',
-      36: '#NUM!',
-      42: '#N/A',
-      43: '#GETTING_DATA',
-  };
-
-  // Built-in number formats other than plain numbers (ECMA-376 part 1, 18.8.30); only their kind counts
-  /** @type {Object<number, string>} */
-  const BUILTIN_FORMATS = {
-      9: '0%',
-      10: '0.00%',
-      14: 'yyyy-mm-dd',
-      15: 'd-mmm-yy',
-      16: 'd-mmm',
-      17: 'mmm-yy',
-      18: 'h:mm AM/PM',
-      19: 'h:mm:ss AM/PM',
-      20: 'h:mm',
-      21: 'h:mm:ss',
-      22: 'yyyy-mm-dd h:mm',
-      45: 'mm:ss',
-      46: '[h]:mm:ss',
-      47: 'mm:ss.0',
-  };
-  for (const id of [27, 28, 29, 30, 31, 36, 50, 51, 52, 53, 54, 57, 58]) BUILTIN_FORMATS[id] = 'yyyy-mm-dd'; // East Asian
-  for (const id of [32, 33, 34, 35, 55, 56]) BUILTIN_FORMATS[id] = 'h:mm:ss';
-
-  // ===========================================================================
-  // METHODS
-  // ===========================================================================
-
-  // Format by file extension (shown before the file is read)
-  /** @param {string} name @returns {string|null} */
-  function sheetFormat(name) {
-      const ext = (name.match(SHEET_RE) || [])[1];
-      if (!ext) return null;
-      const upper = ext.toUpperCase();
-      return /^o/i.test(ext) ? `OpenDocument spreadsheet (${upper})` : `Excel (${upper})`;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Cells: numbers as Excel's "General" (15 digits), dates and times as ISO 8601
-  // ---------------------------------------------------------------------------
-
-  // Number format code -> 'date' | 'time' | 'datetime' | 'elapsed' ([h]:mm) | 'percent' | '' (plain number)
-  /** @param {string} code @returns {string} */
-  function formatKind(code) {
-      if (!code) return '';
-      const plain = code
-          .split(';')[0] // positive part decides
-          .replace(/"[^"]*"|\\.|_.|\*./g, '') // literal text, padding
-          .replace(/\[(?![hms]+\])[^\]]*\]/gi, '') // colours, conditions, locales (not elapsed [h] [m] [s])
-          .replace(/AM\/PM|A\/P/gi, '');
-      if (/\[[hms]+\]/i.test(plain)) return 'elapsed';
-      const time = /[hs]/i.test(plain);
-      const date = /[yd]/i.test(plain) || (/m/i.test(plain) && !time);
-      if (date || time) return date && time ? 'datetime' : date ? 'date' : 'time';
-      return plain.includes('%') ? 'percent' : '';
-  }
-
-  /** @param {number} n @returns {string} */
-  const generalText = (n) => String(Number(n.toPrecision(15)));
-
-  // Serial number -> text; 1900 system counts the non-existent 1900-02-29 (as Lotus 1-2-3 did)
-  /** @param {number} n @param {string} kind @param {boolean} date1904 @returns {string} */
-  function numberText(n, kind, date1904) {
-      if (!Number.isFinite(n)) return String(n);
-      if (kind === 'percent') return `${generalText(n * 100)}%`;
-      if (kind === 'elapsed') {
-          const secs = Math.round(Math.abs(n) * 86400);
-          /** @param {number} x */
-          const pad = (x) => String(x).padStart(2, '0');
-          return `${n < 0 ? '-' : ''}${Math.floor(secs / 3600)}:${pad(Math.floor(secs / 60) % 60)}:${pad(secs % 60)}`;
-      }
-      if (!kind || n < 0 || n >= 2958466) return generalText(n); // dates up to 9999-12-31
-      const days = date1904 ? n + 1462 : n < 60 ? n + 1 : n;
-      const iso = new Date(Math.round((days - 25569) * 86400) * 1000).toISOString(); // 25569 = 1970-01-01
-      if (kind === 'date') return iso.slice(0, 10);
-      if (kind === 'time') return iso.slice(11, 19);
-      return `${iso.slice(0, 10)} ${iso.slice(11, 19)}`;
-  }
-
-  // Column letters <-> index (0-based): A, …, Z, AA, …
-  /** @param {string} ref e.g. "AB12" @returns {number} */
-  function refCol(ref) {
-      let c = 0;
-      for (let i = 0; i < ref.length; i++) {
-          const k = ref.charCodeAt(i) & ~32;
-          if (k < 65 || k > 90) break;
-          c = c * 26 + k - 64;
-      }
-      return c - 1;
-  }
-
-  /** @param {number} c @returns {string} */
-  function colName(c) {
-      let s = '';
-      for (let n = c + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
-      return s;
-  }
-
-  // Cell range "A1:C4" or "A1" ("$" ignored) <-> corners (0-based); null if unreadable
-  /** @param {string} ref @returns {CellRange|null} */
-  function cellRange(ref) {
-      const m = /^\$?([A-Za-z]{1,3})\$?(\d{1,7})(?::\$?([A-Za-z]{1,3})\$?(\d{1,7}))?$/.exec(ref.trim());
-      if (!m) return null;
-      const r0 = Number(m[2]) - 1;
-      const c0 = refCol(m[1]);
-      const r1 = m[4] ? Number(m[4]) - 1 : r0;
-      const c1 = m[3] ? refCol(m[3]) : c0;
-      return { r0: Math.min(r0, r1), c0: Math.min(c0, c1), r1: Math.max(r0, r1), c1: Math.max(c0, c1) };
-  }
-
-  /** @param {CellRange} range @returns {string} */
-  const rangeText = ({ r0, c0, r1, c1 }) => `${colName(c0)}${r0 + 1}:${colName(c1)}${r1 + 1}`;
-
-  // Cells of one sheet -> rows (no gaps between rows; missing cells are empty)
-  /** @returns {{ set: (r: number, c: number, text: string) => boolean, done: () => SheetData }} */
-  function sheetGrid() {
-      /** @type {string[][]} */
-      const rows = [];
-      let cols = 0;
-      let cells = 0;
-      let cut = false;
-      return {
-          set(r, c, text) {
-              if (text === '' || !(r >= 0 && r < MAX_SHEET_ROWS && c >= 0 && c < MAX_SHEET_COLS)) return true;
-              if (cells >= MAX_SHEET_CELLS) {
-                  cut = true;
-                  return false;
-              }
-              cells++;
-              if (!rows[r]) rows[r] = [];
-              rows[r][c] = text;
-              if (c >= cols) cols = c + 1;
-              return true;
-          },
-          done() {
-              for (let i = 0; i < rows.length; i++) if (!rows[i]) rows[i] = [];
-              return { rows, cols, cut };
-          },
-      };
-  }
-
   // Module: readers/sheets/xml.js
 
   // XML without DOM (also for huge sheets; DOMParser builds the whole tree)
@@ -4624,346 +5034,6 @@
           active: 0,
           date1904: false,
           load: async (i) => sheets[i].data,
-      };
-  }
-
-  // Module: readers/text.js
-
-  // Text files: encoding sniffing and range reading
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
-
-  // ===========================================================================
-  // CONSTANTS
-  // ===========================================================================
-
-  // Content types that are never plain text
-  const BINARY_TYPE_RE =
-      /^(image|audio|video|font)\/|^application\/(pdf|zip|x-zip|gzip|x-gzip|x-7z|x-rar|x-tar|msword|vnd\.ms-|vnd\.openxmlformats|vnd\.oasis)/i;
-
-  // Signatures of common binary files (PDF, ZIP/Office, PNG, JPEG, GIF, ...)
-  const BINARY_MAGIC = [
-      [0x25, 0x50, 0x44, 0x46], // %PDF
-      [0x50, 0x4b, 0x03, 0x04], // ZIP, docx/xlsx/pptx
-      [0x89, 0x50, 0x4e, 0x47], // PNG
-      [0xff, 0xd8, 0xff], // JPEG
-      [0x47, 0x49, 0x46, 0x38], // GIF
-      [0xd0, 0xcf, 0x11, 0xe0], // old Office (doc/xls)
-      [0x1f, 0x8b], // gzip
-      [0x37, 0x7a, 0xbc, 0xaf], // 7z
-      [0x52, 0x61, 0x72, 0x21], // RAR
-  ];
-
-  // ===========================================================================
-  // METHODS
-  // ===========================================================================
-
-  // Open file in chunks of MAX_BYTES, same origin only (nothing is sent elsewhere).
-  // Ranges if supported, else paused transfer. Returns { error } | { binary } | source.
-  /** @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload @param {(loaded: number, total: number) => void} onProgress @returns {Promise<Source|{ error: string }|{ binary: true, name?: string }>} */
-  async function openSource(url, getSignal, reload, onProgress) {
-      if (!sameOrigin(url)) return { error: OUTSIDE };
-      /** @param {number} from */
-      const request = (from) =>
-          fetch(url, {
-              credentials: 'same-origin',
-              cache: reload ? 'reload' : 'default', // 'reload': fresh copy, which also updates cache
-              headers: { Range: `bytes=${from}-${from + MAX_BYTES - 1}` },
-              signal: getSignal(),
-          });
-
-      let response = await request(0);
-      if (response.status === 416) response = await fetch(url, { credentials: 'same-origin', signal: getSignal() }); // empty file
-      if (!response.ok) return { error: `Error ${response.status} on caching` };
-
-      // File name from SharePoint (share links have none in URL)
-      const cd = response.headers.get('content-disposition') || '';
-      const cdName = (cd.match(/filename\*=UTF-8''([^;]+)/i) || [])[1];
-      const name = cdName ? decodeURIComponent(cdName) : (cd.match(/filename="?([^";]+)"?/i) || [])[1];
-
-      // Obvious binary types: stop before anything is cached
-      if (BINARY_TYPE_RE.test(response.headers.get('content-type') || '')) {
-          response.body?.cancel();
-          return { binary: true, name };
-      }
-
-      const ranged = response.status === 206;
-      /** @type {Object<string, *>} */
-      const src = {
-          name,
-          dates: responseDates(response, cd),
-          total: ranged
-              ? +(response.headers.get('content-range') || '').split('/')[1] || 0
-              : Number(response.headers.get('content-length')) || 0,
-          loaded: 0,
-          done: false,
-          text: '',
-      };
-      /** @type {TextDecoder|null} */
-      let decoder = null; // chosen from first bytes
-      /** @type {ReadableStreamDefaultReader<Uint8Array>|null} */
-      let reader = null; // open transfer (when SharePoint ignores ranges)
-
-      // Add bytes to text; false = binary data (only first bytes decide)
-      /** @param {Uint8Array} bytes */
-      const feed = (bytes) => {
-          if (!decoder) {
-              const encoding = sniffText(bytes);
-              if (!encoding) return false;
-              decoder = new TextDecoder(encoding);
-              src.encoding = encoding.toUpperCase();
-              src.bom = encoding === 'utf-8' && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
-          }
-          src.loaded += bytes.length;
-          src.text += decoder.decode(bytes, { stream: true });
-          onProgress(src.loaded, src.total);
-          return true;
-      };
-
-      const finish = () => {
-          src.done = true;
-          if (decoder) src.text += decoder.decode();
-      };
-
-      // Read `budget` bytes (after `skip`); 'more' | 'end' | 'binary'
-      /** @param {Response|{ body: { getReader: () => ReadableStreamDefaultReader<Uint8Array> }, arrayBuffer?: undefined }} res @param {number} budget @param {number} [skip] */
-      const read = async (res, budget, skip = 0) => {
-          if (!res.body) {
-              const all = new Uint8Array(await /** @type {Response} */ (res).arrayBuffer()).subarray(skip); // response without stream
-              return feed(all) ? 'end' : 'binary';
-          }
-          const r = res.body.getReader();
-          let got = 0;
-          while (got < budget) {
-              const { done, value } = await r.read();
-              if (done) return 'end';
-              let chunk = value;
-              if (skip) {
-                  const drop = Math.min(skip, chunk.length);
-                  skip -= drop;
-                  chunk = chunk.subarray(drop);
-                  if (!chunk.length) continue;
-              }
-              if (!feed(chunk)) {
-                  r.cancel();
-                  return 'binary';
-              }
-              got += chunk.length;
-          }
-          reader = r; // budget reached: keep rest of this transfer for later
-          return 'more';
-      };
-
-      const first = await read(response, MAX_BYTES);
-      if (first === 'binary') return { binary: true, name };
-      if (ranged) {
-          /** @type {ReadableStreamDefaultReader<Uint8Array>|null} */ (reader)?.cancel(); // read() may have set it
-          reader = null;
-          if (src.total && src.loaded >= src.total) finish();
-      } else if (first === 'end') {
-          finish();
-      }
-
-      src.more = async () => {
-          if (src.done) return;
-          let state;
-          if (reader) {
-              // Resume paused transfer; if it was cut off, new request
-              const r = reader;
-              reader = null;
-              const signal = getSignal(); // current one: aborted only by stop from now on
-              try {
-                  state = await read({ body: { getReader: () => r } }, MAX_BYTES);
-              } catch (err) {
-                  if (signal.aborted) throw err; // stopped by user now
-                  state = null;
-              }
-          }
-          if (!state) {
-              // Next range (if SharePoint suddenly sends whole file, skip what we have)
-              const res = await request(src.loaded);
-              if (res.status === 416) {
-                  finish(); // nothing left (size was unknown)
-                  return;
-              }
-              if (!res.ok) throw new Error(`Error ${res.status} on caching`);
-              state = await read(res, MAX_BYTES, res.status === 206 ? 0 : src.loaded);
-              if (res.status === 206) {
-                  /** @type {ReadableStreamDefaultReader<Uint8Array>|null} */ (reader)?.cancel(); // read() may have set it
-                  reader = null;
-              }
-          }
-          if (state === 'end' || (src.total && src.loaded >= src.total)) finish();
-      };
-
-      src.loadAll = async () => {
-          while (!src.done) {
-              const before = src.loaded;
-              await src.more();
-              if (!src.done && src.loaded === before) throw new Error('no progress from SharePoint');
-          }
-      };
-      return /** @type {Source} */ (src);
-  }
-
-  // First bytes -> text encoding, or null for binary
-  /** @param {Uint8Array} bytes @returns {string|null} encoding, or null for binary data */
-  function sniffText(bytes) {
-      if (bytes[0] === 0xff && bytes[1] === 0xfe) return 'utf-16le';
-      if (bytes[0] === 0xfe && bytes[1] === 0xff) return 'utf-16be';
-      if (BINARY_MAGIC.some((sig) => sig.every((b, i) => bytes[i] === b))) return null;
-      const head = bytes.subarray(0, SNIFF_BYTES);
-      if (head.includes(0)) return null; // NUL bytes do not occur in text
-      return 'utf-8';
-  }
-
-  // Module: readers/zip.js
-
-  // ZIP archives (.ifczip, spreadsheets): directory and single entries, read by range
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
-
-  // ===========================================================================
-  // CONSTANTS
-  // ===========================================================================
-
-  // .ifczip: ZIP with one IFC file, unpacked by browser (read only)
-  const ZIP_RE = /\.ifczip$/i;
-  const MAX_ZIP_BYTES = 256 * 1024 * 1024; // archive size limit
-
-  // ===========================================================================
-  // METHODS
-  // ===========================================================================
-
-  // Entries of ZIP archive from its central directory (at its end)
-  /** @param {ByteReader} read @param {number} size @returns {Promise<ZipEntry[]>} */
-  async function zipEntries(read, size) {
-      // End record: in last 22 bytes, unless archive has a comment (then up to 64 KB before)
-      let base = 0;
-      /** @type {Uint8Array} */
-      let tail = new Uint8Array(0);
-      let end = -1;
-      for (const span of [4096, 65557]) {
-          base = Math.max(0, size - span);
-          tail = await read(base, size);
-          const dv = dataView(tail);
-          for (let i = tail.length - 22; i >= 0; i--) {
-              if (dv.getUint32(i, true) === 0x06054b50) {
-                  end = i;
-                  break;
-              }
-          }
-          if (end >= 0 || base === 0) break;
-      }
-      if (end < 0) throw new Error('not a ZIP archive');
-      const dv = dataView(tail);
-      const count = dv.getUint16(end + 10, true);
-      const length = dv.getUint32(end + 12, true);
-      const at = dv.getUint32(end + 16, true);
-      if (count === 0xffff || at === 0xffffffff) throw new Error('ZIP64 archives are not supported');
-      const dir = at >= base ? tail.subarray(at - base, at - base + length) : await read(at, at + length);
-      const d = dataView(dir);
-      const entries = [];
-      let p = 0;
-      for (let k = 0; k < count; k++) {
-          if (p + 46 > dir.length || d.getUint32(p, true) !== 0x02014b50) throw new Error('damaged ZIP directory');
-          const nameLen = d.getUint16(p + 28, true);
-          const extraLen = d.getUint16(p + 30, true);
-          const commentLen = d.getUint16(p + 32, true);
-          entries.push({
-              name: utf8.decode(dir.subarray(p + 46, p + 46 + nameLen)),
-              method: d.getUint16(p + 10, true),
-              packed: d.getUint32(p + 20, true),
-              size: d.getUint32(p + 24, true),
-              offset: d.getUint32(p + 42, true),
-              head: 30 + nameLen + extraLen, // local header: usually as long as this one
-          });
-          p += 46 + nameLen + extraLen + commentLen;
-      }
-      return entries;
-  }
-
-  // Bytes of one entry: stored (0) or deflated (8)
-  /** @param {ByteReader} read @param {ZipEntry} entry @returns {Promise<Uint8Array>} */
-  async function zipEntryBytes(read, entry) {
-      const at = entry.offset;
-      let bytes = await read(at, at + entry.head + entry.packed);
-      const dv = dataView(bytes);
-      if (bytes.length < 30 || dv.getUint32(0, true) !== 0x04034b50) throw new Error('damaged ZIP entry');
-      const start = 30 + dv.getUint16(26, true) + dv.getUint16(28, true);
-      if (start + entry.packed > bytes.length) {
-          bytes = concatBytes([bytes, await read(at + bytes.length, at + start + entry.packed)]); // longer local header
-      }
-      const packed = bytes.subarray(start, start + entry.packed);
-      if (entry.method === 0) return packed;
-      if (entry.method !== 8) throw new Error(`ZIP compression ${entry.method} is not supported`);
-      const blob = new Blob([/** @type {BlobPart} */ (packed)]);
-      return new Uint8Array(
-          await new Response(blob.stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer(),
-      );
-  }
-
-  /** @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload @param {(loaded: number, total: number) => void} onProgress @param {boolean} [force] @returns {Promise<Source|Deferred|{ error: string }|{ binary: true }>} */
-  async function openZipSource(url, getSignal, reload, onProgress, force = false) {
-      if (!sameOrigin(url)) return { error: OUTSIDE };
-      const res = await fetch(url, {
-          credentials: 'same-origin',
-          cache: reload ? 'reload' : 'default',
-          signal: getSignal(),
-      });
-      if (!res.ok) return { error: `Error ${res.status} on caching` };
-      const total = Number(res.headers.get('content-length')) || 0;
-      if (total > MAX_ZIP_BYTES) return { error: `Archive larger than ${formatBytes(MAX_ZIP_BYTES)}: not opened` };
-      if (total > MAX_BYTES && !force) {
-          res.body?.cancel(); // asks first
-          return {
-              deferred: 'IFCZIP',
-              size: total,
-              dates: responseDates(res, res.headers.get('content-disposition') || ''),
-          };
-      }
-      const parts = [];
-      let loaded = 0;
-      const reader = /** @type {ReadableStream<Uint8Array>} */ (res.body).getReader(); // ok response: has a body
-      for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          parts.push(value);
-          loaded += value.length;
-          onProgress(loaded, total);
-      }
-      const bytes = concatBytes(parts.length ? parts : [new Uint8Array(0)]);
-      /** @type {ByteReader} */
-      const read = async (from, to) => bytes.subarray(from, to);
-      let entries;
-      try {
-          entries = await zipEntries(read, bytes.length);
-      } catch (err) {
-          return { error: `Not a valid .ifczip (${/** @type {Error} */ (err).message})` };
-      }
-      const entry = entries.find((e) => /\.ifc$/i.test(e.name));
-      if (!entry) return { error: 'No .ifc file inside this archive' };
-      const raw = await zipEntryBytes(read, entry);
-      const encoding = sniffText(raw);
-      if (!encoding) return { binary: true };
-      const text = new TextDecoder(encoding).decode(raw);
-      return {
-          total: loaded,
-          loaded,
-          done: true,
-          isZip: true,
-          zipBytes: bytes, // kept for 3D view
-          ifcBytes: raw,
-          encoding: encoding.toUpperCase(),
-          dates: responseDates(res, res.headers.get('content-disposition') || ''),
-          info: [['archive', `ZIP, ${entry.name} (${formatBytes(raw.length)} unpacked)`]],
-          text,
-          more: async () => {},
-          loadAll: async () => {},
       };
   }
 
@@ -5864,12 +5934,21 @@
 
   // Spreadsheet source like openSource(): text = sheet or table shown, as CSV; more() = next sheet not cached.
   // Sheets are the unit cached; a table is shown once its sheet is.
+  // Large files (over SHEET_AUTOLOAD_BYTES) cache no sheet until one (or a table) is chosen.
   /**
    * @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload
    * @param {(loaded: number, total: number) => void} onProgress @param {SheetMode} [mode] start view (sheets if there are no tables)
+   * @param {number} [autoload] largest file whose first sheet or table is shown at once
    * @returns {Promise<Source|{ error: string }>}
    */
-  async function openSheetSource(url, getSignal, reload, onProgress, mode = 'sheets') {
+  async function openSheetSource(
+      url,
+      getSignal,
+      reload,
+      onProgress,
+      mode = 'sheets',
+      autoload = SHEET_AUTOLOAD_BYTES,
+  ) {
       const file = await openRanges(url, getSignal, reload, onProgress);
       if ('error' in file) return file;
       /** @type {Book} */
@@ -5943,6 +6022,7 @@
           tablesRead: !!book.tables, // false: format without tables read (.xls)
           mode: /** @type {SheetMode} */ ('sheets'),
           current: firstSheet,
+          waiting: false, // nothing shown yet: a sheet or table is to be chosen first
           /** @type {SheetShown} */
           shown: { rows: [], header: [], note: '', text: '' },
           text: '',
@@ -5955,7 +6035,8 @@
               const hiddenNote = hidden ? ` (${hidden} hidden)` : '';
               const info = [['sheets', `${sheets.length}${hiddenNote}`]];
               if (book.tables) info.push(['tables', tables.length.toLocaleString()]);
-              if (src.mode === 'tables') {
+              if (src.waiting) info.push(['shown', 'none yet (select a sheet or table)']);
+              else if (src.mode === 'tables') {
                   const t = tables[src.current];
                   info.push(['table', `${t.name} (${sheets[t.sheet].name}!${rangeText(t.range)})${shape}`]);
               } else {
@@ -5974,6 +6055,7 @@
           // Shows entry i of a view (its sheet cached before)
           /** @param {number} i @param {SheetMode} [m] @returns {void} */
           select: (i, m = src.mode) => {
+              src.waiting = false;
               src.mode = m === 'tables' && tables[i] ? 'tables' : 'sheets';
               src.current = i;
               src.shown = src.mode === 'tables' ? tableShown(tables[i], sheets[tables[i].sheet]) : sheetShown(sheets[i]);
@@ -5981,6 +6063,10 @@
           },
           more: async () => {
               const at = src.sheetOf(src.current);
+              if (src.waiting) {
+                  await loadSheet(at); // the entry proposed first
+                  return src.select(src.current);
+              }
               for (let k = 1; k <= sheets.length; k++) {
                   const i = (at + k) % sheets.length;
                   if (sheets[i].data === undefined) return loadSheet(i);
@@ -5988,11 +6074,22 @@
           },
           loadAll: async () => {
               for (let i = 0; i < sheets.length; i++) await loadSheet(i);
+              if (src.waiting) src.select(src.current);
           },
       };
 
       const start = mode === 'tables' && tables.length ? 'tables' : 'sheets';
       const first = startOf(start);
+      if (file.size > autoload) {
+          src.mode = start;
+          src.current = first;
+          src.waiting = true;
+          src.loaded = Math.min(file.fetched(), file.size - 1);
+          const size = formatBytes(file.size);
+          const note = `Large spreadsheet (${size}): select a sheet or table first (picker bottom right).`;
+          src.shown = { rows: [], header: [], note, text: '' };
+          return src;
+      }
       await loadSheet(src.sheetOf(first, start));
       src.select(first, start);
       return src;
@@ -8311,7 +8408,7 @@
       /** @param {number} list */
       const show = (list) => {
           shown = (list + lists.length) % lists.length;
-          active = shown === chosen.list ? chosen.item : lists[shown].start;
+          active = shown === chosen.list && chosen.item >= 0 ? chosen.item : lists[shown].start;
           draw();
       };
 
@@ -8401,7 +8498,7 @@
       return {
           button,
           menu,
-          // New lists and the entry chosen; label: text of the button
+          // New lists and the entry chosen (item -1: none yet); label: text of the button
           set(next, choice, label, title) {
               lists = next;
               chosen = choice;
@@ -8535,9 +8632,12 @@
       v.previewBtn.title = reason || title || 'No preview for this file type';
   }
 
-  // Colour choice of view shown: text, table (CSV / Parquet) or sheet (spreadsheets: own choice)
-  /** @param {Viewer} v @returns {'text'|'table'|'sheet'} */
-  const colourKey = (v) => (!tableView(v) ? 'text' : v.lang === 'sheet' ? 'sheet' : 'table');
+  // Colour choice of view shown: text, table (CSV / Parquet), sheet or log (spreadsheets, logs: own choice)
+  /** @param {Viewer} v @returns {'text'|'table'|'sheet'|'log'} */
+  function colourKey(v) {
+      if (!tableView(v)) return 'text';
+      return v.lang === 'sheet' || v.lang === 'log' ? v.lang : 'table';
+  }
 
   // View switch state (pressed = current view: Text or Preview) and idle cache bar
   /** @param {Viewer} v @returns {void} */
@@ -8556,6 +8656,30 @@
       return colourPrefs[colourKey(v)];
   }
 
+  // Format (status bar, left of the text size): recognised from the file name or chosen by the user;
+  // its menu lists text formats and file formats side by side (null: no file, hidden)
+  /** @param {Viewer} v @param {string|null} format @param {string} [recognised] @returns {void} */
+  function showFormat(v, format, recognised = format ?? '') {
+      v.formatPicker.button.hidden = !format;
+      if (!format) return v.formatPicker.close();
+      const lists = FORMAT_LISTS.map(([label, keys]) => ({
+          label,
+          items: keys.map((k) => ({ text: k === recognised ? `${formatName(k)} (recognised)` : formatName(k) })),
+          empty: '',
+          start: Math.max(0, keys.indexOf(recognised)),
+      }));
+      const list = Math.max(
+          0,
+          FORMAT_LISTS.findIndex(([, keys]) => keys.includes(format)),
+      );
+      const item = FORMAT_LISTS[list][1].indexOf(format);
+      const chosen = format !== recognised;
+      const name = formatName(format);
+      const how = chosen ? `chosen; recognised: ${formatName(recognised)}` : 'recognised from the file name';
+      v.formatPicker.set(lists, { list, item }, name, `Format: ${name} (${how}). View the file as another format`);
+      v.formatPicker.button.classList.toggle('tp-chosen', chosen);
+  }
+
   // Sheet or table choice (spreadsheets only): picker next to table button, name in title.
   // Its menu lists sheets and tables side by side (● cached, ○ not cached yet).
   /** @param {Viewer} v @param {Source|null} src @returns {void} */
@@ -8566,10 +8690,17 @@
       if (!lists || !src) return v.sheetPicker.close();
       const tables = src.mode === 'tables';
       const list = lists[tables ? 1 : 0];
-      const name = tables ? src.tables[src.current].name : src.sheets[src.current].name;
       const kind = tables ? 'Table' : 'Sheet';
       const counts = `${src.sheets.length} sheets, ${src.tables.length} tables`;
-      const title = `${kind} ${src.current + 1} of ${list.items.length} (${counts}; ← → in the menu: sheets or tables)`;
+      const keys = '← → in the menu: sheets or tables';
+      if (src.waiting) {
+          // large file: nothing shown until chosen
+          v.titleSheet.hidden = true;
+          const choice = { list: tables ? 1 : 0, item: -1 };
+          return v.sheetPicker.set(lists, choice, 'Select sheet or table', `${counts}; ${keys}`);
+      }
+      const name = tables ? src.tables[src.current].name : src.sheets[src.current].name;
+      const title = `${kind} ${src.current + 1} of ${list.items.length} (${counts}; ${keys})`;
       v.sheetPicker.set(lists, { list: tables ? 1 : 0, item: src.current }, name, title);
       v.titleSheet.innerHTML = ` · <strong>${kind}:</strong> ${esc(name)}`;
   }
@@ -9283,6 +9414,11 @@
       const views = document.createElement('div');
       views.className = 'tp-views';
       views.append(textBtn, previewBtn, sheetPicker.button);
+      // Format: recognised or chosen (any format can be chosen: its reader tries the file)
+      const formatPicker = createPicker(statusBar, (list, i) => chooseFormat(FORMAT_LISTS[list][1][i]));
+      const formatBar = document.createElement('div');
+      formatBar.className = 'tp-views tp-format';
+      formatBar.append(formatPicker.button);
       // Text size: − 100 % + (value: back to 100 %)
       const zoomBar = document.createElement('div');
       zoomBar.className = 'tp-views tp-zoom';
@@ -9291,7 +9427,7 @@
       <button type="button" class="tp-view-btn tp-zoom-value" title="Text size: back to 100 % (Ctrl 0)"></button>
       <button type="button" class="tp-view-btn" title="Larger text (Ctrl +, Ctrl + wheel)">+</button>`;
       const [zoomOut, zoomValue, zoomIn] = /** @type {HTMLButtonElement[]} */ ([...zoomBar.children]);
-      statusBar.append(progress, zoomBar, views);
+      statusBar.append(progress, formatBar, zoomBar, views);
       box.append(header, csvBar, content, stage3d, editorWrap, loadMoreBtn, statusBar, splitter);
 
       // Keep panel's events away from SharePoint's handlers (split mode: inside its DOM)
@@ -9319,6 +9455,7 @@
           textBtn,
           previewBtn,
           sheetPicker,
+          formatPicker,
           stage3d,
           canvas3d,
           status3d,
@@ -9364,7 +9501,7 @@
       const onEscape = (e) => {
           if (e.key === 'Escape' && viewer === v) {
               e.stopPropagation();
-              if (!sheetPicker.menu.hidden) return void sheetPicker.close(); // open drop-down first
+              for (const p of [sheetPicker, formatPicker]) if (!p.menu.hidden) return void p.close(); // open drop-down first
               closeViewer();
           }
       };
@@ -9660,6 +9797,7 @@
 
   const pendingOpens = new Map(); // url -> first fetch still running { promise, relay, ctl }
   const forcedUrls = new Set(); // big Parquet / IFCZIP files the user chose to cache in full
+  const formatChoices = new Map(); // url -> format chosen by the user (while the page is open)
   const knownSizes = new Map(); // url -> file size seen before (shown right away next time)
 
   // ===========================================================================
@@ -9687,18 +9825,22 @@
   /**
    * @param {string} fetchUrl @param {string} fileName @param {string[]} hops @param {() => AbortSignal} getSignal @param {boolean} reload
    * @param {(loaded: number, total: number) => void} onProgress @param {(message: string) => void} onLink @param {boolean} force
+   * @param {string|null} format chosen by the user for the file as listed (its links are then not followed)
    * @returns {Promise<{ src: Source|null, deferred?: Deferred, message: string|null, fileName: string, hops: string[] }>}
    */
-  async function openFile(fetchUrl, fileName, hops, getSignal, reload, onProgress, onLink, force) {
+  async function openFile(fetchUrl, fileName, hops, getSignal, reload, onProgress, onLink, force, format) {
       hops = [...hops];
       for (let hop = 0; ; hop++) {
-          const result = PARQUET_RE.test(fileName)
-              ? await openParquetSource(fetchUrl, getSignal, reload, onProgress, force)
-              : SHEET_RE.test(fileName)
-                ? await openSheetSource(fetchUrl, getSignal, reload, onProgress, sheetMode(hops[0]))
-                : ZIP_RE.test(fileName)
-                  ? await openZipSource(fetchUrl, getSignal, reload, onProgress, force)
-                  : await openSource(fetchUrl, getSignal, reload, onProgress);
+          const chosen = hop === 0 ? format : null;
+          const reader = readerOf(chosen || formatOf(fileName));
+          const result =
+              reader === 'parquet'
+                  ? await openParquetSource(fetchUrl, getSignal, reload, onProgress, force)
+                  : reader === 'sheet'
+                    ? await openSheetSource(fetchUrl, getSignal, reload, onProgress, sheetMode(hops[0]))
+                    : reader === 'ifczip'
+                      ? await openZipSource(fetchUrl, getSignal, reload, onProgress, force)
+                      : await openSource(fetchUrl, getSignal, reload, onProgress);
           if ('deferred' in result)
               return { src: null, deferred: /** @type {Deferred} */ (result), message: null, fileName, hops };
           if ('error' in result) {
@@ -9721,13 +9863,26 @@
               };
           }
           if (hop > 0 && result.name) fileName = result.name;
-          const target = FOLLOW_LINKS && hop < MAX_LINK_HOPS && result.done ? linkTarget(fileName, result.text) : null;
+          const follow = FOLLOW_LINKS && !chosen && hop < MAX_LINK_HOPS && result.done;
+          const target = follow ? linkTarget(fileName, result.text) : null;
           if (!target) return { src: result, message: null, fileName, hops };
           hops.push(target.display);
           fileName = target.name;
           fetchUrl = target.fetchUrl;
           onLink(`Link → ${target.display}`);
       }
+  }
+
+  // Open file viewed as another format (a wrong one too: that format's reader tries);
+  // the recognised format drops the choice
+  /** @param {string} format @returns {void} */
+  function chooseFormat(format) {
+      const v = viewer;
+      if (!v?.file || !confirmDiscard(v)) return;
+      const { name, url } = v.file;
+      if (format === formatOf(name)) formatChoices.delete(url);
+      else formatChoices.set(url, format);
+      showFile(name, url, false);
   }
 
   // Same file, any encoding / case of path
@@ -9772,6 +9927,7 @@
       for (const b of [v.copyBtn, v.loadAllBtn, v.writeBtn, v.clearBtn]) b.disabled = true;
       setPreview(v, null);
       showSheets(v, null);
+      showFormat(v, null);
       updateViews(v);
       v.titleName.textContent = '–';
       v.titleName.title = '';
@@ -9826,11 +9982,12 @@
 
       v.titleName.textContent = name;
       v.titleName.title = url;
-      // what is known before the content: format, then size (from the first response)
-      const earlyLang = PARQUET_RE.test(name) ? 'parquet' : sheetFormat(name) ? 'sheet' : langOf(name);
-      const earlyFormat = PARQUET_RE.test(name)
-          ? 'Parquet'
-          : sheetFormat(name) || LANG_NAMES[langOf(name) ?? ''] || 'Text';
+      // what is known before the content: format (recognised or chosen), then size (from the first response)
+      const chosen = formatChoices.get(url) || null;
+      const early = chosen || formatOf(name);
+      const reader = readerOf(early); // cached copies of another reader are read anew
+      const earlyLang = langOfFormat(early);
+      const earlyFormat = (!chosen && sheetFormat(name)) || formatName(early);
       /** @param {number} total */
       const earlyMeta = (total) => {
           const parts = [
@@ -9847,6 +10004,7 @@
       v.writeBtn.disabled = true;
       setPreview(v, previewOf(earlyLang), 'Preview: once the file is cached');
       showSheets(v, null);
+      showFormat(v, early, formatOf(name));
       updateViews(v);
       v.clearBtn.disabled = false;
       setBusy(v, true);
@@ -9890,6 +10048,7 @@
       /** @param {number} loaded @param {number} total */
       const relayed = (loaded, total) => relay.fn?.(loaded, total);
       if (reload && memoryCache.delete(url)) refreshEyes(); // refresh: fetch anew
+      if (memoryCache.get(url)?.reader !== reader && memoryCache.delete(url)) refreshEyes(); // other format chosen
       const kept = memoryCache.get(url);
       // New file and the cache at its limit: clear the others first (OK / Cancel)
       if (!kept && !pendingOpens.has(url) && !makeRoom(v, Math.min(MAX_BYTES, knownSizes.get(url) || MAX_BYTES))) {
@@ -9913,11 +10072,13 @@
               // The first fetch (Parquet / IFCZIP: often the whole file) goes on when the user moves
               // to another file; coming back joins it instead of starting anew
               let pending = pendingOpens.get(url);
-              if (pending) pending.relay.fn = progress;
+              if (pending?.reader !== reader) pending?.ctl.abort(); // other format chosen meanwhile
+              if (pending?.reader === reader) pending.relay.fn = progress;
               else {
                   const ctl = new AbortController();
                   relay.controller = ctl;
                   pending = {
+                      reader,
                       relay,
                       ctl,
                       promise: openFile(
@@ -9929,23 +10090,25 @@
                           relayed,
                           (/** @type {string} */ m) => current() && showPlain(v, m),
                           forcedUrls.has(url),
+                          chosen,
                       ),
                   };
-                  pendingOpens.set(url, pending);
+                  const own = pending;
+                  pendingOpens.set(url, own);
                   refreshEyes(); // half open while it caches
                   pending.promise
                       .then(
                           (/** @type {Awaited<ReturnType<typeof openFile>>} */ r) => {
                               if (r.src) {
                                   r.src.relay = relay;
-                                  keepInMemory(url, { src: r.src, fileName: r.fileName, hops: [...r.hops] });
+                                  keepInMemory(url, { src: r.src, fileName: r.fileName, hops: [...r.hops], reader });
                               }
                           },
                           () => {},
                       )
                       .finally(() => {
                           relay.controller = null;
-                          pendingOpens.delete(url);
+                          if (pendingOpens.get(url) === own) pendingOpens.delete(url);
                           refreshEyes();
                       });
               }
@@ -10019,7 +10182,8 @@
       // Copy gets whole file: rest is cached first if needed
       v.source = src;
       v.fileName = fileName;
-      v.lang = PARQUET_RE.test(fileName) ? 'parquet' : src.isSheet ? 'sheet' : langOf(fileName);
+      const format = chosen || formatOf(fileName);
+      v.lang = langOfFormat(format);
       v.linked = hops.length > 1;
       v.writeBtn.disabled = !canWrite(v);
       v.writeBtn.title = src.isSheet
@@ -10029,10 +10193,11 @@
       const ifcSize = src.ifcBytes ? src.ifcBytes.length : src.total;
       const tooBig = kind === '3d' && ifcSize > MAX_3D_BYTES;
       setPreview(v, kind, tooBig ? `3D view: only for IFC files up to ${formatBytes(MAX_3D_BYTES)}` : '');
+      showFormat(v, format, formatOf(fileName));
       updateViews(v);
       v.text = src.text;
 
-      const lang = ['parquet', 'sheet'].includes(v.lang) ? 'csv' : (langOf(fileName) ?? ''); // their rows come as CSV; '' plain text
+      const lang = ['parquet', 'sheet'].includes(v.lang ?? '') ? 'csv' : (v.lang ?? ''); // their rows come as CSV; '' plain text
       /** @param {string} t @returns {Token[]} */
       const plain = (t) => [['', t]];
       const highlight = HIGHLIGHTERS[lang] || plain;
@@ -10278,7 +10443,7 @@
       /** @param {number} i @param {SheetMode} [mode] */
       v.selectSheet = async (i, mode = src.mode) => {
           if (!src.isSheet || !(mode === 'tables' ? src.tables : src.sheets)[i]) return;
-          if (mode === src.mode && i === src.current) return;
+          if (mode === src.mode && i === src.current && !src.waiting) return;
           if (mode !== src.mode) rememberSheetMode(url, mode);
           const s = src.sheetOf(i, mode);
           if (src.sheets[s].data === undefined) {
@@ -10290,7 +10455,7 @@
               if (!current()) return;
               if (!ok) return void showSheets(v, src); // drop-downs back to what is shown
           }
-          if (src.mode !== mode || src.current !== i) {
+          if (src.mode !== mode || src.current !== i || src.waiting) {
               src.select(i, mode);
               v.text = src.text;
               render();
@@ -11116,7 +11281,7 @@
   // ===========================================================================
 
   // Previewed files in memory up to MEMORY_CACHE_BYTES (least recently viewed go first)
-  const memoryCache = new Map(); // url -> { src, fileName, hops }
+  const memoryCache = new Map(); // url -> { src, fileName, hops, reader }
 
   // Cleared files: next fetch skips (and replaces) browser's stored copy
   const clearedUrls = new Set();
@@ -11170,7 +11335,7 @@
       refreshEyes();
   }
 
-  /** @param {string} url @param {{ src: Source, fileName: string, hops: string[] }} entry @returns {void} */
+  /** @param {string} url @param {{ src: Source, fileName: string, hops: string[], reader: string }} entry @returns {void} */
   function keepInMemory(url, entry) {
       memoryCache.delete(url);
       memoryCache.set(url, entry);

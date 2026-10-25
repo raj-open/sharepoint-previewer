@@ -377,7 +377,11 @@ const CSS = `
   .tp-viewer .tp-view-btn:disabled { opacity: .4; cursor: default; }
   .tp-viewer .tp-view-btn:not(:disabled):not([aria-pressed="true"]):hover { background: var(--tp-hover); }
   /* Text size: − 100 % + (left of the view switch) */
-  .tp-zoom + .tp-views { margin-left: 0; }
+  .tp-zoom + .tp-views, .tp-format + .tp-zoom { margin-left: 0; }
+  /* Format (left of the text size): recognised, or chosen (accent) */
+  .tp-format:has(> .tp-picker[hidden]) { display: none; }
+  .tp-viewer .tp-format .tp-picker { border-left: none; }
+  .tp-viewer .tp-format .tp-picker.tp-chosen { color: var(--tp-accent); font-style: italic; }
   .tp-viewer .tp-zoom .tp-view-btn { padding: 0 8px; font-size: 13px; }
   .tp-viewer .tp-zoom .tp-zoom-value { min-width: 52px; justify-content: center; font-size: 11px; }
   /* Sheet or table choice (spreadsheets): segment right of the table button; menu above it */
