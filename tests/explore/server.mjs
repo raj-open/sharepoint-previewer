@@ -4,7 +4,10 @@
 //
 // - folder: served as the document library (default: /tests/fake-sharepoint/library); read afresh per request
 // - userscript: read afresh per page load, so `just build-src` + reload picks up changes
-// - Tampermonkey: stood in for by ./tampermonkey.js (settings in localStorage, menu commands as a panel)
+// - Tampermonkey: stood in for by ./tampermonkey.js (settings in localStorage, menu commands as a panel);
+//   its panel names the library folder and where the 3D files come from
+// - 3D files: those of the release in /dist/v<VERSION> (`just build`), listed in the library as folder "previewer";
+//   the setting `viewer-3d-folder` points there unless set otherwise
 // - listens on the loopback interface only; logs each request to the console
 
 // ================================================================
@@ -43,13 +46,26 @@ const script = (body) => ({ status: 200, headers: { 'content-type': SCRIPT_TYPE,
 /** @param {string} location @returns {import('../fake-sharepoint/server.mjs').Reply} */
 const redirect = (location) => ({ status: 302, headers: { location }, body: '' });
 
+/** @param {string} s @returns {string} text for an HTML attribute */
+const attr = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
 /**
  * Page with the Tampermonkey stand-in, which then loads the userscript (at DOMContentLoaded).
+ * Settings not stored yet start with `defaults`; `notes` go into the stand-in's panel.
  * @param {import('../fake-sharepoint/server.mjs').Reply} reply html page
+ * @param {string} files library folder
  * @returns {import('../fake-sharepoint/server.mjs').Reply}
  */
-function inject(reply) {
-    const tag = `<script src="${PREFIX}/tampermonkey.js" data-version="${VERSION}"></script>`;
+function inject(reply, files) {
+    const built = sharepoint.has3dRelease();
+    const release = path.relative(process.cwd(), sharepoint.PATH_RELEASE) || sharepoint.PATH_RELEASE;
+    const defaults = JSON.stringify({ 'viewer-3d-folder': sharepoint.RELEASE_SETTING });
+    const notes = JSON.stringify([
+        `Library: ${path.relative(process.cwd(), files) || files}`,
+        built ? `3D files: ${release} (folder "previewer")` : `3D files: none in ${release} (run "just build")`,
+    ]);
+    const data = `data-version="${VERSION}" data-defaults="${attr(defaults)}" data-notes="${attr(notes)}"`;
+    const tag = `<script src="${PREFIX}/tampermonkey.js" ${data}></script>`;
     const page = String(reply.body);
     const body = page.includes('</head>') ? page.replace('</head>', `${tag}\n</head>`) : tag + page;
     return { ...reply, headers: { ...reply.headers, ...NO_CACHE }, body };
@@ -68,7 +84,7 @@ function answer(req, files) {
 
     const headers = /** @type {Object<string, string>} */ (req.headers);
     const reply = sharepoint.handle({ url: url.href, method: req.method ?? 'GET', headers }, { files });
-    return String(reply.headers['content-type']).startsWith('text/html') ? inject(reply) : reply;
+    return String(reply.headers['content-type']).startsWith('text/html') ? inject(reply, files) : reply;
 }
 
 // --------------------------------

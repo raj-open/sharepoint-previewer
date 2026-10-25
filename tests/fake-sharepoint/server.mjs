@@ -3,7 +3,8 @@
 //   /sites/Test/Shared Documents/Forms/AllItems.aspx[?id=<folder>]  list view (client-side app)
 //   /sites/Test/Shared Documents/<path>                             file (GET / HEAD, byte ranges)
 //   /sites/Test/SitePages/Home.aspx                                 page outside any library
-//   /sites/Test/Shared Documents/previewer/<file>                   3D files of the release (if built)
+//   /sites/Test/Shared Documents/previewer/<file>                   3D files of the release (if built),
+//                                                                   listed as folder "previewer" in the library
 //
 // The list view mimics only what the userscript reads: ARIA grid rows, name fields,
 // folder icons, the scroll card and SharePoint's `display: contents` wrapper.
@@ -25,7 +26,10 @@ export const PATH_FILES = path.join(HERE, 'library');
 
 export const VERSION = fs.readFileSync(path.join(ROOT, 'dist/VERSION'), 'utf8').trim();
 export const PATH_RELEASE = path.join(ROOT, 'dist', `v${VERSION}`);
-const RELEASE_FOLDER = `${LIBRARY}/previewer`;
+// 3D files of the release, as a folder of the library (as deployed); setting `viewer-3d-folder`: site-relative
+export const RELEASE_FOLDER = `${LIBRARY}/previewer`;
+export const RELEASE_SETTING = RELEASE_FOLDER.slice(SITE.length + 1);
+const FILES_3D = ['ifc-lite-3d.js', 'ifc-lite_bg.wasm'];
 
 const MODIFIED = new Date('2026-10-01T12:00:00Z');
 
@@ -80,6 +84,9 @@ function listing(dir) {
         .sort((a, b) => Number(b.folder) - Number(a.folder) || a.name.localeCompare(b.name));
 }
 
+/** @returns {boolean} 3D files of this version are built (`just build`) */
+export const has3dRelease = () => FILES_3D.every((name) => fs.existsSync(path.join(PATH_RELEASE, name)));
+
 /** @param {string} files library folder @returns {Object<string, Entry[]>} server-relative folder -> entries */
 function tree(files) {
     /** @type {Object<string, Entry[]>} */
@@ -90,6 +97,10 @@ function tree(files) {
         for (const e of entries) if (e.folder) walk(`${folder}/${e.name}`);
     };
     walk(LIBRARY);
+    if (has3dRelease() && !out[RELEASE_FOLDER]) {
+        out[LIBRARY].unshift({ name: 'previewer', folder: true, size: 0 });
+        out[RELEASE_FOLDER] = listing(PATH_RELEASE).filter((e) => FILES_3D.includes(e.name));
+    }
     return out;
 }
 

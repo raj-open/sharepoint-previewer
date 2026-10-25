@@ -1,6 +1,7 @@
 // Tampermonkey stand-in for explorative tests (cf. ./server.mjs): GM_* API, then the userscript at DOMContentLoaded.
 //
-// - GM_getValue / GM_setValue: localStorage (kept across reloads; "Clear settings" in the panel empties it)
+// - GM_getValue / GM_setValue: localStorage (kept across reloads; "Clear settings" in the panel empties it);
+//   values not stored yet: the server's defaults (e.g. `viewer-3d-folder` of the fake SharePoint)
 // - GM_registerMenuCommand: buttons in a small panel at the bottom left (Tampermonkey's menu)
 // - GM_info.script.version: the userscript's @version
 
@@ -11,7 +12,12 @@
 
     const KEY = 'tampermonkey:';
     const URL_SCRIPT = '/__explore__/userscript.js';
-    const version = document.currentScript?.dataset.version ?? '';
+    const data = document.currentScript?.dataset ?? {};
+    const version = data.version ?? '';
+    /** @type {Object<string, *>} */
+    const defaults = JSON.parse(data.defaults || '{}');
+    /** @type {string[]} */
+    const notes = JSON.parse(data.notes || '[]');
 
     /** @type {[string, () => void][]} */
     const commands = [];
@@ -28,7 +34,8 @@
     function getValue(name, fallback) {
         try {
             const raw = localStorage.getItem(KEY + name);
-            return raw === null ? fallback : JSON.parse(raw);
+            if (raw !== null) return JSON.parse(raw);
+            return name in defaults ? defaults[name] : fallback;
         } catch {
             return fallback;
         }
@@ -75,6 +82,12 @@
         title.textContent = `Tampermonkey (stand-in) ${version}`;
         title.style.cursor = 'pointer';
         box.append(title);
+        for (const note of notes) {
+            const line = document.createElement('div');
+            line.textContent = note;
+            line.style.cssText = 'margin: 2px 0; color: #555; overflow-wrap: anywhere;';
+            box.append(line);
+        }
         for (const [label, fn] of commands) box.append(button(label, fn));
         box.append(
             button('Clear settings and reload', () => {

@@ -5,7 +5,7 @@
 
 import { chromium } from 'playwright';
 import * as sharepoint from '../fake-sharepoint/server.mjs';
-import { has3dRelease } from '../fake-sharepoint/userscript.mjs';
+import { has3dRelease } from '../fake-sharepoint/server.mjs';
 import { userscript } from '../fake-sharepoint/userscript.mjs';
 
 export const { ORIGIN, LIBRARY, LIST_PAGE, SITE } = sharepoint;
