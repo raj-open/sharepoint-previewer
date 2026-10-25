@@ -139,7 +139,10 @@ export function mountTable(content, header, rows, opts) {
     };
 
     const headHtml = () => {
-        let cells = '<th class="tp-rn"></th>';
+        const all = opts.expand
+            ? `<button class="tp-expand-all" title="${state.allOpen ? 'Collapse all rows shown' : 'Expand all rows shown (as filtered)'}">${state.allOpen ? '▾' : '▸'}</button>`
+            : '';
+        let cells = `<th class="tp-rn">${all}</th>`;
         const drag = opts.editable ? ' draggable="true"' : '';
         for (let c = 0; c < cols; c++) {
             const sort = state.sort && state.sort.col === c ? (state.sort.dir > 0 ? ' ▲' : ' ▼') : '';
@@ -192,6 +195,14 @@ export function mountTable(content, header, rows, opts) {
     const detailHtml = (i) =>
         `<tr class="tp-detail"><td class="tp-rn"></td><td colspan="${cols}"><div class="tp-detail-box">` +
         `${opts.expand?.html(i) ?? ''}</div></td></tr>`;
+    // All rows shown (filters applied) open or closed at once
+    const toggleAll = () => {
+        if (!state.expanded) state.expanded = new Set();
+        const shown = viewRows().filter((i) => opts.expand?.can(i));
+        state.allOpen = !state.allOpen;
+        for (const i of shown) state.allOpen ? state.expanded.add(i) : state.expanded.delete(i);
+        build();
+    };
     /** @param {HTMLElement} btn */
     const toggleDetail = (btn) => {
         const i = Number(btn.dataset.x);
@@ -290,6 +301,7 @@ export function mountTable(content, header, rows, opts) {
         if (/** @type {HTMLElement} */ (e.target).closest('.tp-resize')) return; // end of width change, not sort
         const expand = /** @type {HTMLElement} */ (e.target).closest('.tp-expand');
         if (expand) return void toggleDetail(/** @type {HTMLElement} */ (expand));
+        if (/** @type {HTMLElement} */ (e.target).closest('.tp-expand-all')) return void toggleAll();
         const del = /** @type {HTMLElement} */ (e.target).closest('.tp-col-delete');
         if (del) return void structure('col-delete', Number(del.dataset.c));
         const btn = /** @type {HTMLElement} */ (e.target).closest('.tp-filter');

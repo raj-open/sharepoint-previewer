@@ -134,6 +134,11 @@ describe('preview per file type', () => {
         assert.match(await detail.textContent(), /"status": 201/);
         await v.locator('.tp-table tr', { hasText: 'request' }).locator('.tp-expand').click();
         assert.equal(await detail.count(), 0);
+        const all = v.locator('.tp-table .tp-expand-all');
+        await all.click();
+        assert.equal(await detail.count(), 3);
+        await all.click();
+        assert.equal(await detail.count(), 0);
         const plain = await h.preview(page, 'plain.log');
         assert.equal(await plain.locator('.tp-view-btn', { hasText: 'Table' }).isDisabled(), true);
         assert.equal(await plain.locator('.tp-table').count(), 0);

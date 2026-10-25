@@ -20,7 +20,7 @@
 /** @typedef {{ name: string, hidden: boolean, kind: string, size: number, path?: string, data?: SheetData|null, note?: string }} Sheet data: undefined = not read yet, null = no cells */
 /** @typedef {{ paths: () => string[], entry: (path?: string) => ZipEntry|undefined, bytes: (path?: string) => Promise<Uint8Array|null>, text: (path?: string) => Promise<string|null> }} Package parts of a ZIP-based document by path */
 /** @typedef {{ deferred: string, size: number, dates: Object<string, *> }} Deferred big file: shown only after "cache all" */
-/** @typedef {{ sort: { col: number, dir: number }|null, filters: Map<number, { values: Set<string>|null, text: string }>, widths?: Map<number, number>, expanded?: Set<number> }} TableState sort, filters, column widths, rows expanded (detail shown) of a table view */
+/** @typedef {{ sort: { col: number, dir: number }|null, filters: Map<number, { values: Set<string>|null, text: string }>, widths?: Map<number, number>, expanded?: Set<number>, allOpen?: boolean }} TableState sort, filters, column widths, rows expanded (detail shown; allOpen: last "expand all" opened) of a table view */
 /** @typedef {{ header: string[], rows: string[][], kinds: string[] }} LogTable log as a table: columns line, fields (kinds: time, level, context, name), message */
 /** @typedef {string[] & { raw?: string }} CsvRow cells of a CSV line; raw: its text as in the file (unedited rows are written back as they were) */
 /** @typedef {Event & { target: HTMLElement }} TargetEvent event whose target is an element (handlers read e.target) */

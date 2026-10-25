@@ -193,7 +193,8 @@ one row per entry with its line number, the fields found and the message;
 lines that do not start an entry (stack traces, printed tables, other output) are added to the message as one block
 (⏎ in the cell).
 Rows with such blocks, JSON or Python-like objects and lists in their message expand (▸ in the row number):
-the message split into text and objects / lists, these indented and coloured (numbers as written).
+the message split into text and objects / lists, these indented and coloured (numbers as written);
+▸ above the row numbers expands (▾ collapses) all rows shown, as filtered.
 Without recognisable fields the table view is not offered.
 
 Other binary files (PDF, Word, PowerPoint, images, archives, …)

@@ -595,6 +595,8 @@ const CSS = `
   .tp-log-date { color: var(--tp-type); }
   .tp-log-frame { color: var(--tp-trunc); }
   .tp-table td.tp-multi::before { content: '⏎ '; color: var(--tp-trunc); } /* log message over several lines */
+  .tp-table .tp-expand-all { border: none; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+  .tp-table .tp-expand-all:hover { color: var(--tp-accent); }
   .tp-table .tp-expand { border: none; background: none; padding: 0 4px 0 0; font: inherit; color: var(--tp-ln-fg); cursor: pointer; }
   .tp-table .tp-expand:hover { color: var(--tp-accent); }
   .tp-table tr.tp-detail td, .tp-table tbody tr.tp-detail:not(.tp-spacer):hover td { max-width: none; white-space: normal; background: var(--tp-stripe); }

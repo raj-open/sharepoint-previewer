@@ -40,7 +40,7 @@
   /** @typedef {{ name: string, hidden: boolean, kind: string, size: number, path?: string, data?: SheetData|null, note?: string }} Sheet data: undefined = not read yet, null = no cells */
   /** @typedef {{ paths: () => string[], entry: (path?: string) => ZipEntry|undefined, bytes: (path?: string) => Promise<Uint8Array|null>, text: (path?: string) => Promise<string|null> }} Package parts of a ZIP-based document by path */
   /** @typedef {{ deferred: string, size: number, dates: Object<string, *> }} Deferred big file: shown only after "cache all" */
-  /** @typedef {{ sort: { col: number, dir: number }|null, filters: Map<number, { values: Set<string>|null, text: string }>, widths?: Map<number, number>, expanded?: Set<number> }} TableState sort, filters, column widths, rows expanded (detail shown) of a table view */
+  /** @typedef {{ sort: { col: number, dir: number }|null, filters: Map<number, { values: Set<string>|null, text: string }>, widths?: Map<number, number>, expanded?: Set<number>, allOpen?: boolean }} TableState sort, filters, column widths, rows expanded (detail shown; allOpen: last "expand all" opened) of a table view */
   /** @typedef {{ header: string[], rows: string[][], kinds: string[] }} LogTable log as a table: columns line, fields (kinds: time, level, context, name), message */
   /** @typedef {string[] & { raw?: string }} CsvRow cells of a CSV line; raw: its text as in the file (unedited rows are written back as they were) */
   /** @typedef {Event & { target: HTMLElement }} TargetEvent event whose target is an element (handlers read e.target) */
@@ -685,7 +685,10 @@
       };
 
       const headHtml = () => {
-          let cells = '<th class="tp-rn"></th>';
+          const all = opts.expand
+              ? `<button class="tp-expand-all" title="${state.allOpen ? 'Collapse all rows shown' : 'Expand all rows shown (as filtered)'}">${state.allOpen ? '▾' : '▸'}</button>`
+              : '';
+          let cells = `<th class="tp-rn">${all}</th>`;
           const drag = opts.editable ? ' draggable="true"' : '';
           for (let c = 0; c < cols; c++) {
               const sort = state.sort && state.sort.col === c ? (state.sort.dir > 0 ? ' ▲' : ' ▼') : '';
@@ -738,6 +741,14 @@
       const detailHtml = (i) =>
           `<tr class="tp-detail"><td class="tp-rn"></td><td colspan="${cols}"><div class="tp-detail-box">` +
           `${opts.expand?.html(i) ?? ''}</div></td></tr>`;
+      // All rows shown (filters applied) open or closed at once
+      const toggleAll = () => {
+          if (!state.expanded) state.expanded = new Set();
+          const shown = viewRows().filter((i) => opts.expand?.can(i));
+          state.allOpen = !state.allOpen;
+          for (const i of shown) state.allOpen ? state.expanded.add(i) : state.expanded.delete(i);
+          build();
+      };
       /** @param {HTMLElement} btn */
       const toggleDetail = (btn) => {
           const i = Number(btn.dataset.x);
@@ -836,6 +847,7 @@
           if (/** @type {HTMLElement} */ (e.target).closest('.tp-resize')) return; // end of width change, not sort
           const expand = /** @type {HTMLElement} */ (e.target).closest('.tp-expand');
           if (expand) return void toggleDetail(/** @type {HTMLElement} */ (expand));
+          if (/** @type {HTMLElement} */ (e.target).closest('.tp-expand-all')) return void toggleAll();
           const del = /** @type {HTMLElement} */ (e.target).closest('.tp-col-delete');
           if (del) return void structure('col-delete', Number(del.dataset.c));
           const btn = /** @type {HTMLElement} */ (e.target).closest('.tp-filter');
@@ -2459,6 +2471,8 @@
     .tp-log-date { color: var(--tp-type); }
     .tp-log-frame { color: var(--tp-trunc); }
     .tp-table td.tp-multi::before { content: '⏎ '; color: var(--tp-trunc); } /* log message over several lines */
+    .tp-table .tp-expand-all { border: none; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+    .tp-table .tp-expand-all:hover { color: var(--tp-accent); }
     .tp-table .tp-expand { border: none; background: none; padding: 0 4px 0 0; font: inherit; color: var(--tp-ln-fg); cursor: pointer; }
     .tp-table .tp-expand:hover { color: var(--tp-accent); }
     .tp-table tr.tp-detail td, .tp-table tbody tr.tp-detail:not(.tp-spacer):hover td { max-width: none; white-space: normal; background: var(--tp-stripe); }
