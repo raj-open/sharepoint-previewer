@@ -23,6 +23,12 @@
 # folders
 # --------------------------------
 
+!/.github
+!/.github/**
+
+!/demos
+!/demos/**
+
 !/dist
 !/dist/VERSION
 
