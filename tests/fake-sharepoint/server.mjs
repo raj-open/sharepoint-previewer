@@ -1,4 +1,4 @@
-// Fake SharePoint Online: one site with one document library, served from ./library.
+// Fake SharePoint Online: one site with one document library, served from ./library (or another folder).
 //
 //   /sites/Test/Shared Documents/Forms/AllItems.aspx[?id=<folder>]  list view (client-side app)
 //   /sites/Test/Shared Documents/<path>                             file (GET / HEAD, byte ranges)
@@ -15,7 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, '../../..');
+const ROOT = path.resolve(HERE, '../..');
 
 export const ORIGIN = 'https://acme.sharepoint.com';
 export const SITE = '/sites/Test';
@@ -23,7 +23,7 @@ export const LIBRARY = `${SITE}/Shared Documents`;
 export const LIST_PAGE = `${LIBRARY}/Forms/AllItems.aspx`;
 export const PATH_FILES = path.join(HERE, 'library');
 
-const VERSION = fs.readFileSync(path.join(ROOT, 'dist/VERSION'), 'utf8').trim();
+export const VERSION = fs.readFileSync(path.join(ROOT, 'dist/VERSION'), 'utf8').trim();
 export const PATH_RELEASE = path.join(ROOT, 'dist', `v${VERSION}`);
 const RELEASE_FOLDER = `${LIBRARY}/previewer`;
 
@@ -50,11 +50,11 @@ const TYPES = {
  * @typedef {{ status: number, headers: Object<string, string>, body: Buffer|string }} Reply
  */
 
-/** @param {string} folder server-relative @returns {string|null} local directory */
-function localPath(folder) {
+/** @param {string} files library folder @param {string} folder server-relative @returns {string|null} local path */
+function localPath(files, folder) {
     if (folder !== LIBRARY && !folder.startsWith(`${LIBRARY}/`)) return null;
-    const local = path.join(PATH_FILES, folder.slice(LIBRARY.length));
-    return local.startsWith(PATH_FILES) ? local : null; // no ".." out of the library
+    const local = path.join(files, folder.slice(LIBRARY.length));
+    return local.startsWith(files) ? local : null; // no ".." out of the library
 }
 
 /** @param {string} dir @returns {Entry[]} folders first, then files; hidden entries left out */
@@ -70,12 +70,12 @@ function listing(dir) {
         .sort((a, b) => Number(b.folder) - Number(a.folder) || a.name.localeCompare(b.name));
 }
 
-/** @returns {Object<string, Entry[]>} server-relative folder -> entries, for the whole library */
-function tree() {
+/** @param {string} files library folder @returns {Object<string, Entry[]>} server-relative folder -> entries */
+function tree(files) {
     /** @type {Object<string, Entry[]>} */
     const out = {};
     const walk = (folder) => {
-        const entries = listing(/** @type {string} */ (localPath(folder)));
+        const entries = listing(/** @type {string} */ (localPath(files, folder)));
         out[folder] = entries;
         for (const e of entries) if (e.folder) walk(`${folder}/${e.name}`);
     };
@@ -89,8 +89,8 @@ const html = (body) => ({ status: 200, headers: { 'content-type': 'text/html; ch
 /** @param {number} status @returns {Reply} */
 const fail = (status) => ({ status, headers: { 'content-type': 'text/plain' }, body: `Error ${status}` });
 
-/** @returns {Reply} */
-function listPage() {
+/** @param {string} files library folder @returns {Reply} */
+function listPage(files) {
     return html(`<!doctype html>
 <html lang="en">
 <head>
@@ -144,7 +144,7 @@ function listPage() {
     </div>
   </div>
 <script>
-  const TREE = ${JSON.stringify(tree())};
+  const TREE = ${JSON.stringify(tree(files))};
   const LIBRARY = ${JSON.stringify(LIBRARY)};
   const LIST_PAGE = ${JSON.stringify(LIST_PAGE)};
   const grid = document.getElementById('grid');
@@ -234,13 +234,15 @@ function serveFile(file, method, range) {
 /**
  * Answers one request to the fake SharePoint.
  * @param {{ url: string, method: string, headers: Object<string, string> }} request
+ * @param {{ files?: string }} [opts] library folder (default: ./library)
  * @returns {Reply}
  */
-export function handle({ url, method, headers }) {
+export function handle({ url, method, headers }, { files = PATH_FILES } = {}) {
     const u = new URL(url);
     const pathname = decodeURIComponent(u.pathname);
+    const root = path.resolve(files);
 
-    if (pathname === LIST_PAGE) return listPage();
+    if (pathname === LIST_PAGE) return listPage(root);
     if (pathname === `${SITE}/SitePages/Home.aspx`) {
         return html(
             '<!doctype html><title>Home</title><h1>Home</h1><div role="grid"><div role="row">notes.txt</div></div>',
@@ -257,7 +259,7 @@ export function handle({ url, method, headers }) {
         const file = path.join(PATH_RELEASE, path.basename(pathname));
         return fs.existsSync(file) ? serveFile(file, method, headers.range) : fail(404);
     }
-    const file = localPath(pathname);
+    const file = localPath(root, pathname);
     if (!file || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return fail(404);
     return serveFile(file, method, headers.range);
 }

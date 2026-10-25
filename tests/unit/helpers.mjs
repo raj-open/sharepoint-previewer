@@ -7,7 +7,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 
 export const ROOT = path.resolve(import.meta.dirname, '../..');
-export const LIBRARY = path.join(ROOT, 'tests/behave/fake-sharepoint/library');
+export const LIBRARY = path.join(ROOT, 'tests/fake-sharepoint/library');
 export const ORIGIN = 'https://acme.sharepoint.com';
 
 // ----------------------------------------------------------------
