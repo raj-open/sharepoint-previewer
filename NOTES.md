@@ -305,7 +305,7 @@ Changing them in the form resets that remembered choice.
 
 ## 10. Security assessment ##
 
-**What reduces risk**
+### Risk reduction ###
 
 - **No new attack surface on the server side:**
   - no API usage
@@ -323,7 +323,7 @@ Changing them in the form resets that remembered choice.
 - **HTML escaping:**
   file contents are always escaped before they are put into the page.
 
-**What to be aware of**
+### For further consideration ###
 
 - **Userscripts run with access to the page.**
   Any userscript manager can, in principle, read what the user sees.
