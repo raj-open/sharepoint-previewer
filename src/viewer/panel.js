@@ -38,6 +38,7 @@ import { THEME_SVG } from '../ui/icons.js';
 import { UPLOAD_SVG } from '../ui/icons.js';
 import { WRAP_SVG } from '../ui/icons.js';
 import { WRITE_SVG } from '../ui/icons.js';
+import { FORMAT_LISTS } from '../readers/formats.js';
 import { startMove } from '../ui/move.js';
 import { createPicker } from '../ui/picker.js';
 import { QUOTE_MODES } from '../view/table.js';
@@ -56,6 +57,7 @@ import { uploadEdits } from './edit.js';
 import { layoutPage } from './layout.js';
 import { setMode } from './layout.js';
 import { startDrag } from './layout.js';
+import { chooseFormat } from './open.js';
 import { closeViewer } from './open.js';
 import { showFile } from './open.js';
 import { viewer } from './open.js';
@@ -490,6 +492,11 @@ export function createViewer() {
     const views = document.createElement('div');
     views.className = 'tp-views';
     views.append(textBtn, previewBtn, sheetPicker.button);
+    // Format: recognised or chosen (any format can be chosen: its reader tries the file)
+    const formatPicker = createPicker(statusBar, (list, i) => chooseFormat(FORMAT_LISTS[list][1][i]));
+    const formatBar = document.createElement('div');
+    formatBar.className = 'tp-views tp-format';
+    formatBar.append(formatPicker.button);
     // Text size: − 100 % + (value: back to 100 %)
     const zoomBar = document.createElement('div');
     zoomBar.className = 'tp-views tp-zoom';
@@ -498,7 +505,7 @@ export function createViewer() {
     <button type="button" class="tp-view-btn tp-zoom-value" title="Text size: back to 100 % (Ctrl 0)"></button>
     <button type="button" class="tp-view-btn" title="Larger text (Ctrl +, Ctrl + wheel)">+</button>`;
     const [zoomOut, zoomValue, zoomIn] = /** @type {HTMLButtonElement[]} */ ([...zoomBar.children]);
-    statusBar.append(progress, zoomBar, views);
+    statusBar.append(progress, formatBar, zoomBar, views);
     box.append(header, csvBar, content, stage3d, editorWrap, loadMoreBtn, statusBar, splitter);
 
     // Keep panel's events away from SharePoint's handlers (split mode: inside its DOM)
@@ -526,6 +533,7 @@ export function createViewer() {
         textBtn,
         previewBtn,
         sheetPicker,
+        formatPicker,
         stage3d,
         canvas3d,
         status3d,
@@ -571,7 +579,7 @@ export function createViewer() {
     const onEscape = (e) => {
         if (e.key === 'Escape' && viewer === v) {
             e.stopPropagation();
-            if (!sheetPicker.menu.hidden) return void sheetPicker.close(); // open drop-down first
+            for (const p of [sheetPicker, formatPicker]) if (!p.menu.hidden) return void p.close(); // open drop-down first
             closeViewer();
         }
     };

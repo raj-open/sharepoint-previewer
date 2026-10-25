@@ -61,7 +61,11 @@ and where it stores data.
   - left: cache progress
     (blue while caching, neutral when idle or complete),
     with a "click to fully cache" hint
-  - right: text size **− 100 % +**
+  - right: format of the file (recognised from its name);
+    its menu lists text formats and file formats (Parquet, spreadsheet, IFCZIP) side by side,
+    any of them can be chosen (also a wrong one: the file is then read as that format, or a message says why not;
+    a chosen format is marked and kept while the page is open);
+    text size **− 100 % +**
     (also Ctrl / ⌘ with + − 0, or Ctrl / ⌘ + wheel, in the content area);
     view switch **Text | Preview**,
     the preview by file type: **Table** (CSV, Parquet, spreadsheets, logs), **3D** (IFC), **Markdown**;
@@ -69,7 +73,8 @@ and where it stores data.
     its menu shows the sheets or the tables, switched with ‹ › or ← →
     (● cached, ○ not cached yet; hidden sheets marked);
     picking a table shows tables, picking a sheet shows sheets
-    (start value: setting `spreadsheet-view`, then the last choice per file),
+    (start value: setting `spreadsheet-view`, then the last choice per file);
+    spreadsheets larger than `spreadsheet-autoload-bytes` show nothing until a sheet or table is chosen,
     the sheet shown is also named next to the file name
 - **Text view:** Ctrl / ⌘ + A (once clicked into it) selects the whole text, copy gives the whole cached text
 - **Markdown view:** headings, lists, task lists, quotes, code (with colours), tables, links, images;
@@ -278,9 +283,10 @@ plus "Reset to defaults".
 | `theme` | `light` | `light` / `dark` |
 | `show-whitespace` | `true` | Markers for spaces and tabs |
 | `wrap-lines` | `false` | Wrap long lines |
-| `colours-text` / `colours-table` | `true` / `false` | Syntax colours per view |
+| `colours-text` / `colours-table` / `colours-log` | `true` / `false` / `true` | Syntax colours per view (`colours-log`: table view of logs) |
 | `colours-sheet` | `false` | Column colours in the table view of spreadsheets (rows are always striped) |
-| `spreadsheet-view` | `sheets` | Spreadsheets show `sheets` or `tables` (sheets if a file has none); the last choice is kept per file, a new value here resets those |
+| `spreadsheet-view` | `tables` | Spreadsheets show `sheets` or `tables` (sheets if a file has none); the last choice is kept per file, a new value here resets those |
+| `spreadsheet-autoload-bytes` | 512 KB | Larger spreadsheets cache no sheet until a sheet or table is chosen |
 | `cache-chunk-bytes` | 512 KB | Chunk size; also the threshold for asking before big Parquet / IFCZIP |
 | `memory-cache-bytes` | 256 MB | Cache limit for all files together |
 | `cache-all-confirm-bytes` | 16 MB | "Cache all" asks above this size |

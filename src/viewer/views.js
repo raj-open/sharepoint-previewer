@@ -7,6 +7,8 @@
 import { colourPrefs } from '../_core/prefs.js';
 import { view } from '../_core/prefs.js';
 import { esc } from '../_core/util.js';
+import { FORMAT_LISTS } from '../readers/formats.js';
+import { formatName } from '../readers/formats.js';
 import { CUBE_SVG } from '../ui/icons.js';
 import { EYE_FULL_SVG } from '../ui/icons.js';
 import { MARKDOWN_SVG } from '../ui/icons.js';
@@ -73,9 +75,12 @@ export function setPreview(v, kind, reason = '') {
     v.previewBtn.title = reason || title || 'No preview for this file type';
 }
 
-// Colour choice of view shown: text, table (CSV / Parquet) or sheet (spreadsheets: own choice)
-/** @param {Viewer} v @returns {'text'|'table'|'sheet'} */
-export const colourKey = (v) => (!tableView(v) ? 'text' : v.lang === 'sheet' ? 'sheet' : 'table');
+// Colour choice of view shown: text, table (CSV / Parquet), sheet or log (spreadsheets, logs: own choice)
+/** @param {Viewer} v @returns {'text'|'table'|'sheet'|'log'} */
+export function colourKey(v) {
+    if (!tableView(v)) return 'text';
+    return v.lang === 'sheet' || v.lang === 'log' ? v.lang : 'table';
+}
 
 // View switch state (pressed = current view: Text or Preview) and idle cache bar
 /** @param {Viewer} v @returns {void} */
@@ -94,6 +99,30 @@ export function colourOn(v) {
     return colourPrefs[colourKey(v)];
 }
 
+// Format (status bar, left of the text size): recognised from the file name or chosen by the user;
+// its menu lists text formats and file formats side by side (null: no file, hidden)
+/** @param {Viewer} v @param {string|null} format @param {string} [recognised] @returns {void} */
+export function showFormat(v, format, recognised = format ?? '') {
+    v.formatPicker.button.hidden = !format;
+    if (!format) return v.formatPicker.close();
+    const lists = FORMAT_LISTS.map(([label, keys]) => ({
+        label,
+        items: keys.map((k) => ({ text: k === recognised ? `${formatName(k)} (recognised)` : formatName(k) })),
+        empty: '',
+        start: Math.max(0, keys.indexOf(recognised)),
+    }));
+    const list = Math.max(
+        0,
+        FORMAT_LISTS.findIndex(([, keys]) => keys.includes(format)),
+    );
+    const item = FORMAT_LISTS[list][1].indexOf(format);
+    const chosen = format !== recognised;
+    const name = formatName(format);
+    const how = chosen ? `chosen; recognised: ${formatName(recognised)}` : 'recognised from the file name';
+    v.formatPicker.set(lists, { list, item }, name, `Format: ${name} (${how}). View the file as another format`);
+    v.formatPicker.button.classList.toggle('tp-chosen', chosen);
+}
+
 // Sheet or table choice (spreadsheets only): picker next to table button, name in title.
 // Its menu lists sheets and tables side by side (● cached, ○ not cached yet).
 /** @param {Viewer} v @param {Source|null} src @returns {void} */
@@ -104,10 +133,17 @@ export function showSheets(v, src) {
     if (!lists || !src) return v.sheetPicker.close();
     const tables = src.mode === 'tables';
     const list = lists[tables ? 1 : 0];
-    const name = tables ? src.tables[src.current].name : src.sheets[src.current].name;
     const kind = tables ? 'Table' : 'Sheet';
     const counts = `${src.sheets.length} sheets, ${src.tables.length} tables`;
-    const title = `${kind} ${src.current + 1} of ${list.items.length} (${counts}; ← → in the menu: sheets or tables)`;
+    const keys = '← → in the menu: sheets or tables';
+    if (src.waiting) {
+        // large file: nothing shown until chosen
+        v.titleSheet.hidden = true;
+        const choice = { list: tables ? 1 : 0, item: -1 };
+        return v.sheetPicker.set(lists, choice, 'Select sheet or table', `${counts}; ${keys}`);
+    }
+    const name = tables ? src.tables[src.current].name : src.sheets[src.current].name;
+    const title = `${kind} ${src.current + 1} of ${list.items.length} (${counts}; ${keys})`;
     v.sheetPicker.set(lists, { list: tables ? 1 : 0, item: src.current }, name, title);
     v.titleSheet.innerHTML = ` · <strong>${kind}:</strong> ${esc(name)}`;
 }

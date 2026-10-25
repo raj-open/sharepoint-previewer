@@ -37,7 +37,7 @@ export function createPicker(host, onPick) {
     /** @param {number} list */
     const show = (list) => {
         shown = (list + lists.length) % lists.length;
-        active = shown === chosen.list ? chosen.item : lists[shown].start;
+        active = shown === chosen.list && chosen.item >= 0 ? chosen.item : lists[shown].start;
         draw();
     };
 
@@ -72,11 +72,13 @@ export function createPicker(host, onPick) {
         if (!menu.contains(t) && !button.contains(t)) close();
     };
     const open = () => {
-        // above the button, right edges aligned
+        // above the button, right edges aligned; not higher than the viewer (else the page covers it): list scrolls
         const b = button.getBoundingClientRect();
         const h = host.getBoundingClientRect();
+        const top = host.parentElement?.getBoundingClientRect().top ?? 0;
         menu.style.right = `${Math.round(h.right - b.right)}px`;
         menu.style.bottom = `${Math.round(h.bottom - b.top + 4)}px`;
+        menu.style.maxHeight = `min(60vh, 340px, ${Math.max(120, Math.round(b.top - top - 8))}px)`;
         menu.hidden = false;
         button.setAttribute('aria-expanded', 'true');
         show(chosen.list);
@@ -127,7 +129,7 @@ export function createPicker(host, onPick) {
     return {
         button,
         menu,
-        // New lists and the entry chosen; label: text of the button
+        // New lists and the entry chosen (item -1: none yet); label: text of the button
         set(next, choice, label, title) {
             lists = next;
             chosen = choice;

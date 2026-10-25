@@ -36,6 +36,24 @@ describe('ui/picker', () => {
         assert.match(p.menu.innerHTML, /tp-active tp-chosen" role="option" data-item="1">○ Notes/);
     });
 
+    it('nothing chosen yet (item -1): menu marks the list start, any entry is a pick', () => {
+        const picks = [];
+        const p = createPicker(node(), (list, item) => picks.push([list, item]));
+        p.set(LISTS, { list: 0, item: -1 }, 'Select', '');
+        p.button.onclick();
+        assert.match(p.menu.innerHTML, /tp-picker-item tp-active" role="option" data-item="0">● Prices/);
+        key(p, 'Enter');
+        assert.deepEqual(picks, [[0, 0]]);
+    });
+
+    it('menu not higher than the room above the button inside the viewer', () => {
+        const host = Object.assign(node(), { parentElement: { getBoundingClientRect: () => ({ top: 300 }) } });
+        const p = createPicker(host, () => {});
+        p.set(LISTS, { list: 0, item: 0 }, 'Prices', '');
+        p.button.onclick();
+        assert.equal(p.menu.style.maxHeight, 'min(60vh, 340px, 192px)'); // button top 500 − viewer top 300 − 8
+    });
+
     it('← → switch lists (round), an empty list says why', () => {
         const p = createPicker(node(), () => {});
         p.set(LISTS, { list: 0, item: 0 }, 'Prices', '');
