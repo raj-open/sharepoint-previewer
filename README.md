@@ -21,28 +21,22 @@ preview (text, table, 3D, spreadsheets) and editor for files in SharePoint Onlin
 
 ## Why ##
 
-**Look into any file in SharePoint, right where it is.**
+It goes without saying that the UX of Microsoft SharePoint is frustrating.
+With this tool we set out to solve one very simple problem:
+users should _at bare minimum_ be able to preview plaintext files – regardless of the file extension.
+We built a previewer that simply augments the SharePoint experience to overcome just this issue.
 
-SharePoint previews Office documents and PDFs.
-Most other files only offer a download:
-CSV and Parquet data, logs, JSON, XML and YAML configs, Markdown notes, IFC building models.
-So people download, open a local tool, look for ten seconds
-and leave a copy behind in their Downloads folder.
+After further consideration we built further features into this application.
+Our tool allows users to
 
-This userscript adds an eye to every file in a document library.
-One click shows the file next to the list:
+- preview any text file, with syntax colours and checks (JSON, XML, YAML, IFC, ...)
+- view CSV, Parquet, Excel and OpenDocument files as sortable, filterable tables
+- read Markdown rendered and logs as tables (experimental)
+- view IFC models in 3D (optional)
+- edit plaintext files and save them back through SharePoint's own upload
 
-- text with syntax colours and checks (JSON, XML, YAML, IFC, ...)
-- CSV, Parquet, Excel and OpenDocument as sortable, filterable tables
-- Markdown rendered, logs as tables (experimental)
-- IFC models in 3D (optional)
-- a small editor for plain-text files, saved back through SharePoint's own upload
-
-Large files load in chunks (byte ranges): the first lines show before the whole file has arrived.
-Nothing leaves the browser:
-no third parties, no CDN, no Graph API, no tokens,
-only the signed-in user's own SharePoint session.
-So it fits where installing software is not an option.
+> [!NOTE]
+> Our tool involves no API calls or 3rd party usage (beyond an optional IFC-lite viewer).
 
 **Who can use it:**
 anyone with a browser, Tampermonkey and files in SharePoint Online,
