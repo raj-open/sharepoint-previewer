@@ -26,7 +26,7 @@ export const DEFAULTS = {
     'colours-sheet': false,
 
     // Spreadsheets show 'sheets' or 'tables' (start value; sheets if a file has no tables)
-    'spreadsheet-view': 'sheets',
+    'spreadsheet-view': 'tables',
 
     // Bytes per cache step ("Cache next"); 512 KB ≈ 10,000 lines of code
     'cache-chunk-bytes': 512 * 1024,
