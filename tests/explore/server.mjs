@@ -7,7 +7,8 @@
 // - Tampermonkey: stood in for by ./tampermonkey.js (settings in localStorage, menu commands as a panel);
 //   its panel names the library folder and where the 3D files come from
 // - 3D files: those of the release in /dist/v<VERSION> (`just build`), listed in the library as folder "previewer";
-//   the setting `viewer-3d-folder` points there unless set otherwise
+//   the setting `viewer-3d-folder` points there unless set (filled in when empty)
+// - logo: a test logo (setting `logo`), filled in when empty
 // - listens on the loopback interface only; logs each request to the console
 
 // ================================================================
@@ -28,6 +29,16 @@ const HOST = '127.0.0.1';
 const PREFIX = '/__explore__';
 const PATH_SHIM = path.join(import.meta.dirname, 'tampermonkey.js');
 const VERSION = `${sharepoint.VERSION}-explore`;
+
+// Logo shown in the viewer (setting `logo`): plain shapes, not the fake SharePoint's icon
+const LOGO =
+    'data:image/svg+xml,' +
+    encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">' +
+            '<rect width="32" height="32" rx="7" fill="#e8762c"/>' +
+            '<path d="M4 16c3-5 7-8 12-8s9 3 12 8c-3 5-7 8-12 8s-9-3-12-8z" fill="#fff"/>' +
+            '<circle cx="16" cy="16" r="4.5" fill="#5a2a0c"/></svg>',
+    );
 
 const SCRIPT_TYPE = 'application/javascript; charset=utf-8';
 const NO_CACHE = { 'cache-control': 'no-store' };
@@ -59,7 +70,7 @@ const attr = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</
 function inject(reply, files) {
     const built = sharepoint.has3dRelease();
     const release = path.relative(process.cwd(), sharepoint.PATH_RELEASE) || sharepoint.PATH_RELEASE;
-    const defaults = JSON.stringify({ 'viewer-3d-folder': sharepoint.RELEASE_SETTING });
+    const defaults = JSON.stringify({ 'viewer-3d-folder': sharepoint.RELEASE_SETTING, 'logo': LOGO });
     const notes = JSON.stringify([
         `Library: ${path.relative(process.cwd(), files) || files}`,
         built ? `3D files: ${release} (folder "previewer")` : `3D files: none in ${release} (run "just build")`,
