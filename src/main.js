@@ -7581,14 +7581,17 @@
                   `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer"${t}>🖼 ${esc(alt || href)}</a>`,
               );
           })
-          .replace(/\[([^\]]+)\]\(\s*<?((?:[^\s()<>]|\([^\s()]*\))*)>?(?:\s+"([^"]*)")?\s*\)/g, (_, label, url, title) => {
-              const href = resolveUrl(url, base);
-              const inner = inlineHtml(label, opts, kept);
-              if (!href) return keep(inner);
-              const t = title ? ` title="${esc(title)}"` : '';
-              const target = href.startsWith('#') ? '' : ' target="_blank" rel="noopener noreferrer"';
-              return keep(`<a href="${esc(href)}"${target}${t}>${inner}</a>`);
-          })
+          .replace(
+              /\[([^\]]+)\]\(\s*<?((?:[^\s()<>]|\([^\s()]*\))*)>?(?:\s+"([^"]*)")?\s*\)/g,
+              (_, label, url, title) => {
+                  const href = resolveUrl(url, base);
+                  const inner = inlineHtml(label, opts, kept);
+                  if (!href) return keep(inner);
+                  const t = title ? ` title="${esc(title)}"` : '';
+                  const target = href.startsWith('#') ? '' : ' target="_blank" rel="noopener noreferrer"';
+                  return keep(`<a href="${esc(href)}"${target}${t}>${inner}</a>`);
+              },
+          )
           .replace(/<((?:https?:\/\/|mailto:)[^\s<>]+)>/g, (_, url) =>
               keep(`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url)}</a>`),
           );
