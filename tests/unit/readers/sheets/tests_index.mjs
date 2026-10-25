@@ -155,7 +155,7 @@ describe('spreadsheet source', () => {
             assert.deepEqual(src.shown.rows.at(-1), ['1012', 'banana', '21.75', '2026-09-23']);
             assert.match(src.text, /^order,fruit,kg,date\n1001,apple,2.5,2026-09-01\n/);
             assert.deepEqual(Object.fromEntries(src.info), {
-                sheets: '6',
+                sheets: '7',
                 tables: '6',
                 table: 'Orders (Sales!A1:D14): 12 rows × 4 columns',
             });

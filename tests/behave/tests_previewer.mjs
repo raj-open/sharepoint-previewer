@@ -136,7 +136,7 @@ describe('preview per file type', () => {
         let v = await h.preview(page, 'orders.xlsx');
         const picker = v.locator('.tp-picker');
         const menu = v.locator('.tp-picker-menu');
-        assert.match(await properties(v), /sheets: 6 · tables: 6 · sheet: Sales/); // setting: sheets first
+        assert.match(await properties(v), /sheets: 7 · tables: 6 · sheet: Sales/); // setting: sheets first
         await picker.click();
         await page.keyboard.press('ArrowRight');
         await menu.locator('.tp-picker-tab[aria-pressed="true"]', { hasText: 'Tables' }).waitFor();
