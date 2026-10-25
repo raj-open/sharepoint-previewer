@@ -48,6 +48,8 @@
   browser installed by `just build-deps`.
 - Explorative tests: `just tests-explore [folder]` serves the fake SharePoint on `http://localhost:<HTTP_PORT>` (loopback only),
   the userscript injected per page load with a Tampermonkey stand-in (`/tests/explore`);
+  the library shows folders `Mock Data` (`/tests/fake-sharepoint/library`) and `Data` (`/data`, local only),
+  or only `folder` if given; files are read from disk per request (read only);
   the 3D files of the release (`just build`) appear in the library as folder `previewer`,
   empty settings `viewer-3d-folder` (pointing there) and `logo` (a test logo) are filled in on each page load;
   not part of `just qa`.

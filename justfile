@@ -168,7 +168,7 @@ tests-behave:
 tests-integration:
     @just _tests integration
 
-# explorative tests: fake SharePoint + userscript (/src/main.js) on http://localhost:${HTTP_PORT}; optional folder as library
+# explorative tests: fake SharePoint + userscript (/src/main.js) on http://localhost:${HTTP_PORT}; library: Mock Data + Data, or folder
 [group("tests")]
 tests-explore folder="":
     @node tests/explore/server.mjs "{{HTTP_PORT}}" "{{folder}}"

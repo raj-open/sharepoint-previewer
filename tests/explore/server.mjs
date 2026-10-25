@@ -2,10 +2,11 @@
 //
 //   node tests/explore/server.mjs <port> [folder]    (cf. `just tests-explore`)
 //
-// - folder: served as the document library (default: /tests/fake-sharepoint/library); read afresh per request
+// - library: folders "Mock Data" (/tests/fake-sharepoint/library) and "Data" (/data, local only; if there);
+//   with a folder given, that folder is the library; read afresh per request (read only)
 // - userscript: read afresh per page load, so `just build-src` + reload picks up changes
 // - Tampermonkey: stood in for by ./tampermonkey.js (settings in localStorage, menu commands as a panel);
-//   its panel names the library folder and where the 3D files come from
+//   its panel (and the console) names each library folder and the folder it serves
 // - 3D files: those of the release in /dist/v<VERSION> (`just build`), listed in the library as folder "previewer";
 //   the setting `viewer-3d-folder` points there unless set (filled in when empty)
 // - logo: a test logo (setting `logo`), filled in when empty
@@ -43,6 +44,10 @@ const LOGO =
 const SCRIPT_TYPE = 'application/javascript; charset=utf-8';
 const NO_CACHE = { 'cache-control': 'no-store' };
 
+// Library root without a folder given: test fixtures and the repo's own (local) data
+const ROOT = path.resolve(import.meta.dirname, '../..');
+const MOUNTS = { 'Mock Data': sharepoint.PATH_FILES, 'Data': path.join(ROOT, 'data') };
+
 // ================================================================
 // METHODS
 // ================================================================
@@ -57,6 +62,18 @@ const script = (body) => ({ status: 200, headers: { 'content-type': SCRIPT_TYPE,
 /** @param {string} location @returns {import('../fake-sharepoint/server.mjs').Reply} */
 const redirect = (location) => ({ status: 302, headers: { location }, body: '' });
 
+/** @param {string} dir @returns {string} relative to the working folder, if inside it */
+const shortPath = (dir) => {
+    const rel = path.relative(process.cwd(), dir);
+    return rel && !rel.startsWith('..') ? rel : dir;
+};
+
+/** @param {import('../fake-sharepoint/server.mjs').Files} files @returns {string[]} what the library shows */
+function libraryNotes(files) {
+    if (typeof files === 'string') return [`Library: ${shortPath(files)}`];
+    return Object.entries(files).map(([name, dir]) => `Library folder "${name}": ${shortPath(dir)}`);
+}
+
 /** @param {string} s @returns {string} text for an HTML attribute */
 const attr = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
@@ -64,16 +81,16 @@ const attr = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</
  * Page with the Tampermonkey stand-in, which then loads the userscript (at DOMContentLoaded).
  * Settings not stored yet start with `defaults`; `notes` go into the stand-in's panel.
  * @param {import('../fake-sharepoint/server.mjs').Reply} reply html page
- * @param {string} files library folder
+ * @param {import('../fake-sharepoint/server.mjs').Files} files
  * @returns {import('../fake-sharepoint/server.mjs').Reply}
  */
 function inject(reply, files) {
     const built = sharepoint.has3dRelease();
-    const release = path.relative(process.cwd(), sharepoint.PATH_RELEASE) || sharepoint.PATH_RELEASE;
+    const release = shortPath(sharepoint.PATH_RELEASE);
     const defaults = JSON.stringify({ 'viewer-3d-folder': sharepoint.RELEASE_SETTING, 'logo': LOGO });
     const notes = JSON.stringify([
-        `Library: ${path.relative(process.cwd(), files) || files}`,
-        built ? `3D files: ${release} (folder "previewer")` : `3D files: none in ${release} (run "just build")`,
+        ...libraryNotes(files),
+        built ? `Library folder "previewer": ${release} (3D files)` : `3D files: none in ${release} (run "just build")`,
     ]);
     const data = `data-version="${VERSION}" data-defaults="${attr(defaults)}" data-notes="${attr(notes)}"`;
     const tag = `<script src="${PREFIX}/tampermonkey.js" ${data}></script>`;
@@ -84,10 +101,11 @@ function inject(reply, files) {
 
 /**
  * @param {http.IncomingMessage} req
- * @param {string} files library folder
+ * @param {import('../fake-sharepoint/server.mjs').Files} library folder, or folders by name
  * @returns {import('../fake-sharepoint/server.mjs').Reply}
  */
-function answer(req, files) {
+function answer(req, library) {
+    const files = sharepoint.resolveFiles(library); // per request: folders may come and go
     const url = new URL(req.url ?? '/', sharepoint.ORIGIN);
     if (url.pathname === '/') return redirect(encodeURI(sharepoint.LIST_PAGE));
     if (url.pathname === `${PREFIX}/tampermonkey.js`) return script(fs.readFileSync(PATH_SHIM, 'utf8'));
@@ -102,17 +120,17 @@ function answer(req, files) {
 // server
 // --------------------------------
 
-/** @param {string} port @param {string} [folder] library folder */
+/** @param {string} port @param {string} [folder] library folder (default: Mock Data and Data) */
 function serve(port, folder) {
-    const files = path.resolve(folder || sharepoint.PATH_FILES);
-    if (!fs.existsSync(files) || !fs.statSync(files).isDirectory()) {
-        console.error(`not a folder: ${files}`);
+    const library = folder ? path.resolve(folder) : MOUNTS;
+    if (typeof library === 'string' && !(fs.existsSync(library) && fs.statSync(library).isDirectory())) {
+        console.error(`not a folder: ${library}`);
         process.exit(1);
     }
     const server = http.createServer((req, res) => {
         let reply;
         try {
-            reply = answer(req, files);
+            reply = answer(req, library);
         } catch (err) {
             console.error(err);
             reply = { status: 500, headers: { 'content-type': 'text/plain' }, body: 'Error 500' };
@@ -123,7 +141,7 @@ function serve(port, folder) {
         res.end(reply.body);
     });
     server.listen(Number(port), HOST, () => {
-        console.log(`library: ${files}`);
+        for (const note of libraryNotes(sharepoint.resolveFiles(library))) console.log(note);
         console.log(`open:    http://localhost:${port}${encodeURI(sharepoint.LIST_PAGE)}`);
         console.log('stop:    Ctrl+C');
     });
