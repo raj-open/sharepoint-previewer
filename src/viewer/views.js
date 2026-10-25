@@ -7,6 +7,10 @@
 import { colourPrefs } from '../_core/prefs.js';
 import { view } from '../_core/prefs.js';
 import { esc } from '../_core/util.js';
+import { CUBE_SVG } from '../ui/icons.js';
+import { EYE_FULL_SVG } from '../ui/icons.js';
+import { MARKDOWN_SVG } from '../ui/icons.js';
+import { TABLE_SVG } from '../ui/icons.js';
 import { showCached } from './status.js';
 
 /** @typedef {import('../_core/types.js').Source} Source */
@@ -16,25 +20,61 @@ import { showCached } from './status.js';
 /** @typedef {import('../_core/types.js').PickerList} PickerList */
 
 // ===========================================================================
+// CONSTANTS
+// ===========================================================================
+
+// Preview (view switch, right of Text): one per file type; its look follows the file shown
+/** @type {Object<PreviewKind, { svg: string, label: string, title: string }>} */
+export const PREVIEWS = {
+    table: { svg: TABLE_SVG, label: 'Table', title: 'Table view (CSV, Parquet, spreadsheets)' },
+    '3d': { svg: CUBE_SVG, label: '3D', title: '3D view (IFC, IFCZIP)' },
+    md: { svg: MARKDOWN_SVG, label: 'Markdown', title: 'Markdown view' },
+};
+
+// ===========================================================================
 // METHODS
 // ===========================================================================
 
+/** @typedef {'table'|'3d'|'md'} PreviewKind */
+
+// Preview of a language (as in Viewer.lang); null: text only
+/** @param {string|null|undefined} lang @returns {PreviewKind|null} */
+export function previewOf(lang) {
+    if (lang === 'csv' || lang === 'parquet' || lang === 'sheet') return 'table';
+    if (lang === 'ifc') return '3d';
+    if (lang === 'md') return 'md';
+    return null;
+}
+
 /** @param {Viewer} v @returns {boolean} */
-export const tableView = (v) => ['csv', 'parquet', 'sheet'].includes(v.lang) && view.table;
+export const tableView = (v) => previewOf(v.lang) === 'table' && view.table;
+
+// Markdown shown rendered (not while edited: the editor shows its text)
+/** @param {Viewer} v @returns {boolean} */
+export const markdownView = (v) => v.lang === 'md' && view.markdown && !v.writeMode;
+
+// Preview button for a file type: icon, label, tooltip; `reason` (or no preview): disabled
+/** @param {Viewer} v @param {PreviewKind|null} kind @param {string} [reason] @returns {void} */
+export function setPreview(v, kind, reason = '') {
+    const p = kind ? PREVIEWS[kind] : null;
+    const label = p ? p.label : 'Preview';
+    v.previewBtn.innerHTML = `${p ? p.svg : EYE_FULL_SVG}<span>${label}</span>`;
+    v.previewBtn.disabled = !p || !!reason;
+    v.previewBtn.title = reason || (p ? p.title : 'No preview for this file type');
+}
 
 // Colour choice of view shown: text, table (CSV / Parquet) or sheet (spreadsheets: own choice)
 /** @param {Viewer} v @returns {'text'|'table'|'sheet'} */
 export const colourKey = (v) => (!tableView(v) ? 'text' : v.lang === 'sheet' ? 'sheet' : 'table');
 
-// View switch state (pressed = current view) and idle cache bar
+// View switch state (pressed = current view: Text or Preview) and idle cache bar
 /** @param {Viewer} v @returns {void} */
 export function updateViews(v) {
-    const table = !v.view3d && tableView(v);
+    const preview = !!v.view3d || tableView(v) || markdownView(v);
     const shown = !!v.source && !v.source.deferred; // content on screen
     v.textBtn.disabled = !shown;
-    v.textBtn.setAttribute('aria-pressed', String(shown && !v.view3d && !table));
-    v.tableBtn.setAttribute('aria-pressed', String(table && !v.tableBtn.disabled));
-    v.view3dBtn.setAttribute('aria-pressed', String(!!v.view3d));
+    v.textBtn.setAttribute('aria-pressed', String(shown && !preview));
+    v.previewBtn.setAttribute('aria-pressed', String(preview && !v.previewBtn.disabled));
     if (!v.busy) showCached(v);
 }
 

@@ -182,6 +182,31 @@ describe('preview per file type', () => {
         assert.deepEqual(await v.locator('.tp-table thead .tp-sort').allTextContents(), ['A', 'B', 'C', 'D']);
     });
 
+    it('Markdown: rendered, Text shows the source; text size − 100 % +; Ctrl+A selects the text only', async () => {
+        const page = await openFolder(h.LIBRARY);
+        const v = await h.preview(page, 'README.md');
+        const preview = v.locator('.tp-view-btn', { hasText: 'Markdown' });
+        if ((await preview.getAttribute('aria-pressed')) !== 'true') await preview.click();
+        await v.locator('.tp-md h1', { hasText: 'Project documents' }).waitFor();
+        assert.equal(await v.locator('.tp-md li').count(), 3);
+        await v.locator('.tp-view-btn', { hasText: 'Text' }).click();
+        await v.locator('.tp-code', { hasText: '# Project documents #' }).waitFor();
+
+        const size = () => v.locator('.tp-content').evaluate((el) => getComputedStyle(el).fontSize);
+        const start = await size();
+        await v.locator('.tp-zoom .tp-view-btn').last().click(); // +
+        assert.notEqual(await size(), start);
+        await v.locator('.tp-zoom-value').click(); // back to 100 %
+        assert.equal(await size(), start);
+
+        await v.locator('.tp-content').click();
+        await page.keyboard.press('ControlOrMeta+A');
+        const selected = await page.evaluate(() => String(getSelection()));
+        assert.match(selected, /Project documents[\s\S]*answer = 42/);
+        assert.doesNotMatch(selected, /Shared Documents/); // not the page around it
+        await preview.click(); // Markdown view stays the remembered choice
+    });
+
     it('refuses binary files', async () => {
         const page = await openFolder(`${h.LIBRARY}/Data`);
         const v = await h.preview(page, 'logo.png');

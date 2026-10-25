@@ -6,6 +6,7 @@ import { fakeViewer } from '../helpers.mjs';
 import { load } from '../helpers.mjs';
 
 const { tableView, colourKey, showSheets, sheetLists } = await load('viewer/views.js');
+const { markdownView, previewOf, setPreview, updateViews } = await load('viewer/views.js');
 const { view } = await load('_core/prefs.js');
 
 describe('viewer/views', () => {
@@ -17,6 +18,46 @@ describe('viewer/views', () => {
         );
         view.table = false;
         assert.equal(tableView({ lang: 'csv' }), false);
+    });
+    it('preview by file type: table, 3D, Markdown, none', () => {
+        assert.deepEqual(['csv', 'parquet', 'sheet', 'ifc', 'md', 'json', null].map(previewOf), [
+            'table',
+            'table',
+            'table',
+            '3d',
+            'md',
+            null,
+            null,
+        ]);
+    });
+    it('preview button: look follows the file type; disabled with a reason or without preview', () => {
+        const v = fakeViewer();
+        setPreview(v, 'md');
+        assert.match(v.previewBtn.innerHTML, /<span>Markdown<\/span>/);
+        assert.equal(v.previewBtn.disabled, false);
+        setPreview(v, '3d', 'too big');
+        assert.match(v.previewBtn.innerHTML, /<span>3D<\/span>/);
+        assert.deepEqual([v.previewBtn.disabled, v.previewBtn.title], [true, 'too big']);
+        setPreview(v, null);
+        assert.match(v.previewBtn.innerHTML, /<span>Preview<\/span>/);
+        assert.equal(v.previewBtn.disabled, true);
+    });
+    it('Markdown view: while chosen, not while edited; Text or Preview pressed', () => {
+        view.markdown = true;
+        const v = fakeViewer({ lang: 'md', source: { text: '' }, busy: true });
+        assert.equal(markdownView(v), true);
+        setPreview(v, 'md');
+        updateViews(v);
+        assert.deepEqual(
+            [v.textBtn.getAttribute('aria-pressed'), v.previewBtn.getAttribute('aria-pressed')],
+            ['false', 'true'],
+        );
+        v.writeMode = true;
+        assert.equal(markdownView(v), false);
+        updateViews(v);
+        assert.equal(v.textBtn.getAttribute('aria-pressed'), 'true');
+        view.markdown = false;
+        assert.equal(markdownView({ lang: 'md' }), false);
     });
     it('colour choice: text, table, sheet', () => {
         view.table = true;
