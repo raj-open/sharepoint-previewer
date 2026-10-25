@@ -2,7 +2,7 @@
 //
 // - GM_getValue / GM_setValue: localStorage (kept across reloads; "Clear settings" in the panel empties it);
 //   values not stored yet: the server's defaults (e.g. `viewer-3d-folder` of the fake SharePoint)
-// - GM_registerMenuCommand: buttons in a small panel at the bottom left (Tampermonkey's menu)
+// - GM_registerMenuCommand: buttons in a small panel at the top right (where Tampermonkey's menu is)
 // - GM_info.script.version: the userscript's @version
 
 (() => {
@@ -76,7 +76,7 @@
         const box = document.createElement('details');
         box.id = 'tampermonkey-explore';
         box.style.cssText =
-            'position: fixed; left: 8px; bottom: 8px; z-index: 2147483647; padding: 4px 8px; max-width: 260px;' +
+            'position: fixed; right: 8px; top: 8px; z-index: 2147483647; padding: 4px 8px; max-width: 260px;' +
             'font: 12px sans-serif; color: #222; background: #fffbe6; border: 1px solid #d4b106; border-radius: 6px;';
         const title = document.createElement('summary');
         title.textContent = `Tampermonkey (stand-in) ${version}`;
