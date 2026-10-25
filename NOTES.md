@@ -187,9 +187,13 @@ as Excel does (`,A,B,C`, then `1,…`).
 
 Log files (experimental) open as text; their table view is chosen separately (`tp-preview-log-table`).
 It guesses the fields from the start of the lines
-(time, level, `[…]` context, logger or process name before a separator; e.g. Python `logging`, log4j):
+(time, level, `[…]` context, logger or process name before a separator,
+a source word such as a host before one of these; e.g. Python `logging`, log4j, syslog):
 one row per entry with its line number, the fields found and the message;
-lines that do not start an entry (stack traces, printed output) are added to the message (⏎ in the cell, in full in the tooltip).
+lines that do not start an entry (stack traces, printed tables, other output) are added to the message as one block
+(⏎ in the cell).
+Rows with such blocks, JSON or Python-like objects and lists in their message expand (▸ in the row number):
+the message split into text and objects / lists, these indented and coloured (numbers as written).
 Without recognisable fields the table view is not offered.
 
 Other binary files (PDF, Word, PowerPoint, images, archives, …)

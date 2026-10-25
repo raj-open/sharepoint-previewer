@@ -124,7 +124,16 @@ describe('preview per file type', () => {
             'name',
             'message',
         ]);
-        assert.match(await properties(v), /9 entries × 6 columns/);
+        assert.match(await properties(v), /11 entries × 6 columns/);
+        const expand = v.locator('.tp-table .tp-expand');
+        assert.equal(await expand.count(), 3); // stack trace, JSON, Python dict (with printed JSON after it)
+        await v.locator('.tp-table tr', { hasText: 'request' }).locator('.tp-expand').click();
+        const detail = v.locator('.tp-table .tp-detail');
+        await detail.waitFor();
+        assert.deepEqual(await detail.locator('.tp-seg-label').allTextContents(), ['JSON object']);
+        assert.match(await detail.textContent(), /"status": 201/);
+        await v.locator('.tp-table tr', { hasText: 'request' }).locator('.tp-expand').click();
+        assert.equal(await detail.count(), 0);
         const plain = await h.preview(page, 'plain.log');
         assert.equal(await plain.locator('.tp-view-btn', { hasText: 'Table' }).isDisabled(), true);
         assert.equal(await plain.locator('.tp-table').count(), 0);

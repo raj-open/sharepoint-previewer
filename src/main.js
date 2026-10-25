@@ -40,7 +40,7 @@
   /** @typedef {{ name: string, hidden: boolean, kind: string, size: number, path?: string, data?: SheetData|null, note?: string }} Sheet data: undefined = not read yet, null = no cells */
   /** @typedef {{ paths: () => string[], entry: (path?: string) => ZipEntry|undefined, bytes: (path?: string) => Promise<Uint8Array|null>, text: (path?: string) => Promise<string|null> }} Package parts of a ZIP-based document by path */
   /** @typedef {{ deferred: string, size: number, dates: Object<string, *> }} Deferred big file: shown only after "cache all" */
-  /** @typedef {{ sort: { col: number, dir: number }|null, filters: Map<number, { values: Set<string>|null, text: string }>, widths?: Map<number, number> }} TableState sort, filters, column widths of a table view */
+  /** @typedef {{ sort: { col: number, dir: number }|null, filters: Map<number, { values: Set<string>|null, text: string }>, widths?: Map<number, number>, expanded?: Set<number> }} TableState sort, filters, column widths, rows expanded (detail shown) of a table view */
   /** @typedef {{ header: string[], rows: string[][], kinds: string[] }} LogTable log as a table: columns line, fields (kinds: time, level, context, name), message */
   /** @typedef {string[] & { raw?: string }} CsvRow cells of a CSV line; raw: its text as in the file (unedited rows are written back as they were) */
   /** @typedef {Event & { target: HTMLElement }} TargetEvent event whose target is an element (handlers read e.target) */
@@ -573,6 +573,7 @@
       none: 'Quotes: none',
   };
   const NUMBER_RE = /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/;
+  const MAX_TITLE = 2000; // characters of a cell's tooltip
 
   // ===========================================================================
   // METHODS
@@ -635,7 +636,9 @@
    * @param {HTMLElement} content @param {string[]} header @param {CsvRow[]} rows
    * @param {{ state: TableState,
    *   editable?: boolean, onEdit?: () => void, sep?: string, colour?: boolean, format?: { sep: string, quote: string }|null,
-   *   classOf?: (c: number, value: string) => string }} opts classOf: own colours per cell (with colour on)
+   *   classOf?: (c: number, value: string) => string,
+   *   expand?: { can: (i: number) => boolean, html: (i: number) => string, title: string } }} opts
+   *   classOf: own colours per cell (with colour on); expand: rows that open a detail row below them (▸ in the row number)
    * @returns {LineView & { csvText: () => string }}
    */
   function mountTable(content, header, rows, opts) {
@@ -715,10 +718,40 @@
           let cells = '';
           for (let c = 0; c < cols; c++) {
               const t = esc(r[c] ?? '');
-              cells += `<td data-r="${i}" data-c="${c}"${colourOf(c, r[c] ?? '')} title="${t}"${edit}>${t}</td>`;
+              const title = t.length > MAX_TITLE ? `${t.slice(0, MAX_TITLE)} …` : t; // long cells: tooltip shortened
+              cells += `<td data-r="${i}" data-c="${c}"${colourOf(c, r[c] ?? '')} title="${title}"${edit}>${t}</td>`;
           }
           const drag = opts.editable ? ' draggable="true" title="Drag to move this row"' : '';
-          return `<tr${pos % 2 ? ' class="tp-stripe"' : ''}><td class="tp-rn" data-row="${i}"${drag}>${(i + 1).toLocaleString()}</td>${cells}</tr>`;
+          const open = !!state.expanded?.has(i);
+          const toggle = opts.expand?.can(i) ? toggleHtml(i, open) : '';
+          const row =
+              `<tr${pos % 2 ? ' class="tp-stripe"' : ''}><td class="tp-rn" data-row="${i}"${drag}>` +
+              `${toggle}${(i + 1).toLocaleString()}</td>${cells}</tr>`;
+          return open ? row + detailHtml(i) : row;
+      };
+
+      // Detail rows (expand): ▸ / ▾ in the row number, detail below the row; open ones kept in state
+      /** @param {number} i @param {boolean} open */
+      const toggleHtml = (i, open) =>
+          `<button class="tp-expand" data-x="${i}" title="${open ? 'Collapse' : esc(opts.expand?.title ?? '')}">${open ? '▾' : '▸'}</button>`;
+      /** @param {number} i */
+      const detailHtml = (i) =>
+          `<tr class="tp-detail"><td class="tp-rn"></td><td colspan="${cols}"><div class="tp-detail-box">` +
+          `${opts.expand?.html(i) ?? ''}</div></td></tr>`;
+      /** @param {HTMLElement} btn */
+      const toggleDetail = (btn) => {
+          const i = Number(btn.dataset.x);
+          const tr = /** @type {HTMLElement} */ (btn.closest('tr'));
+          if (!state.expanded) state.expanded = new Set();
+          const open = !state.expanded.has(i);
+          if (open) {
+              state.expanded.add(i);
+              tr.insertAdjacentHTML('afterend', detailHtml(i));
+          } else {
+              state.expanded.delete(i);
+              if (tr.nextElementSibling?.classList.contains('tp-detail')) tr.nextElementSibling.remove();
+          }
+          btn.outerHTML = toggleHtml(i, open);
       };
 
       // Structure edits use file's order (sort and filters off first)
@@ -801,6 +834,8 @@
       // Sort: click column title
       table.addEventListener('click', (e) => {
           if (/** @type {HTMLElement} */ (e.target).closest('.tp-resize')) return; // end of width change, not sort
+          const expand = /** @type {HTMLElement} */ (e.target).closest('.tp-expand');
+          if (expand) return void toggleDetail(/** @type {HTMLElement} */ (expand));
           const del = /** @type {HTMLElement} */ (e.target).closest('.tp-col-delete');
           if (del) return void structure('col-delete', Number(del.dataset.c));
           const btn = /** @type {HTMLElement} */ (e.target).closest('.tp-filter');
@@ -2424,6 +2459,13 @@
     .tp-log-date { color: var(--tp-type); }
     .tp-log-frame { color: var(--tp-trunc); }
     .tp-table td.tp-multi::before { content: '⏎ '; color: var(--tp-trunc); } /* log message over several lines */
+    .tp-table .tp-expand { border: none; background: none; padding: 0 4px 0 0; font: inherit; color: var(--tp-ln-fg); cursor: pointer; }
+    .tp-table .tp-expand:hover { color: var(--tp-accent); }
+    .tp-table tr.tp-detail td, .tp-table tbody tr.tp-detail:not(.tp-spacer):hover td { max-width: none; white-space: normal; background: var(--tp-stripe); }
+    .tp-detail-box { max-width: 80vw; padding: 4px 0; }
+    .tp-seg + .tp-seg { margin-top: 8px; }
+    .tp-seg-label { color: var(--tp-ln-fg); font-style: italic; }
+    .tp-seg pre { margin: 0; font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
     .tp-log-url { color: var(--tp-enum); text-decoration: underline; }
     .tp-sp {
       background-image: radial-gradient(circle, var(--tp-ws) 0.9px, transparent 1.3px);
@@ -7503,21 +7545,159 @@
       }
   }
 
-  // Module: view/log.js
+  // Module: text/segments.js
 
-  // Log table (experimental): entries and fields guessed from the log's lines
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
+  // Message segments: text, JSON and Python-like literals (dicts, lists, tuples) found in a message
 
   // ===========================================================================
   // CONSTANTS
   // ===========================================================================
 
-  const SAMPLE_LINES = 1000; // lines looked at to find the fields
+  const MAX_CHARS = 200000; // longer messages: one text segment
+  const OPEN = '{[(';
+  const CLOSE = '}])';
+  // Python literal tokens: strings, words, punctuation, spaces
+  const PY_TOKEN_RE = /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[{}[\](),:]|[^\s"'{}[\](),:]+|\s+/gy;
+  // JSON tokens for indenting: strings, punctuation, other
+  const JSON_TOKEN_RE = /"(?:\\.|[^"\\])*"|[{}[\],:]|[^\s"{}[\],:]+|\s+/gy;
+
+  /** @typedef {{ kind: 'text'|'json'|'python', text: string }} Segment text; json: as in the message; python: converted to JSON */
+
+  // ===========================================================================
+  // METHODS
+  // ===========================================================================
+
+  // Message -> segments in order; objects and lists start at { or [ (not after a letter, e.g. sshd[123])
+  /** @param {string} text @returns {Segment[]} */
+  function segments(text) {
+      /** @type {Segment[]} */
+      const out = [];
+      if (text.length > MAX_CHARS) return [{ kind: 'text', text }];
+      let from = 0; // start of pending text
+      for (let i = 0; i < text.length; i++) {
+          if ((text[i] !== '{' && text[i] !== '[') || /\w/.test(text[i - 1] ?? '')) continue;
+          const end = closing(text, i);
+          if (end < 0) continue;
+          const part = text.slice(i, end);
+          const found = /^.\s*.$/.test(part) ? null : asJson(part); // {} and [] stay text
+          if (!found) continue;
+          if (text.slice(from, i).trim()) out.push({ kind: 'text', text: text.slice(from, i) });
+          out.push(found);
+          from = end;
+          i = end - 1;
+      }
+      if (text.slice(from).trim() || !out.length) out.push({ kind: 'text', text: text.slice(from) });
+      return out;
+  }
+
+  // JSON indented by 2 spaces; values (numbers, strings) kept as written
+  /** @param {string} json @returns {string} */
+  function indentJson(json) {
+      const tokens = [...json.matchAll(JSON_TOKEN_RE)].map((m) => m[0]).filter((t) => t.trim());
+      let out = '';
+      let depth = 0;
+      const nl = () => `\n${'  '.repeat(depth)}`;
+      tokens.forEach((t, k) => {
+          if (t === '{' || t === '[') {
+              const empty = tokens[k + 1] === (t === '{' ? '}' : ']');
+              out += t;
+              if (!empty) {
+                  depth++;
+                  out += nl();
+              }
+          } else if (t === '}' || t === ']') {
+              const empty = tokens[k - 1] === (t === '}' ? '{' : '[');
+              if (!empty) {
+                  depth--;
+                  out += nl();
+              }
+              out += t;
+          } else if (t === ',') out += `,${nl()}`;
+          else if (t === ':') out += ': ';
+          else out += t;
+      });
+      return out;
+  }
+
+  // ===========================================================================
+  // AUXILIARY METHODS
+  // ===========================================================================
+
+  // End (exclusive) of the bracket opened at i, quotes respected; -1 if not closed
+  /** @param {string} text @param {number} i @returns {number} */
+  function closing(text, i) {
+      const stack = [];
+      for (let k = i; k < text.length; k++) {
+          const c = text[k];
+          if (c === '"' || c === "'") {
+              const end = text.indexOf(c, k + 1);
+              let e = end;
+              while (e > 0 && text[e - 1] === '\\') e = text.indexOf(c, e + 1);
+              if (e < 0) return -1;
+              k = e;
+          } else if (OPEN.includes(c)) stack.push(CLOSE[OPEN.indexOf(c)]);
+          else if (CLOSE.includes(c)) {
+              if (stack.pop() !== c) return -1;
+              if (!stack.length) return k + 1;
+          }
+      }
+      return -1;
+  }
+
+  // Object or list as JSON (as is) or as Python literal (converted); null: neither
+  /** @param {string} part @returns {Segment|null} */
+  function asJson(part) {
+      try {
+          JSON.parse(part);
+          return { kind: 'json', text: part };
+      } catch {}
+      const json = fromPython(part);
+      return json ? { kind: 'python', text: json } : null;
+  }
+
+  // Python literal -> JSON: quotes, True / False / None, tuples as lists, trailing commas; null if not valid
+  /** @param {string} part @returns {string|null} */
+  function fromPython(part) {
+      /** @type {string[]} */
+      const out = [];
+      PY_TOKEN_RE.lastIndex = 0;
+      let m = PY_TOKEN_RE.exec(part);
+      while (m) {
+          const t = m[0];
+          if (t.startsWith("'")) out.push(JSON.stringify(t.slice(1, -1).replace(/\\'/g, "'").replace(/\\\\/g, '\\')));
+          else if (t === 'True' || t === 'False' || t === 'None')
+              out.push({ True: 'true', False: 'false', None: 'null' }[t]);
+          else if (t === '(' || t === ')') out.push(t === '(' ? '[' : ']');
+          else if (t.trim()) out.push(t);
+          if (/^[}\]]$/.test(out[out.length - 1]) && out[out.length - 2] === ',') out.splice(out.length - 2, 1); // trailing comma
+          m = PY_TOKEN_RE.exec(part);
+      }
+      const json = out.join('');
+      try {
+          JSON.parse(json);
+          return json;
+      } catch {
+          return null;
+      }
+  }
+
+  // Module: view/log.js
+
+  // Log table (experimental): entries and fields guessed from the log's lines; rows expand into text, JSON and lists
+
+  // ===========================================================================
+  // IMPORTS
+  // ===========================================================================
+
+  /** @typedef {import('../text/segments.js').Segment} Segment */
+
+  // ===========================================================================
+  // CONSTANTS
+  // ===========================================================================
+
+  const SAMPLE_LINES = 20000; // lines looked at to find the fields
   const MAX_FIELDS = 6;
-  const MIN_STARTS = 0.2; // share of lines that must start an entry
+  const MIN_STARTS = 0.2; // share of lines that must start an entry (unless it starts with a time or level)
   const MIN_SHARED = 0.8; // share of entries a field must be in
 
   // Level words, any case (as in the highlighter)
@@ -7545,6 +7725,10 @@
       ['name', /([A-Za-z_$][\w.$/-]*(?:\[\d+\])?)(?=[ \t]*(?:[-|][ \t]|:|\t))/y], // logger, process[pid]: before a separator
   ];
   const SEP_RE = /[ \t]*(?:[-|][ \t]+|:[ \t]*)?[ \t]*/y; // between fields: spaces, " - ", " | ", ":"
+  const WORD_RE = /[^\s[\]()]+(?=[ \t])/y; // source (e.g. host, worker): a word, counted only if a field follows
+  const EXPAND_TITLE = 'Expand: message split into text, JSON and lists';
+  /** @type {Object<string, string>} */
+  const SEGMENT_LABELS = { json: 'JSON', python: 'Python' };
 
   // ===========================================================================
   // METHODS
@@ -7563,13 +7747,17 @@
           const head = /^\s/.test(line) ? null : readHead(line);
           const last = rows[rows.length - 1];
           if (head && head.kinds[0] === kinds[0]) {
+              // fields in the order of the columns (missing ones left empty); the rest of the line is the message
               const row = [String(i + 1), ...kinds.map(() => '')];
-              let k = 0;
-              for (let f = 0; f < head.kinds.length && k < kinds.length; f++) {
-                  while (k < kinds.length && kinds[k] !== head.kinds[f]) k++;
-                  if (k < kinds.length) row[++k] = head.values[f];
+              let end = 0;
+              for (let f = 0, k = 0; f < head.kinds.length; f++) {
+                  const at = kinds.indexOf(head.kinds[f], k);
+                  if (at < 0) break;
+                  row[at + 1] = head.values[f];
+                  end = head.ends[f];
+                  k = at + 1;
               }
-              row.push(line.slice(head.end));
+              row.push(line.slice(end));
               rows.push(row);
           } else if (last) last[last.length - 1] += `\n${line}`;
           else if (line.trim()) rows.push([String(i + 1), ...kinds.map(() => ''), line]); // lines before the first entry
@@ -7577,6 +7765,10 @@
       for (const row of rows) row[row.length - 1] = row[row.length - 1].replace(/\s+$/, '');
       return { header, rows, kinds };
   }
+
+  // Fields found in the first lines (whether the table view is offered)
+  /** @param {string[]} lines @returns {boolean} */
+  const hasFields = (lines) => !!template(lines.slice(0, SAMPLE_LINES));
 
   // Level class of a value ('lv-err', ...), as in the highlighter; '' if none
   /** @param {string} value @returns {string} */
@@ -7586,35 +7778,89 @@
       return entry ? entry[0] : '';
   }
 
+  // Expand of a log table's rows: messages with objects, lists or several lines; segments worked out once per row
+  /** @param {string[][]} rows @param {boolean} colour @returns {{ can: (i: number) => boolean, html: (i: number) => string, title: string }} */
+  function logExpand(rows, colour) {
+      /** @type {Map<number, Segment[]>} */
+      const cache = new Map();
+      /** @param {number} i */
+      const message = (i) => rows[i][rows[i].length - 1];
+      /** @param {number} i @returns {Segment[]} */
+      const parts = (i) => {
+          if (!cache.has(i))
+              cache.set(i, /[{[]/.test(message(i)) ? segments(message(i)) : [{ kind: 'text', text: message(i) }]);
+          return /** @type {Segment[]} */ (cache.get(i)); // set just above
+      };
+      return {
+          title: EXPAND_TITLE,
+          can: (i) => message(i).includes('\n') || parts(i).some((s) => s.kind !== 'text'),
+          html: (i) =>
+              parts(i)
+                  .map((s) => segmentHtml(s, colour))
+                  .join(''),
+      };
+  }
+
   // ===========================================================================
   // AUXILIARY METHODS
   // ===========================================================================
 
+  // One segment: text as is (blank lines at its ends dropped), objects and lists labelled and indented
+  /** @param {Segment} s @param {boolean} colour @returns {string} */
+  function segmentHtml(s, colour) {
+      if (s.kind === 'text') return `<div class="tp-seg"><pre>${esc(s.text.replace(/^\s*\n|\s+$/g, ''))}</pre></div>`;
+      const json = indentJson(s.text);
+      const body = colour
+          ? highlightJson(json)
+                .map(([cls, x]) => (cls ? `<span class="tp-${cls}">${esc(x)}</span>` : esc(x)))
+                .join('')
+          : esc(json);
+      const what = s.text.startsWith('{') ? (s.kind === 'json' ? 'object' : 'dict') : 'list';
+      return `<div class="tp-seg"><div class="tp-seg-label">${SEGMENT_LABELS[s.kind]} ${what}</div><pre>${body}</pre></div>`;
+  }
+
   // Fields at the start of a line: kinds, values, end of the head
-  /** @param {string} line @returns {{ kinds: string[], values: string[], end: number }|null} */
+  /** @param {string} line @returns {{ kinds: string[], values: string[], ends: number[] }|null} */
   function readHead(line) {
       /** @type {string[]} */
       const kinds = [];
       /** @type {string[]} */
       const values = [];
+      /** @type {number[]} */
+      const ends = []; // after each field and its separator
       let at = 0;
       while (kinds.length < MAX_FIELDS) {
-          const found = FIELDS.find(([kind, re]) => {
-              if (kind !== 'context' && kinds.includes(kind)) return false; // brackets may repeat
-              re.lastIndex = at;
-              return re.test(line);
-          });
-          if (!found) break;
-          const [kind, re] = found;
-          re.lastIndex = at;
-          const m = /** @type {RegExpExecArray} */ (re.exec(line)); // matched just above
-          kinds.push(kind);
-          values.push(m[1]);
-          SEP_RE.lastIndex = at + m[0].length;
+          let m = field(line, at, kinds);
+          if (m) {
+              kinds.push(m.kind);
+              values.push(m.value);
+          } else if (kinds.length && !kinds.includes('source')) {
+              WORD_RE.lastIndex = at;
+              const word = WORD_RE.exec(line)?.[0];
+              const next = word ? line.slice(at + word.length).match(/^[ \t]+/)?.[0] : '';
+              if (!word || !next || !field(line, at + word.length + next.length, [...kinds, 'time'])) break;
+              m = { kind: 'source', value: word, end: at + word.length };
+              kinds.push('source');
+              values.push(word);
+          } else break;
+          SEP_RE.lastIndex = m.end;
           SEP_RE.test(line);
           at = SEP_RE.lastIndex;
+          ends.push(at);
       }
-      return kinds.length ? { kinds, values, end: at } : null;
+      return kinds.length ? { kinds, values, ends } : null;
+  }
+
+  // Field at a position (kinds already found are not looked for again, brackets may repeat)
+  /** @param {string} line @param {number} at @param {string[]} found @returns {{ kind: string, value: string, end: number }|null} */
+  function field(line, at, found) {
+      for (const [kind, re] of FIELDS) {
+          if (kind !== 'context' && found.includes(kind)) continue;
+          re.lastIndex = at;
+          const m = re.exec(line);
+          if (m) return { kind, value: m[1], end: at + m[0].length };
+      }
+      return null;
   }
 
   // Fields shared by the entries: first field starts enough lines, then the longest run most entries share
@@ -7626,7 +7872,8 @@
       const firsts = new Map();
       for (const h of heads) if (h) firsts.set(h.kinds[0], (firsts.get(h.kinds[0]) || 0) + 1);
       const [first, count] = [...firsts].sort((a, b) => b[1] - a[1])[0] || ['', 0];
-      if (count < 2 || count < filled.length * MIN_STARTS) return null;
+      const strong = first === 'time' || first === 'level'; // printed output in between may outweigh the entries
+      if (count < 2 || (!strong && count < filled.length * MIN_STARTS)) return null;
       const entries = /** @type {{ kinds: string[] }[]} */ (heads.filter((h) => h?.kinds[0] === first));
       const kinds = [first];
       while (kinds.length < MAX_FIELDS) {
@@ -7641,7 +7888,7 @@
           if (n < entries.length * MIN_SHARED) break;
           kinds.push(kind);
       }
-      return kinds.length > 1 || first === 'time' || first === 'level' ? kinds : null;
+      return kinds.length > 1 || strong ? kinds : null;
   }
 
   // Column names of the fields: context, context 2, ...
@@ -9858,7 +10105,7 @@
           v.lineView?.stop();
           // Logs: table only if fields were found (first lines), parsed in full while shown
           if (v.lang === 'log') {
-              const found = !!parseLog(lines.slice(0, 1000).join('\n'));
+              const found = hasFields(lines);
               setPreview(v, 'table', found ? '' : 'Table view: no recognisable fields in this log');
               updateViews(v);
           }
@@ -9894,6 +10141,7 @@
                   colour: colourOn(v),
                   classOf: (c, value) =>
                       c === level ? levelClass(value) : c === message && value.includes('\n') ? 'multi' : '',
+                  expand: logExpand(rows, colourOn(v)),
               });
           } else if (markdownView(v)) {
               v.lineView = mountMarkdown(v.content, lines.join('\n'), { colour: colourOn(v), base: folderUrl });

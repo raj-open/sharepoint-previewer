@@ -41,7 +41,9 @@ import { LINTERS } from '../text/lint/index.js';
 import { lintFile } from '../text/lint/worker.js';
 import { LOAD_ALL_SVG } from '../ui/icons.js';
 import { mountLines } from '../view/lines.js';
+import { hasFields } from '../view/log.js';
 import { levelClass } from '../view/log.js';
+import { logExpand } from '../view/log.js';
 import { parseLog } from '../view/log.js';
 import { renderLines } from '../view/lines.js';
 import { mountMarkdown } from '../view/markdown.js';
@@ -556,7 +558,7 @@ export async function showFile(name, url, reload) {
         v.lineView?.stop();
         // Logs: table only if fields were found (first lines), parsed in full while shown
         if (v.lang === 'log') {
-            const found = !!parseLog(lines.slice(0, 1000).join('\n'));
+            const found = hasFields(lines);
             setPreview(v, 'table', found ? '' : 'Table view: no recognisable fields in this log');
             updateViews(v);
         }
@@ -592,6 +594,7 @@ export async function showFile(name, url, reload) {
                 colour: colourOn(v),
                 classOf: (c, value) =>
                     c === level ? levelClass(value) : c === message && value.includes('\n') ? 'multi' : '',
+                expand: logExpand(rows, colourOn(v)),
             });
         } else if (markdownView(v)) {
             v.lineView = mountMarkdown(v.content, lines.join('\n'), { colour: colourOn(v), base: folderUrl });

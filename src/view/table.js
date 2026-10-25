@@ -27,6 +27,7 @@ export const QUOTE_MODES = {
     none: 'Quotes: none',
 };
 const NUMBER_RE = /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/;
+const MAX_TITLE = 2000; // characters of a cell's tooltip
 
 // ===========================================================================
 // METHODS
@@ -89,7 +90,9 @@ function csvQuote(value, sep, mode = 'minimal') {
  * @param {HTMLElement} content @param {string[]} header @param {CsvRow[]} rows
  * @param {{ state: TableState,
  *   editable?: boolean, onEdit?: () => void, sep?: string, colour?: boolean, format?: { sep: string, quote: string }|null,
- *   classOf?: (c: number, value: string) => string }} opts classOf: own colours per cell (with colour on)
+ *   classOf?: (c: number, value: string) => string,
+ *   expand?: { can: (i: number) => boolean, html: (i: number) => string, title: string } }} opts
+ *   classOf: own colours per cell (with colour on); expand: rows that open a detail row below them (▸ in the row number)
  * @returns {LineView & { csvText: () => string }}
  */
 export function mountTable(content, header, rows, opts) {
@@ -169,10 +172,40 @@ export function mountTable(content, header, rows, opts) {
         let cells = '';
         for (let c = 0; c < cols; c++) {
             const t = esc(r[c] ?? '');
-            cells += `<td data-r="${i}" data-c="${c}"${colourOf(c, r[c] ?? '')} title="${t}"${edit}>${t}</td>`;
+            const title = t.length > MAX_TITLE ? `${t.slice(0, MAX_TITLE)} …` : t; // long cells: tooltip shortened
+            cells += `<td data-r="${i}" data-c="${c}"${colourOf(c, r[c] ?? '')} title="${title}"${edit}>${t}</td>`;
         }
         const drag = opts.editable ? ' draggable="true" title="Drag to move this row"' : '';
-        return `<tr${pos % 2 ? ' class="tp-stripe"' : ''}><td class="tp-rn" data-row="${i}"${drag}>${(i + 1).toLocaleString()}</td>${cells}</tr>`;
+        const open = !!state.expanded?.has(i);
+        const toggle = opts.expand?.can(i) ? toggleHtml(i, open) : '';
+        const row =
+            `<tr${pos % 2 ? ' class="tp-stripe"' : ''}><td class="tp-rn" data-row="${i}"${drag}>` +
+            `${toggle}${(i + 1).toLocaleString()}</td>${cells}</tr>`;
+        return open ? row + detailHtml(i) : row;
+    };
+
+    // Detail rows (expand): ▸ / ▾ in the row number, detail below the row; open ones kept in state
+    /** @param {number} i @param {boolean} open */
+    const toggleHtml = (i, open) =>
+        `<button class="tp-expand" data-x="${i}" title="${open ? 'Collapse' : esc(opts.expand?.title ?? '')}">${open ? '▾' : '▸'}</button>`;
+    /** @param {number} i */
+    const detailHtml = (i) =>
+        `<tr class="tp-detail"><td class="tp-rn"></td><td colspan="${cols}"><div class="tp-detail-box">` +
+        `${opts.expand?.html(i) ?? ''}</div></td></tr>`;
+    /** @param {HTMLElement} btn */
+    const toggleDetail = (btn) => {
+        const i = Number(btn.dataset.x);
+        const tr = /** @type {HTMLElement} */ (btn.closest('tr'));
+        if (!state.expanded) state.expanded = new Set();
+        const open = !state.expanded.has(i);
+        if (open) {
+            state.expanded.add(i);
+            tr.insertAdjacentHTML('afterend', detailHtml(i));
+        } else {
+            state.expanded.delete(i);
+            if (tr.nextElementSibling?.classList.contains('tp-detail')) tr.nextElementSibling.remove();
+        }
+        btn.outerHTML = toggleHtml(i, open);
     };
 
     // Structure edits use file's order (sort and filters off first)
@@ -255,6 +288,8 @@ export function mountTable(content, header, rows, opts) {
     // Sort: click column title
     table.addEventListener('click', (e) => {
         if (/** @type {HTMLElement} */ (e.target).closest('.tp-resize')) return; // end of width change, not sort
+        const expand = /** @type {HTMLElement} */ (e.target).closest('.tp-expand');
+        if (expand) return void toggleDetail(/** @type {HTMLElement} */ (expand));
         const del = /** @type {HTMLElement} */ (e.target).closest('.tp-col-delete');
         if (del) return void structure('col-delete', Number(del.dataset.c));
         const btn = /** @type {HTMLElement} */ (e.target).closest('.tp-filter');
