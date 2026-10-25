@@ -76,7 +76,7 @@
       'colours-sheet': false,
 
       // Spreadsheets show 'sheets' or 'tables' (start value; sheets if a file has no tables)
-      'spreadsheet-view': 'sheets',
+      'spreadsheet-view': 'tables',
 
       // Bytes per cache step ("Cache next"); 512 KB ≈ 10,000 lines of code
       'cache-chunk-bytes': 512 * 1024,
@@ -1374,7 +1374,7 @@
       ['colours-text', 'Syntax highlighting (text view)'],
       ['colours-table', 'Syntax highlighting (table view)'],
       ['colours-sheet', 'Column colours (spreadsheets)'],
-      ['spreadsheet-view', 'Spreadsheets show', ['sheets', 'tables']],
+      ['spreadsheet-view', 'Spreadsheets show', ['tables', 'sheets']],
       ['cache-chunk-bytes', 'Cache chunk size', 'KB'],
       ['memory-cache-bytes', 'Cache limit (all files)', 'MB'],
       ['cache-all-confirm-bytes', 'Warn full file cache if file size exceeds', 'MB'],

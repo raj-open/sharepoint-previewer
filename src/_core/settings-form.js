@@ -27,7 +27,7 @@ const SETTING_FORM = [
     ['colours-text', 'Syntax highlighting (text view)'],
     ['colours-table', 'Syntax highlighting (table view)'],
     ['colours-sheet', 'Column colours (spreadsheets)'],
-    ['spreadsheet-view', 'Spreadsheets show', ['sheets', 'tables']],
+    ['spreadsheet-view', 'Spreadsheets show', ['tables', 'sheets']],
     ['cache-chunk-bytes', 'Cache chunk size', 'KB'],
     ['memory-cache-bytes', 'Cache limit (all files)', 'MB'],
     ['cache-all-confirm-bytes', 'Warn full file cache if file size exceeds', 'MB'],
