@@ -1,4 +1,4 @@
-// Fake SharePoint Online: one site with one document library, served from ./library (or another folder,
+// Mock SharePoint Online: one site with one document library, served from ./library (or another folder,
 // or several folders shown by name in the library root). Read only: files are read from disk per request.
 //
 //   /sites/Test/Shared Documents/Forms/AllItems.aspx[?id=<folder>]  list view (client-side app)
@@ -17,7 +17,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, '../..');
+const ROOT = path.resolve(HERE, '../../..');
 
 export const ORIGIN = 'https://acme.sharepoint.com';
 export const SITE = '/sites/Test';
@@ -34,7 +34,7 @@ const FILES_3D = ['ifc-lite-3d.js', 'ifc-lite_bg.wasm'];
 
 const MODIFIED = new Date('2026-10-01T12:00:00Z');
 
-// Name of the fake tenant (title, suite bar) and its icon: plain shapes, no real logo
+// Name of the mock tenant (title, suite bar) and its icon: plain shapes, no real logo
 const TENANT = 'TestSharepoint';
 const ICON =
     'data:image/svg+xml,' +
@@ -294,7 +294,7 @@ function serveFile(file, method, range) {
 }
 
 /**
- * Answers one request to the fake SharePoint.
+ * Answers one request to the mock SharePoint.
  * @param {{ url: string, method: string, headers: Object<string, string> }} request
  * @param {{ files?: Files }} [opts] library folder (default: ./library), or folders by name in the library root
  * @returns {Reply}
