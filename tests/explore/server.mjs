@@ -31,15 +31,15 @@ const PREFIX = '/__explore__';
 const PATH_SHIM = path.join(import.meta.dirname, 'tampermonkey.js');
 const VERSION = `${sharepoint.VERSION}-explore`;
 
-// Logo shown in the viewer (setting `logo`): plain shapes, not the fake SharePoint's icon
-const LOGO =
-    'data:image/svg+xml,' +
-    encodeURIComponent(
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">' +
-            '<rect width="32" height="32" rx="7" fill="#e8762c"/>' +
-            '<path d="M4 16c3-5 7-8 12-8s9 3 12 8c-3 5-7 8-12 8s-9-3-12-8z" fill="#fff"/>' +
-            '<circle cx="16" cy="16" r="4.5" fill="#5a2a0c"/></svg>',
-    );
+// Logo shown in the viewer (setting `logo`): a sprout in soil; base64, as the userscript takes only that
+const LOGO_SVG =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">' +
+    '<path d="M16 25V14" stroke="#3f8f3a" stroke-width="2.4" stroke-linecap="round" fill="none"/>' +
+    '<path d="M16 16C15 10 10 7 4 8c0 6 5 9 12 8z" fill="#5fb548"/>' +
+    '<path d="M16 13c1-5 5-8 11-7 0 5-4 8-11 7z" fill="#7cc95e"/>' +
+    '<path d="M2 30c2-5 8-7 14-7s12 2 14 7z" fill="#6b4423"/>' +
+    '<circle cx="9" cy="27.5" r="1" fill="#8a5a33"/><circle cx="21" cy="27" r="1.2" fill="#8a5a33"/></svg>';
+const LOGO = `data:image/svg+xml;base64,${Buffer.from(LOGO_SVG).toString('base64')}`;
 
 const SCRIPT_TYPE = 'application/javascript; charset=utf-8';
 const NO_CACHE = { 'cache-control': 'no-store' };
