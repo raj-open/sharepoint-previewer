@@ -43,7 +43,7 @@ describe('readers/sheets/ooxml', () => {
                 ['Regions', 'Sales', 1, 0],
                 ['Payments', 'Sales', 1, 0],
                 ['Stock', 'Stock', 1, 0],
-                ['Suppliers', 'Suppliers', 1, 0],
+                ...[40, 41, 42, 43, 44].map((week) => [`Week${week}`, 'Harvest', 1, 0]),
                 ['PriceList', 'Prices', 1, 0],
             ],
         );

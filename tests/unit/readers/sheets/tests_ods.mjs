@@ -36,7 +36,7 @@ describe('readers/sheets/ods', () => {
             ['PriceList', 5, 1, 0],
             ['Regions', 1, 1, 0],
             ['Stock', 2, 1, 0],
-            ['Suppliers', 3, 1, 0],
+            ...[40, 41, 42, 43, 44].map((week) => [`Week${week}`, 3, 1, 0]),
         ]);
         assert.deepEqual(b.tables.find((t) => t.name === 'Stock').range, { r0: 2, c0: 1, r1: 6, c1: 3 });
     });
