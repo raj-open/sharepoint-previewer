@@ -7,6 +7,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { has3dRelease } from './server.mjs';
 import { PATH_RELEASE } from './server.mjs';
 
 // ================================================================
@@ -15,7 +16,6 @@ import { PATH_RELEASE } from './server.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
 const PATH_SCRIPT = path.join(ROOT, 'src/main.js');
-const FILES_3D = ['ifc-lite-3d.js', 'ifc-lite_bg.wasm'];
 
 // ================================================================
 // METHODS
@@ -23,9 +23,6 @@ const FILES_3D = ['ifc-lite-3d.js', 'ifc-lite_bg.wasm'];
 
 /** @param {string} file @returns {string} */
 const sha256 = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-
-/** @returns {boolean} 3D files of this version are built (`just build`) */
-export const has3dRelease = () => FILES_3D.every((name) => fs.existsSync(path.join(PATH_RELEASE, name)));
 
 /** @returns {string} userscript, read afresh (picks up `just build-src`) */
 export function userscript() {
