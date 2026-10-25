@@ -511,7 +511,9 @@ const CSS = `
     position: sticky;
     left: 0;
     flex: none;
-    min-width: var(--tp-ln-w, 3ch);
+    box-sizing: content-box;
+    width: var(--tp-ln-w, 3ch); /* fixed: every row the same width */
+    overflow: hidden;
     padding: 0 10px 0 8px;
     text-align: right;
     color: var(--tp-ln-fg);

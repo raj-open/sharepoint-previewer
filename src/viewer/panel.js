@@ -138,7 +138,7 @@ export function createViewer() {
         btn.style.cssText = `${SQUARE_BTN_CSS} left: ${left}px; top: ${top}px;`;
         return btn;
     };
-    // Main row: [layout ▾] [edit] [cache all] [stop] [save] [upload] File: name [table] [3D] … [⋯] [copy] [✕]
+    // Main row: [layout ▾] [edit] [cache all] [stop] [save] [upload] (i) File: name [table] [3D] … [⋯] [copy] [✕]
     const layoutBtn = button(SPLIT_H_SVG, 'Layout: below the list / right of the list / popup', 10);
     const writeBtn = button(WRITE_SVG, 'Edit (beta, text files only)', 46, ROW1, { disabled: true, pressed: false });
     const loadAllBtn = button(LOAD_ALL_SVG, 'Cache the whole file', 82, ROW1, { disabled: true });
@@ -180,7 +180,6 @@ export function createViewer() {
     const themeBtn = item(THEME_SVG, 'Dark mode', { pressed: view.theme === 'dark' });
     const colourBtn = item(COLOUR_SVG, 'Syntax colours');
     const wrapBtn = item(WRAP_SVG, 'Wrap long lines');
-    const propsBtn = item(PROPS_SVG, 'Show properties');
     const refreshBtn = item(REFRESH_SVG, 'Reload this file');
     const clearBtn = item(CLEAR_SVG, 'Clear this file from the cache', { disabled: true });
     const clearAllBtn = item(CLEAR_SVG, 'Clear all files from the cache', { disabled: memoryCache.size === 0 });
@@ -218,7 +217,7 @@ export function createViewer() {
     const layoutMenu = menu(layoutBtn, [hBtn, vBtn, pBtn]);
     const moreMenu = menu(
         moreBtn,
-        [settingsBtn, themeBtn, colourBtn, wrapBtn, propsBtn, refreshBtn, clearBtn, clearAllBtn],
+        [settingsBtn, themeBtn, colourBtn, wrapBtn, refreshBtn, clearBtn, clearAllBtn],
         true,
     );
 
@@ -243,6 +242,22 @@ export function createViewer() {
       <strong>File:</strong> <span class="tp-title-name"></span><span class="tp-title-sheet" hidden></span>
     </div>
   `;
+    // Properties on/off: small (i) button in the title well, left of "File:"
+    const propsBtn = button(PROPS_SVG, 'Display file metadata and properties', 0, 0, { pressed: view.props });
+    propsBtn.style.cssText = `
+    flex: none;
+    width: 24px;
+    height: 24px;
+    margin-left: -6px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  `;
+    title.prepend(propsBtn);
     // Note: tooltip on header
     header.title =
         'Note: this viewer is primarily for text files. Parquet files and spreadsheets may also be viewed (read only). ' +

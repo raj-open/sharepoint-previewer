@@ -7,7 +7,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 
 export const ROOT = path.resolve(import.meta.dirname, '../..');
-export const LIBRARY = path.join(ROOT, 'tests/fake-sharepoint/library');
+export const LIBRARY = path.join(ROOT, 'tests/mocks/mock-sharepoint/library');
 export const ORIGIN = 'https://acme.sharepoint.com';
 
 // ----------------------------------------------------------------
@@ -68,7 +68,7 @@ export function setLocation(href) {
 /** @param {string} module path under /src @returns {Promise<Object>} */
 export const load = (module) => import(path.join(ROOT, 'src', module));
 
-/** @param {string} file path under the fake library @returns {Uint8Array} */
+/** @param {string} file path under the mock library @returns {Uint8Array} */
 export const fixture = (file) => new Uint8Array(fs.readFileSync(path.join(LIBRARY, file)));
 
 /** Byte reader over memory, recording the ranges asked for. */

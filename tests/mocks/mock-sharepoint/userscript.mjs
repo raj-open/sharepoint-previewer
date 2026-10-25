@@ -1,4 +1,4 @@
-// Userscript (/src/main.js) as the build stamps it for the fake SharePoint: 3D hashes of this release (if built).
+// Userscript (/src/main.js) as the build stamps it for the mock SharePoint: 3D hashes of this release (if built).
 
 // ================================================================
 // IMPORTS
@@ -14,7 +14,7 @@ import { PATH_RELEASE } from './server.mjs';
 // CONSTANTS
 // ================================================================
 
-const ROOT = path.resolve(import.meta.dirname, '../..');
+const ROOT = path.resolve(import.meta.dirname, '../../..');
 const PATH_SCRIPT = path.join(ROOT, 'src/main.js');
 
 // ================================================================

@@ -1,8 +1,8 @@
-// Explorative tests: the fake SharePoint on http://localhost:<port>, with the userscript (/src/main.js) injected.
+// Explorative tests: the mock SharePoint on http://localhost:<port>, with the userscript (/src/main.js) injected.
 //
 //   node tests/explore/server.mjs <port> [folder]    (cf. `just tests-explore`)
 //
-// - library: folders "Mock Data" (/tests/fake-sharepoint/library) and "Data" (/data, local only; if there);
+// - library: folders "Mock Data" (/tests/mocks/mock-sharepoint/library) and "Data" (/data, local only; if there);
 //   with a folder given, that folder is the library; read afresh per request (read only)
 // - userscript: read afresh per page load, so `just build-src` + reload picks up changes
 // - Tampermonkey: stood in for by ./tampermonkey.js (settings in localStorage, menu commands as a panel);
@@ -19,8 +19,8 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import * as sharepoint from '../fake-sharepoint/server.mjs';
-import { userscript } from '../fake-sharepoint/userscript.mjs';
+import * as sharepoint from '../mocks/mock-sharepoint/server.mjs';
+import { userscript } from '../mocks/mock-sharepoint/userscript.mjs';
 
 // ================================================================
 // CONSTANTS
@@ -61,10 +61,10 @@ const MOUNTS = { 'Mock Data': sharepoint.PATH_FILES, 'Data': path.join(ROOT, 'da
 // replies
 // --------------------------------
 
-/** @param {string} body @returns {import('../fake-sharepoint/server.mjs').Reply} */
+/** @param {string} body @returns {import('../mocks/mock-sharepoint/server.mjs').Reply} */
 const script = (body) => ({ status: 200, headers: { 'content-type': SCRIPT_TYPE, ...NO_CACHE }, body });
 
-/** @param {string} location @returns {import('../fake-sharepoint/server.mjs').Reply} */
+/** @param {string} location @returns {import('../mocks/mock-sharepoint/server.mjs').Reply} */
 const redirect = (location) => ({ status: 302, headers: { location }, body: '' });
 
 /** @param {string} dir @returns {string} relative to the working folder, if inside it */
@@ -73,7 +73,7 @@ const shortPath = (dir) => {
     return rel && !rel.startsWith('..') ? rel : dir;
 };
 
-/** @param {import('../fake-sharepoint/server.mjs').Files} files @returns {string[]} what the library shows */
+/** @param {import('../mocks/mock-sharepoint/server.mjs').Files} files @returns {string[]} what the library shows */
 function libraryNotes(files) {
     if (typeof files === 'string') return [`Library: ${shortPath(files)}`];
     return Object.entries(files).map(([name, dir]) => `Library folder "${name}": ${shortPath(dir)}`);
@@ -85,9 +85,9 @@ const attr = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</
 /**
  * Page with the Tampermonkey stand-in, which then loads the userscript (at DOMContentLoaded).
  * Settings not stored yet start with `defaults`; `notes` go into the stand-in's panel.
- * @param {import('../fake-sharepoint/server.mjs').Reply} reply html page
- * @param {import('../fake-sharepoint/server.mjs').Files} files
- * @returns {import('../fake-sharepoint/server.mjs').Reply}
+ * @param {import('../mocks/mock-sharepoint/server.mjs').Reply} reply html page
+ * @param {import('../mocks/mock-sharepoint/server.mjs').Files} files
+ * @returns {import('../mocks/mock-sharepoint/server.mjs').Reply}
  */
 function inject(reply, files) {
     const built = sharepoint.has3dRelease();
@@ -106,8 +106,8 @@ function inject(reply, files) {
 
 /**
  * @param {http.IncomingMessage} req
- * @param {import('../fake-sharepoint/server.mjs').Files} library folder, or folders by name
- * @returns {import('../fake-sharepoint/server.mjs').Reply}
+ * @param {import('../mocks/mock-sharepoint/server.mjs').Files} library folder, or folders by name
+ * @returns {import('../mocks/mock-sharepoint/server.mjs').Reply}
  */
 function answer(req, library) {
     const files = sharepoint.resolveFiles(library); // per request: folders may come and go

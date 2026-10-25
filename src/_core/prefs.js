@@ -108,7 +108,7 @@ export const view = {
     table: loadPref('tp-preview-table', '1') === '1',
     // Lines of metadata shown (drag grip below it)
     metaLines: Math.max(1, Math.min(6, Number(loadPref('tp-preview-meta-lines', '1')) || 1)),
-    props: loadPref('tp-preview-properties', '1') === '1',
+    props: loadPref('tp-preview-properties', '0') === '1',
     // Layout: popup / vertical / horizontal
     mode: ['popup', 'vertical', 'horizontal'].includes(loadPref('tp-preview-mode', ''))
         ? loadPref('tp-preview-mode', '')
