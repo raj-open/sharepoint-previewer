@@ -1,7 +1,7 @@
 // Tampermonkey stand-in for explorative tests (cf. ./server.mjs): GM_* API, then the userscript at DOMContentLoaded.
 //
 // - GM_getValue / GM_setValue: localStorage (kept across reloads; "Clear settings" in the panel empties it);
-//   settings not set (missing or empty) are filled in with the server's defaults on each page load
+//   settings not set (missing, empty, or an earlier default) get the server's defaults on each page load
 //   (`viewer-3d-folder` of the fake SharePoint, a test logo)
 // - GM_registerMenuCommand: buttons in a small panel at the top right (where Tampermonkey's menu is)
 // - GM_info.script.version: the userscript's @version
@@ -116,11 +116,20 @@
         GM_info: { script: { version } },
     });
 
-    // settings not set yet (or left empty): the server's defaults
+    // settings not set (or left empty, or still an earlier default of the explorer): the server's defaults
+    const DEFAULTS_KEY = 'tampermonkey-defaults';
+    /** @type {Object<string, *>} */
+    let before = {};
+    try {
+        before = JSON.parse(localStorage.getItem(DEFAULTS_KEY) || '{}');
+    } catch {}
     for (const [name, value] of Object.entries(defaults)) {
         const now = getValue(name, undefined);
-        if (now === undefined || now === '') setValue(name, value);
+        if (now === undefined || now === '' || now === before[name]) setValue(name, value);
     }
+    try {
+        localStorage.setItem(DEFAULTS_KEY, JSON.stringify(defaults));
+    } catch {}
 
     // document-idle, as Tampermonkey (@run-at)
     document.addEventListener('DOMContentLoaded', () => {

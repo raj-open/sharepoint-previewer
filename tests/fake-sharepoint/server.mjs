@@ -1,4 +1,5 @@
-// Fake SharePoint Online: one site with one document library, served from ./library (or another folder).
+// Fake SharePoint Online: one site with one document library, served from ./library (or another folder,
+// or several folders shown by name in the library root). Read only: files are read from disk per request.
 //
 //   /sites/Test/Shared Documents/Forms/AllItems.aspx[?id=<folder>]  list view (client-side app)
 //   /sites/Test/Shared Documents/<path>                             file (GET / HEAD, byte ranges)
@@ -62,13 +63,31 @@ const TYPES = {
 /**
  * @typedef {{ name: string, folder: boolean, size: number }} Entry
  * @typedef {{ status: number, headers: Object<string, string>, body: Buffer|string }} Reply
+ * @typedef {string|Object<string, string>} Files library folder, or folders shown by name in the library root
  */
 
-/** @param {string} files library folder @param {string} folder server-relative @returns {string|null} local path */
+/** @param {string} root @param {string} rel @returns {string|null} local path, never outside root (no "..") */
+function within(root, rel) {
+    const local = path.join(root, rel);
+    return local === root || local.startsWith(root + path.sep) ? local : null;
+}
+
+/** @param {Files} files @param {string} folder server-relative @returns {string|null} local path */
 function localPath(files, folder) {
     if (folder !== LIBRARY && !folder.startsWith(`${LIBRARY}/`)) return null;
-    const local = path.join(files, folder.slice(LIBRARY.length));
-    return local.startsWith(files) ? local : null; // no ".." out of the library
+    const rel = folder.slice(LIBRARY.length);
+    if (typeof files === 'string') return within(files, rel);
+    const [name = '', ...rest] = rel.split('/').slice(1);
+    return Object.hasOwn(files, name) ? within(files[name], rest.join('/')) : null;
+}
+
+/** @param {Files} files @returns {Files} with absolute paths; folders not there left out */
+export function resolveFiles(files) {
+    if (typeof files === 'string') return path.resolve(files);
+    const found = Object.entries(files)
+        .map(([name, dir]) => [name, path.resolve(dir)])
+        .filter(([, dir]) => fs.existsSync(dir) && fs.statSync(dir).isDirectory());
+    return Object.fromEntries(found);
 }
 
 /** @param {string} dir @returns {Entry[]} folders first, then files; hidden entries left out */
@@ -87,12 +106,18 @@ function listing(dir) {
 /** @returns {boolean} 3D files of this version are built (`just build`) */
 export const has3dRelease = () => FILES_3D.every((name) => fs.existsSync(path.join(PATH_RELEASE, name)));
 
-/** @param {string} files library folder @returns {Object<string, Entry[]>} server-relative folder -> entries */
+/** @param {Files} files @returns {Object<string, Entry[]>} server-relative folder -> entries */
 function tree(files) {
     /** @type {Object<string, Entry[]>} */
     const out = {};
+    /** @param {string} folder */
     const walk = (folder) => {
-        const entries = listing(/** @type {string} */ (localPath(files, folder)));
+        const local = localPath(files, folder);
+        const entries = local
+            ? listing(local)
+            : Object.keys(files) // library root of several folders
+                  .sort((a, b) => a.localeCompare(b))
+                  .map((name) => ({ name, folder: true, size: 0 }));
         out[folder] = entries;
         for (const e of entries) if (e.folder) walk(`${folder}/${e.name}`);
     };
@@ -110,7 +135,7 @@ const html = (body) => ({ status: 200, headers: { 'content-type': 'text/html; ch
 /** @param {number} status @returns {Reply} */
 const fail = (status) => ({ status, headers: { 'content-type': 'text/plain' }, body: `Error ${status}` });
 
-/** @param {string} files library folder @returns {Reply} */
+/** @param {Files} files @returns {Reply} */
 function listPage(files) {
     return html(`<!doctype html>
 <html lang="en">
@@ -271,13 +296,13 @@ function serveFile(file, method, range) {
 /**
  * Answers one request to the fake SharePoint.
  * @param {{ url: string, method: string, headers: Object<string, string> }} request
- * @param {{ files?: string }} [opts] library folder (default: ./library)
+ * @param {{ files?: Files }} [opts] library folder (default: ./library), or folders by name in the library root
  * @returns {Reply}
  */
 export function handle({ url, method, headers }, { files = PATH_FILES } = {}) {
     const u = new URL(url);
     const pathname = decodeURIComponent(u.pathname);
-    const root = path.resolve(files);
+    const root = resolveFiles(files);
 
     if (pathname === LIST_PAGE) return listPage(root);
     if (pathname === `${SITE}/SitePages/Home.aspx`) {
