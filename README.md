@@ -31,6 +31,9 @@ See
 - [Title bar](demos/title-bar.md): properties, link, another name
 - [Text, checks and Markdown](demos/text.md): syntax colours, syntax checks, rendered Markdown
 - [Tables and spreadsheets](demos/tables.md): CSV (colours, editing), Excel tables and sheets, logs
+- [Editing](demos/editing.md): edit, save, upload, cancel (with the logic)
+- [Caching](demos/caching.md): partly and fully cached files (with the logic)
+- [Settings](demos/settings.md): form and JSON
 - [3D](demos/3d.md): IFC models
 
 Technical descriptions (behaviour, network, storage, security, deployment):

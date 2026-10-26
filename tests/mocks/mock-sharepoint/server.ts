@@ -200,7 +200,8 @@ function tree(libs: Libraries, library: string, uploads?: string): Record<string
     walk(library);
     if (!out[library]) return out;
     if (library === LIBRARY && has3dRelease() && !out[RELEASE_FOLDER]) {
-        out[LIBRARY].unshift({ name: 'previewer', folder: true, size: 0 });
+        out[LIBRARY].push({ name: 'previewer', folder: true, size: 0 });
+        out[LIBRARY].sort(byName);
         out[RELEASE_FOLDER] = listing(PATH_RELEASE).filter((e) => FILES_3D.includes(e.name));
     }
     for (const [folder, entries] of Object.entries(out)) {
@@ -290,7 +291,7 @@ function listPage(libs: Libraries, library: string, uploads?: string): Reply {
   .c-icon { flex: none; width: 40px; }
   .c-name { flex: 1; min-width: 0; }
   .c-author { width: 160px; color: #605e5c; }
-  .c-size { width: 100px; color: #605e5c; justify-content: flex-end; }
+  .c-size { width: 160px; color: #605e5c; justify-content: flex-end; white-space: nowrap; }
   .header .c-author, .header .c-size { color: inherit; }
   .c-name button, .c-name a { all: unset; cursor: pointer; }
   .c-name button:hover, .c-name a:hover { text-decoration: underline; }

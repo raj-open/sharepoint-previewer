@@ -122,6 +122,84 @@ const CASES: Record<string, Case> = {
         pointer: (_page, v) => v.locator('.tp-name-input'),
         clip: async (_page, v) => top(v, v.locator('.tp-header')),
     },
+    // ---- editing: edit, save, upload (simulated) ----
+    edit: {
+        folder: '',
+        file: 'notes.txt',
+        steps: async (page, v) => {
+            await editText(page, v);
+        },
+        pointer: (_page, v) => v.locator('.tp-mode-btn[title^="Save"]'),
+        clip: async (_page, v) => box(v),
+    },
+    'edit-saved': {
+        folder: '',
+        file: 'notes.txt',
+        steps: async (page, v) => {
+            await editText(page, v);
+            await v.locator('.tp-mode-btn[title^="Save"]').click();
+        },
+        pointer: (_page, v) => v.locator('.tp-mode-btn[title^="Upload"]'),
+        clip: async (_page, v) => box(v),
+    },
+    'edit-uploaded': {
+        folder: '',
+        file: 'notes.txt',
+        steps: async (page, v) => {
+            await editText(page, v);
+            await v.locator('.tp-mode-btn[title^="Save"]').click();
+            await v.locator('.tp-mode-btn[title^="Upload"]').click();
+            await page.locator('#grid .uploaded').waitFor({ timeout: 15000 }); // the list shows the upload
+            await h.settled(page); // confirmed by Sharepoint: the cache state is shown again
+        },
+    },
+    // ---- caching (chunks of 1 KB here, so that the small fixtures are cached in parts) ----
+    'cache-partly': {
+        folder: '/Models',
+        settings: { 'cache-chunk-bytes': 1024 },
+        before: async (page) => {
+            await cacheAll(page, 'wall.ifc');
+            await h.eye(page, 'corner.ifc').click();
+            await page.locator('.tp-viewer .tp-title-name', { hasText: 'corner.ifc' }).waitFor();
+            await page.locator('.tp-viewer .tp-progress.tp-idle').waitFor();
+        },
+        pointer: (page) => page.locator('.tp-viewer .tp-mode-btn[title^="Cache the whole file"]'),
+    },
+    'cache-full': {
+        folder: '/Models',
+        settings: { 'cache-chunk-bytes': 1024 },
+        before: async (page) => {
+            await cacheAll(page, 'wall.ifc');
+            await cacheAll(page, 'corner.ifc');
+        },
+    },
+    // ---- settings (⋯ → Full settings …, or the Tampermonkey menu) ----
+    'settings-form': {
+        folder: '',
+        before: openSettings,
+        pointer: (page) => page.locator('.tp-settings [name="theme"]'),
+        clip: async (page) => box(page.locator('.tp-settings form')),
+    },
+    'settings-json': {
+        folder: '',
+        before: async (page) => {
+            await openSettings(page);
+            await page.locator('.tp-settings [data-mode="json"]').click();
+        },
+        pointer: (page) => page.locator('.tp-settings [data-mode="json"]'),
+        clip: async (page) => box(page.locator('.tp-settings form')),
+    },
+    'settings-json-error': {
+        folder: '',
+        before: async (page) => {
+            await openSettings(page);
+            await page.locator('.tp-settings [data-mode="json"]').click();
+            const json = page.locator('.tp-settings [data-json]');
+            await json.fill((await json.inputValue()).replace('"horizontal"', '"diagonal"'));
+            await page.locator('.tp-settings [data-errors]', { hasText: 'layout' }).waitFor();
+        },
+        clip: async (page) => box(page.locator('.tp-settings form')),
+    },
     // ---- dark mode (setting `theme`; also ⋯ → Dark mode) ----
     'dark-text': {
         folder: '/Config',
@@ -275,6 +353,34 @@ async function point(page: Page, target?: Locator): Promise<void> {
         },
         { svg: POINTER_SVG, x, y },
     );
+}
+
+/** Write mode on, a line added at the end of the text (not saved) */
+async function editText(page: Page, v: Locator): Promise<void> {
+    await v.locator('.tp-mode-btn[title^="Edit"]').click();
+    const editor = v.locator('.tp-editor');
+    await editor.press('Control+End');
+    await page.keyboard.type('\n- (edited) agreed: next meeting on Friday');
+}
+
+/** Opens a file and caches all of it (button "Cache the whole file"), until fully cached. */
+async function cacheAll(page: Page, name: string): Promise<void> {
+    const v = page.locator('.tp-viewer');
+    await h.eye(page, name).click();
+    await v.locator('.tp-title-name', { hasText: name }).waitFor();
+    await v.locator('.tp-progress.tp-idle, .tp-progress.tp-full').waitFor();
+    const all = v.locator('.tp-mode-btn[title^="Cache the whole file"]');
+    if (await all.isEnabled()) await all.click();
+    await v.locator('.tp-progress.tp-full').waitFor();
+}
+
+/** Opens the settings form from the viewer (empty: header eye), ⋯ → Full settings … */
+async function openSettings(page: Page): Promise<void> {
+    await page.locator('.tp-head').dispatchEvent('click'); // header eye (mock: overlaid)
+    const v = page.locator('.tp-viewer');
+    await v.locator('.tp-mode-btn[title="More"]').click();
+    await v.locator('.tp-menu-item', { hasText: 'Full settings' }).click();
+    await page.locator('.tp-settings form').waitFor();
 }
 
 /** Switches the viewer to a view (Text, Table, Markdown, 3D, ...) unless already on it. */
