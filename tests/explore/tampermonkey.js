@@ -1,4 +1,4 @@
-// Tampermonkey stand-in for explorative tests (cf. ./server.mjs): GM_* API, then the userscript at DOMContentLoaded.
+// Tampermonkey stand-in for explorative tests (cf. ./server.ts): GM_* API, then the userscript at DOMContentLoaded.
 //
 // - GM_getValue / GM_setValue: localStorage (kept across reloads; "Clear settings" in the panel empties it);
 //   settings not set (missing, empty, or an earlier default) get the server's defaults on each page load

@@ -23,13 +23,12 @@ set windows-shell := ["bash", "-euo", "pipefail", "-c"]
 NAME := env("NAME", "sharepoint-previewer")
 # local port of the explorative tests (mock SharePoint)
 HTTP_PORT := env("HTTP_PORT", "8080")
-# userscript: modules under /src (entry, header, shared types);
+# userscript: TypeScript modules under /src (entry, header);
 # bundled by build-src into /dist/userscript.js (kept in the repo, version and 3D hashes as dummies)
 PATH_MODULES := "src"
-PATH_ENTRY := PATH_MODULES / "main.js"
-PATH_HEADER := PATH_MODULES / "_core/header.js"
-PATH_TYPES := PATH_MODULES / "_core/types.js"
-PATH_SRC_3D := "src/@apis/ifc-lite/main.js"
+PATH_ENTRY := PATH_MODULES / "main.ts"
+PATH_HEADER := PATH_MODULES / "_core/header.ts"
+PATH_SRC_3D := "src/@apis/ifc-lite/main.ts"
 PATH_DIST := "dist"
 PATH_BUNDLE := PATH_DIST / "userscript.js"
 PATH_VERSION := "dist/VERSION"
@@ -92,7 +91,7 @@ build-lock:
 build-src:
     #!/usr/bin/env bash
     set -euo pipefail
-    node --disable-warning=ExperimentalWarning scripts/bundle.mjs "{{PATH_ENTRY}}" "{{PATH_HEADER}}" "{{PATH_TYPES}}" "{{PATH_BUNDLE}}"
+    node --disable-warning=ExperimentalWarning scripts/bundle.ts "{{PATH_ENTRY}}" "{{PATH_HEADER}}" "{{PATH_BUNDLE}}"
     node --check "{{PATH_BUNDLE}}"
     just _size "{{PATH_BUNDLE}}" "{{MAX_KB_SRC}}"
 
@@ -188,17 +187,17 @@ tests-integration:
 # explorative tests: mock SharePoint + userscript (/dist/userscript.js) on http://localhost:${HTTP_PORT}; library: Mock Data + Data, or folder
 [group("tests")]
 tests-explore folder="":
-    @node tests/explore/server.mjs "{{HTTP_PORT}}" "{{folder}}"
+    @node tests/explore/server.ts "{{HTTP_PORT}}" "{{folder}}"
 
-# screenshots for /demos (/demos/img/<case>.png) on the mock SharePoint; no case: all (cf. /scripts/demos.mjs)
+# screenshots for /demos (/demos/img/<case>.png) on the mock SharePoint; no case: all (cf. /scripts/demos.ts)
 [group("tests")]
 demos *cases:
-    @node scripts/demos.mjs "$@"
+    @node scripts/demos.ts "$@"
 
 _tests kind:
     #!/usr/bin/env bash
     set -euo pipefail
-    files="$(find "tests/{{kind}}" -type f -name 'tests_*.mjs' | sort)"
+    files="$(find "tests/{{kind}}" -type f -name 'tests_*.ts' | sort)"
     if [[ -z "${files}" ]]; then
         echo "no {{kind}} tests"
     else
@@ -230,10 +229,12 @@ lint-check:
     cd "${tmp}"
     "${root}/{{BIOME}}" check --write --vcs-enabled=false {{LINT_PATHS}}
 
-# type check of the modules (strict; cf. /tsconfig.json), as the editor shows it
+# type check (strict) of the modules, tests and scripts (cf. /tsconfig.json, /tests/tsconfig.json, /scripts/tsconfig.json)
 [group("quality")]
 type-check:
     @"{{TSC}}" -p tsconfig.json
+    @"{{TSC}}" -p tests/tsconfig.json
+    @"{{TSC}}" -p scripts/tsconfig.json
 
 # ----------------------------------------------------------------
 # TARGETS - clean

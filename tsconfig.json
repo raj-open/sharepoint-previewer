@@ -9,12 +9,10 @@
         "allowImportingTsExtensions": true,
         "erasableSyntaxOnly": true,
         "verbatimModuleSyntax": true,
-        "allowJs": true,
-        "checkJs": true,
         "lib": ["es2022", "dom", "dom.iterable"],
         "types": [],
         "skipLibCheck": true
     },
-    "include": ["src/**/*.ts", "src/**/*.js"],
+    "include": ["src/**/*.ts"],
     "exclude": ["src/@apis/**"]
 }
