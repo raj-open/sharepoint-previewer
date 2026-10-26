@@ -16,7 +16,7 @@ This document contains information for developers.
 | `/tests/{unit,behave,integration}` | tests (`tests_*.mjs`, run with `node --test`); unit tests mirror `/src` |
 | `/templates` | templates for local files (e.g. `.env`) |
 | `/dist/VERSION` | version (single source) |
-| `/dist/userscript.js` | the userscript, bundled from the modules (written by `just build-src`) |
+| `/dist/userscript.js` | the userscript, bundled from the modules (written by `just build-src`; version and 3D hashes as dummies) |
 | `/models` | (reserved) schemata |
 | `specs.md` | public specs and conventions |
 
@@ -59,7 +59,7 @@ The build writes into the userscript:
 
 - `@version` from `/dist/VERSION`
 - the SHA-256 hashes of the two 3D files
-  (the values in `/dist/userscript.js` are those of the last deployed bundle)
+  (`/dist/userscript.js` has dummies: `0.0.0`, `<sha256>`)
 
 So the userscript and the 3D files of one build are deployed together.
 

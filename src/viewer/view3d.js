@@ -43,6 +43,7 @@ function loadIfcLibrary(onStatus) {
         if (!VIEWER_3D_FOLDER) throw new Error('the 3D viewer folder is not set (settings: "3D viewer folder")');
         /** @param {string} name @param {string} hash */
         const file = async (name, hash) => {
+            if (!/^[0-9a-f]{64}$/.test(hash)) throw new Error('no 3D checksums in this build: use a release userscript');
             const site = (location.pathname.match(/^\/(?:sites|teams|personal)\/[^/]+/i) || [''])[0]; // current site
             const folder = VIEWER_3D_FOLDER.startsWith('/') ? VIEWER_3D_FOLDER : `${site}/${VIEWER_3D_FOLDER}`;
             const url = `${folder.replace(/\/$/, '')}/${name}`.split('/').map(encodeURIComponent).join('/');

@@ -24,7 +24,7 @@ NAME := env("NAME", "sharepoint-previewer")
 # local port of the explorative tests (mock SharePoint)
 HTTP_PORT := env("HTTP_PORT", "8080")
 # userscript: modules under /src (entry /src/main.js, header in /src/_core);
-# bundled by build-src into /dist/userscript.js (kept in the repo)
+# bundled by build-src into /dist/userscript.js (kept in the repo, version and 3D hashes as dummies)
 PATH_MODULES := "src"
 PATH_SRC_3D := "src/@apis/ifc-lite/main.js"
 PATH_DIST := "dist"
@@ -78,7 +78,7 @@ build-deps:
     @npm ci --no-audit --no-fund || npm install --no-audit --no-fund
     @npx playwright install chromium
 
-# bundles the modules into the userscript (/dist/userscript.js, readable)
+# bundles the modules into the userscript (/dist/userscript.js, readable; version and 3D hashes as dummies)
 [group("build")]
 build-src:
     @node scripts/bundle.mjs "{{PATH_MODULES}}/main.js" "{{PATH_MODULES}}/_core/header.js" "{{PATH_MODULES}}/_core/types.js" "{{PATH_BUNDLE}}"
@@ -104,6 +104,7 @@ build-dist: build-src build-3d
         -e "s|^(// @version[[:space:]]+).*$|\1${version}|" \
         -e "s|(VIEWER_3D_JS_SHA256[[:space:]]*=[[:space:]]*[${quote}])[^${quote}]*|\1${hash_js}|" \
         -e "s|(VIEWER_3D_WASM_SHA256[[:space:]]*=[[:space:]]*[${quote}])[^${quote}]*|\1${hash_wasm}|" \
+        -e "/^\/\/ Version and 3D checksums are dummies here/d" \
         "{{PATH_BUNDLE}}" > "${path}"
     node --check "${path}"
     just _minify "${path}" "{{PATH_RELEASE}}/{{NAME}}.min.js"

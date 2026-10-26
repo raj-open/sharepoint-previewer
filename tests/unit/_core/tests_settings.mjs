@@ -17,8 +17,8 @@ describe('settings', () => {
         assert.equal(gm.store.layout, 'horizontal');
     });
     it('spreadsheet column colours are off by default', () => assert.equal(settings.DEFAULT_SHEET_COLOURS, false));
-    it('3D checksums are SHA-256 in hex', () => {
-        assert.match(settings.VIEWER_3D_JS_SHA256, /^[0-9a-f]{64}$/);
-        assert.match(settings.VIEWER_3D_WASM_SHA256, /^[0-9a-f]{64}$/);
+    it('3D checksums are dummies (stamped by the release build)', () => {
+        assert.equal(settings.VIEWER_3D_JS_SHA256, '<sha256>');
+        assert.equal(settings.VIEWER_3D_WASM_SHA256, '<sha256>');
     });
 });

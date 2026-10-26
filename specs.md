@@ -18,7 +18,8 @@
   third-party code under `/src/@apis`.
 - Userscript: `/dist/userscript.js` (bundle), written by `just build-src`
   and committed (to follow how the whole script changes between versions); never edited by hand.
-  The minified userscript is written only into the release folder `/dist/v<VERSION>`.
+  Its `@version` and 3D hashes are dummies (`0.0.0`, `<sha256>`);
+  only the release files in `/dist/v<VERSION>` carry real values (minified there, not in the repo).
   Identifier names are kept (the check worker is built from the script's own function sources).
 - Modules: one concern each; a module only writes its own top-level variables
   (shared, changeable state lives in objects, e.g. `view` in `prefs.js`).
@@ -33,9 +34,9 @@
   the entry `/src/main.js` starts everything explicitly, in order, at the end of the bundle.
 - Version: `/dist/VERSION` is the single source;
   the build writes it into the userscript's `@version`,
-  except on the commit tagged `v<VERSION>` as `<VERSION>-beta.<short commit>` (release files only, not `/dist/userscript.js`).
-- 3D hashes: the build writes the SHA-256 of the built 3D files into the userscript;
-  the values in `/dist/userscript.js` are only those of the last deployed bundle.
+  except on the commit tagged `v<VERSION>` as `<VERSION>-beta.<short commit>` (release files only).
+- 3D hashes: the release build writes the SHA-256 of the built 3D files into the userscript;
+  without them (dummies) the 3D view refuses to load.
 - Tests: `node --test`, files named `tests_*.mjs` under `/tests/{unit,behave,integration}`.
   Unit tests: one file per module, same path under `/tests/unit`;
   browser and Tampermonkey stubbed by `/tests/unit/helpers.mjs`.

@@ -97,6 +97,7 @@ const body = [typedefs, ...files.map((f) => moduleText(f, root))].filter(Boolean
 const script =
     `${fs.readFileSync(header, 'utf8').trim()}\n\n` +
     '// Built from the modules in /src (just build-src): do not edit by hand.\n' +
+    '// Version and 3D checksums are dummies here: the release build stamps them.\n' +
     '// @ts-nocheck: the modules are type-checked (just type-check), not this file\n' +
     '(() => {\n' +
     `${INDENT}// biome-ignore lint/suspicious/noRedundantUseStrict: userscripts run as classic scripts, not as modules\n` +

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Sharepoint Previewer
 // @description  Previewer (text, table, spreadsheet, 3d-viewer) for various file types. Provides an editor for all pure text files.
-// @version      1.0.0
+// @version      0.0.0
 // @copyright    2026, raj-open (https://github.com/raj-open/sharepoint-previewer)
 // @license      MPL-2.0
 // @match        https://*.sharepoint.com/*/*/*
@@ -13,6 +13,7 @@
 // ==/UserScript==
 
 // Built from the modules in /src (just build-src): do not edit by hand.
+// Version and 3D checksums are dummies here: the release build stamps them.
 // @ts-nocheck: the modules are type-checked (just type-check), not this file
 (() => {
   // biome-ignore lint/suspicious/noRedundantUseStrict: userscripts run as classic scripts, not as modules
@@ -131,9 +132,9 @@
   // Width of preview (eye) column, in pixels
   const COL_WIDTH = 32;
 
-  // Checksums of 3D viewer files (they belong to this script version)
-  const VIEWER_3D_JS_SHA256 = 'f662159c4b4f5a92b7625943e8519872a1438ee32dad50e5f6997c7da77b36e2';
-  const VIEWER_3D_WASM_SHA256 = '3912d1046cf6507e7ef6f85a0492a0e54fbb31ae711b85c6e46b6313ffd63312';
+  // Checksums of 3D viewer files (they belong to this script version): dummies, stamped by the release build
+  const VIEWER_3D_JS_SHA256 = '<sha256>';
+  const VIEWER_3D_WASM_SHA256 = '<sha256>';
 
   // ===========================================================================
   // METHODS
@@ -8772,6 +8773,7 @@
           if (!VIEWER_3D_FOLDER) throw new Error('the 3D viewer folder is not set (settings: "3D viewer folder")');
           /** @param {string} name @param {string} hash */
           const file = async (name, hash) => {
+              if (!/^[0-9a-f]{64}$/.test(hash)) throw new Error('no 3D checksums in this build: use a release userscript');
               const site = (location.pathname.match(/^\/(?:sites|teams|personal)\/[^/]+/i) || [''])[0]; // current site
               const folder = VIEWER_3D_FOLDER.startsWith('/') ? VIEWER_3D_FOLDER : `${site}/${VIEWER_3D_FOLDER}`;
               const url = `${folder.replace(/\/$/, '')}/${name}`.split('/').map(encodeURIComponent).join('/');
