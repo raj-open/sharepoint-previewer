@@ -120,6 +120,74 @@ Sharepoint page (DOM)
 - **Nothing else from the list is read.**
   No column values, no hidden data.
 
+### Communication ###
+
+Who talks to whom, from page load to upload
+(requests: §4; storage: §5).
+All requests go to the Sharepoint the page comes from, nowhere else.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant TM as Tampermonkey
+    participant US as Userscript
+    participant Page as Sharepoint page<br>(DOM, own code)
+    participant LS as localStorage
+    participant W as Check worker
+    participant IFC as ifc-lite<br>(3D, WebAssembly)
+    participant SP as Sharepoint server<br>(same origin)
+
+    Note over TM,Page: Page load
+    TM->>US: injects the script (document-idle)
+    US->>TM: GM_getValue (settings)
+    US->>TM: GM_registerMenuCommand (Settings …)
+    US->>LS: reads view choices (layout, theme, …)
+    US->>Page: MutationObserver: an eye per file and folder row
+
+    Note over User,SP: Preview
+    User->>Page: clicks an eye
+    Page->>US: click (capture phase, Sharepoint does not act on it)
+    US->>Page: file name from the row, folder from the URL
+    opt row without path (search results)
+        US->>SP: GET _api/web/GetList(…)/items (by name)
+        SP-->>US: path (if refused: GET _api/search/query)
+    end
+    US->>SP: GET file, Range: bytes=…
+    SP-->>US: first chunk
+    US->>Page: viewer (own elements, prefix tp-)
+    US->>W: text of a structured file (JSON, XML, YAML, IFC, …)
+    W-->>US: problems by line
+    User->>US: Cache next / Cache all
+    US->>SP: GET file, further ranges
+    SP-->>US: chunks (kept in memory only)
+
+    Note over User,SP: 3D view (first use per page)
+    User->>US: Preview of an IFC file
+    US->>SP: GET 3D folder/ifc-lite-3d.js and ifc-lite_bg.wasm
+    SP-->>US: both files
+    US->>US: SHA-256 checked against the hashes in the release userscript
+    US->>IFC: start (library and engine binary)
+    IFC-->>US: model drawn in the viewer's canvas (WebGPU)
+
+    Note over User,SP: Edit and upload
+    User->>US: Edit, type, Save (kept in memory)
+    User->>US: Upload
+    US->>Page: file dropped on the list (else Sharepoint's own upload input)
+    Page->>SP: upload by Sharepoint's own code, as the signed-in user
+    loop until changed (up to 20 s)
+        US->>SP: HEAD file (ETag, Last-Modified, size)
+    end
+    SP-->>US: changed: upload confirmed
+
+    Note over User,LS: Settings and view choices
+    User->>TM: menu: Settings … (or viewer: ⋯ → Full settings …)
+    TM->>US: opens the settings form
+    User->>US: form or JSON, Save
+    US->>TM: GM_setValue (applied on the next page load)
+    User->>US: view choices (layout, theme, colours, …)
+    US->>LS: kept (keys tp-preview-*)
+```
+
 ---
 
 ## 4. Network behaviour (complete list) ##

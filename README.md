@@ -24,11 +24,9 @@ We built a **previewer** that simply augments the Sharepoint experience to overc
 
 ## Demonstration ##
 
-See
-
-- [Overview](demos/overview.md): list view, text, syntax checks, Markdown
-- [Tables and spreadsheets](demos/tables.md): CSV, Excel tables and sheets, logs
-- [3D](demos/3d.md): IFC models
+See the [demos](demos/README.md):
+screenshots and the logic of each part
+(list view, layouts, title bar, text, tables, 3D, editing, caching, settings).
 
 Technical descriptions (behaviour, network, storage, security, deployment):
 see [NOTES.md](NOTES.md).

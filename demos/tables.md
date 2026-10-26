@@ -10,6 +10,15 @@ CSV and Parquet files open as a table.
 
 ![CSV file as table](img/csv.png)
 
+Column colours are optional (⋯ → Syntax colours, or the setting `colours-table`).
+
+![CSV file as table, columns coloured](img/csv-colours.png)
+
+In edit mode, cells are edited in place (the cell being edited is framed);
+delimiter and quote style can be changed for the whole file.
+
+![CSV file edited in the table](img/csv-edit.png)
+
 ## Spreadsheets ##
 
 Excel (`.xlsx`, `.xlsb`, `.xls`) and OpenDocument (`.ods`) spreadsheets
@@ -28,4 +37,4 @@ long entries expand in place.
 
 ![Log file as table](img/log.png)
 
-[Back to the README](../README.md)
+[Back to the demos](README.md)
