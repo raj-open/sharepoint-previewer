@@ -494,9 +494,7 @@ export async function showFile(name: string, url: string, reload: boolean): Prom
     v.lang = langOfFormat(format);
     v.linked = hops.length > 1;
     v.writeBtn.disabled = !canWrite(v);
-    v.writeBtn.title = src.isSheet
-        ? 'Edit: not available for spreadsheets (read only)'
-        : 'Edit (beta, text files only)';
+    v.writeBtn.title = src.isSheet ? 'Edit: not available for spreadsheets (read only)' : 'Edit (text files only)';
     const kind = previewOf(v.lang);
     const ifcSize = src.ifcBytes ? src.ifcBytes.length : src.total;
     const tooBig = kind === '3d' && ifcSize > MAX_3D_BYTES;
