@@ -67,12 +67,13 @@ jobs:
           cat <<EOF > .env
           NAME="${{ vars.PROGRAMME_NAME }}"
           HTTP_PORT=${{ vars.HTTP_PORT }}
+          # behavioural tests: Google Chrome of the runner image (no browser download)
+          BROWSER_CHANNEL=chrome
           EOF
 
       - name: Build dependencies
         run: |-
           just build
-          npx playwright install-deps chromium
 
       # --------------------------------
       # Checks

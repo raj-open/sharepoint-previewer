@@ -26,6 +26,9 @@ For reviewing the script (permissions, network, storage, security, deployment): 
 - The [Justfile](https://just.systems) tool.
 - Node.js (≥ 22.18: runs TypeScript itself) for package dependencies, build and tests.
 - Bash (Windows users should install e.g. [Git Bash](https://gitforwindows.org)).
+- Behavioural tests: a Chromium-based browser.
+  `just build-deps` downloads Playwright's Chromium (~120 MB) unless `BROWSER_CHANNEL` in `.env`
+  names one installed already (`chrome`, `msedge`); the workflows use the Google Chrome of GitHub's runner image.
 
 ## Taskrunner recipes ##
 
