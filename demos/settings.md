@@ -33,4 +33,4 @@ Save stays disabled until all are valid.
 
 ![Settings as JSON with a wrong value](img/settings-json-error.png)
 
-[Back to the README](../README.md)
+[Back to the demos](README.md)

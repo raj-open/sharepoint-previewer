@@ -28,4 +28,4 @@ the upload then goes to a new file, the original stays as it is.
 
 ![File name being changed](img/rename.png)
 
-[Back to the README](../README.md)
+[Back to the demos](README.md)

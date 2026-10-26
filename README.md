@@ -24,17 +24,9 @@ We built a **previewer** that simply augments the Sharepoint experience to overc
 
 ## Demonstration ##
 
-See
-
-- [List view and search](demos/list.md): eyes on files and folders, search results
-- [Layouts and dark mode](demos/layouts.md): below or right of the list, pop-up, narrow viewer, dark mode
-- [Title bar](demos/title-bar.md): properties, link, another name
-- [Text, checks and Markdown](demos/text.md): syntax colours, syntax checks, rendered Markdown
-- [Tables and spreadsheets](demos/tables.md): CSV (colours, editing), Excel tables and sheets, logs
-- [Editing](demos/editing.md): edit, save, upload, cancel (with the logic)
-- [Caching](demos/caching.md): partly and fully cached files (with the logic)
-- [Settings](demos/settings.md): form and JSON
-- [3D](demos/3d.md): IFC models
+See the [demos](demos/README.md):
+screenshots and the logic of each part
+(list view, layouts, title bar, text, tables, 3D, editing, caching, settings).
 
 Technical descriptions (behaviour, network, storage, security, deployment):
 see [NOTES.md](NOTES.md).

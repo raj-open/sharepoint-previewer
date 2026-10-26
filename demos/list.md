@@ -20,4 +20,4 @@ and shows them from where they are.
 
 ![Search result previewed below the list](img/search.png)
 
-[Back to the README](../README.md)
+[Back to the demos](README.md)

@@ -31,4 +31,4 @@ the choice is kept.
 
 ![Dark mode: pop-up with a Markdown file](img/dark-popup.png)
 
-[Back to the README](../README.md)
+[Back to the demos](README.md)

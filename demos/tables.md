@@ -37,4 +37,4 @@ long entries expand in place.
 
 ![Log file as table](img/log.png)
 
-[Back to the README](../README.md)
+[Back to the demos](README.md)

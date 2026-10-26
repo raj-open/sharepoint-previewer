@@ -25,4 +25,4 @@ Markdown files are rendered;
 
 ![Rendered Markdown file](img/markdown.png)
 
-[Back to the README](../README.md)
+[Back to the demos](README.md)

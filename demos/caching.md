@@ -44,4 +44,4 @@ Opening the file again fetches nothing.
 
 ![Fully cached file](img/cache-full.png)
 
-[Back to the README](../README.md)
+[Back to the demos](README.md)

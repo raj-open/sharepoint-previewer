@@ -54,4 +54,4 @@ the viewer stays in edit mode for further changes.
 
 CSV files can also be edited in the table: cf. [Tables and spreadsheets](tables.md).
 
-[Back to the README](../README.md)
+[Back to the demos](README.md)
