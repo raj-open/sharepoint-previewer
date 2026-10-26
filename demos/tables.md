@@ -32,9 +32,20 @@ The picker next to **Table** lists all sheets and tables of the file.
 
 ## Logs (experimental) ##
 
-Log files can be shown as a table with guessed fields;
-long entries expand in place.
+Log files open as text, with colours for times, levels, names and values.
+
+![Log file as text, coloured](img/log-text.png)
+
+**Table** (experimental) guesses the fields from the start of the lines
+(time, context, level, name) and shows one row per entry, the message last.
+Entries with more in them (a stack trace, a JSON object, a Python dict) have ▸ in their row number.
 
 ![Log file as table](img/log.png)
+
+▸ expands the entry in place:
+its message split into text and objects, these indented and coloured
+(▸ above the row numbers expands all rows shown).
+
+![Log entry expanded: JSON object indented](img/log-expand.png)
 
 [Back to the demos](README.md)

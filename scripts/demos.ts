@@ -229,13 +229,14 @@ const CASES: Record<string, Case> = {
         },
     },
     // ---- text ----
-    text: { folder: '/Config', file: 'settings.xml' },
+    text: { folder: '/Config', file: 'settings.xml', clip: async (_page, v) => box(v) },
     lint: {
         folder: '/Config',
         file: 'broken.xml',
         steps: async (page) => {
             await page.locator('.tp-lint.tp-lint-bad').waitFor();
         },
+        clip: async (_page, v) => box(v),
     },
     markdown: {
         folder: '',
@@ -244,6 +245,7 @@ const CASES: Record<string, Case> = {
             await view(v, 'Markdown');
             await v.locator('.tp-md h1').waitFor();
         },
+        clip: async (_page, v) => box(v),
     },
     // ---- tables ----
     csv: {
@@ -285,6 +287,7 @@ const CASES: Record<string, Case> = {
         steps: async (_page, v) => {
             await v.locator('.tp-title-sheet', { hasText: 'Table:' }).waitFor();
         },
+        clip: async (_page, v) => box(v),
     },
     picker: {
         folder: '/Data',
@@ -294,14 +297,41 @@ const CASES: Record<string, Case> = {
             await v.locator('.tp-picker-menu').first().locator('.tp-picker-item').first().waitFor();
         },
         pointer: (_page, v) => v.locator(SHEET_PICKER),
+        clip: async (_page, v) => box(v),
+    },
+    // logs: text first (colours on), then the table (experimental), then an entry expanded
+    'log-text': {
+        folder: '/Logs',
+        file: 'app.log',
+        settings: { 'viewer-share': 0.6 }, // taller viewer: an expanded entry fits
+        steps: async (_page, v) => {
+            await v.locator('.tp-content .tp-ln').first().waitFor(); // lines drawn
+        },
+        pointer: (_page, v) => v.locator('.tp-view-btn', { hasText: 'Table' }),
+        clip: async (_page, v) => box(v),
     },
     log: {
         folder: '/Logs',
         file: 'app.log',
+        settings: { 'viewer-share': 0.6 }, // taller viewer: an expanded entry fits
         steps: async (_page, v) => {
             await view(v, 'Table');
-            await v.locator('.tp-table').waitFor();
+            await v.locator('.tp-table .tp-expand').first().waitFor(); // rows filled in
         },
+        pointer: (_page, v) => v.locator('.tp-table tr', { hasText: 'request' }).locator('.tp-expand'),
+        clip: async (_page, v) => box(v),
+    },
+    'log-expand': {
+        folder: '/Logs',
+        file: 'app.log',
+        settings: { 'viewer-share': 0.6 }, // taller viewer: an expanded entry fits
+        steps: async (_page, v) => {
+            await view(v, 'Table');
+            await v.locator('.tp-table tr', { hasText: 'request' }).locator('.tp-expand').click();
+            await v.locator('.tp-table .tp-detail').waitFor();
+        },
+        pointer: (_page, v) => v.locator('.tp-table tr', { hasText: 'request' }).locator('.tp-expand'),
+        clip: async (_page, v) => box(v),
     },
     '3d': {
         folder: '/Models',
@@ -313,6 +343,7 @@ const CASES: Record<string, Case> = {
             await v.getByText(STATUS_3D).waitFor({ timeout: 30000 });
             await page.waitForTimeout(WAIT_3D);
         },
+        clip: async (_page, v) => box(v),
     },
 };
 
