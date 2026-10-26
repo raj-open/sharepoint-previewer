@@ -207,12 +207,13 @@ export function openSettingsForm() {
         }
         if (!data || typeof data !== 'object' || Array.isArray(data))
             return { errors: ['The settings must be one JSON object { … }'] };
+        data = completeSettings(data);
         /** @type {string[]} */
         const errors = [];
         /** @type {Object<string, *>} */
         const values = {};
         for (const [key, , extra] of SETTING_FORM) {
-            const value = key in data ? data[key] : defaults[key];
+            const value = data[key];
             const type = typeof defaults[key];
             const expected = type === 'boolean' ? 'true or false' : `a ${type}`;
             if (typeof value !== type) errors.push(`${key}: must be ${expected}`);
@@ -223,12 +224,18 @@ export function openSettingsForm() {
                 errors.push(`${key}: must be between 0.2 and 0.8`);
             else if (type === 'number' && !(value > 0 && Number.isFinite(value)))
                 errors.push(`${key}: must be greater than 0`);
-            values[key] = typeof value === 'string' ? value.trim() : value;
+            // trimmed; share rounded to whole % (as form shows it)
+            values[key] =
+                typeof value === 'string'
+                    ? value.trim()
+                    : key === 'viewer-share'
+                      ? Math.round(value * 100) / 100
+                      : value;
         }
         return errors.length ? { errors } : { values };
     };
 
-    // JSON text replaced; border flashes briefly if it changed
+    // JSON text replaced (Save, reset); border flashes briefly if it changed
     /** @param {string} text */
     const setJson = (text) => {
         if (text === json.value) return;
@@ -238,20 +245,6 @@ export function openSettingsForm() {
             easing: 'ease-out',
         });
     };
-
-    // Pasted JSON object: completed at once (missing settings = defaults, unknown ones dropped)
-    json.addEventListener('input', (e) => {
-        if (/** @type {InputEvent} */ (e).inputType !== 'insertFromPaste') return;
-        let data;
-        try {
-            data = JSON.parse(json.value);
-        } catch {
-            return;
-        }
-        if (!data || typeof data !== 'object' || Array.isArray(data)) return;
-        setJson(toJson(completeSettings(data)));
-        note.textContent = 'Missing settings filled in with defaults, unknown ones removed.';
-    });
 
     // Values currently entered (null: JSON not valid)
     const current = () => (mode === 'json' ? readJson().values || null : readForm());
