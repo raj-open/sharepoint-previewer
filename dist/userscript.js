@@ -1768,7 +1768,7 @@
           const dropped = keys.filter((key) => !(key in DEFAULTS));
           const added = Object.keys(DEFAULTS).filter((key) => !keys.includes(key));
           return [
-              dropped.length ? `Obsolete settings dropped: ${dropped.join(', ')}` : '',
+              dropped.length ? `Unrecognised/obsolete settings dropped: ${dropped.join(', ')}` : '',
               added.length ? `Missing settings added (defaults): ${added.join(', ')}` : '',
           ].filter(Boolean);
       };
