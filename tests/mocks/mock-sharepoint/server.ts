@@ -15,8 +15,9 @@
 //   /sites/Test/_api/search/query?querytext='(filename:"<name>" …) path:"<url of folder>"'
 //                                                                        search index (as Sharepoint; Parquet: a form as Path)
 //
-// The list view mimics only what the userscript reads: ARIA grid rows, name fields,
-// folder icons, the scroll card and Sharepoint's `display: contents` wrapper.
+// The list view mimics what the userscript reads: ARIA grid rows (selection column first), name fields,
+// folder icons, the scroll card and Sharepoint's `display: contents` wrapper;
+// plus, for the eye only: file and folder icons, "Modified By" (made-up people), sizes (folders: items).
 // Navigation between folders happens in place (history API) and recycles row elements,
 // as Sharepoint does. Search (box in the command bar) lists files and folders below the folder open
 // whose names contain the term; file rows carry no path (as in Sharepoint), folder rows link to the folder.
@@ -82,8 +83,22 @@ const TYPES: Record<string, string> = {
 // Files the search index does not read: their Path is a form (DispForm.aspx?ID=…), as in Sharepoint
 const UNINDEXED = /\.parquet$/i;
 
+// "Modified By" of the list: made-up people (one per entry, the same each time); simulated uploads: the test user
+const AUTHORS = ['Ada Lindqvist', 'Bruno Keller', 'Chiara Rossi', 'Dev Patel', 'Emma Novak'];
+const UPLOADER = 'Test User';
+
+// Icons of the list (file type column): folder, any file; plain shapes
+const ICONS: Record<string, string> = {
+    'itemtypefolder.svg':
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">' +
+        '<path d="M1.5 4.5a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z" fill="#ffc83d" stroke="#c19c00"/></svg>',
+    'itemtypegeneric.svg':
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">' +
+        '<path d="M4.5 1.5h7l4 4v13h-11z" fill="#fff" stroke="#8a8886"/><path d="M11.5 1.5v4h4" fill="none" stroke="#8a8886"/></svg>',
+};
+
 // Entry of a folder listing (uploaded: simulated upload)
-type Entry = { name: string; folder: boolean; size: number; uploaded?: boolean };
+type Entry = { name: string; folder: boolean; size: number; author?: string; uploaded?: boolean };
 // Answer to a request
 export type Reply = { status: number; headers: Record<string, string>; body: Buffer | string };
 // Libraries of the site: name (also its URL part) -> local folder
@@ -166,6 +181,13 @@ export const has3dRelease = (): boolean => FILES_3D.every((name) => fs.existsSyn
 
 const byName = (a: Entry, b: Entry): number => Number(b.folder) - Number(a.folder) || a.name.localeCompare(b.name);
 
+/** @param p server-relative @returns one of the made-up authors, always the same for that path */
+function authorOf(p: string): string {
+    let h = 0;
+    for (const c of p) h = (h * 31 + (c.codePointAt(0) ?? 0)) >>> 0;
+    return AUTHORS[h % AUTHORS.length];
+}
+
 /** @param library server-relative @returns its folders (server-relative) -> entries (uploads over the originals) */
 function tree(libs: Libraries, library: string, uploads?: string): Record<string, Entry[]> {
     const out: Record<string, Entry[]> = {};
@@ -189,6 +211,9 @@ function tree(libs: Libraries, library: string, uploads?: string): Record<string
             entries.splice(i < 0 ? entries.length : i, i < 0 ? 0 : 1, { ...e, uploaded: true });
         }
         entries.sort(byName);
+    }
+    for (const [folder, entries] of Object.entries(out)) {
+        for (const e of entries) e.author = e.uploaded ? UPLOADER : authorOf(`${folder}/${e.name}`);
     }
     return out;
 }
@@ -257,10 +282,15 @@ function listPage(libs: Libraries, library: string, uploads?: string): Reply {
   .card { flex: 1; height: 100%; min-height: 0; border: 1px solid #e1dfdd; border-radius: 8px; }
   .scroller { height: 100%; overflow-y: auto; }
   [role="row"] { display: flex; align-items: center; height: 42px; border-bottom: 1px solid #f3f2f1; }
+  [role="row"]:not(.header):hover { background: #f8f8f8; }
+  [role="row"].header { background: #e1dfdd; color: #201f1e; font-weight: 600; border-bottom: 1px solid #c8c6c4; }
   [role="columnheader"], [role="gridcell"], [role="rowheader"] { padding: 0 8px; display: flex; align-items: center; gap: 8px; }
-  .c-icon { width: 48px; }
+  .c-select { flex: none; width: 48px; } /* selection column (as Sharepoint's): the userscript puts its eye here */
+  .c-icon { flex: none; width: 40px; }
   .c-name { flex: 1; min-width: 0; }
-  .c-size { width: 100px; }
+  .c-author { width: 160px; color: #605e5c; }
+  .c-size { width: 100px; color: #605e5c; justify-content: flex-end; }
+  .header .c-author, .header .c-size { color: inherit; }
   .c-name button, .c-name a { all: unset; cursor: pointer; }
   .c-name button:hover, .c-name a:hover { text-decoration: underline; }
   .c-icon img { width: 20px; height: 20px; }
@@ -286,8 +316,10 @@ function listPage(libs: Libraries, library: string, uploads?: string): Reply {
             <div class="scroller">
               <div role="grid" aria-label="${esc(name)}" id="grid">
                 <div role="row" class="header">
+                  <div role="columnheader" class="c-select" aria-label="Selection"></div>
                   <div role="columnheader" class="c-icon" aria-label="File type"></div>
                   <div role="columnheader" class="c-name">Name</div>
+                  <div role="columnheader" class="c-author">Modified By</div>
                   <div role="columnheader" class="c-size">File size</div>
                 </div>
               </div>
@@ -307,7 +339,12 @@ function listPage(libs: Libraries, library: string, uploads?: string): Reply {
   const search = document.getElementById('search');
   const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const icon = (e) => e.folder ? '/_layouts/15/images/itemtypefolder.svg' : '/_layouts/15/images/itemtypegeneric.svg';
-  const size = (e) => e.folder ? '' : e.size + ' bytes' + (e.uploaded ? ' <span class="uploaded">· uploaded</span>' : '');
+  const bytes = (n) => n < 1024 ? n + ' bytes' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
+  const items = (path) => {
+    const n = (TREE[path] || []).length;
+    return n + (n === 1 ? ' item' : ' items');
+  };
+  const size = (e) => e.folder ? items(e.path) : bytes(e.size) + (e.uploaded ? ' <span class="uploaded">· uploaded</span>' : '');
   const folderLink = (folder, text) =>
     '<a href="' + LIST_PAGE + '?id=' + encodeURIComponent(folder) + '" data-folder>' + esc(text) + '</a>';
 
@@ -368,8 +405,10 @@ function listPage(libs: Libraries, library: string, uploads?: string): Reply {
       // Same row element, new cells contents: like Sharepoint after navigation; files: name only, no path
       const nameField = e.folder ? folderLink(e.path, e.name) : '<button type="button">' + esc(e.name) + '</button>';
       row.innerHTML =
+        '<div role="gridcell" class="c-select"></div>' +
         '<div role="gridcell" class="c-icon"><img alt="" src="' + icon(e) + '"></div>' +
         '<div role="gridcell" class="c-name" data-automationid="field-LinkFilename">' + nameField + '</div>' +
+        '<div role="gridcell" class="c-author">' + esc(e.author || '') + '</div>' +
         '<div role="gridcell" class="c-size">' + size(e) + '</div>';
     });
   }
@@ -557,7 +596,7 @@ export function handle(
         return {
             status: 200,
             headers: { 'content-type': 'image/svg+xml' },
-            body: '<svg xmlns="http://www.w3.org/2000/svg"/>',
+            body: ICONS[path.basename(pathname)] ?? '<svg xmlns="http://www.w3.org/2000/svg"/>',
         };
     }
     if (pathname.startsWith(`${RELEASE_FOLDER}/`)) {
