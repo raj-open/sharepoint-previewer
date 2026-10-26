@@ -282,6 +282,7 @@ function listPage(libs: Libraries, library: string, uploads?: string): Reply {
   .card { flex: 1; height: 100%; min-height: 0; border: 1px solid #e1dfdd; border-radius: 8px; }
   .scroller { height: 100%; overflow-y: auto; }
   [role="row"] { display: flex; align-items: center; height: 42px; border-bottom: 1px solid #f3f2f1; }
+  [role="row"][hidden] { display: none; }
   [role="row"]:not(.header):hover { background: #f8f8f8; }
   [role="row"].header { background: #e1dfdd; color: #201f1e; font-weight: 600; border-bottom: 1px solid #c8c6c4; }
   [role="columnheader"], [role="gridcell"], [role="rowheader"] { padding: 0 8px; display: flex; align-items: center; gap: 8px; }
