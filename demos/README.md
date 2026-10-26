@@ -14,7 +14,8 @@ and text files can be edited and uploaded again.
 All screenshots show the mock Sharepoint of the tests
 (`/tests/mocks/mock-sharepoint`, made-up files and people),
 written by `just demos` (cf. `/scripts/demos.ts`).
-Technical descriptions: [NOTES.md](../NOTES.md).
+Technical descriptions: [NOTES.md](../NOTES.md)
+(how the parts communicate: [§3](../NOTES.md#3-architecture)).
 
 ## Pages ##
 

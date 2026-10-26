@@ -22,8 +22,8 @@ stateDiagram-v2
     uploaded --> edited: type again
     edited --> reading: Esc or Edit (asks)
     saved --> reading: Esc or Edit (saved changes kept)
-    edited --> reading: Cancel (asks; drops all)
-    saved --> reading: Cancel (asks; drops all)
+    edited --> reading: Cancel (asks, drops all)
+    saved --> reading: Cancel (asks, drops all)
 ```
 
 - **Save** keeps the edits in the browser only; **Upload** hands the saved text to Sharepoint,
