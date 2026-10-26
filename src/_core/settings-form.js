@@ -75,8 +75,24 @@ export function openSettingsForm() {
     // Follow viewer's light / dark choice; soft colours instead of pure white
     const dark = view.theme === 'dark';
     const c = dark
-        ? { bg: '#2b2b2e', fg: '#e6e6e6', field: '#1f1f22', border: '#55555a', muted: '#a8a8ad', bad: '#f1707b' }
-        : { bg: '#f4f3f1', fg: '#242322', field: '#fbfaf9', border: '#c8c6c4', muted: '#605e5c', bad: '#c50f1f' };
+        ? {
+              bg: '#2b2b2e',
+              fg: '#e6e6e6',
+              field: '#1f1f22',
+              border: '#55555a',
+              muted: '#a8a8ad',
+              bad: '#f1707b',
+              warn: '#e3b341',
+          }
+        : {
+              bg: '#f4f3f1',
+              fg: '#242322',
+              field: '#fbfaf9',
+              border: '#c8c6c4',
+              muted: '#605e5c',
+              bad: '#c50f1f',
+              warn: '#8a5300',
+          };
     const font = "'Segoe UI', system-ui, -apple-system, sans-serif"; // single quotes: used inside style="…"
     const mono = 'Consolas, monospace';
     wrap.style.cssText = `position:fixed; inset:0; z-index:2147483100; background:rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center; font:13px ${font};`;
@@ -259,6 +275,7 @@ export function openSettingsForm() {
         if (mode === 'json') {
             const { errors } = readJson();
             errorsEl.textContent = errors ? errors.join('\n') : '';
+            errorsEl.style.color = c.bad;
             json.style.borderColor = errors ? c.bad : c.border;
             json.style.boxShadow = errors ? `0 0 0 1px ${c.bad}` : 'none';
         }
@@ -333,6 +350,18 @@ export function openSettingsForm() {
         update();
     };
 
+    // JSON entered: obsolete settings dropped and missing ones added on Save (warning below JSON)
+    /** @returns {string[]} */
+    const completions = () => {
+        const keys = Object.keys(JSON.parse(json.value));
+        const dropped = keys.filter((key) => !(key in DEFAULTS));
+        const added = Object.keys(DEFAULTS).filter((key) => !keys.includes(key));
+        return [
+            dropped.length ? `Obsolete settings dropped: ${dropped.join(', ')}` : '',
+            added.length ? `Missing settings added (defaults): ${added.join(', ')}` : '',
+        ].filter(Boolean);
+    };
+
     form.onsubmit = (e) => {
         e.preventDefault();
         const values = current();
@@ -347,9 +376,14 @@ export function openSettingsForm() {
             Object.assign(stored, values);
             saved = JSON.stringify(values);
         }
+        const warnings = mode === 'json' ? completions() : [];
         if (mode === 'json') setJson(toJson(values));
         update();
         note.textContent = fresh ? 'Saved. Reload the page to apply.' : 'JSON completed: nothing new to save.';
+        if (warnings.length) {
+            errorsEl.style.color = c.warn;
+            errorsEl.textContent = warnings.join('\n');
+        }
     };
 
     // Close (✕, Cancel, Esc, click beside): asks first if unsaved
