@@ -7,9 +7,13 @@ import { load } from '../../helpers.ts';
 const { rkNumber, XLSB_PARTS } = await load('readers/sheets/xlsb.ts');
 
 // record: type and size as 7-bit varints
-const rec = (type, data = []) => [...(type < 128 ? [type] : [(type & 0x7f) | 0x80, type >> 7]), data.length, ...data];
-const u32 = (n) => [n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >>> 24) & 255];
-const wide = (s) => [...u32(s.length), ...[...s].flatMap((c) => [c.charCodeAt(0), 0])];
+const rec = (type: number, data: number[] = []): number[] => [
+    ...(type < 128 ? [type] : [(type & 0x7f) | 0x80, type >> 7]),
+    data.length,
+    ...data,
+];
+const u32 = (n: number): number[] => [n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >>> 24) & 255];
+const wide = (s: string): number[] => [...u32(s.length), ...[...s].flatMap((c) => [c.charCodeAt(0), 0])];
 
 describe('readers/sheets/xlsb', () => {
     it('RK: integers, ×100, doubles', () => {
@@ -30,7 +34,7 @@ describe('readers/sheets/xlsb', () => {
         ]);
     });
     it('sheet: rows and cells of several types', () => {
-        const cell = (c, style = 0) => [...u32(c), ...u32(style)];
+        const cell = (c: number, style = 0): number[] => [...u32(c), ...u32(style)];
         const bytes = new Uint8Array([
             ...rec(0, u32(0)),
             ...rec(7, [...cell(0), ...u32(0)]), // shared string
@@ -49,7 +53,7 @@ describe('readers/sheets/xlsb', () => {
         const list = [...u32(2), ...u32(5), ...u32(1), ...u32(3), ...u32(0), ...u32(1), ...u32(1), ...u32(1)];
         const fixed = [...list, ...u32(0), ...Array(6).fill(none).flat(), ...u32(0)];
         // BrtBeginListCol: id, total function, 3 styles, query field; name (none), caption
-        const col = (caption) => [
+        const col = (caption: string): number[] => [
             ...u32(1),
             ...u32(0),
             ...none,

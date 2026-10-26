@@ -2,16 +2,19 @@
 import assert from 'node:assert/strict';
 import { describe } from 'node:test';
 import { it } from 'node:test';
+import type { Fake } from '../helpers.ts';
 import { element } from '../helpers.ts';
 import { load } from '../helpers.ts';
 
-const added = [];
+const added: Fake[] = [];
 const head = element();
-globalThis.document = {
-    createElement: (tag) => Object.assign(element(), { tag }),
-    documentElement: { append: (...els) => added.push(...els) },
-    head,
-};
+Object.assign(globalThis, {
+    document: {
+        createElement: (tag: string) => Object.assign(element(), { tag }),
+        documentElement: { append: (...els: Fake[]) => added.push(...els) },
+        head,
+    },
+});
 const styles = await load('ui/styles.ts');
 const before = added.length;
 styles.injectStyles();

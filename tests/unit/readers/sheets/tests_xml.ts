@@ -8,7 +8,7 @@ const { scanXml, xmlAttrs, xmlText, ooxmlText, xmlString } = await load('readers
 
 describe('readers/sheets/xml', () => {
     it('tags without prefix, empty tags open and close, text between', () => {
-        const events = [];
+        const events: string[] = [];
         scanXml(
             '<?xml version="1.0"?><!-- c > d --><x:a k="1"><b/>t &amp; u<![CDATA[<raw>]]></x:a>',
             (n) => events.push(`<${n}`),

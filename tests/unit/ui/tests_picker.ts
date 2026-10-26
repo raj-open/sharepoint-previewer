@@ -16,7 +16,7 @@ const node = () =>
         getBoundingClientRect: () => ({ top: 500, right: 400, bottom: 530 }),
         querySelector: () => null,
     });
-globalThis.document = { createElement: node, addEventListener() {}, removeEventListener() {} };
+Object.assign(globalThis, { document: { createElement: node, addEventListener() {}, removeEventListener() {} } });
 
 const LISTS = [
     { label: 'Sheets', items: [{ text: '● Prices' }, { text: '○ Notes' }], empty: 'No sheets', start: 0 },
@@ -37,7 +37,7 @@ describe('ui/picker', () => {
     });
 
     it('nothing chosen yet (item -1): menu marks the list start, any entry is a pick', () => {
-        const picks = [];
+        const picks: [number, number][] = [];
         const p = createPicker(node(), (list, item) => picks.push([list, item]));
         p.set(LISTS, { list: 0, item: -1 }, 'Select', '');
         p.button.onclick();
@@ -66,8 +66,7 @@ describe('ui/picker', () => {
     });
 
     it('↑ ↓ Enter pick an entry of the list shown; Esc closes without a pick', () => {
-        /** @type {number[][]} */
-        const picks = [];
+        const picks: number[][] = [];
         const p = createPicker(node(), (list, item) => picks.push([list, item]));
         p.set(LISTS, { list: 0, item: 0 }, 'Prices', '');
         p.button.onclick();

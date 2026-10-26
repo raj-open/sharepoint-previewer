@@ -8,8 +8,7 @@ import { ORIGIN } from '../helpers.ts';
 const { markdownHtml, inlineHtml, slug } = await load('view/markdown.ts');
 
 const BASE = `${ORIGIN}/sites/Test/Shared%20Documents/docs/`;
-/** @param {string} md */
-const html = (md) => markdownHtml(md, { base: BASE });
+const html = (md: string) => markdownHtml(md, { base: BASE });
 
 describe('view/markdown', () => {
     it('headings (ATX, setext) with anchors, paragraphs, rules', () => {

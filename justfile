@@ -229,10 +229,12 @@ lint-check:
     cd "${tmp}"
     "${root}/{{BIOME}}" check --write --vcs-enabled=false {{LINT_PATHS}}
 
-# type check of the modules (strict; cf. /tsconfig.json), as the editor shows it
+# type check (strict) of the modules, tests and scripts (cf. /tsconfig.json, /tests/tsconfig.json, /scripts/tsconfig.json)
 [group("quality")]
 type-check:
     @"{{TSC}}" -p tsconfig.json
+    @"{{TSC}}" -p tests/tsconfig.json
+    @"{{TSC}}" -p scripts/tsconfig.json
 
 # ----------------------------------------------------------------
 # TARGETS - clean

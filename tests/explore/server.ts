@@ -19,6 +19,8 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import type { Files } from '../mocks/mock-sharepoint/server.ts';
+import type { Reply } from '../mocks/mock-sharepoint/server.ts';
 import * as sharepoint from '../mocks/mock-sharepoint/server.ts';
 import { userscript } from '../mocks/mock-sharepoint/userscript.ts';
 
@@ -61,35 +63,31 @@ const MOUNTS = { 'Mock Data': sharepoint.PATH_FILES, 'Data': path.join(ROOT, 'da
 // replies
 // --------------------------------
 
-/** @param {string} body @returns {import('../mocks/mock-sharepoint/server.ts').Reply} */
-const script = (body) => ({ status: 200, headers: { 'content-type': SCRIPT_TYPE, ...NO_CACHE }, body });
+const script = (body: string): Reply => ({ status: 200, headers: { 'content-type': SCRIPT_TYPE, ...NO_CACHE }, body });
 
-/** @param {string} location @returns {import('../mocks/mock-sharepoint/server.ts').Reply} */
-const redirect = (location) => ({ status: 302, headers: { location }, body: '' });
+const redirect = (location: string): Reply => ({ status: 302, headers: { location }, body: '' });
 
-/** @param {string} dir @returns {string} relative to the working folder, if inside it */
-const shortPath = (dir) => {
+/** @returns relative to the working folder, if inside it */
+const shortPath = (dir: string): string => {
     const rel = path.relative(process.cwd(), dir);
     return rel && !rel.startsWith('..') ? rel : dir;
 };
 
-/** @param {import('../mocks/mock-sharepoint/server.ts').Files} files @returns {string[]} what the library shows */
-function libraryNotes(files) {
+/** @returns what the library shows */
+function libraryNotes(files: Files): string[] {
     if (typeof files === 'string') return [`Library: ${shortPath(files)}`];
     return Object.entries(files).map(([name, dir]) => `Library folder "${name}": ${shortPath(dir)}`);
 }
 
-/** @param {string} s @returns {string} text for an HTML attribute */
-const attr = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+/** @returns text for an HTML attribute */
+const attr = (s: string): string => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
 /**
  * Page with the Tampermonkey stand-in, which then loads the userscript (at DOMContentLoaded).
  * Settings not stored yet start with `defaults`; `notes` go into the stand-in's panel.
- * @param {import('../mocks/mock-sharepoint/server.ts').Reply} reply html page
- * @param {import('../mocks/mock-sharepoint/server.ts').Files} files
- * @returns {import('../mocks/mock-sharepoint/server.ts').Reply}
+ * @param reply html page
  */
-function inject(reply, files) {
+function inject(reply: Reply, files: Files): Reply {
     const built = sharepoint.has3dRelease();
     const release = shortPath(sharepoint.PATH_RELEASE);
     const defaults = JSON.stringify({ 'viewer-3d-folder': sharepoint.RELEASE_SETTING, 'logo': LOGO });
@@ -105,18 +103,16 @@ function inject(reply, files) {
 }
 
 /**
- * @param {http.IncomingMessage} req
- * @param {import('../mocks/mock-sharepoint/server.ts').Files} library folder, or folders by name
- * @returns {import('../mocks/mock-sharepoint/server.ts').Reply}
+ * @param library folder, or folders by name
  */
-function answer(req, library) {
+function answer(req: http.IncomingMessage, library: Files): Reply {
     const files = sharepoint.resolveFiles(library); // per request: folders may come and go
     const url = new URL(req.url ?? '/', sharepoint.ORIGIN);
     if (url.pathname === '/') return redirect(encodeURI(sharepoint.LIST_PAGE));
     if (url.pathname === `${PREFIX}/tampermonkey.js`) return script(fs.readFileSync(PATH_SHIM, 'utf8'));
     if (url.pathname === `${PREFIX}/userscript.js`) return script(userscript());
 
-    const headers = /** @type {Object<string, string>} */ (req.headers);
+    const headers = req.headers as Record<string, string>;
     const reply = sharepoint.handle({ url: url.href, method: req.method ?? 'GET', headers }, { files });
     return String(reply.headers['content-type']).startsWith('text/html') ? inject(reply, files) : reply;
 }
@@ -125,15 +121,15 @@ function answer(req, library) {
 // server
 // --------------------------------
 
-/** @param {string} port @param {string} [folder] library folder (default: Mock Data and Data) */
-function serve(port, folder) {
+/** @param folder library folder (default: Mock Data and Data) */
+function serve(port: string, folder?: string) {
     const library = folder ? path.resolve(folder) : MOUNTS;
     if (typeof library === 'string' && !(fs.existsSync(library) && fs.statSync(library).isDirectory())) {
         console.error(`not a folder: ${library}`);
         process.exit(1);
     }
     const server = http.createServer((req, res) => {
-        let reply;
+        let reply: Reply;
         try {
             reply = answer(req, library);
         } catch (err) {

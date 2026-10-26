@@ -12,8 +12,8 @@ const { readBook, openSheetSource } = await load('readers/sheets/index.ts');
 const lib = { readBook };
 const signal = () => new AbortController().signal;
 
-/** @param {Uint8Array} bytes @returns {Promise<Object>} workbook with all sheets read */
-async function readAll(bytes) {
+/** @returns workbook with all sheets read */
+async function readAll(bytes: Uint8Array) {
     const { read } = reader(bytes);
     const book = await lib.readBook(read, bytes.length, bytes.subarray(0, 8));
     for (const [i, s] of book.sheets.entries()) if (s.data === undefined) s.data = await book.load(i);
@@ -93,7 +93,8 @@ describe('sheet-wise reading', () => {
         'xl/worksheets/sheet3.xml': `<worksheet><sheetData>${rows('three')}</sheetData></worksheet>`,
     });
     // entry fetched = its local header read (the directory read at the end may graze the last entry)
-    const touches = (ranges, [a]) => ranges.some(([from, to]) => from <= a && to >= a + 30);
+    const touches = (ranges: [number, number][], [a]: [number, number]) =>
+        ranges.some(([from, to]) => from <= a && to >= a + 30);
 
     it('reads only the workbook first, then each sheet when asked for', async () => {
         const { read, ranges } = reader(bytes);

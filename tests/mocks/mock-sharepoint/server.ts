@@ -44,7 +44,7 @@ const ICON =
             '<circle cx="12" cy="13" r="6" fill="#7fd1d8"/><circle cx="20" cy="20" r="7" fill="#fff" opacity=".85"/></svg>',
     );
 
-const TYPES = {
+const TYPES: Record<string, string> = {
     '.csv': 'text/csv',
     '.ifc': 'application/octet-stream',
     '.js': 'application/javascript',
@@ -60,20 +60,21 @@ const TYPES = {
     '.xml': 'text/xml',
 };
 
-/**
- * @typedef {{ name: string, folder: boolean, size: number }} Entry
- * @typedef {{ status: number, headers: Object<string, string>, body: Buffer|string }} Reply
- * @typedef {string|Object<string, string>} Files library folder, or folders shown by name in the library root
- */
+// Entry of a folder listing
+type Entry = { name: string; folder: boolean; size: number };
+// Answer to a request
+export type Reply = { status: number; headers: Record<string, string>; body: Buffer | string };
+// Library folder, or folders shown by name in the library root
+export type Files = string | Record<string, string>;
 
-/** @param {string} root @param {string} rel @returns {string|null} local path, never outside root (no "..") */
-function within(root, rel) {
+/** @returns local path, never outside root (no "..") */
+function within(root: string, rel: string): string | null {
     const local = path.join(root, rel);
     return local === root || local.startsWith(root + path.sep) ? local : null;
 }
 
-/** @param {Files} files @param {string} folder server-relative @returns {string|null} local path */
-function localPath(files, folder) {
+/** @param folder server-relative @returns local path */
+function localPath(files: Files, folder: string): string | null {
     if (folder !== LIBRARY && !folder.startsWith(`${LIBRARY}/`)) return null;
     const rel = folder.slice(LIBRARY.length);
     if (typeof files === 'string') return within(files, rel);
@@ -81,17 +82,17 @@ function localPath(files, folder) {
     return Object.hasOwn(files, name) ? within(files[name], rest.join('/')) : null;
 }
 
-/** @param {Files} files @returns {Files} with absolute paths; folders not there left out */
-export function resolveFiles(files) {
+/** @returns with absolute paths; folders not there left out */
+export function resolveFiles(files: Files): Files {
     if (typeof files === 'string') return path.resolve(files);
     const found = Object.entries(files)
-        .map(([name, dir]) => [name, path.resolve(dir)])
+        .map(([name, dir]) => [name, path.resolve(dir)] as const)
         .filter(([, dir]) => fs.existsSync(dir) && fs.statSync(dir).isDirectory());
     return Object.fromEntries(found);
 }
 
-/** @param {string} dir @returns {Entry[]} folders first, then files; hidden entries left out */
-function listing(dir) {
+/** @returns folders first, then files; hidden entries left out */
+function listing(dir: string): Entry[] {
     return fs
         .readdirSync(dir, { withFileTypes: true })
         .filter((d) => !d.name.startsWith('.'))
@@ -103,15 +104,13 @@ function listing(dir) {
         .sort((a, b) => Number(b.folder) - Number(a.folder) || a.name.localeCompare(b.name));
 }
 
-/** @returns {boolean} 3D files of this version are built (`just build`) */
-export const has3dRelease = () => FILES_3D.every((name) => fs.existsSync(path.join(PATH_RELEASE, name)));
+/** @returns 3D files of this version are built (`just build`) */
+export const has3dRelease = (): boolean => FILES_3D.every((name) => fs.existsSync(path.join(PATH_RELEASE, name)));
 
-/** @param {Files} files @returns {Object<string, Entry[]>} server-relative folder -> entries */
-function tree(files) {
-    /** @type {Object<string, Entry[]>} */
-    const out = {};
-    /** @param {string} folder */
-    const walk = (folder) => {
+/** @returns server-relative folder -> entries */
+function tree(files: Files): Record<string, Entry[]> {
+    const out: Record<string, Entry[]> = {};
+    const walk = (folder: string) => {
         const local = localPath(files, folder);
         const entries = local
             ? listing(local)
@@ -129,14 +128,15 @@ function tree(files) {
     return out;
 }
 
-/** @param {string} body @returns {Reply} */
-const html = (body) => ({ status: 200, headers: { 'content-type': 'text/html; charset=utf-8' }, body });
+const html = (body: string): Reply => ({ status: 200, headers: { 'content-type': 'text/html; charset=utf-8' }, body });
 
-/** @param {number} status @returns {Reply} */
-const fail = (status) => ({ status, headers: { 'content-type': 'text/plain' }, body: `Error ${status}` });
+const fail = (status: number): Reply => ({
+    status,
+    headers: { 'content-type': 'text/plain' },
+    body: `Error ${status}`,
+});
 
-/** @param {Files} files @returns {Reply} */
-function listPage(files) {
+function listPage(files: Files): Reply {
     return html(`<!doctype html>
 <html lang="en">
 <head>
@@ -259,8 +259,8 @@ function listPage(files) {
 </html>`);
 }
 
-/** @param {string} file local path @param {string} method @param {string|undefined} range @returns {Reply} */
-function serveFile(file, method, range) {
+/** @param file local path */
+function serveFile(file: string, method: string, range: string | undefined): Reply {
     const data = fs.readFileSync(file);
     const headers = {
         'content-type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream',
@@ -295,11 +295,13 @@ function serveFile(file, method, range) {
 
 /**
  * Answers one request to the mock SharePoint.
- * @param {{ url: string, method: string, headers: Object<string, string> }} request
- * @param {{ files?: Files }} [opts] library folder (default: ./library), or folders by name in the library root
- * @returns {Reply}
+ *
+ * @param opts library folder (default: ./library), or folders by name in the library root
  */
-export function handle({ url, method, headers }, { files = PATH_FILES } = {}) {
+export function handle(
+    { url, method, headers }: { url: string; method: string; headers: Record<string, string> },
+    { files = PATH_FILES }: { files?: Files } = {},
+): Reply {
     const u = new URL(url);
     const pathname = decodeURIComponent(u.pathname);
     const root = resolveFiles(files);

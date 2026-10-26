@@ -20,15 +20,15 @@ describe('viewer/cache', () => {
         memoryCache.clear();
         keepInMemory('/a', entry(MEMORY_CACHE_BYTES - 10));
         assert.equal(makeRoom({ file: { url: '/b' } }, 5), true);
-        const asked = [];
-        globalThis.confirm = (q) => asked.push(q) > 0;
+        const asked: string[] = [];
+        globalThis.confirm = (q) => asked.push(String(q)) > 0;
         assert.equal(makeRoom({ file: { url: '/b' } }, 100), true);
         assert.match(asked[0], /The cache is full/);
         assert.equal(memoryCache.size, 0);
         assert.ok(clearedUrls.has('/a'));
     });
     it('file alone bigger than the limit: refused', () => {
-        globalThis.alert = (m) => assert.match(m, /bigger than the cache limit/);
+        globalThis.alert = (m) => assert.match(String(m), /bigger than the cache limit/);
         assert.equal(makeRoom({ file: { url: '/x' } }, MEMORY_CACHE_BYTES + 1), false);
     });
     it('clear all', () => {

@@ -10,7 +10,7 @@ const yaml = await load('text/lint/yaml.ts');
 
 describe('text/lint/worker', () => {
     it('no Worker available: checked on the page', async () => {
-        globalThis.Worker = undefined;
+        Object.assign(globalThis, { Worker: undefined });
         const r = await lintFile({}, 'json', '{"a": }');
         assert.equal(r.problems.length, 1);
     });

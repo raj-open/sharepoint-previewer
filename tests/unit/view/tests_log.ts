@@ -6,8 +6,7 @@ import { load } from '../helpers.ts';
 
 const { parseLog, levelClass, logExpand } = await load('view/log.ts');
 
-/** @param {string} text */
-const table = (text) => {
+const table = (text: string) => {
     const t = parseLog(text);
     return t && [t.header, ...t.rows];
 };

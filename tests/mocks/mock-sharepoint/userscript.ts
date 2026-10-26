@@ -21,14 +21,13 @@ const PATH_SCRIPT = path.join(ROOT, 'dist/userscript.js');
 // METHODS
 // ================================================================
 
-/** @param {string} file @returns {string} */
-const sha256 = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+const sha256 = (file: string): string => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 
-/** @returns {string} userscript, read afresh (picks up `just build-src`) */
-export function userscript() {
+/** @returns userscript, read afresh (picks up `just build-src`) */
+export function userscript(): string {
     let text = fs.readFileSync(PATH_SCRIPT, 'utf8');
     if (has3dRelease()) {
-        const hash = (name) => sha256(path.join(PATH_RELEASE, name));
+        const hash = (name: string) => sha256(path.join(PATH_RELEASE, name));
         text = text
             .replace(/(VIEWER_3D_JS_SHA256\s*=\s*["'])[^"']*/, `$1${hash('ifc-lite-3d.js')}`)
             .replace(/(VIEWER_3D_WASM_SHA256\s*=\s*["'])[^"']*/, `$1${hash('ifc-lite_bg.wasm')}`);

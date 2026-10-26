@@ -11,7 +11,7 @@ const bytes = Uint8Array.from({ length: 1000 }, (_, i) => i % 256);
 describe('readers/ranges', () => {
     it('size and signature from a small request, then parts on demand', async () => {
         const requests = serve({ '/f.bin': bytes });
-        const progress = [];
+        const progress: [number, number][] = [];
         const file = await openRanges('/f.bin', signal, false, (a, b) => progress.push([a, b]));
         assert.equal(file.size, 1000);
         assert.deepEqual([...file.head], [0, 1, 2, 3, 4, 5, 6, 7]);

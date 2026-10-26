@@ -11,7 +11,7 @@ import { ROOT } from '../helpers.ts';
 
 const DIR = path.join(ROOT, 'src');
 const modules = fs
-    .readdirSync(DIR, { recursive: true })
+    .readdirSync(DIR, { recursive: true, encoding: 'utf8' })
     .filter(
         (f) =>
             f.endsWith('.ts') &&

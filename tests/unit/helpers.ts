@@ -14,8 +14,13 @@ export const ORIGIN = 'https://acme.sharepoint.com';
 // Stubs
 // ----------------------------------------------------------------
 
+// Stand-ins for browser objects: loose by design
+// biome-ignore lint/suspicious/noExplicitAny: stubs take any shape
+export type Fake = Record<string, any>;
+
 /** Anything: callable, constructible, every property is again a stub (DOM wiring at module load). */
-export function anything(name = 'stub') {
+// biome-ignore lint/suspicious/noExplicitAny: a stub is whatever its user expects
+export function anything(name = 'stub'): any {
     // biome-ignore lint/complexity/useArrowFunction: proxy target must be constructible (new MutationObserver …)
     return new Proxy(function () {}, {
         get: (_, key) => {
@@ -31,50 +36,57 @@ export function anything(name = 'stub') {
 }
 
 /** Tampermonkey storage, localStorage, menu commands: inspectable by tests. */
-export const gm = { store: {}, menu: {}, local: new Map() };
+export const gm = {
+    store: {} as Record<string, unknown>,
+    menu: {} as Record<string, () => void>,
+    local: new Map<string, string>(),
+};
 
 Object.assign(globalThis, {
-    GM_getValue: (key) => gm.store[key],
-    GM_setValue: (key, value) => {
+    GM_getValue: (key: string) => gm.store[key],
+    GM_setValue: (key: string, value: unknown) => {
         gm.store[key] = value;
     },
-    GM_registerMenuCommand: (label, fn) => {
+    GM_registerMenuCommand: (label: string, fn: () => void) => {
         gm.menu[label] = fn;
     },
     GM_info: { script: { version: 'test' } },
     localStorage: {
-        getItem: (k) => (gm.local.has(k) ? gm.local.get(k) : null),
-        setItem: (k, v) => gm.local.set(k, String(v)),
-        removeItem: (k) => gm.local.delete(k),
+        getItem: (k: string) => gm.local.get(k) ?? null,
+        setItem: (k: string, v: unknown) => gm.local.set(k, String(v)),
+        removeItem: (k: string) => gm.local.delete(k),
     },
     location: new URL(`${ORIGIN}/sites/Test/Shared%20Documents/Forms/AllItems.aspx`),
-    requestAnimationFrame: (fn) => setTimeout(fn, 0),
+    requestAnimationFrame: (fn: () => void) => setTimeout(fn, 0),
     innerWidth: 1400,
     innerHeight: 900,
 });
 for (const name of ['document', 'window', 'MutationObserver', 'ResizeObserver', 'IntersectionObserver', 'NodeFilter']) {
-    globalThis[name] = anything(name);
+    Object.assign(globalThis, { [name]: anything(name) });
 }
 
 /** Points location at another page (current folder, links). */
-export function setLocation(href) {
-    globalThis.location = new URL(href, ORIGIN);
+export function setLocation(href: string): void {
+    Object.assign(globalThis, { location: new URL(href, ORIGIN) });
 }
 
 // ----------------------------------------------------------------
 // Modules and files
 // ----------------------------------------------------------------
 
-/** @param {string} module path under /src @returns {Promise<Object>} */
-export const load = (module) => import(path.join(ROOT, 'src', module));
+/** @param module path under /src @returns its exports (loosely typed: tests call them freely) */
+export const load = (module: string): Promise<Fake> => import(path.join(ROOT, 'src', module));
 
-/** @param {string} file path under the mock library @returns {Uint8Array} */
-export const fixture = (file) => new Uint8Array(fs.readFileSync(path.join(LIBRARY, file)));
+/** @param file path under the mock library */
+export const fixture = (file: string): Uint8Array => new Uint8Array(fs.readFileSync(path.join(LIBRARY, file)));
 
 /** Byte reader over memory, recording the ranges asked for. */
-export function reader(bytes) {
-    const ranges = [];
-    const read = async (from, to) => {
+export function reader(bytes: Uint8Array): {
+    read: (from: number, to: number) => Promise<Uint8Array>;
+    ranges: [number, number][];
+} {
+    const ranges: [number, number][] = [];
+    const read = async (from: number, to: number) => {
         ranges.push([from, Math.min(to, bytes.length)]);
         return bytes.subarray(from, to);
     };
@@ -83,17 +95,22 @@ export function reader(bytes) {
 
 /**
  * fetch() for files on this origin: answers Range requests (206) unless `ranges` is false (200, whole file).
- * @param {Object<string, Uint8Array|string>} files url path -> content
+ * @param files url path -> content
  */
-export function serve(files, { ranges = true } = {}) {
-    const requests = [];
-    globalThis.fetch = async (url, init = {}) => {
+export function serve(
+    files: Record<string, Uint8Array | string>,
+    { ranges = true } = {},
+): { url: string; range?: string }[] {
+    const requests: { url: string; range?: string }[] = [];
+    const fake = async (url: string | URL, init: { headers?: Record<string, string> } = {}) => {
         const u = new URL(url, location.href);
         const range = init.headers?.Range;
         requests.push({ url: u.pathname, range });
-        let body = files[decodeURIComponent(u.pathname)];
-        if (body === undefined) return new Response('not found', { status: 404 });
-        if (typeof body === 'string') body = new TextEncoder().encode(body);
+        const content = files[decodeURIComponent(u.pathname)];
+        if (content === undefined) return new Response('not found', { status: 404 });
+        const body = (
+            typeof content === 'string' ? new TextEncoder().encode(content) : content
+        ) as Uint8Array<ArrayBuffer>;
         const headers = {
             'last-modified': 'Thu, 01 Oct 2026 12:00:00 GMT',
             'content-type': 'application/octet-stream',
@@ -109,14 +126,15 @@ export function serve(files, { ranges = true } = {}) {
             headers: { ...headers, 'content-range': `bytes ${from}-${to}/${body.length}` },
         });
     };
+    globalThis.fetch = fake as typeof fetch;
     return requests;
 }
 
 /** ZIP archive (deflated entries) from { path: text }; offsets: entry -> [start, end) in archive. */
-export function zip(files) {
-    const parts = [];
-    const central = [];
-    const offsets = {};
+export function zip(files: Record<string, string>): { bytes: Uint8Array; offsets: Record<string, [number, number]> } {
+    const parts: Buffer[] = [];
+    const central: Buffer[] = [];
+    const offsets: Record<string, [number, number]> = {};
     let at = 0;
     for (const [name, text] of Object.entries(files)) {
         const raw = Buffer.from(text);
@@ -150,16 +168,17 @@ export function zip(files) {
 }
 
 /** Text of tokens [[class, text], …] joined: highlighters must not lose or add characters. */
-export const joined = (tokens) => tokens.map(([, t]) => t).join('');
+export const joined = (tokens: [string, string][]): string => tokens.map(([, t]) => t).join('');
 
 /** Classes given to a piece of text by a highlighter. */
-export const classesOf = (tokens, text) => tokens.filter(([, t]) => t === text).map(([c]) => c);
+export const classesOf = (tokens: [string, string][], text: string): string[] =>
+    tokens.filter(([, t]) => t === text).map(([c]) => c);
 
 /** Minimal element: style, classList, text / HTML, attributes, one child for querySelector. */
-export function element() {
-    const classes = new Set();
-    const attrs = new Map();
-    const el = {
+export function element(): Fake {
+    const classes = new Set<string>();
+    const attrs = new Map<string, string>();
+    const el: Fake = {
         style: {},
         hidden: false,
         disabled: false,
@@ -169,22 +188,22 @@ export function element() {
         value: '',
         className: '',
         classList: {
-            add: (...c) => {
+            add: (...c: string[]) => {
                 for (const x of c) classes.add(x);
             },
-            remove: (...c) => {
+            remove: (...c: string[]) => {
                 for (const x of c) classes.delete(x);
             },
-            toggle: (c, on = !classes.has(c)) => {
+            toggle: (c: string, on = !classes.has(c)) => {
                 if (on) classes.add(c);
                 else classes.delete(c);
                 return on;
             },
-            contains: (c) => classes.has(c),
+            contains: (c: string) => classes.has(c),
         },
-        setAttribute: (k, v) => attrs.set(k, String(v)),
-        getAttribute: (k) => attrs.get(k) ?? null,
-        insertAdjacentHTML: (_, html) => {
+        setAttribute: (k: string, v: unknown) => attrs.set(k, String(v)),
+        getAttribute: (k: string) => attrs.get(k) ?? null,
+        insertAdjacentHTML: (_: string, html: string) => {
             el.innerHTML += html;
             el.textContent += html.replace(/<[^>]*>/g, '');
         },
@@ -194,8 +213,8 @@ export function element() {
 }
 
 /** Viewer with the elements status, lint, sheet and edit functions touch. */
-export function fakeViewer(extra = {}) {
-    const v = {};
+export function fakeViewer(extra: Fake = {}): Fake {
+    const v: Fake = {};
     for (const name of [
         'progress',
         'progressBar',
@@ -221,7 +240,7 @@ export function fakeViewer(extra = {}) {
         v[name] = element();
     }
     // picker: what was set last
-    v.sheetPicker = { button: element(), set: (...args) => (v.sheetPicker.last = args), close() {} };
-    v.formatPicker = { button: element(), set: (...args) => (v.formatPicker.last = args), close() {} };
+    v.sheetPicker = { button: element(), set: (...args: unknown[]) => (v.sheetPicker.last = args), close() {} };
+    v.formatPicker = { button: element(), set: (...args: unknown[]) => (v.formatPicker.last = args), close() {} };
     return Object.assign(v, extra);
 }

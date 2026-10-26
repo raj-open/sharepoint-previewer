@@ -15,9 +15,17 @@ const FOLDER = '/teams/T/Shared Documents/Sandbox';
  * fetch() answering list queries with `files` (server-relative, null = list refuses) and search queries
  * with `found` ({ Path, ParentLink?, Filename? }); records request URLs
  */
-function answer({ files = [], found = [], status = 200 }) {
-    const urls = [];
-    globalThis.fetch = async (url) => {
+function answer({
+    files = [],
+    found = [],
+    status = 200,
+}: {
+    files?: string[] | null;
+    found?: Record<string, string>[];
+    status?: number;
+}): string[] {
+    const urls: string[] = [];
+    const fake = async (url: string | URL) => {
         urls.push(String(url));
         if (status !== 200) return new Response('', { status });
         if (String(url).includes('/_api/web/GetList(')) {
@@ -27,6 +35,7 @@ function answer({ files = [], found = [], status = 200 }) {
         const Rows = found.map((x) => ({ Cells: Object.entries(x).map(([Key, Value]) => ({ Key, Value })) }));
         return new Response(JSON.stringify({ PrimaryQueryResult: { RelevantResults: { Table: { Rows } } } }));
     };
+    globalThis.fetch = fake as typeof fetch;
     return urls;
 }
 

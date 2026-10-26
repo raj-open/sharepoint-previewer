@@ -5,17 +5,18 @@ import { after } from 'node:test';
 import { before } from 'node:test';
 import { describe } from 'node:test';
 import { it } from 'node:test';
+import type { Locator } from 'playwright';
+import type { Page } from 'playwright';
 import * as h from './harness.ts';
 
-/** @type {Awaited<ReturnType<typeof h.launch>>} */
-let browser;
+let browser: Awaited<ReturnType<typeof h.launch>>;
 before(async () => {
     browser = await h.launch();
 });
 after(() => browser.close());
 
-/** @param {string} folder @param {Object<string, *>} [settings] @returns {Promise<import('playwright').Page>} list view, once eyes are in */
-async function openFolder(folder, settings = {}) {
+/** @returns list view, once eyes are in */
+async function openFolder(folder: string, settings: Record<string, unknown> = {}): Promise<Page> {
     const { page } = await browser.open(h.folderUrl(folder), { settings });
     await page.locator('.tp-preview').first().waitFor();
     return page;
@@ -25,8 +26,8 @@ async function openFolder(folder, settings = {}) {
 const SHEET_PICKER = '.tp-views:not(.tp-format) > .tp-picker';
 const FORMAT_PICKER = '.tp-format > .tp-picker';
 
-/** @param {import('playwright').Locator} v @returns {Promise<string>} "Properties: …" line */
-const properties = (v) => v.locator('.tp-title').nth(1).textContent();
+/** @returns "Properties: …" line */
+const properties = (v: Locator): Promise<string> => h.text(v.locator('.tp-title').nth(1));
 
 describe('list view', () => {
     it('shows an eye on files only, not on folders', async () => {
@@ -63,7 +64,7 @@ describe('list view', () => {
 });
 
 describe('preview per file type', () => {
-    const cases = [
+    const cases: [string, string, RegExp, string][] = [
         ['', 'notes.txt', /format: Text/, 'Meeting notes'],
         ['', 'README.md', /format: Markdown/, 'Project documents'],
         ['/Data', 'prices.csv', /format: CSV/, 'banana, ripe'],
@@ -138,7 +139,7 @@ describe('preview per file type', () => {
         const detail = v.locator('.tp-table .tp-detail');
         await detail.waitFor();
         assert.deepEqual(await detail.locator('.tp-seg-label').allTextContents(), ['JSON object']);
-        assert.match(await detail.textContent(), /"status": 201/);
+        assert.match(await h.text(detail), /"status": 201/);
         await v.locator('.tp-table tr', { hasText: 'request' }).locator('.tp-expand').click();
         assert.equal(await detail.count(), 0);
         const all = v.locator('.tp-table .tp-expand-all');
@@ -161,7 +162,7 @@ describe('preview per file type', () => {
         assert.equal(await picker.isVisible(), true);
         await picker.click();
         assert.deepEqual(await items.allTextContents(), ['● Prices', '○ Notes', '○ Secret (hidden)']);
-        assert.match(await v.locator('.tp-title-sheet').textContent(), /Sheet: Prices/);
+        assert.match(await h.text(v.locator('.tp-title-sheet')), /Sheet: Prices/);
         assert.equal(await v.locator('.tp-mode-btn[title^="Edit"]').isDisabled(), true);
         assert.equal(await h.eye(page, 'harvest.xlsx').getAttribute('data-eye'), 'half'); // other sheets not cached
 
@@ -206,7 +207,7 @@ describe('preview per file type', () => {
         await page.reload();
         await page.locator('.tp-preview').first().waitFor();
         v = await h.preview(page, 'orders.xlsx');
-        assert.match(await v.locator('.tp-title-sheet').textContent(), /Table: Orders/);
+        assert.match(await h.text(v.locator('.tp-title-sheet')), /Table: Orders/);
     });
 
     it('spreadsheets: tables first by default, sheets if a file has no tables', async () => {
@@ -225,7 +226,7 @@ describe('preview per file type', () => {
         const v = await h.preview(page, 'harvest.xlsx');
         await v.locator('.tp-view-btn', { hasText: 'Text' }).click();
         await v.locator('.tp-content', { hasText: ',A,B,C,D' }).waitFor({ timeout: 5000 });
-        assert.match(await v.locator('.tp-content').textContent(), /1,fruit,price,harvest,ripe/);
+        assert.match(await h.text(v.locator('.tp-content')), /1,fruit,price,harvest,ripe/);
     });
 
     it('spreadsheets: rows striped, column colours off by default', async () => {
@@ -243,7 +244,7 @@ describe('preview per file type', () => {
         const v = await h.preview(page, 'harvest.xlsx'); // 6 KB
         await v.locator('.tp-content', { hasText: 'select a sheet or table first' }).waitFor();
         const picker = v.locator(SHEET_PICKER);
-        assert.equal(await picker.textContent(), 'Select sheet or table ▾');
+        assert.equal(await h.text(picker), 'Select sheet or table ▾');
         assert.equal(await v.locator('.tp-title-sheet').isVisible(), false);
         await picker.click();
         const items = v.locator('.tp-picker-menu').first().locator('.tp-picker-item');
@@ -263,9 +264,8 @@ describe('preview per file type', () => {
         assert.deepEqual(bar, ['tp-progress', 'tp-views tp-format', 'tp-views tp-zoom', 'tp-views']);
         const picker = v.locator(FORMAT_PICKER);
         const menu = v.locator('.tp-picker-menu').last();
-        assert.equal(await picker.textContent(), 'Text ▾');
-        /** @param {'Text'|'Files'} list @param {string} name */
-        const choose = async (list, name) => {
+        assert.equal(await h.text(picker), 'Text ▾');
+        const choose = async (list: 'Text' | 'Files', name: string) => {
             await picker.click();
             await menu.locator('.tp-picker-tab', { hasText: list }).click();
             await menu.locator('.tp-picker-item', { hasText: name }).first().click();
@@ -314,7 +314,7 @@ describe('preview per file type', () => {
     it('refuses binary files', async () => {
         const page = await openFolder(`${h.LIBRARY}/Data`);
         const v = await h.preview(page, 'logo.png');
-        assert.match(await v.locator('.tp-content').textContent(), /Not a plain text file/);
+        assert.match(await h.text(v.locator('.tp-content')), /Not a plain text file/);
     });
 
     it('fetches by byte range and only from SharePoint itself', async () => {
