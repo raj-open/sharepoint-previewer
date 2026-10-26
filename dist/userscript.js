@@ -1486,8 +1486,24 @@
       // Follow viewer's light / dark choice; soft colours instead of pure white
       const dark = view.theme === 'dark';
       const c = dark
-          ? { bg: '#2b2b2e', fg: '#e6e6e6', field: '#1f1f22', border: '#55555a', muted: '#a8a8ad', bad: '#f1707b' }
-          : { bg: '#f4f3f1', fg: '#242322', field: '#fbfaf9', border: '#c8c6c4', muted: '#605e5c', bad: '#c50f1f' };
+          ? {
+                bg: '#2b2b2e',
+                fg: '#e6e6e6',
+                field: '#1f1f22',
+                border: '#55555a',
+                muted: '#a8a8ad',
+                bad: '#f1707b',
+                warn: '#e3b341',
+            }
+          : {
+                bg: '#f4f3f1',
+                fg: '#242322',
+                field: '#fbfaf9',
+                border: '#c8c6c4',
+                muted: '#605e5c',
+                bad: '#c50f1f',
+                warn: '#8a5300',
+            };
       const font = "'Segoe UI', system-ui, -apple-system, sans-serif"; // single quotes: used inside style="…"
       const mono = 'Consolas, monospace';
       wrap.style.cssText = `position:fixed; inset:0; z-index:2147483100; background:rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center; font:13px ${font};`;
@@ -1597,6 +1613,7 @@
           );
 
       // JSON text <-> stored values (LOGO last, as it is long); reasons when it is not valid
+      // (missing settings = defaults, unknown ones ignored: Save writes the completed JSON back)
       /** @param {Object<string, *>} values */
       const toJson = (values) =>
           JSON.stringify(
@@ -1617,13 +1634,13 @@
           }
           if (!data || typeof data !== 'object' || Array.isArray(data))
               return { errors: ['The settings must be one JSON object { … }'] };
+          data = completeSettings(data);
           /** @type {string[]} */
           const errors = [];
-          for (const key of Object.keys(data)) if (!(key in DEFAULTS)) errors.push(`Unknown setting "${key}"`);
           /** @type {Object<string, *>} */
           const values = {};
           for (const [key, , extra] of SETTING_FORM) {
-              const value = key in data ? data[key] : stored[key];
+              const value = data[key];
               const type = typeof defaults[key];
               const expected = type === 'boolean' ? 'true or false' : `a ${type}`;
               if (typeof value !== type) errors.push(`${key}: must be ${expected}`);
@@ -1634,9 +1651,26 @@
                   errors.push(`${key}: must be between 0.2 and 0.8`);
               else if (type === 'number' && !(value > 0 && Number.isFinite(value)))
                   errors.push(`${key}: must be greater than 0`);
-              values[key] = typeof value === 'string' ? value.trim() : value;
+              // trimmed; share rounded to whole % (as form shows it)
+              values[key] =
+                  typeof value === 'string'
+                      ? value.trim()
+                      : key === 'viewer-share'
+                        ? Math.round(value * 100) / 100
+                        : value;
           }
           return errors.length ? { errors } : { values };
+      };
+
+      // JSON text replaced (Save, reset); border flashes briefly if it changed
+      /** @param {string} text */
+      const setJson = (text) => {
+          if (text === json.value) return;
+          json.value = text;
+          json.animate?.([{ borderColor: '#0078d4', boxShadow: '0 0 0 3px #0078d4' }, {}], {
+              duration: 900,
+              easing: 'ease-out',
+          });
       };
 
       // Values currently entered (null: JSON not valid)
@@ -1652,11 +1686,12 @@
           if (mode === 'json') {
               const { errors } = readJson();
               errorsEl.textContent = errors ? errors.join('\n') : '';
+              errorsEl.style.color = c.bad;
               json.style.borderColor = errors ? c.bad : c.border;
               json.style.boxShadow = errors ? `0 0 0 1px ${c.bad}` : 'none';
           }
           const now = current();
-          const on = now !== null && JSON.stringify(now) !== saved;
+          const on = now !== null && (JSON.stringify(now) !== saved || (mode === 'json' && json.value !== toJson(now)));
           saveBtn.disabled = !on;
           saveBtn.style.background = on ? '#0078d4' : 'transparent';
           saveBtn.style.borderColor = on ? '#0078d4' : c.border;
@@ -1698,7 +1733,7 @@
       });
       part('[data-act="reset"]').onclick = () => {
           setForm(DEFAULTS);
-          if (mode === 'json') json.value = toJson(readForm());
+          if (mode === 'json') setJson(toJson(readForm()));
           update();
           note.textContent = 'Defaults filled in: Save to keep them.';
       };
@@ -1726,20 +1761,40 @@
           update();
       };
 
+      // JSON entered: obsolete settings dropped and missing ones added on Save (warning below JSON)
+      /** @returns {string[]} */
+      const completions = () => {
+          const keys = Object.keys(JSON.parse(json.value));
+          const dropped = keys.filter((key) => !(key in DEFAULTS));
+          const added = Object.keys(DEFAULTS).filter((key) => !keys.includes(key));
+          return [
+              dropped.length ? `Unrecognised/obsolete settings dropped: ${dropped.join(', ')}` : '',
+              added.length ? `Missing settings added (defaults): ${added.join(', ')}` : '',
+          ].filter(Boolean);
+      };
+
       form.onsubmit = (e) => {
           e.preventDefault();
           const values = current();
-          if (!values || JSON.stringify(values) === saved) return;
-          for (const [key, value] of Object.entries(values)) {
-              // changed start value replaces choice remembered from viewer
-              if (value !== stored[key] && REMEMBERED_BY[key]) removePref(REMEMBERED_BY[key]);
-              GM_setValue(key, value);
+          if (!values) return;
+          const fresh = JSON.stringify(values) !== saved;
+          if (fresh) {
+              for (const [key, value] of Object.entries(values)) {
+                  // changed start value replaces choice remembered from viewer
+                  if (value !== stored[key] && REMEMBERED_BY[key]) removePref(REMEMBERED_BY[key]);
+                  GM_setValue(key, value);
+              }
+              Object.assign(stored, values);
+              saved = JSON.stringify(values);
           }
-          Object.assign(stored, values);
-          saved = JSON.stringify(values);
-          if (mode === 'json') json.value = toJson(values);
+          const warnings = mode === 'json' ? completions() : [];
+          if (mode === 'json') setJson(toJson(values));
           update();
-          note.textContent = 'Saved. Reload the page to apply.';
+          note.textContent = fresh ? 'Saved. Reload the page to apply.' : 'JSON completed: nothing new to save.';
+          if (warnings.length) {
+              errorsEl.style.color = c.warn;
+              errorsEl.textContent = warnings.join('\n');
+          }
       };
 
       // Close (✕, Cancel, Esc, click beside): asks first if unsaved
@@ -1777,6 +1832,14 @@
       const formHeight = part('[data-pane="form"]').getBoundingClientRect().height;
       json.style.height = `${Math.max(200, Math.round(formHeight) - 43)}px`;
       placeMoved(form, SETTINGS_POS_KEY);
+  }
+  /**
+   * Settings as given, missing ones from defaults, unknown ones dropped (values not checked).
+   * @param {Object<string, *>} data
+   * @returns {Object<string, *>}
+   */
+  function completeSettings(data) {
+      return Object.fromEntries(Object.keys(DEFAULTS).map((key) => [key, key in data ? data[key] : defaults[key]]));
   }
   /** Tampermonkey menu: settings form, reset to defaults. @returns {void} */
   function registerMenu() {
