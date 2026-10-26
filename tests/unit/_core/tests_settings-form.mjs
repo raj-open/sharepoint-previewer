@@ -14,6 +14,14 @@ describe('settings form', () => {
         assert.equal(gm.menu['Settings …'], form.openSettingsForm);
         assert.equal(typeof gm.menu['Reset settings to defaults'], 'function');
     });
+    it('completeSettings: missing from defaults, unknown dropped, given kept', async () => {
+        const { DEFAULTS } = await load('_core/settings.js');
+        const out = form.completeSettings({ 'theme': 'dark', 'layout': 7, 'old-name': true });
+        assert.deepEqual(Object.keys(out), Object.keys(DEFAULTS));
+        assert.equal(out.theme, 'dark');
+        assert.equal(out.layout, 7); // wrong values stay: the JSON view lists the reasons
+        assert.equal(out['wrap-lines'], DEFAULTS['wrap-lines']);
+    });
     it('reset writes every default back', async () => {
         const { DEFAULTS } = await load('_core/settings.js');
         gm.store.theme = 'dark';

@@ -228,6 +228,20 @@ export function openSettingsForm() {
         return errors.length ? { errors } : { values };
     };
 
+    // Pasted JSON object: completed at once (missing settings = defaults, unknown ones dropped)
+    json.addEventListener('input', (e) => {
+        if (/** @type {InputEvent} */ (e).inputType !== 'insertFromPaste') return;
+        let data;
+        try {
+            data = JSON.parse(json.value);
+        } catch {
+            return;
+        }
+        if (!data || typeof data !== 'object' || Array.isArray(data)) return;
+        json.value = toJson(completeSettings(data));
+        note.textContent = 'Missing settings filled in with defaults, unknown ones removed.';
+    });
+
     // Values currently entered (null: JSON not valid)
     const current = () => (mode === 'json' ? readJson().values || null : readForm());
     let saved = '';
@@ -366,6 +380,14 @@ export function openSettingsForm() {
     const formHeight = part('[data-pane="form"]').getBoundingClientRect().height;
     json.style.height = `${Math.max(200, Math.round(formHeight) - 43)}px`;
     placeMoved(form, SETTINGS_POS_KEY);
+}
+/**
+ * Settings as given, missing ones from defaults, unknown ones dropped (values not checked).
+ * @param {Object<string, *>} data
+ * @returns {Object<string, *>}
+ */
+export function completeSettings(data) {
+    return Object.fromEntries(Object.keys(DEFAULTS).map((key) => [key, key in data ? data[key] : defaults[key]]));
 }
 /** Tampermonkey menu: settings form, reset to defaults. @returns {void} */
 export function registerMenu() {
