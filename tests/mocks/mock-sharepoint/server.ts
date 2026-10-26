@@ -1,11 +1,15 @@
 // Mock SharePoint Online: one site with one document library, served from ./library (or another folder,
 // or several folders shown by name in the library root). Read only: files are read from disk per request.
+// Uploads (optional, simulated): kept apart in a session folder under ./__uploads__ that mirrors the library's
+// paths; they are listed and served over the originals (which stay untouched) until the session ends.
 //
 //   /sites/Test/Shared Documents/Forms/AllItems.aspx[?id=<folder>]  list view (client-side app)
 //   /sites/Test/Shared Documents/<path>                             file (GET / HEAD, byte ranges)
 //   /sites/Test/SitePages/Home.aspx                                 page outside any library
 //   /sites/Test/Shared Documents/previewer/<file>                   3D files of the release (if built),
 //                                                                   listed as folder "previewer" in the library
+//   /sites/Test/Shared Documents/_api/upload?folder=<f>&name=<n>    upload (POST, body: the file; simulated)
+//   /sites/Test/Shared Documents/_api/tree                          folders and files (JSON; list refresh)
 //
 // The list view mimics only what the userscript reads: ARIA grid rows, name fields,
 // folder icons, the scroll card and SharePoint's `display: contents` wrapper.
@@ -31,6 +35,9 @@ export const PATH_RELEASE = path.join(ROOT, 'dist', `v${VERSION}`);
 export const RELEASE_FOLDER = `${LIBRARY}/previewer`;
 export const RELEASE_SETTING = RELEASE_FOLDER.slice(SITE.length + 1);
 const FILES_3D = ['ifc-lite-3d.js', 'ifc-lite_bg.wasm'];
+const API = `${LIBRARY}/_api`;
+// Simulated uploads, one folder per session (never synchronised: cf. /.gitignore; removed by `just clean`)
+export const PATH_UPLOADS = path.join(HERE, '__uploads__');
 
 const MODIFIED = new Date('2026-10-01T12:00:00Z');
 
@@ -60,8 +67,8 @@ const TYPES: Record<string, string> = {
     '.xml': 'text/xml',
 };
 
-// Entry of a folder listing
-type Entry = { name: string; folder: boolean; size: number };
+// Entry of a folder listing (uploaded: simulated upload)
+type Entry = { name: string; folder: boolean; size: number; uploaded?: boolean };
 // Answer to a request
 export type Reply = { status: number; headers: Record<string, string>; body: Buffer | string };
 // Library folder, or folders shown by name in the library root
@@ -80,6 +87,28 @@ function localPath(files: Files, folder: string): string | null {
     if (typeof files === 'string') return within(files, rel);
     const [name = '', ...rest] = rel.split('/').slice(1);
     return Object.hasOwn(files, name) ? within(files[name], rest.join('/')) : null;
+}
+
+/** @param pathname server-relative @returns place among the uploads (null: outside the library) */
+function uploadPath(uploads: string, pathname: string): string | null {
+    if (pathname === LIBRARY) return uploads;
+    return pathname.startsWith(`${LIBRARY}/`) ? within(uploads, pathname.slice(LIBRARY.length + 1)) : null;
+}
+
+/** @returns folder for the uploads of a session, empty (left-overs of an earlier run removed) */
+export function startUploads(session: string): string {
+    const dir = path.join(PATH_UPLOADS, session);
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
+}
+
+/** Removes the uploads of a session (and the uploads folder once no session is left) */
+export function endUploads(dir: string): void {
+    fs.rmSync(dir, { recursive: true, force: true });
+    try {
+        fs.rmdirSync(PATH_UPLOADS); // only if empty
+    } catch {}
 }
 
 /** @returns with absolute paths; folders not there left out */
@@ -101,14 +130,16 @@ function listing(dir: string): Entry[] {
             folder: d.isDirectory(),
             size: d.isDirectory() ? 0 : fs.statSync(path.join(dir, d.name)).size,
         }))
-        .sort((a, b) => Number(b.folder) - Number(a.folder) || a.name.localeCompare(b.name));
+        .sort(byName);
 }
 
 /** @returns 3D files of this version are built (`just build`) */
 export const has3dRelease = (): boolean => FILES_3D.every((name) => fs.existsSync(path.join(PATH_RELEASE, name)));
 
-/** @returns server-relative folder -> entries */
-function tree(files: Files): Record<string, Entry[]> {
+const byName = (a: Entry, b: Entry): number => Number(b.folder) - Number(a.folder) || a.name.localeCompare(b.name);
+
+/** @returns server-relative folder -> entries (uploads over the originals) */
+function tree(files: Files, uploads?: string): Record<string, Entry[]> {
     const out: Record<string, Entry[]> = {};
     const walk = (folder: string) => {
         const local = localPath(files, folder);
@@ -125,10 +156,25 @@ function tree(files: Files): Record<string, Entry[]> {
         out[LIBRARY].unshift({ name: 'previewer', folder: true, size: 0 });
         out[RELEASE_FOLDER] = listing(PATH_RELEASE).filter((e) => FILES_3D.includes(e.name));
     }
+    for (const [folder, entries] of Object.entries(out)) {
+        const dir = uploads && uploadPath(uploads, folder);
+        if (!dir || !fs.existsSync(dir)) continue;
+        for (const e of listing(dir).filter((x) => !x.folder)) {
+            const i = entries.findIndex((x) => x.name.toLowerCase() === e.name.toLowerCase()); // SharePoint ignores case
+            entries.splice(i < 0 ? entries.length : i, i < 0 ? 0 : 1, { ...e, uploaded: true });
+        }
+        entries.sort(byName);
+    }
     return out;
 }
 
 const html = (body: string): Reply => ({ status: 200, headers: { 'content-type': 'text/html; charset=utf-8' }, body });
+
+const json = (data: unknown): Reply => ({
+    status: 200,
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+    body: JSON.stringify(data),
+});
 
 const fail = (status: number): Reply => ({
     status,
@@ -136,7 +182,7 @@ const fail = (status: number): Reply => ({
     body: `Error ${status}`,
 });
 
-function listPage(files: Files): Reply {
+function listPage(files: Files, uploads?: string): Reply {
     return html(`<!doctype html>
 <html lang="en">
 <head>
@@ -167,6 +213,8 @@ function listPage(files: Files): Reply {
   .c-name button, .c-name a { all: unset; cursor: pointer; }
   .c-name button:hover, .c-name a:hover { text-decoration: underline; }
   .c-icon img { width: 20px; height: 20px; }
+  .upload { cursor: pointer; }
+  .uploaded { color: #8a6d00; font-style: italic; }
 </style>
 </head>
 <body>
@@ -174,7 +222,7 @@ function listPage(files: Files): Reply {
   <div class="app">
     <div class="nav">Home<br>Documents</div>
     <div class="main">
-      <div class="command-bar">+ New &nbsp; Upload &nbsp; Sync</div>
+      <div class="command-bar">+ New &nbsp; <label class="upload">Upload<input type="file" id="upload" multiple hidden></label> &nbsp; Sync</div>
       <div class="breadcrumb" id="breadcrumb"></div>
       <div class="list-host">
         <div role="" style="display: contents;">
@@ -194,12 +242,13 @@ function listPage(files: Files): Reply {
     </div>
   </div>
 <script>
-  const TREE = ${JSON.stringify(tree(files))};
+  let TREE = ${JSON.stringify(tree(files, uploads))};
   const LIBRARY = ${JSON.stringify(LIBRARY)};
+  const API = ${JSON.stringify(API)};
   const LIST_PAGE = ${JSON.stringify(LIST_PAGE)};
   const grid = document.getElementById('grid');
   const icon = (e) => e.folder ? '/_layouts/15/images/itemtypefolder.svg' : '/_layouts/15/images/itemtypegeneric.svg';
-  const size = (e) => e.folder ? '' : e.size + ' bytes';
+  const size = (e) => e.folder ? '' : e.size + ' bytes' + (e.uploaded ? ' <span class="uploaded">· uploaded</span>' : '');
   const folderLink = (folder, text) =>
     '<a href="' + LIST_PAGE + '?id=' + encodeURIComponent(folder) + '" data-folder>' + text + '</a>';
 
@@ -253,20 +302,45 @@ function listPage(files: Files): Reply {
     render();
   });
   window.addEventListener('popstate', render);
+
+  // Uploads (simulated by the server, apart from the library): drop on the list, or "Upload"; then the list anew
+  async function upload(files) {
+    const folder = folderOfUrl();
+    for (const file of files) {
+      const query = '?folder=' + encodeURIComponent(folder) + '&name=' + encodeURIComponent(file.name);
+      const r = await fetch(API + '/upload' + query, { method: 'POST', body: file });
+      if (!r.ok) return void alert('Upload failed (error ' + r.status + '): ' + file.name);
+    }
+    TREE = await (await fetch(API + '/tree')).json();
+    render();
+  }
+  const onList = (ev) => ev.target instanceof Element && !!ev.target.closest('.card');
+  document.addEventListener('dragover', (ev) => onList(ev) && ev.preventDefault());
+  document.addEventListener('drop', (ev) => {
+    if (!onList(ev)) return;
+    ev.preventDefault();
+    upload([...ev.dataTransfer.files]);
+  });
+  const input = document.getElementById('upload');
+  input.addEventListener('change', () => {
+    upload([...input.files]);
+    input.value = '';
+  });
   render();
 </script>
 </body>
 </html>`);
 }
 
-/** @param file local path */
-function serveFile(file: string, method: string, range: string | undefined): Reply {
+/** @param file local path @param uploaded simulated upload: date and ETag change with each upload */
+function serveFile(file: string, method: string, range: string | undefined, uploaded = false): Reply {
     const data = fs.readFileSync(file);
+    const modified = uploaded ? fs.statSync(file).mtime : MODIFIED;
     const headers = {
         'content-type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream',
         'accept-ranges': 'bytes',
-        'last-modified': MODIFIED.toUTCString(),
-        'etag': `"{${data.length}},1"`,
+        'last-modified': modified.toUTCString(),
+        'etag': `"{${data.length}},${uploaded ? modified.getTime() : 1}"`,
     };
     const m = range && /^bytes=(\d+)-(\d*)$/.exec(range);
     if (m) {
@@ -293,20 +367,45 @@ function serveFile(file: string, method: string, range: string | undefined): Rep
     };
 }
 
+// Simulated upload: written to the session's uploads, at the library path of the folder
+function upload(
+    files: Files,
+    uploads: string | undefined,
+    params: URLSearchParams,
+    method: string,
+    body?: Buffer,
+): Reply {
+    if (!uploads || method !== 'POST') return fail(405); // uploads not simulated here
+    const folder = (params.get('folder') ?? '').replace(/\/+$/, '');
+    const name = params.get('name') ?? '';
+    const dir = uploadPath(uploads, folder);
+    if (!dir || !name || /[\\/]/.test(name) || !(folder in tree(files, uploads))) return fail(400);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, name), body ?? Buffer.alloc(0));
+    return json({ folder, name });
+}
+
 /**
  * Answers one request to the mock SharePoint.
  *
- * @param opts library folder (default: ./library), or folders by name in the library root
+ * @param opts library folder (default: ./library), or folders by name in the library root;
+ *   folder of the session's uploads (none: uploads refused)
  */
 export function handle(
-    { url, method, headers }: { url: string; method: string; headers: Record<string, string> },
-    { files = PATH_FILES }: { files?: Files } = {},
+    { url, method, headers, body }: { url: string; method: string; headers: Record<string, string>; body?: Buffer },
+    { files = PATH_FILES, uploads }: { files?: Files; uploads?: string } = {},
 ): Reply {
     const u = new URL(url);
     const pathname = decodeURIComponent(u.pathname);
     const root = resolveFiles(files);
 
-    if (pathname === LIST_PAGE) return listPage(root);
+    if (pathname === LIST_PAGE) return listPage(root, uploads);
+    if (pathname === `${API}/tree`) return json(tree(root, uploads));
+    if (pathname === `${API}/upload`) return upload(root, uploads, u.searchParams, method, body);
+    const uploaded = uploads ? uploadPath(uploads, pathname) : null;
+    if (uploaded && fs.existsSync(uploaded) && fs.statSync(uploaded).isFile()) {
+        return serveFile(uploaded, method, headers.range, true);
+    }
     if (pathname === `${SITE}/SitePages/Home.aspx`) {
         return html(
             `<!doctype html><title>Home - ${TENANT}</title><link rel="icon" href="${ICON}">` +

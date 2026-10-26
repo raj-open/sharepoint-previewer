@@ -10,6 +10,9 @@
 // - 3D files: those of the release in /dist/v<VERSION> (`just build`), listed in the library as folder "previewer";
 //   the setting `viewer-3d-folder` points there unless set (filled in when empty)
 // - logo: a test logo (setting `logo`), filled in when empty
+// - uploads (drop on the list, "Upload", the viewer's upload): simulated, kept apart in
+//   /tests/mocks/mock-sharepoint/__uploads__/explore (library paths mirrored), shown over the originals;
+//   removed when the server stops (and by `just clean`)
 // - listens on the loopback interface only; logs each request to the console
 
 // ================================================================
@@ -54,6 +57,8 @@ const NO_CACHE = { 'cache-control': 'no-store' };
 // Library root without a folder given: test fixtures and the repo's own (local) data
 const ROOT = path.resolve(import.meta.dirname, '../..');
 const MOUNTS = { 'Mock Data': sharepoint.PATH_FILES, 'Data': path.join(ROOT, 'data') };
+// Simulated uploads of this server (cf. /tests/mocks/mock-sharepoint/server.ts)
+const PATH_UPLOADS = path.join(sharepoint.PATH_UPLOADS, 'explore');
 
 // ================================================================
 // METHODS
@@ -75,8 +80,9 @@ const shortPath = (dir: string): string => {
 
 /** @returns what the library shows */
 function libraryNotes(files: Files): string[] {
-    if (typeof files === 'string') return [`Library: ${shortPath(files)}`];
-    return Object.entries(files).map(([name, dir]) => `Library folder "${name}": ${shortPath(dir)}`);
+    const uploads = `Uploads (simulated, removed on stop): ${shortPath(PATH_UPLOADS)}`;
+    if (typeof files === 'string') return [`Library: ${shortPath(files)}`, uploads];
+    return [...Object.entries(files).map(([name, dir]) => `Library folder "${name}": ${shortPath(dir)}`), uploads];
 }
 
 /** @returns text for an HTML attribute */
@@ -105,7 +111,7 @@ function inject(reply: Reply, files: Files): Reply {
 /**
  * @param library folder, or folders by name
  */
-function answer(req: http.IncomingMessage, library: Files): Reply {
+function answer(req: http.IncomingMessage, library: Files, body: Buffer): Reply {
     const files = sharepoint.resolveFiles(library); // per request: folders may come and go
     const url = new URL(req.url ?? '/', sharepoint.ORIGIN);
     if (url.pathname === '/') return redirect(encodeURI(sharepoint.LIST_PAGE));
@@ -113,7 +119,10 @@ function answer(req: http.IncomingMessage, library: Files): Reply {
     if (url.pathname === `${PREFIX}/userscript.js`) return script(userscript());
 
     const headers = req.headers as Record<string, string>;
-    const reply = sharepoint.handle({ url: url.href, method: req.method ?? 'GET', headers }, { files });
+    const reply = sharepoint.handle(
+        { url: url.href, method: req.method ?? 'GET', headers, body },
+        { files, uploads: PATH_UPLOADS },
+    );
     return String(reply.headers['content-type']).startsWith('text/html') ? inject(reply, files) : reply;
 }
 
@@ -128,10 +137,19 @@ function serve(port: string, folder?: string) {
         console.error(`not a folder: ${library}`);
         process.exit(1);
     }
-    const server = http.createServer((req, res) => {
+    sharepoint.startUploads('explore');
+    const stop = () => {
+        sharepoint.endUploads(PATH_UPLOADS);
+        process.exit(0);
+    };
+    process.on('SIGINT', stop);
+    process.on('SIGTERM', stop);
+    const server = http.createServer(async (req, res) => {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) chunks.push(chunk as Buffer);
         let reply: Reply;
         try {
-            reply = answer(req, library);
+            reply = answer(req, library, Buffer.concat(chunks));
         } catch (err) {
             console.error(err);
             reply = { status: 500, headers: { 'content-type': 'text/plain' }, body: 'Error 500' };
