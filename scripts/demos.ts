@@ -122,6 +122,34 @@ const CASES: Record<string, Case> = {
         pointer: (_page, v) => v.locator('.tp-name-input'),
         clip: async (_page, v) => top(v, v.locator('.tp-header')),
     },
+    // ---- dark mode (setting `theme`; also ⋯ → Dark mode) ----
+    'dark-text': {
+        folder: '/Config',
+        file: 'broken.xml',
+        settings: { theme: 'dark' },
+        steps: async (page) => {
+            await page.locator('.tp-lint.tp-lint-bad').waitFor();
+        },
+        clip: async (_page, v) => box(v),
+    },
+    'dark-table': {
+        folder: '/Data',
+        file: 'prices.csv',
+        settings: { 'theme': 'dark', 'colours-table': true },
+        steps: async (_page, v) => {
+            await view(v, 'Table');
+            await v.locator('.tp-table').waitFor();
+        },
+        clip: async (_page, v) => box(v),
+    },
+    'dark-popup': {
+        folder: '',
+        file: 'README.md',
+        settings: { theme: 'dark', layout: 'popup' },
+        steps: async (_page, v) => {
+            await v.locator('.tp-md h1').waitFor();
+        },
+    },
     // ---- text ----
     text: { folder: '/Config', file: 'settings.xml' },
     lint: {
