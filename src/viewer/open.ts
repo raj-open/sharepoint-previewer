@@ -26,6 +26,7 @@ import { langOfFormat } from '../readers/formats.ts';
 import { readerOf } from '../readers/formats.ts';
 import { linkTarget } from '../readers/links.ts';
 import { openParquetSource } from '../readers/parquet/source.ts';
+import { encodePath } from '../readers/request.ts';
 import { findFile } from '../readers/search.ts';
 import { lookupNotes } from '../readers/search.ts';
 import { sheetFormat } from '../readers/sheets/cells.ts';
@@ -260,7 +261,7 @@ export async function openPreview(row: HTMLElement | null): Promise<void> {
 
 // Load file into viewer; `reload` skips browser's cache (refresh button)
 export async function showFile(name: string, url: string, reload: boolean): Promise<void> {
-    const encodedUrl = url.split('/').map(encodeURIComponent).join('/');
+    const encodedUrl = encodePath(url);
 
     // Reuse open viewer (e.g. in split mode, click through files one after another)
     if (!viewer) {

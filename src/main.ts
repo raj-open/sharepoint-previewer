@@ -42,6 +42,7 @@ import './viewer/panel.ts';
 import './viewer/layout.ts';
 import './viewer/status.ts';
 import { guardEdits } from './viewer/edit.ts';
+import './viewer/names.ts';
 import './viewer/view3d.ts';
 import './viewer/cache.ts';
 import './viewer/messages.ts';

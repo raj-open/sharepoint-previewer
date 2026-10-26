@@ -28,6 +28,12 @@ describe('viewer/edit', () => {
         assert.equal(v.source.originalText, null);
         assert.equal(v.staged, null);
     });
+    it('discard: other name dropped as well', () => {
+        const v = fakeViewer({ source: { text: 'a' }, newName: 'b.txt', stagedName: 'b.txt' });
+        discardEdits(v);
+        assert.equal(v.newName, null);
+        assert.equal(v.stagedName, null);
+    });
     it('cancel: nothing pending ends write mode without asking', () => {
         const v = fakeViewer({ writeMode: true, source: { text: 'a' } });
         globalThis.confirm = () => assert.fail('asked');

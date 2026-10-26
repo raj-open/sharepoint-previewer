@@ -250,6 +250,13 @@ are detected from their first bytes and not shown.
   - CSV can be edited in the table:
     cells, rows and columns can be inserted, moved and deleted,
     and delimiter and quote style can be changed.
+- **Save under another name:**
+  in write mode, click the file name (or press F2) and enter a new one.
+  - The name is checked against Sharepoint's rules;
+    if a file of that name exists, the user is asked.
+  - The upload then creates a new file (or replaces the one of that name, after asking again);
+    the original file stays unchanged,
+    and the viewer opens the new file.
 - **Save** keeps the edits in the browser (staged).
   **Upload** is a separate step.
 - **Upload uses no API.**

@@ -329,3 +329,59 @@ describe('preview per file type', () => {
         );
     });
 });
+
+describe('editing', () => {
+    /** @returns dialogues so far (the stand-in records them; confirm answers "yes") */
+    const dialogues = (page: Page): Promise<{ alerts: string[]; confirms: string[] }> =>
+        page.evaluate(() => {
+            const { alerts, confirms } = (window as unknown as { __gm: { alerts: string[]; confirms: string[] } }).__gm;
+            return { alerts: [...alerts], confirms: [...confirms] };
+        });
+    /** Write mode on (file shown) */
+    async function edit(v: Locator): Promise<void> {
+        await v.locator('.tp-mode-btn[title^="Edit"]').click();
+        await v.locator('.tp-editor').waitFor();
+    }
+
+    it('Esc: same as cancel; asks only if there are changes', async () => {
+        const page = await openFolder(h.LIBRARY);
+        const v = await h.preview(page, 'notes.txt');
+        await edit(v);
+        await page.keyboard.press('Escape');
+        assert.equal(await v.locator('.tp-editor').isVisible(), false); // read view again
+        assert.equal(await v.isVisible(), true); // the viewer stays
+        assert.deepEqual((await dialogues(page)).confirms, []);
+
+        await edit(v);
+        await v.locator('.tp-editor').press('End');
+        await page.keyboard.type(' (edited)');
+        await page.keyboard.press('Escape');
+        assert.match((await dialogues(page)).confirms.join('\n'), /unsaved changes/);
+        assert.equal(await v.locator('.tp-editor').isVisible(), false);
+        assert.doesNotMatch(await h.text(v.locator('.tp-content')), /\(edited\)/); // changes dropped
+    });
+
+    it('name: click in write mode, checked, marked as a new file; Esc in the box keeps the old one', async () => {
+        const page = await openFolder(h.LIBRARY);
+        const v = await h.preview(page, 'notes.txt');
+        await edit(v);
+        const name = v.locator('.tp-title-name');
+        const box = v.locator('.tp-name-input');
+        await name.click();
+        await box.fill('a:b.txt');
+        await box.press('Enter');
+        assert.match((await dialogues(page)).alerts.join('\n'), /may not contain/);
+        await box.fill('README.md'); // there already: asks
+        await box.press('Enter');
+        await name.filter({ hasText: 'README.md' }).waitFor(); // after the look-up
+        assert.match((await dialogues(page)).confirms.join('\n'), /"README\.md" already exists/);
+        assert.match((await name.getAttribute('class')) ?? '', /tp-new-name/);
+        assert.equal(await v.locator('.tp-mode-btn[title^="Save"]').isDisabled(), false); // saved with the text
+
+        await name.click();
+        await box.fill('other.txt');
+        await box.press('Escape'); // box only: still in write mode
+        assert.equal(await h.text(name), 'README.md');
+        assert.equal(await v.locator('.tp-editor').isVisible(), true);
+    });
+});

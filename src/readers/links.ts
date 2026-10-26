@@ -1,6 +1,12 @@
 // Links: .url shortcut files ("[InternetShortcut] URL=...") point to another file
 
 // ===========================================================================
+// IMPORTS
+// ===========================================================================
+
+import { encodePath } from './request.ts';
+
+// ===========================================================================
 // METHODS
 // ===========================================================================
 
@@ -25,7 +31,7 @@ export function linkTarget(name: string, text: string): { display: string; name:
             return {
                 display,
                 name: id.split('/').pop() ?? '',
-                fetchUrl: id.split('/').map(encodeURIComponent).join('/'),
+                fetchUrl: encodePath(id),
             };
         }
         // Direct links: /:t:/r/sites/X/file.txt?web=1 -> /sites/X/file.txt

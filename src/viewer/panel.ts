@@ -48,6 +48,7 @@ import { clearCached } from './cache.ts';
 import { makeRoom } from './cache.ts';
 import { memoryCache } from './cache.ts';
 import { cancelEdits } from './edit.ts';
+import { discardEdits } from './edit.ts';
 import { editedText } from './edit.ts';
 import { enterWrite } from './edit.ts';
 import { exitWriteView } from './edit.ts';
@@ -57,6 +58,8 @@ import { uploadEdits } from './edit.ts';
 import { layoutPage } from './layout.ts';
 import { setMode } from './layout.ts';
 import { startDrag } from './layout.ts';
+import { startRename } from './names.ts';
+import { target } from './names.ts';
 import { chooseFormat } from './open.ts';
 import { closeViewer } from './open.ts';
 import { showFile } from './open.ts';
@@ -269,6 +272,7 @@ export function createViewer(): Viewer {
         'Note: this viewer is primarily for text files. Parquet files and spreadsheets may also be viewed (read only). ' +
         'Write mode is only partially supported.';
     const titleName = title.querySelector('.tp-title-name') as HTMLElement; // in the title's HTML
+    titleName.onclick = () => startRename(v); // write mode only
     const titleSheet = title.querySelector('.tp-title-sheet') as HTMLElement;
 
     // Metadata (second line, full width): dates, size, format, table shape, ...
@@ -574,6 +578,7 @@ export function createViewer(): Viewer {
     // Esc: open drop-down first, then edit (same as cancel), then viewer; settings form: its own
     const onEscape = (e: KeyboardEvent) => {
         if (e.key !== 'Escape' || viewer !== v || document.querySelector('.tp-settings')) return;
+        if ((e.target as HTMLElement).classList?.contains('tp-name-input')) return; // name box: its own Esc
         e.stopPropagation();
         for (const p of [sheetPicker, formatPicker]) if (!p.menu.hidden) return void p.close();
         if (v.writeMode) return void cancelEdits(v);
@@ -670,6 +675,7 @@ export function createViewer(): Viewer {
         if (!v.writeMode || !v.dirty || !src) return;
         const staged = editedText(v);
         v.staged = staged;
+        v.stagedName = v.newName ?? null;
         if (src.originalText == null) src.originalText = src.text; // for cancel / discard
         src.text = staged;
         v.text = staged;
@@ -689,9 +695,14 @@ export function createViewer(): Viewer {
         }
         if (v.staged == null) return;
         const file = v.file;
+        const to = target(v, v.stagedName);
         uploadEdits(v, v.staged).then((ok) => {
             if (viewer !== v || v.file !== file) return; // viewer closed / other file meanwhile
             if (!ok) return void flash(uploadBtn);
+            if (to.isNew) {
+                discardEdits(v); // the original stays as it was
+                return void showFile(to.name, to.url, true);
+            }
             v.staged = null;
             uploadBtn.disabled = true;
             v.rerender?.();
@@ -802,6 +813,10 @@ export function createViewer(): Viewer {
     // Keys in the content area (once clicked into) or editor: Ctrl / ⌘ with + − 0 (text size), A (select all)
     box.addEventListener('keydown', (e) => {
         const t = e.target as Node;
+        if (e.key === 'F2' && v.writeMode) {
+            e.preventDefault();
+            return void startRename(v); // save under another name
+        }
         if (!(e.ctrlKey || e.metaKey) || e.altKey || !(content.contains(t) || t === editor)) return;
         if (e.key === '+' || e.key === '=') zoomBy(1);
         else if (e.key === '-') zoomBy(-1);
