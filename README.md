@@ -55,7 +55,7 @@ Our tool allows users to
 
 > [!NOTE]
 > Our tool involves no API calls and no third-party code,
-> except the optional 3D view built on [ifc-lite](https://github.com/LTplus-AG/ifc-lite).
+> except the optional 3D view built on [IFClite](https://ifclite.dev).
 
 ### For whom? ###
 
@@ -86,7 +86,7 @@ and IT teams who want all this without another app to roll out.
 
 3. Copy the minified `sharepoint-previewer.min.js` into your Tampermonkey extension.
 
-4. (Optional – for the 3D view) Place the [ifc-lite](https://github.com/LTplus-AG/ifc-lite) artefacts
+4. (Optional – for the 3D view) Place the [IFClite](https://ifclite.dev) artefacts
    (`ifc-lite-3d.js`, `ifc-lite_bg.wasm`)
    in a designated Sharepoint library of your choice.
 
@@ -135,14 +135,13 @@ and IT teams who want all this without another app to roll out.
   Each user installs it separately;
   it is neither part of nor distributed with this repository.
 
-- **[ifc-lite](https://github.com/LTplus-AG/ifc-lite)** by Louis True / LTplus AG
-  (<https://ifclite.dev>), **MPL-2.0**:
+- **[IFClite](https://ifclite.dev)** by Louis Trümpler & contributors (LTplus AG), **MPL-2.0**:
   the engine of the optional 3D model-viewer.
   - The release bundles `@ifc-lite/geometry` and `@ifc-lite/renderer` (with their dependencies) into `ifc-lite-3d.js`
     and ships the engine binary of `@ifc-lite/wasm` unchanged as `ifc-lite_bg.wasm`;
     versions pinned in [package.json](./package.json).
-  - Used unchanged; its source code is available in the repository above.
-    Modified ifc-lite source files would have to stay under MPL-2.0.
+  - Used unchanged; its source code is available at <https://github.com/LTplus-AG/ifc-lite>.
+    Modified IFClite source files would have to stay under MPL-2.0.
 
 - **Development only** (not part of the userscript):
   [TypeScript](https://www.typescriptlang.org),

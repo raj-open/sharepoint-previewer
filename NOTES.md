@@ -422,8 +422,7 @@ That is outside the scope of this script.
   browser extension that runs the script;
   installed separately, not distributed with the script.
 - **Optional 3D bundle:**
-  ifc-lite by Louis True / LTplus AG, **MPL-2.0**
-  (<https://github.com/LTplus-AG/ifc-lite>, <https://ifclite.dev>).
-  Used unchanged, as permitted;
-  its source code is available in that repository.
-  Modified ifc-lite source files would have to stay under MPL-2.0.
+  IFClite by Louis Trümpler & contributors (LTplus AG), **MPL-2.0**
+  (<https://ifclite.dev>, source code: <https://github.com/LTplus-AG/ifc-lite>).
+  Used unchanged, as permitted.
+    Modified IFClite source files would have to stay under MPL-2.0.
