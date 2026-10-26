@@ -81,5 +81,3 @@ the lock is only rewritten when `package.json` has changed.
 | `qa-auto` | each push and pull request | `just qa` |
 | `qa-manual` | on demand (any branch, tag or commit) | `just qa` |
 | `release` | on a release tag (`just tag`) | `just qa`, then `just build-dist`; attaches the files of `/dist/v<VERSION>` to the GitHub release (pre-release for alpha, beta, rc) |
-
-All three share common definitions from [_common.yaml](.github/workflows/_common.yaml).
