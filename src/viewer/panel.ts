@@ -155,7 +155,7 @@ export function createViewer(): Viewer {
     };
     // Main row: [layout ▾] [edit] [cache all] [stop] [save] [upload] (i) File: name [table] [3D] … [⋯] [copy] [✕]
     const layoutBtn = button(SPLIT_H_SVG, 'Layout: below the list / right of the list / popup', 10);
-    const writeBtn = button(WRITE_SVG, 'Edit (beta, text files only)', 46, ROW1, { disabled: true, pressed: false });
+    const writeBtn = button(WRITE_SVG, 'Edit (text files only)', 46, ROW1, { disabled: true, pressed: false });
     const loadAllBtn = button(LOAD_ALL_SVG, 'Cache the whole file', 82, ROW1, { disabled: true });
     const stopBtn = button(STOP_SVG, 'Stop caching', 118, ROW1, { disabled: true }); // also: cancel changes
     const saveBtn = button(SAVE_SVG, 'Save: keep the changes, ready for upload (Ctrl+S)', 154, ROW1, {
@@ -281,7 +281,7 @@ export function createViewer(): Viewer {
     // Note: tooltip on header
     header.title =
         'Note: this viewer is primarily for text files. Parquet files and spreadsheets may also be viewed (read only). ' +
-        'Write mode is only partially supported.';
+        'Text files can be edited.';
     const titleName = title.querySelector('.tp-title-name') as HTMLElement; // in the title's HTML
     titleName.onclick = () => startRename(v); // write mode only
     const titleSheet = title.querySelector('.tp-title-sheet') as HTMLElement;
@@ -438,7 +438,7 @@ export function createViewer(): Viewer {
         attributeFilter: ['style'],
     });
 
-    // Write mode: whole file in editable text box with line numbers, framed in red (beta)
+    // Write mode: whole file in editable text box with line numbers, framed in red
     const editorWrap = document.createElement('div');
     editorWrap.className = 'tp-editor-wrap';
     editorWrap.style.display = 'none';
