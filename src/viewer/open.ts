@@ -5,6 +5,7 @@
 // ===========================================================================
 
 import { currentFolder } from '../_core/list.ts';
+import { inLibrary } from '../_core/list.ts';
 import { refreshEyes } from '../_core/list.ts';
 import { rowFilePath } from '../_core/list.ts';
 import { rowName } from '../_core/list.ts';
@@ -26,6 +27,7 @@ import { langOfFormat } from '../readers/formats.ts';
 import { readerOf } from '../readers/formats.ts';
 import { linkTarget } from '../readers/links.ts';
 import { openParquetSource } from '../readers/parquet/source.ts';
+import { encodePath } from '../readers/request.ts';
 import { findFile } from '../readers/search.ts';
 import { lookupNotes } from '../readers/search.ts';
 import { sheetFormat } from '../readers/sheets/cells.ts';
@@ -58,12 +60,16 @@ import { memoryCache } from './cache.ts';
 import { trimMemory } from './cache.ts';
 import { canWrite } from './edit.ts';
 import { confirmDiscard } from './edit.ts';
+import { enterWrite } from './edit.ts';
+import { flash } from './edit.ts';
 import { exitWriteView } from './edit.ts';
 import { markEdited } from './edit.ts';
 import { layoutPage } from './layout.ts';
 import { restorePage } from './layout.ts';
 import { setMode } from './layout.ts';
 import { renderLint } from './messages.ts';
+import { askName } from './names.ts';
+import { showName } from './names.ts';
 import { showLintWait } from './messages.ts';
 import { showPlain } from './messages.ts';
 import { createViewer } from './panel.ts';
@@ -184,11 +190,19 @@ async function openFile(
 // the recognised format drops the choice
 export function chooseFormat(format: string): void {
     const v = viewer;
-    if (!v?.file || !confirmDiscard(v)) return;
+    if (!v?.file) return;
+    const fresh = !!v.source?.fresh; // new file: its text stays (only in memory), shown as the format chosen
+    if (fresh && readerOf(format) !== 'text')
+        return void alert('A new file is plain text: please choose a text format.');
+    if (fresh && v.dirty) {
+        alert('Please save your changes first, then choose the format.');
+        return void flash(v.saveBtn);
+    }
+    if (!fresh && !confirmDiscard(v)) return;
     const { name, url } = v.file;
     if (format === formatOf(name)) formatChoices.delete(url);
     else formatChoices.set(url, format);
-    showFile(name, url, false);
+    showFile(name, url, false, fresh);
 }
 
 // Same file, any encoding / case of path
@@ -213,8 +227,32 @@ export function openEmptyViewer(): void {
     showEmpty(viewer);
 }
 
+// New file in the folder open in SharePoint (plain text): name asked (checked), then shown as any file
+// (colours, checks, views by its format) and edited; the empty text counts as saved (may be uploaded as it is)
+export async function newFile(): Promise<void> {
+    const folder = currentFolder();
+    if (!inLibrary() || !folder) {
+        alert('New files go into the folder open in SharePoint: please open a folder of a library first.');
+        return;
+    }
+    if (viewer && !confirmDiscard(viewer)) return; // pending in the open file: stay
+    const name = await askName(folder);
+    if (!name) return;
+    const url = `${folder}/${name}`;
+    const src: Source = { total: 0, loaded: 0, done: true, text: '', more: async () => {}, loadAll: async () => {} };
+    src.fresh = true;
+    formatChoices.delete(url);
+    keepInMemory(url, { src, fileName: name, hops: [url], reader: 'text' }); // shown from memory, never fetched
+    await showFile(name, url, false);
+    const v = viewer;
+    if (v?.source !== src) return;
+    await enterWrite(v); // shows the name (click: another name)
+    v.staged = ''; // saved as it is: may be uploaded empty
+    v.uploadBtn.disabled = false;
+}
+
 // Viewer back to no file; false if user keeps pending changes
-function showEmpty(v: Viewer): boolean {
+export function showEmpty(v: Viewer): boolean {
     if (!confirmDiscard(v)) return false;
     close3d(v);
     if (v.writeMode) exitWriteView(v);
@@ -233,9 +271,14 @@ function showEmpty(v: Viewer): boolean {
     updateViews(v);
     v.titleName.textContent = '–';
     v.titleName.title = '';
+    v.titleName.className = 'tp-title-name';
+    v.newBtn.hidden = false;
     v.metaLine.innerHTML = '';
     v.metaLine.title = '';
-    showPlain(v, 'No file opened. Click the eye-icon next to files to preview them.');
+    showPlain(
+        v,
+        'No file opened.\nClick the eye next to a file to preview it, or create a new file (button above, or ⋯ menu).',
+    );
     refreshEyes();
     return true;
 }
@@ -259,8 +302,9 @@ export async function openPreview(row: HTMLElement | null): Promise<void> {
 }
 
 // Load file into viewer; `reload` skips browser's cache (refresh button)
-export async function showFile(name: string, url: string, reload: boolean): Promise<void> {
-    const encodedUrl = url.split('/').map(encodeURIComponent).join('/');
+/** @param keep pending changes stay (new file shown as another format) */
+export async function showFile(name: string, url: string, reload: boolean, keep = false): Promise<void> {
+    const encodedUrl = encodePath(url);
 
     // Reuse open viewer (e.g. in split mode, click through files one after another)
     if (!viewer) {
@@ -268,7 +312,7 @@ export async function showFile(name: string, url: string, reload: boolean): Prom
         setMode(view.mode);
     }
     const v = viewer;
-    if (!confirmDiscard(v)) return; // pending in open file: stay
+    if (!keep && !confirmDiscard(v)) return; // pending in open file: stay
     close3d(v);
     if (v.writeMode) exitWriteView(v);
     cancelLoad(v); // previous file may still be on its way
@@ -280,6 +324,8 @@ export async function showFile(name: string, url: string, reload: boolean): Prom
     if (clearedUrls.delete(url)) reload = true; // cleared before: skip stored copy once
     v.userStopped = false;
 
+    v.newBtn.hidden = true;
+    v.titleName.className = 'tp-title-name';
     v.titleName.textContent = name;
     v.titleName.title = url;
     // what is known before the content: format (recognised or chosen), then size (from the first response)
@@ -435,6 +481,7 @@ export async function showFile(name: string, url: string, reload: boolean): Prom
     v.abort = null;
 
     if (!current()) return;
+    v.linked = hops.length > 1; // reached through a link: not renamed, not uploaded
 
     if (deferred) {
         // Big Parquet / IFCZIP: only on request (whole file); "cache all" opens it in full
@@ -470,6 +517,7 @@ export async function showFile(name: string, url: string, reload: boolean): Prom
         line2.innerHTML = line2.innerHTML.replace('⟦icon⟧', `<span class="tp-inline-icon">${icon}</span>`);
         v.metaLine.innerHTML = `<strong>Properties:</strong> size: ${formatBytes(deferred.size)} · format: ${deferred.deferred}`;
         updateViews(v);
+        showName(v); // read only: a copy under another name
         return;
     }
     v.copyBtn.disabled = false;
@@ -484,6 +532,7 @@ export async function showFile(name: string, url: string, reload: boolean): Prom
         setPreview(v, null);
         showPlain(v, message);
         showCached(v); // nothing cached (not the last file's state)
+        showName(v); // binary: a copy under another name
         return;
     }
 
@@ -492,11 +541,9 @@ export async function showFile(name: string, url: string, reload: boolean): Prom
     v.fileName = fileName;
     const format = chosen || formatOf(fileName);
     v.lang = langOfFormat(format);
-    v.linked = hops.length > 1;
+    showName(v); // name an edit goes to (another name, new file)
     v.writeBtn.disabled = !canWrite(v);
-    v.writeBtn.title = src.isSheet
-        ? 'Edit: not available for spreadsheets (read only)'
-        : 'Edit (beta, text files only)';
+    v.writeBtn.title = src.isSheet ? 'Edit: not available for spreadsheets (read only)' : 'Edit (text files only)';
     const kind = previewOf(v.lang);
     const ifcSize = src.ifcBytes ? src.ifcBytes.length : src.total;
     const tooBig = kind === '3d' && ifcSize > MAX_3D_BYTES;

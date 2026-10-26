@@ -10,6 +10,7 @@ import { VIEWER_3D_FOLDER } from '../_core/settings.ts';
 import { VIEWER_3D_JS_SHA256 } from '../_core/settings.ts';
 import { VIEWER_3D_WASM_SHA256 } from '../_core/settings.ts';
 import { formatBytes } from '../_core/util.ts';
+import { encodePath } from '../readers/request.ts';
 import { sameOrigin } from '../readers/request.ts';
 import { flash } from './edit.ts';
 import { updateViews } from './views.ts';
@@ -63,7 +64,7 @@ function loadIfcLibrary(onStatus: (s: string) => void): Promise<{ lib: IfcLite; 
                 throw new Error('no 3D checksums in this build: use a release userscript');
             const site = (location.pathname.match(/^\/(?:sites|teams|personal)\/[^/]+/i) || [''])[0]; // current site
             const folder = VIEWER_3D_FOLDER.startsWith('/') ? VIEWER_3D_FOLDER : `${site}/${VIEWER_3D_FOLDER}`;
-            const url = `${folder.replace(/\/$/, '')}/${name}`.split('/').map(encodeURIComponent).join('/');
+            const url = encodePath(`${folder.replace(/\/$/, '')}/${name}`);
             if (!sameOrigin(url)) throw new Error('the 3D viewer folder must be in this SharePoint');
             onStatus(`caching ${name} …`);
             const res = await fetch(url, { credentials: 'same-origin' });

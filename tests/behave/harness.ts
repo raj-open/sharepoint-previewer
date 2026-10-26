@@ -19,7 +19,13 @@ export type Session = { page: Page; requests: { url: string; method: string; ran
 // Runs in page before its own scripts: Tampermonkey API, then the userscript at DOMContentLoaded
 function tampermonkey({ script, settings }: { script: string; settings: Record<string, unknown> }): void {
     const store: Record<string, unknown> = { ...settings };
-    const gm = { menu: {} as Record<string, () => void>, alerts: [] as string[], confirms: [] as string[] };
+    const gm = {
+        menu: {} as Record<string, () => void>,
+        alerts: [] as string[],
+        confirms: [] as string[],
+        prompts: [] as string[],
+        answers: [] as string[], // for prompts, in turn (none left: cancelled)
+    };
     Object.assign(window, {
         __gm: gm,
         GM_getValue: (key: string, fallback?: unknown) => (key in store ? store[key] : fallback),
@@ -30,11 +36,15 @@ function tampermonkey({ script, settings }: { script: string; settings: Record<s
             gm.menu[label] = fn;
         },
         GM_info: { script: { version: 'test' } },
-        // dialogues would block the page: recorded instead (confirm answers "yes")
+        // dialogues would block the page: recorded instead (confirm answers "yes", prompt the next of `answers`)
         alert: (msg: unknown) => void gm.alerts.push(String(msg)),
         confirm: (msg: unknown) => {
             gm.confirms.push(String(msg));
             return true;
+        },
+        prompt: (msg: unknown) => {
+            gm.prompts.push(String(msg));
+            return gm.answers.shift() ?? null;
         },
     });
     document.addEventListener('DOMContentLoaded', () => {
@@ -55,6 +65,8 @@ export async function launch({ channel }: { channel?: string } = {}): Promise<{
 }> {
     const browser = await chromium.launch({ channel, args: ['--enable-unsafe-webgpu', '--enable-features=Vulkan'] });
     const script = userscript();
+    // Simulated uploads of this browser (one per test file), removed on close
+    const uploads = sharepoint.startUploads(`behave-${process.pid}`);
 
     const open = async (
         url = LIST_PAGE,
@@ -70,7 +82,8 @@ export async function launch({ channel }: { channel?: string } = {}): Promise<{
             }
             const headers = req.headers();
             requests.push({ url: req.url(), method: req.method(), range: headers.range });
-            const reply = sharepoint.handle({ url: req.url(), method: req.method(), headers });
+            const body = req.postDataBuffer() ?? undefined;
+            const reply = sharepoint.handle({ url: req.url(), method: req.method(), headers, body }, { uploads });
             await route.fulfill({ status: reply.status, headers: reply.headers, body: reply.body });
         });
         await context.addInitScript(tampermonkey, { script, settings });
@@ -82,7 +95,11 @@ export async function launch({ channel }: { channel?: string } = {}): Promise<{
         return { page, requests };
     };
 
-    return { open, close: () => browser.close() };
+    const close = async () => {
+        await browser.close();
+        sharepoint.endUploads(uploads);
+    };
+    return { open, close };
 }
 
 /** @param folder server-relative @returns list view of that folder */

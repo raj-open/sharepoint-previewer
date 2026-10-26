@@ -28,7 +28,7 @@ and where it stores data.
 | Third parties | **None.** No CDN, no analytics, no external servers. All requests go to the same Sharepoint origin |
 | External libraries | None in the script itself. Optional 3D view: two files (ifc-lite, MPL-2.0) that **you** host in your own Sharepoint |
 | Permissions | Those of the signed-in user, through the browser's normal session. No extra rights, no tokens |
-| Data leaving the browser | Only when the user explicitly uploads an edited file, through Sharepoint's own upload (as if done by hand) |
+| Data leaving the browser | Only when the user explicitly uploads a file (edited, new, or a renamed copy), through Sharepoint's own upload (as if done by hand) |
 | Storage | Settings in Tampermonkey's script storage. View choices and window positions in the browser's `localStorage` for the Sharepoint origin. File contents only in memory, gone on reload |
 | Cookies | Not used |
 | Tampermonkey grants | `GM_getValue`, `GM_setValue`, `GM_registerMenuCommand` (settings only) |
@@ -50,7 +50,7 @@ and where it stores data.
 - **Header:**
   - layout, edit, cache whole file, stop / cancel, save, upload
   - file name
-  - ⋯ menu: full settings, dark mode, syntax colours, line wrap, properties, reload, clear cache
+  - ⋯ menu: new file, full settings, dark mode, syntax colours, line wrap, properties, reload, clear cache
 - **Properties line:**
   modified date (from the file's own HTTP response),
   size, format, encoding, indentation,
@@ -250,6 +250,24 @@ are detected from their first bytes and not shown.
   - CSV can be edited in the table:
     cells, rows and columns can be inserted, moved and deleted,
     and delimiter and quote style can be changed.
+- **Another name** (click the file name, or F2):
+  - Text files: in write mode; the name is saved with the text.
+    The upload then creates a new file (or replaces the one of that name, after asking again).
+  - Read-only files (spreadsheets, Parquet, other binary files): any time;
+    the file is uploaded unchanged as a copy under the new name (after asking).
+  - Either way the name is checked against Sharepoint's rules
+    (if a file of that name exists, the user is asked),
+    the original file stays unchanged,
+    and the viewer opens the new file.
+- **New file:**
+  button in the title of the empty viewer (eye in the column header), or ⋯ menu.
+  - Plain text only: names of spreadsheets, Parquet and other binary types are refused;
+    the name is checked as above
+    (a new file goes into the folder open in Sharepoint).
+  - It is shown as any file of its format (by extension, or chosen in the format picker):
+    colours, checks, Text / Preview.
+  - The empty text counts as saved: it may be uploaded as it is.
+  - Cancel (or Esc in write mode) goes back to the empty viewer.
 - **Save** keeps the edits in the browser (staged).
   **Upload** is a separate step.
 - **Upload uses no API.**
@@ -259,11 +277,16 @@ are detected from their first bytes and not shown.
 
   Sharepoint then performs the upload as the signed-in user,
   including its usual "replace?" prompt.
-  A `HEAD` request then confirms the change.
+  A `HEAD` request then confirms the change
+  (the status bar shows the wait: up to 20 s per way).
 - **If Sharepoint does not accept it,**
   the user is offered a local save of the edited file to upload by hand.
+- **Cancel** (button or Esc) ends write mode
+  and drops all changes (unsaved and saved, not yet uploaded),
+  after asking if there are any.
 - **Unsaved or not-yet-uploaded changes** trigger warnings:
-  when switching files,
+  when cancelling,
+  switching files,
   closing the viewer
   or leaving the page.
 
@@ -366,9 +389,10 @@ Changing them in the form resets that remembered choice.
    - The script contains the expected SHA-256 hashes;
      files that don't match are refused.
    - Source of the bundle:
-     `@ifc-lite/geometry` 7.8.1,
-     `@ifc-lite/renderer` 6.4.0,
-     `@ifc-lite/wasm` 10.4.0,
+     `@ifc-lite/geometry`,
+     `@ifc-lite/renderer`,
+     `@ifc-lite/wasm`
+     (versions pinned in `package.json` of the release),
      bundled with esbuild into one file
      that only exposes `globalThis.IfcLite`.
    - The `.wasm` file is the unchanged engine binary published in `@ifc-lite/wasm`.
@@ -411,13 +435,17 @@ That is outside the scope of this script.
 
 ---
 
-## 13. Licences ##
+## 13. Credits and licences ##
 
 - **The script:**
   written for this purpose and contains no third-party code;
   licence: MPL-2.0, see `LICENCE` in the repository
   (also named in the script's header: `@copyright`, `@license`).
+- **Tampermonkey** (<https://www.tampermonkey.net>, by Jan Biniok):
+  browser extension that runs the script;
+  installed separately, not distributed with the script.
 - **Optional 3D bundle:**
-  ifc-lite, **MPL-2.0** (<https://github.com/LTplus-AG/ifc-lite>).
-  Using it unchanged, as here, is permitted;
-  modified ifc-lite source files would have to stay under MPL-2.0.
+  IFClite by Louis Trümpler & contributors (LTplus AG), **MPL-2.0**
+  (<https://ifclite.dev>, source code: <https://github.com/LTplus-AG/ifc-lite>).
+  Used unchanged, as permitted.
+  Modified IFClite source files would have to stay under MPL-2.0.

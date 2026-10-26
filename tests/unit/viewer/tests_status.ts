@@ -5,7 +5,7 @@ import { it } from 'node:test';
 import { fakeViewer } from '../helpers.ts';
 import { load } from '../helpers.ts';
 
-const { showProgress, showCached, setBusy } = await load('viewer/status.ts');
+const { showProgress, showCached, setBusy, showStatus } = await load('viewer/status.ts');
 
 describe('viewer/status', () => {
     it('progress while caching: share and sizes', () => {
@@ -37,5 +37,13 @@ describe('viewer/status', () => {
         showCached(v);
         assert.match(v.progressText.textContent, /^50% .* cached · Click .* to fully cache file$/);
         assert.ok(v.progress.classList.contains('tp-idle'));
+    });
+    it('note (upload): text instead of the bar, until the cache state is shown again', () => {
+        const v = fakeViewer({ source: { total: 10, loaded: 10, done: true, text: '' } });
+        showStatus(v, 'Uploading …');
+        assert.equal(v.progressText.textContent, 'Uploading …');
+        assert.equal(v.progressBar.style.display, 'none');
+        showCached(v);
+        assert.match(v.progressText.textContent, /fully cached/);
     });
 });

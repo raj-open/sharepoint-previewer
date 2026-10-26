@@ -41,7 +41,8 @@ type SourceBase = {
     // caching: relay of progress, "cache all" running
     relay?: { fn: ((loaded: number, total: number) => void) | null; controller: AbortController | null };
     fullJob?: Promise<void> | null;
-    // editing: text as read, checks of the text shown
+    // editing: new file (not on SharePoint until uploaded), text as read, checks of the text shown
+    fresh?: boolean;
     originalText?: string | null;
     lintResult?: LintResult | null;
     needsLint?: boolean;
@@ -85,6 +86,7 @@ export type Viewer = {
     saveBtn: HTMLButtonElement;
     uploadBtn: HTMLButtonElement;
     writeBtn: HTMLButtonElement;
+    newBtn: HTMLButtonElement;
     textBtn: HTMLButtonElement;
     previewBtn: HTMLButtonElement;
     sheetPicker: Picker;
@@ -156,7 +158,12 @@ export type Viewer = {
     tableEditing?: boolean;
     dirty?: boolean;
     staged?: string | null;
+    // another name (save as): being edited, saved with the staged text
+    newName?: string | null;
+    stagedName?: string | null;
 };
+/** where an edit is uploaded: name, server-relative path, new file (the original stays) */
+export type Target = { name: string; url: string; isNew: boolean };
 /** bytes [from, to) of a file */
 export type ByteReader = (from: number, to: number) => Promise<Uint8Array>;
 export type RangeFile = {

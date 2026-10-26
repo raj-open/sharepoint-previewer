@@ -48,6 +48,13 @@ export function showCached(v: Viewer): void {
     }
 }
 
+// Note in place of the cache state (e.g. upload under way); showCached() brings the cache state back
+export function showStatus(v: Viewer, text: string): void {
+    v.progress.classList.remove('tp-off', 'tp-full', 'tp-idle');
+    v.progressBar.style.display = 'none';
+    v.progressText.textContent = text;
+}
+
 export function showProgress(v: Viewer, loaded: number, total: number): void {
     const share = total ? Math.min(1, loaded / total) : 0;
     v.progress.classList.remove('tp-off', 'tp-full', 'tp-idle');

@@ -244,4 +244,5 @@ type-check:
 clean:
     @rm -rf node_modules
     @rm -rf "{{PATH_DIST}}"/v*/
+    @rm -rf tests/mocks/mock-sharepoint/__uploads__
     @find . -name '.DS_Store' -not -path './__human__/*' -delete 2> /dev/null || true

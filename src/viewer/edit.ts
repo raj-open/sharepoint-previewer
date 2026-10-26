@@ -11,12 +11,21 @@ import { csvFormat } from '../_core/prefs.ts';
 import { savePref } from '../_core/prefs.ts';
 import { view } from '../_core/prefs.ts';
 import { LARGE_FILE_BYTES } from '../_core/settings.ts';
+import { fileStamp } from '../readers/request.ts';
 import { csvSeparator } from '../text/highlight/csv.ts';
 import { SEPARATOR_NAMES } from '../text/highlight/csv.ts';
+import { memoryCache } from './cache.ts';
 import { listRegion } from './layout.ts';
+import { showName } from './names.ts';
+import { target } from './names.ts';
+import { uploadQuestion } from './names.ts';
+import { showEmpty } from './open.ts';
 import { viewer } from './open.ts';
+import { showCached } from './status.ts';
+import { showStatus } from './status.ts';
 import { close3d } from './view3d.ts';
 
+import type { Target } from '../_core/types.ts';
 import type { Viewer } from '../_core/types.ts';
 
 // ===========================================================================
@@ -43,9 +52,10 @@ export async function enterWrite(v: Viewer): Promise<void> {
     close3d(v); // edits happen in text
     v.writeMode = true;
     v.dirty = false;
+    showName(v); // name can be changed now
     v.uploadBtn.disabled = v.staged == null; // saved changes stay uploadable
-    if (v.lang === 'csv' && view.table) {
-        // CSV in table view: edit cells directly
+    if (v.lang === 'csv' && view.table && src.text) {
+        // CSV in table view: edit cells directly (empty: in the text box)
         src.crlf = src.text.includes('\r\n');
         src.trailingNewline = /\n$/.test(src.text);
         v.tableEditing = true;
@@ -55,7 +65,7 @@ export async function enterWrite(v: Viewer): Promise<void> {
         v.saveBtn.disabled = true;
         if (csvFormat.sep || csvFormat.quote) markEdited(v); // remembered format: file changes when saved
         v.stopBtn.disabled = false;
-        v.stopBtn.title = 'Cancel changes';
+        v.stopBtn.title = 'Cancel changes (Esc)';
         v.writeBtn.setAttribute('aria-pressed', 'true');
         return;
     }
@@ -67,7 +77,7 @@ export async function enterWrite(v: Viewer): Promise<void> {
     v.loadMoreBtn.style.display = 'none';
     v.saveBtn.disabled = true;
     v.stopBtn.disabled = false;
-    v.stopBtn.title = 'Cancel changes';
+    v.stopBtn.title = 'Cancel changes (Esc)';
     v.writeBtn.setAttribute('aria-pressed', 'true');
     v.editor.focus();
 }
@@ -92,6 +102,15 @@ export function confirmDiscard(v: Viewer): boolean {
     return true;
 }
 
+// Cancel (button, Esc): drop all changes (unsaved and saved) after asking, back to read view
+// (new file: to the empty viewer); false = user keeps them
+export function cancelEdits(v: Viewer): boolean {
+    if (!v.writeMode || !confirmDiscard(v)) return false;
+    if (v.source?.fresh) return showEmpty(v);
+    exitWriteView(v);
+    return true;
+}
+
 // Drop pending changes; show file as cached
 export function discardEdits(v: Viewer): void {
     const src = v.source;
@@ -101,16 +120,22 @@ export function discardEdits(v: Viewer): void {
         src.lintResult = null;
         v.text = src.text;
     }
+    if (src?.fresh && v.file) memoryCache.delete(v.file.url); // new file, never uploaded: nothing to keep
     v.dirty = false;
     v.staged = null;
+    v.newName = null;
+    v.stagedName = null;
     v.saveBtn.disabled = true;
     v.uploadBtn.disabled = true;
+    showName(v);
 }
 
 // Back to read view (keeps saved changes, drops unsaved edits)
 export function exitWriteView(v: Viewer): void {
     v.writeMode = false;
     v.dirty = false;
+    v.newName = v.stagedName ?? null; // unsaved name dropped too
+    showName(v);
     v.tableEditing = false;
     v.csvBar.style.display = 'none'; // metadata is redrawn by rerender below
     v.editorWrap.style.display = 'none';
@@ -145,23 +170,29 @@ export function flash(btn: HTMLElement): void {
     setTimeout(() => btn.classList.remove('tp-attn'), 3000);
 }
 
-// Upload as user would (drop, or SharePoint's upload dialogue); no API. HEAD request
-// confirms change; otherwise user can save file locally.
+// ---------------------------------------------------------------------------
+// Upload: as a user would (drop, or SharePoint's upload dialogue); no API
+// ---------------------------------------------------------------------------
+
+/** @returns file shown is in the folder open in SharePoint (only there can it be uploaded); else says so */
+export function uploadable(v: Viewer): boolean {
+    const url = v.file?.url ?? '';
+    const folder = currentFolder();
+    if (!v.linked && folder && url.slice(0, url.lastIndexOf('/')).toLowerCase() === folder.toLowerCase()) return true;
+    alert(
+        'Uploading only works for a file in the folder that is open in SharePoint\n' +
+            '(not for search results or files reached through a link).\n' +
+            "Open the file's folder and upload from there.",
+    );
+    return false;
+}
+
+// Saved text to SharePoint: the file itself, or under another name a new file (the original stays)
 /** @returns true once SharePoint has the new file */
 export async function uploadEdits(v: Viewer, edited: string): Promise<boolean> {
     const src = v.source;
-    if (!src || !v.file) return false;
-    const url = v.file.url;
-    const folder = currentFolder();
-    const dir = url.slice(0, url.lastIndexOf('/'));
-    if (v.linked || !folder || dir.toLowerCase() !== folder.toLowerCase()) {
-        alert(
-            'Uploading only works for a file in the folder that is open in SharePoint\n' +
-                '(not for search results or files reached through a link).\n' +
-                "Open the file's folder and upload from there.",
-        );
-        return false;
-    }
+    if (!src || !v.file || !uploadable(v)) return false;
+    const to = target(v, v.stagedName);
     if (
         src.encoding &&
         src.encoding !== 'UTF-8' &&
@@ -169,32 +200,38 @@ export async function uploadEdits(v: Viewer, edited: string): Promise<boolean> {
     ) {
         return false;
     }
+    if (to.isNew && !confirm(uploadQuestion(v, to, (await fileStamp(to.url)) != null))) return false;
 
     let text = edited;
     if (src.crlf) text = text.replace(/\r?\n/g, '\r\n');
-    const file = new File([src.bom ? `﻿${text}` : text], v.fileName ?? v.file.name, {
-        type: 'text/plain',
-        lastModified: Date.now(),
-    });
+    const name = to.isNew ? to.name : (v.fileName ?? v.file.name);
+    const file = new File([src.bom ? `\uFEFF${text}` : text], name, { type: 'text/plain', lastModified: Date.now() });
+    if (!(await uploadFile(v, file, to))) return false;
+
+    if (to.isNew) return true; // original unchanged: the caller opens the new file
+    // Confirmed: uploaded text is file from now on
+    src.text = text;
+    src.originalText = null;
+    v.text = text;
+    src.lintResult = null;
+    return true;
+}
+
+// Hands a file to SharePoint (drop, else its upload dialogue); a HEAD request confirms the change,
+// otherwise the user can save the file and upload it by hand
+/** @returns true once SharePoint has the file */
+export async function uploadFile(v: Viewer, file: File, to: Target): Promise<boolean> {
     const transfer = new DataTransfer();
     transfer.items.add(file);
 
-    // How file looks on SharePoint right now; upload changes this
-    const fetchUrl = url.split('/').map(encodeURIComponent).join('/');
-    const stamp = async () => {
-        try {
-            const r = await fetch(fetchUrl, { method: 'HEAD', credentials: 'same-origin', cache: 'reload' });
-            return r.ok
-                ? `${r.headers.get('etag')}|${r.headers.get('last-modified')}|${r.headers.get('content-length')}`
-                : null;
-        } catch {
-            return null;
-        }
-    };
+    // How file looks on SharePoint right now (none: new file); upload changes this
+    const stamp = () => fileStamp(to.url);
     const before = await stamp();
-    // Watch for SharePoint to change file (it may first ask "replace?"): up to `ms`
-    const changed = async (ms: number) => {
+    // Watch for SharePoint to change file (it may first ask "replace?"): up to `ms`, shown in the status bar
+    const changed = async (ms: number, how: string) => {
         for (const end = Date.now() + ms; Date.now() < end; ) {
+            const left = Math.ceil((end - Date.now()) / 1000);
+            showStatus(v, `Uploading "${to.name}" (${how}) … waiting for SharePoint (${left} s)`);
             await new Promise((r) => setTimeout(r, 1500));
             const now = await stamp();
             if (now && now !== before) return true;
@@ -202,21 +239,20 @@ export async function uploadEdits(v: Viewer, edited: string): Promise<boolean> {
         return false;
     };
 
+    const ready = !v.uploadBtn.disabled; // upload button as before (copies: not involved)
     v.uploadBtn.disabled = true;
     v.uploadBtn.title = 'Upload in progress …';
     let done = false;
 
     // 1. Like drop into file list
-    const target = listRegion()?.card || document.querySelector('[role="grid"], [role="treegrid"]');
-    if (target) {
-        const r = target.getBoundingClientRect();
+    const list = listRegion()?.card || document.querySelector('[role="grid"], [role="treegrid"]');
+    if (list) {
+        const r = list.getBoundingClientRect();
         const at = { clientX: r.left + r.width / 2, clientY: r.top + Math.min(r.height / 2, 200) };
         for (const type of ['dragenter', 'dragover', 'drop']) {
-            target.dispatchEvent(
-                new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer, ...at }),
-            );
+            list.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer, ...at }));
         }
-        done = await changed(20000);
+        done = await changed(20000, 'dropped on the list');
     }
 
     // 2. Like choice in SharePoint's own upload dialogue
@@ -226,36 +262,29 @@ export async function uploadEdits(v: Viewer, edited: string): Promise<boolean> {
             (input as HTMLInputElement).files = transfer.files;
             input.dispatchEvent(new Event('input', { bubbles: true }));
             input.dispatchEvent(new Event('change', { bubbles: true }));
-            done = await changed(20000);
+            done = await changed(20000, "SharePoint's upload dialogue");
         }
     }
 
+    showCached(v);
     v.uploadBtn.title = 'Upload the saved changes to SharePoint';
-    if (!done) {
-        v.uploadBtn.disabled = false;
-        // 3. user does it: edited file is saved locally, ready to drag into folder
-        if (
-            confirm(
-                'SharePoint did not take the file automatically.\n\n' +
-                    'Download the edited file now, so you can drag it into the folder yourself?\n' +
-                    '(Your saved changes stay in the viewer until an upload is confirmed.)',
-            )
-        ) {
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(file);
-            a.download = file.name;
-            a.click();
-            setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-        }
-        return false;
+    if (done) return true;
+    v.uploadBtn.disabled = !ready;
+    // 3. user does it: file is saved locally, ready to drag into folder
+    if (
+        confirm(
+            'SharePoint did not take the file automatically.\n\n' +
+                'Download the file now, so you can drag it into the folder yourself?\n' +
+                '(Saved changes stay in the viewer until an upload is confirmed.)',
+        )
+    ) {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(file);
+        a.download = file.name;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 10000);
     }
-
-    // Confirmed: uploaded text is file from now on
-    src.text = text;
-    src.originalText = null;
-    v.text = text;
-    src.lintResult = null;
-    return true;
+    return false;
 }
 
 /** Page-wide edit guards: Ctrl+S / Cmd+S saves, unsaved changes ask before leaving. */
