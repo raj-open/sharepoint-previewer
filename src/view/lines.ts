@@ -7,9 +7,9 @@
 import { SHOW_WHITESPACE } from '../_core/settings.ts';
 import { esc } from '../_core/util.ts';
 
-/** @typedef {import('../_core/types.ts').Token} Token */
-/** @typedef {import('../_core/types.ts').Problem} Problem */
-/** @typedef {import('../_core/types.ts').LineView} LineView */
+import type { Token } from '../_core/types.ts';
+import type { Problem } from '../_core/types.ts';
+import type { LineView } from '../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -23,8 +23,7 @@ export const CHUNK_LINES = 200;
 // ===========================================================================
 
 // Whitespace markers (CSS only, copied text unchanged): · per space, → per tab
-/** @param {string} html @returns {string} */
-function markWhitespace(html) {
+function markWhitespace(html: string): string {
     if (!SHOW_WHITESPACE) return html;
     return html.replace(/ +|\t/g, (ws) =>
         ws === '\t' ? '<span class="tp-tab">\t</span>' : `<span class="tp-sp">${ws}</span>`,
@@ -32,11 +31,15 @@ function markWhitespace(html) {
 }
 
 // Fill blocks when they come near visible part of `root`, empties them when far away
-/** @param {HTMLElement} root @param {HTMLElement[]} blocks @param {(b: HTMLElement) => void} fill @param {(b: HTMLElement) => void} empty @returns {IntersectionObserver} */
-export function watchBlocks(root, blocks, fill, empty) {
+export function watchBlocks(
+    root: HTMLElement,
+    blocks: HTMLElement[],
+    fill: (b: HTMLElement) => void,
+    empty: (b: HTMLElement) => void,
+): IntersectionObserver {
     const io = new IntersectionObserver(
         (entries) => {
-            for (const e of entries) (e.isIntersecting ? fill : empty)(/** @type {HTMLElement} */ (e.target));
+            for (const e of entries) (e.isIntersecting ? fill : empty)(e.target as HTMLElement);
         },
         { root, rootMargin: '1500px 0px' },
     );
@@ -44,15 +47,13 @@ export function watchBlocks(root, blocks, fill, empty) {
     return io;
 }
 
-/** @param {HTMLElement} content @param {string[]} lineHtml @returns {LineView} */
-export function mountLines(content, lineHtml) {
+export function mountLines(content: HTMLElement, lineHtml: string[]): LineView {
     const holder = document.createElement('div');
     holder.className = 'tp-lines';
     content.replaceChildren(holder);
     const lineHeight = parseFloat(getComputedStyle(content).lineHeight) || 19;
 
-    /** @type {HTMLElement[]} */
-    const chunks = [];
+    const chunks: HTMLElement[] = [];
     for (let from = 0; from < lineHtml.length; from += CHUNK_LINES) {
         const box = document.createElement('div');
         const count = Math.min(CHUNK_LINES, lineHtml.length - from);
@@ -63,8 +64,7 @@ export function mountLines(content, lineHtml) {
         chunks.push(box);
     }
 
-    /** @param {HTMLElement} box */
-    const fill = (box) => {
+    const fill = (box: HTMLElement) => {
         if (box.dataset.on) return;
         const from = Number(box.dataset.from);
         box.innerHTML = lineHtml.slice(from, from + Number(box.dataset.count)).join('');
@@ -72,8 +72,7 @@ export function mountLines(content, lineHtml) {
         box.dataset.on = '1';
     };
 
-    /** @param {HTMLElement} box */
-    const empty = (box) => {
+    const empty = (box: HTMLElement) => {
         if (!box.dataset.on) return;
         box.style.height = `${box.getBoundingClientRect().height}px`; // keep its place
         box.replaceChildren();
@@ -91,10 +90,13 @@ export function mountLines(content, lineHtml) {
     };
 }
 
-/** @param {Token[]} tokens @param {Map<number, Problem[]>} problemsByLine @param {Map<number, number>} [truncated] @returns {string[]} one HTML string per line */
-export function renderLines(tokens, problemsByLine, truncated = new Map()) {
-    /** @type {string[]} */
-    const out = [];
+/** @returns one HTML string per line */
+export function renderLines(
+    tokens: Token[],
+    problemsByLine: Map<number, Problem[]>,
+    truncated: Map<number, number> = new Map(),
+): string[] {
+    const out: string[] = [];
     let n = 1;
     let cur = '';
 

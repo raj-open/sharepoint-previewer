@@ -16,20 +16,20 @@ import { readOoxml } from './ooxml.ts';
 import { zipPackage } from './package.ts';
 import { readXls } from './xls.ts';
 
-/** @typedef {import('../../_core/types.ts').Source} Source */
-/** @typedef {import('../../_core/types.ts').ByteReader} ByteReader */
-/** @typedef {import('../../_core/types.ts').Book} Book */
-/** @typedef {import('../../_core/types.ts').Sheet} Sheet */
-/** @typedef {import('../../_core/types.ts').SheetMode} SheetMode */
-/** @typedef {import('../../_core/types.ts').SheetShown} SheetShown */
-/** @typedef {import('../../_core/types.ts').Table} Table */
+import type { Source } from '../../_core/types.ts';
+import type { ByteReader } from '../../_core/types.ts';
+import type { Book } from '../../_core/types.ts';
+import type { Sheet } from '../../_core/types.ts';
+import type { SheetMode } from '../../_core/types.ts';
+import type { SheetSource } from '../../_core/types.ts';
+import type { SheetShown } from '../../_core/types.ts';
+import type { Table } from '../../_core/types.ts';
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
-/** @param {ByteReader} read @param {number} size @param {Uint8Array} head @returns {Promise<Book>} */
-export async function readBook(read, size, head) {
+export async function readBook(read: ByteReader, size: number, head: Uint8Array): Promise<Book> {
     if (head[0] === 0xd0 && head[1] === 0xcf) return readXls(read, size);
     if (head[0] !== 0x50 || head[1] !== 0x4b) {
         throw new Error(head[0] === 0x09 ? 'Excel 2.x–4.x files are not supported' : 'not a spreadsheet file');
@@ -42,50 +42,45 @@ export async function readBook(read, size, head) {
 // Sheets are the unit cached; a table is shown once its sheet is.
 // Large files (over SHEET_AUTOLOAD_BYTES) cache no sheet until one (or a table) is chosen.
 /**
- * @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload
- * @param {(loaded: number, total: number) => void} onProgress @param {SheetMode} [mode] start view (sheets if there are no tables)
- * @param {number} [autoload] largest file whose first sheet or table is shown at once
- * @returns {Promise<Source|{ error: string }>}
+ * @param mode start view (sheets if there are no tables)
+ * @param autoload largest file whose first sheet or table is shown at once
  */
 export async function openSheetSource(
-    url,
-    getSignal,
-    reload,
-    onProgress,
-    mode = 'sheets',
-    autoload = SHEET_AUTOLOAD_BYTES,
-) {
+    url: string,
+    getSignal: () => AbortSignal,
+    reload: boolean,
+    onProgress: (loaded: number, total: number) => void,
+    mode: SheetMode = 'sheets',
+    autoload: number = SHEET_AUTOLOAD_BYTES,
+): Promise<Source | { error: string }> {
     const file = await openRanges(url, getSignal, reload, onProgress);
     if ('error' in file) return file;
-    /** @type {Book} */
-    let book;
+    let book: Book;
     try {
         book = await readBook(file.read, file.size, file.head);
     } catch (err) {
-        if (/** @type {Error} */ (err).name === 'AbortError') throw err;
-        return { error: `Not shown: ${/** @type {Error} */ (err).message}` };
+        if ((err as Error).name === 'AbortError') throw err;
+        return { error: `Not shown: ${(err as Error).message}` };
     }
     const { sheets } = book;
     // tables in reading order: by sheet, then top to bottom, left to right
-    /** @type {Table[]} */
-    const tables = [...(book.tables || [])].sort(
+    const tables: Table[] = [...(book.tables || [])].sort(
         (a, b) => a.sheet - b.sheet || a.range.r0 - b.range.r0 || a.range.c0 - b.range.c0,
     );
     if (!sheets.length) return { error: 'Not shown: no sheets in this workbook' };
     const cached = () => sheets.filter((s) => s.data !== undefined).length;
 
     // Sheet read once: data = { rows, cols } or null (no cells: chart, module, unreadable)
-    /** @param {number} i @returns {Promise<void>} */
-    const loadSheet = async (i) => {
+    const loadSheet = async (i: number): Promise<void> => {
         const s = sheets[i];
         if (s.data === undefined) {
             try {
                 s.data = await book.load(i);
                 if (!s.data) s.note = s.kind === 'chart' ? 'Chart sheet: no cells to show.' : 'No cells to show.';
             } catch (err) {
-                if (/** @type {Error} */ (err).name === 'AbortError') throw err;
+                if ((err as Error).name === 'AbortError') throw err;
                 s.data = null;
-                s.note = `This sheet could not be read: ${/** @type {Error} */ (err).message}`;
+                s.note = `This sheet could not be read: ${(err as Error).message}`;
             }
         }
         // all content shown is here once every sheet is: then the whole file counts as cached
@@ -94,8 +89,7 @@ export async function openSheetSource(
     };
 
     // First sheet: active when saved (else first visible worksheet)
-    /** @param {number} i */
-    const usable = (i) => sheets[i] && sheets[i].kind === 'sheet' && !sheets[i].hidden;
+    const usable = (i: number) => sheets[i] && sheets[i].kind === 'sheet' && !sheets[i].hidden;
     const firstSheet = usable(book.active)
         ? book.active
         : Math.max(
@@ -103,8 +97,7 @@ export async function openSheetSource(
               sheets.findIndex((_, i) => usable(i)),
           );
     // Entry a view starts with: the sheet shown, or the first table on it (else the first table)
-    /** @param {SheetMode} m @returns {number} */
-    const startOf = (m) => {
+    const startOf = (m: SheetMode): number => {
         const at = src.sheetOf(src.current);
         return m === 'sheets'
             ? at
@@ -114,8 +107,7 @@ export async function openSheetSource(
               );
     };
 
-    /** @type {Source} */
-    const src = {
+    const src: SheetSource = {
         total: file.size,
         loaded: 0,
         done: false,
@@ -126,10 +118,9 @@ export async function openSheetSource(
         sheets,
         tables,
         tablesRead: !!book.tables, // false: format without tables read (.xls)
-        mode: /** @type {SheetMode} */ ('sheets'),
+        mode: 'sheets',
         current: firstSheet,
         waiting: false, // nothing shown yet: a sheet or table is to be chosen first
-        /** @type {SheetShown} */
         shown: { rows: [], header: [], note: '', text: '' },
         text: '',
         label: () => `${cached().toLocaleString()} of ${sheets.length.toLocaleString()} sheets cached`,
@@ -139,7 +130,7 @@ export async function openSheetSource(
             const hidden = sheets.filter((x) => x.hidden).length;
             const shape = rows.length ? `: ${rows.length.toLocaleString()} rows × ${header.length} columns` : '';
             const hiddenNote = hidden ? ` (${hidden} hidden)` : '';
-            const info = [['sheets', `${sheets.length}${hiddenNote}`]];
+            const info: [string, string][] = [['sheets', `${sheets.length}${hiddenNote}`]];
             if (book.tables) info.push(['tables', tables.length.toLocaleString()]);
             if (src.waiting) info.push(['shown', 'none yet (select a sheet or table)']);
             else if (src.mode === 'tables') {
@@ -156,11 +147,9 @@ export async function openSheetSource(
         loadSheet,
         startOf,
         // Sheet behind entry i of a view (its table's sheet for tables)
-        /** @param {number} i @param {SheetMode} [m] @returns {number} */
-        sheetOf: (i, m = src.mode) => (m === 'tables' ? tables[i].sheet : i),
+        sheetOf: (i: number, m: SheetMode = src.mode): number => (m === 'tables' ? tables[i].sheet : i),
         // Shows entry i of a view (its sheet cached before)
-        /** @param {number} i @param {SheetMode} [m] @returns {void} */
-        select: (i, m = src.mode) => {
+        select: (i: number, m: SheetMode = src.mode): void => {
             src.waiting = false;
             src.mode = m === 'tables' && tables[i] ? 'tables' : 'sheets';
             src.current = i;
@@ -202,8 +191,7 @@ export async function openSheetSource(
 }
 
 // Sheet shown: rows as they are, columns A, B, …; its text with column letters and row numbers (as in Excel)
-/** @param {Sheet} s @returns {SheetShown} */
-function sheetShown(s) {
+function sheetShown(s: Sheet): SheetShown {
     const d = s.data;
     if (!d?.rows.length) return { rows: [], header: [], note: s.note || 'Empty sheet: no cells.', text: '' };
     const header = Array.from({ length: d.cols }, (_, c) => colName(c));
@@ -211,8 +199,7 @@ function sheetShown(s) {
 }
 
 // Table shown: its rows below the header row, without totals rows; column names as header
-/** @param {Table} t @param {Sheet} s @returns {SheetShown} */
-function tableShown(t, s) {
+function tableShown(t: Table, s: Sheet): SheetShown {
     const d = s.data;
     if (!d) return { rows: [], header: [], note: s.note || 'No cells to show.', text: '' };
     const { r0, c0 } = t.range;
@@ -220,8 +207,7 @@ function tableShown(t, s) {
     const c1 = Math.min(t.range.c1, Math.max(d.cols, c0 + t.columns.length) - 1);
     const r1 = Math.min(t.range.r1 - t.totals, d.rows.length - 1);
     const width = Math.max(0, c1 - c0 + 1);
-    /** @param {number} r @returns {string[]} */
-    const cells = (r) => Array.from({ length: width }, (_, k) => d.rows[r]?.[c0 + k] ?? '');
+    const cells = (r: number): string[] => Array.from({ length: width }, (_, k) => d.rows[r]?.[c0 + k] ?? '');
     const names = t.header ? cells(r0) : [];
     const header = Array.from({ length: width }, (_, k) => t.columns[k] || names[k] || colName(c0 + k));
     const rows = [];
@@ -231,8 +217,7 @@ function tableShown(t, s) {
 }
 
 // Rows as CSV, padded to all columns; numbered: row numbers first (none for the header row)
-/** @param {string[][]} rows @param {number} cols @param {boolean} [numbered] @returns {string} */
-function csvRows(rows, cols, numbered = false) {
+function csvRows(rows: string[][], cols: number, numbered = false): string {
     const out = new Array(rows.length);
     for (let i = 0; i < rows.length; i++) {
         const r = rows[i];

@@ -6,6 +6,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import type { Locator } from 'playwright';
+import type { Page } from 'playwright';
 import * as h from '../tests/behave/harness.ts';
 import { RELEASE_SETTING } from '../tests/mocks/mock-sharepoint/server.ts';
 
@@ -28,14 +30,16 @@ const WAIT_3D = 1000;
 // settings for the 3D view (as `just tests-explore` fills them in): release folder of the mock SharePoint
 const SETTINGS_3D = { 'viewer-3d-folder': RELEASE_SETTING };
 
-/**
- * Demo cases: folder (relative to the library), file to preview (optional), steps after opening.
- * @typedef {import('playwright').Page} Page
- * @typedef {import('playwright').Locator} Locator
- * @typedef {{ folder: string, file?: string, settings?: Object<string, *>, skip?: () => string, steps?: (page: Page, viewer: Locator) => Promise<void> }} Case
- * @type {Object<string, Case>}
- */
-const CASES = {
+// Demo case: folder (relative to the library), file to preview (optional), steps after opening
+type Case = {
+    folder: string;
+    file?: string;
+    settings?: Record<string, unknown>;
+    skip?: () => string;
+    steps?: (page: Page, viewer: Locator) => Promise<void>;
+};
+
+const CASES: Record<string, Case> = {
     list: { folder: '' },
     text: { folder: '/Config', file: 'settings.xml' },
     lint: {
@@ -102,14 +106,12 @@ const CASES = {
 // ----------------------------------------------------------------
 
 /** Switches the viewer to a view (Text, Table, Markdown, 3D, ...) unless already on it. */
-/** @param {Locator} v @param {string} name @returns {Promise<void>} */
-async function view(v, name) {
+async function view(v: Locator, name: string): Promise<void> {
     const btn = v.locator('.tp-view-btn', { hasText: name });
     if ((await btn.getAttribute('aria-pressed')) !== 'true') await btn.click();
 }
 
-/** @param {Awaited<ReturnType<typeof h.launch>>} browser @param {string} name @param {Case} c @returns {Promise<void>} */
-async function capture(browser, name, c) {
+async function capture(browser: Awaited<ReturnType<typeof h.launch>>, name: string, c: Case): Promise<void> {
     const { page } = await browser.open(h.folderUrl(`${h.LIBRARY}${c.folder}`), { settings: c.settings ?? {} });
     await page.locator('.tp-preview').first().waitFor();
     if (c.file) {

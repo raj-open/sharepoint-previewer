@@ -10,11 +10,16 @@ import { lintM } from './m.ts';
 import { lintXml } from './xml.ts';
 import { lintYaml } from './yaml.ts';
 
-/** @typedef {import('../../_core/types.ts').LintResult} LintResult */
+import type { LintResult } from '../../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
 // ===========================================================================
 
-/** @type {Object<string, (text: string) => LintResult>} */
-export const LINTERS = { json: lintJson, xml: lintXml, yaml: lintYaml, ifc: lintIfc, m: lintM };
+export const LINTERS: Record<string, (text: string) => LintResult> = {
+    json: lintJson,
+    xml: lintXml,
+    yaml: lintYaml,
+    ifc: lintIfc,
+    m: lintM,
+};

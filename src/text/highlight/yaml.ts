@@ -7,7 +7,7 @@
 import { stripYamlComment } from '../lint/yaml.ts';
 import { tokenise } from './tokenise.ts';
 
-/** @typedef {import('../../_core/types.ts').Token} Token */
+import type { Token } from '../../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -31,8 +31,7 @@ const YAML_VALUE_RE = new RegExp(
 // METHODS
 // ===========================================================================
 
-/** @param {string} s @param {Token[]} out @returns {void} */
-function yamlValue(s, out) {
+function yamlValue(s: string, out: Token[]): void {
     out.push(
         ...tokenise(
             s,
@@ -59,12 +58,9 @@ function yamlValue(s, out) {
     );
 }
 
-/** @param {string} text @returns {Token[]} */
-export function highlightYaml(text) {
-    /** @type {Token[]} */
-    const out = [];
-    /** @type {number|null} */
-    let blockIndent = null; // inside a | or > block scalar: lines are plain string content
+export function highlightYaml(text: string): Token[] {
+    const out: Token[] = [];
+    let blockIndent: number | null = null; // inside a | or > block scalar: lines are plain string content
     text.split('\n').forEach((line, i) => {
         if (i) out.push(['', '\n']);
         const indent = line.match(/^ */)?.[0].length ?? 0;
@@ -88,7 +84,7 @@ export function highlightYaml(text) {
             out.push(['com', line]);
             return;
         }
-        const lead = /** @type {RegExpMatchArray} */ (line.match(/^(\s*)((?:-(?:\s+|$))*)/)); // all parts optional: always matches
+        const lead = line.match(/^(\s*)((?:-(?:\s+|$))*)/) as RegExpMatchArray; // all parts optional: always matches
         if (lead[1]) out.push(['', lead[1]]);
         if (lead[2]) out.push(['punct', lead[2]]);
         let rest = line.slice(lead[0].length);

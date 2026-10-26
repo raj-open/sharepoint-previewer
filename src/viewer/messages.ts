@@ -8,16 +8,14 @@ import { MAX_PROBLEMS } from '../_core/settings.ts';
 import { esc } from '../_core/util.ts';
 import { renderLines } from '../view/lines.ts';
 
-/** @typedef {import('../_core/types.ts').LintResult} LintResult */
-/** @typedef {import('../_core/types.ts').Viewer} Viewer */
-/** @typedef {import('../_core/types.ts').TargetEvent} TargetEvent */
+import type { LintResult } from '../_core/types.ts';
+import type { Viewer } from '../_core/types.ts';
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
-/** @param {Viewer} v @param {string} message @returns {void} */
-export function showPlain(v, message) {
+export function showPlain(v: Viewer, message: string): void {
     v.lint.style.display = 'none';
     v.loadMoreBtn.style.display = 'none';
     v.lineView?.stop();
@@ -26,15 +24,13 @@ export function showPlain(v, message) {
     v.content.innerHTML = `<div class="tp-lines tp-notice">${renderLines([['', message]], new Map()).join('')}</div>`;
 }
 
-/** @param {Viewer} v @param {string} lang @returns {void} */
-export function showLintWait(v, lang) {
+export function showLintWait(v: Viewer, lang: string): void {
     v.lint.style.display = 'block';
     v.lint.className = 'tp-lint tp-lint-wait';
     v.lint.innerHTML = `<div class="tp-lint-summary">… ${lang.toUpperCase()}: check in progress</div>`;
 }
 
-/** @param {Viewer} v @param {string} lang @param {LintResult} result @param {(line: number) => void} goToLine @returns {void} */
-export function renderLint(v, lang, result, goToLine) {
+export function renderLint(v: Viewer, lang: string, result: LintResult, goToLine: (line: number) => void): void {
     const { problems, info } = result;
     const label = lang.toUpperCase();
     const lint = v.lint;
@@ -69,12 +65,12 @@ export function renderLint(v, lang, result, goToLine) {
       ${items}
     </div>
   `;
-    const list = lint.querySelector('.tp-lint-list');
-    lint.querySelector('.tp-lint-summary').onclick = () => {
+    const list = lint.querySelector('.tp-lint-list') as HTMLElement; // written just above
+    (lint.querySelector('.tp-lint-summary') as HTMLElement).onclick = () => {
         list.style.display = list.style.display === 'none' ? 'block' : 'none';
     };
-    list.onclick = (/** @type {TargetEvent} */ e) => {
-        const item = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest('.tp-lint-item'));
+    list.onclick = (e) => {
+        const item = (e.target as HTMLElement).closest('.tp-lint-item') as HTMLElement | null;
         if (item) goToLine(Number(item.dataset.line));
     };
 }

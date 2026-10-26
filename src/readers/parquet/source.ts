@@ -22,16 +22,25 @@ import { readHybrid } from './pages.ts';
 import { readPlain } from './pages.ts';
 import { valueText } from './values.ts';
 
-/** @typedef {import('../../_core/types.ts').Source} Source */
-/** @typedef {import('../../_core/types.ts').Deferred} Deferred */
+import type { Source } from '../../_core/types.ts';
+import type { Deferred } from '../../_core/types.ts';
+import type { Cell } from './meta.ts';
+import type { Column } from './meta.ts';
+import type { PageHeader } from './meta.ts';
+import type { ParquetValue } from './meta.ts';
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
 // Parquet source like openSource(): text = rows as CSV, more() = PARQUET_ROWS more
-/** @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload @param {(loaded: number, total: number) => void} onProgress @param {boolean} [force] @returns {Promise<Source|Deferred|{ error: string }>} */
-export async function openParquetSource(url, getSignal, reload, onProgress, force = false) {
+export async function openParquetSource(
+    url: string,
+    getSignal: () => AbortSignal,
+    reload: boolean,
+    onProgress: (loaded: number, total: number) => void,
+    force = false,
+): Promise<Source | Deferred | { error: string }> {
     const file = await openRanges(url, getSignal, reload, onProgress);
     if ('error' in file) return file;
     const { size, dates, read } = file;
@@ -39,11 +48,10 @@ export async function openParquetSource(url, getSignal, reload, onProgress, forc
     if (!file.whole() && size > MAX_BYTES && !force) return { deferred: 'Parquet', size, dates }; // asks first
 
     // Footer: last 64 KB usually hold all of it (asked for by exact position)
-    /** @type {Uint8Array|null} */
-    let tail = await read(Math.max(0, size - 65536), size); // small file: all of it, no more requests
+    let tail: Uint8Array | null = await read(Math.max(0, size - 65536), size); // small file: all of it, no more requests
     if (utf8.decode(tail.subarray(tail.length - 4)) !== 'PAR1') return { error: 'Not a Parquet file' };
     const footerLen = u32(tail, tail.length - 8);
-    let footer;
+    let footer: Uint8Array;
     if (footerLen + 8 <= tail.length) {
         footer = tail.subarray(tail.length - 8 - footerLen, tail.length - 8);
     } else {
@@ -56,12 +64,10 @@ export async function openParquetSource(url, getSignal, reload, onProgress, forc
     const names = leaves.map((c) => c.path.join('.').replace(/\.(list\.(element|item)|array|bag)$/, ''));
 
     // Column chunk, cached piece by piece as its pages are read
-    /** @typedef {{ length: number, buf: Uint8Array, ensure: (n: number) => Promise<void> }} Chunk */
-    /** @param {number} start @param {number} stated @returns {Chunk} */
-    const chunk = (start, stated) => {
+    type Chunk = { length: number; buf: Uint8Array; ensure: (n: number) => Promise<void> };
+    const chunk = (start: number, stated: number): Chunk => {
         const length = Math.max(0, Math.min(stated, size - start)); // never past end of file
-        /** @type {Chunk} */
-        const c = { length, buf: new Uint8Array(0), ensure: async () => {} };
+        const c: Chunk = { length, buf: new Uint8Array(0), ensure: async () => {} };
         c.ensure = async (n) => {
             n = Math.min(n, length);
             if (c.buf.length >= n) return;
@@ -73,19 +79,51 @@ export async function openParquetSource(url, getSignal, reload, onProgress, forc
         return c;
     };
 
-    // Per column: rows decoded so far, and where read stopped
-    /** @typedef {Object<string, *>} ColumnState rows decoded so far and where reading stopped */
-    /** @type {ColumnState[]} */
-    const states = leaves.map((col, idx) => ({ col, idx, rg: 0, rows: [], cur: null, chunk: null, ended: false }));
+    // Per column: rows decoded so far (cur: list of the row being read), and where reading stopped
+    // (row group, chunk and position in it, values read of the chunk, dictionary)
+    type ColumnState = {
+        col: Column;
+        idx: number;
+        rg: number;
+        rows: Cell[];
+        cur: Cell[] | null;
+        curNull: boolean;
+        chunk: Chunk | null;
+        ended: boolean;
+        codec: number;
+        total: number;
+        read: number;
+        pos: number;
+        dict: ParquetValue[] | null;
+    };
+    const states: ColumnState[] = leaves.map((col, idx) => ({
+        col,
+        idx,
+        rg: 0,
+        rows: [],
+        cur: null,
+        curNull: false,
+        chunk: null,
+        ended: false,
+        codec: 0,
+        total: 0,
+        read: 0,
+        pos: 0,
+        dict: null,
+    }));
 
-    /** @param {ColumnState} st */
-    const endRow = (st) => {
+    const endRow = (st: ColumnState) => {
         if (st.cur) st.rows.push(st.cur.length || !st.curNull ? st.cur : null);
         st.cur = null;
     };
 
-    /** @param {ColumnState} st @param {number[]|null} reps @param {number[]|null} defs @param {Array<*>} values @param {number} n */
-    const addValues = (st, reps, defs, values, n) => {
+    const addValues = (
+        st: ColumnState,
+        reps: number[] | null,
+        defs: number[] | null,
+        values: ParquetValue[],
+        n: number,
+    ) => {
         const { maxDef, maxRep, repetition } = st.col;
         let vi = 0;
         for (let i = 0; i < n; i++) {
@@ -100,21 +138,20 @@ export async function openParquetSource(url, getSignal, reload, onProgress, forc
                 st.cur = [];
                 st.curNull = def === 0;
             }
+            if (!st.cur) throw new Error(`column "${st.col.name}": list goes on before it began (damaged file?)`);
             if (def === maxDef) st.cur.push(v);
             else if (def === maxDef - 1 && repetition === 1) st.cur.push(null);
         }
     };
 
-    /** @param {ColumnState} st */
-    const readPage = async (st) => {
-        const c = st.chunk;
-        let header;
-        let at;
+    const readPage = async (st: ColumnState, c: Chunk) => {
+        let header: PageHeader;
+        let at: number;
         for (let want = 2048; ; want *= 4) {
             await c.ensure(st.pos + want);
             try {
                 const t = thriftReader(c.buf, st.pos);
-                header = t.struct();
+                header = t.struct() as PageHeader; // shape per the format
                 at = t.pos();
                 break;
             } catch (err) {
@@ -133,17 +170,20 @@ export async function openParquetSource(url, getSignal, reload, onProgress, forc
 
         if (header[1] === 2) {
             const data = await decompress(st.codec, raw, header[2]);
-            st.dict = readPlain(col.type, data, 0, header[7][1], col.typeLength).values;
+            const dictHeader = header[7];
+            if (!dictHeader) throw new Error(`column "${col.name}": dictionary page without header (damaged file?)`);
+            st.dict = readPlain(col.type, data, 0, dictHeader[1], col.typeLength).values;
             return;
         }
         if (header[1] !== 0 && header[1] !== 3) return; // index pages: nothing to show
 
         const v2 = header[1] === 3;
         const h = v2 ? header[8] : header[5];
+        if (!h) throw new Error(`column "${col.name}": data page without header (damaged file?)`);
         const n = h[1];
         let reps = null;
         let defs = null;
-        let data;
+        let data: Uint8Array;
         let pos = 0;
         if (v2) {
             const repLen = h[6] || 0;
@@ -172,8 +212,7 @@ export async function openParquetSource(url, getSignal, reload, onProgress, forc
     };
 
     // Read pages of one column until it has `target` rows (or file ends)
-    /** @param {ColumnState} st @param {number} target */
-    const fillColumn = async (st, target) => {
+    const fillColumn = async (st: ColumnState, target: number) => {
         while (st.rows.length < target && !st.ended) {
             if (!st.chunk) {
                 const rg = meta.rowGroups[st.rg];
@@ -183,7 +222,8 @@ export async function openParquetSource(url, getSignal, reload, onProgress, forc
                     break;
                 }
                 const cc = rg.columns[st.idx];
-                const start = cc.dictOffset > 0 && cc.dictOffset < cc.dataOffset ? cc.dictOffset : cc.dataOffset;
+                const dict = cc.dictOffset;
+                const start = dict !== null && dict > 0 && dict < cc.dataOffset ? dict : cc.dataOffset;
                 st.chunk = chunk(start, cc.size);
                 st.codec = cc.codec;
                 st.total = cc.numValues;
@@ -198,20 +238,13 @@ export async function openParquetSource(url, getSignal, reload, onProgress, forc
                 continue;
             }
             const before = st.pos;
-            await readPage(st);
+            await readPage(st, st.chunk);
             if (st.pos <= before) throw new Error(`column "${st.col.name}" could not be read (damaged file?)`);
         }
     };
 
-    const codecs = [
-        ...new Set(
-            meta.rowGroups.flatMap((rg) =>
-                rg.columns.map((/** @type {Object<string, *>} */ c) => CODEC_NAMES[c.codec] || c.codec),
-            ),
-        ),
-    ];
-    /** @type {Object<string, *>} */
-    const src = {
+    const codecs = [...new Set(meta.rowGroups.flatMap((rg) => rg.columns.map((c) => CODEC_NAMES[c.codec] || c.codec)))];
+    const src: Source = {
         total: size,
         loaded: file.fetched(),
         done: false,
@@ -227,12 +260,16 @@ export async function openParquetSource(url, getSignal, reload, onProgress, forc
         ],
         text: '',
         rows: 0,
+        label: () =>
+            `${(src.rows ?? 0).toLocaleString()} of ${meta.numRows.toLocaleString()} rows · ${leaves.length} columns`,
+        nextLabel: `Show next ${PARQUET_ROWS} rows`,
+        more: () => fill(target + PARQUET_ROWS),
+        loadAll: () => fill(meta.numRows),
     };
     const lines = [names.map(csvCell).join(',')];
     let target = 0;
 
-    /** @param {number} n */
-    const fill = async (n) => {
+    const fill = async (n: number) => {
         target = Math.min(n, meta.numRows);
         await Promise.all(states.map((st) => fillColumn(st, target)));
         const count = Math.min(target, ...states.map((st) => st.rows.length));
@@ -245,13 +282,7 @@ export async function openParquetSource(url, getSignal, reload, onProgress, forc
         src.done = count >= meta.numRows || states.every((st) => st.ended);
     };
 
-    src.label = () =>
-        `${src.rows.toLocaleString()} of ${meta.numRows.toLocaleString()} rows · ${leaves.length} columns`;
-    src.nextLabel = `Show next ${PARQUET_ROWS} rows`;
-    src.more = () => fill(target + PARQUET_ROWS);
-    src.loadAll = () => fill(meta.numRows);
-
     if (!leaves.length) return { error: 'Parquet file without columns' };
     await fill(PARQUET_ROWS);
-    return /** @type {Source} */ (src);
+    return src;
 }

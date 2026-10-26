@@ -2,6 +2,14 @@
 // kept across updates. Values of wrong type are ignored.
 
 // ===========================================================================
+// TYPES
+// ===========================================================================
+
+// Value of a setting (its type: that of its default)
+export type SettingValue = string | number | boolean;
+export type Settings = Record<string, SettingValue>;
+
+// ===========================================================================
 // CONSTANTS
 // ===========================================================================
 
@@ -88,19 +96,17 @@ export const VIEWER_3D_WASM_SHA256 = '<sha256>';
 // METHODS
 // ===========================================================================
 
-/** @returns {Object<string, *>} */
-function loadSettings() {
-    /** @type {Object<string, *>} */
-    const out = {};
+function loadSettings(): typeof DEFAULTS {
+    const out: Settings = {};
     for (const [key, fallback] of Object.entries(DEFAULTS)) {
         let value = GM_getValue(key);
         if (value === undefined) {
             value = fallback;
             GM_setValue(key, value); // shown in Tampermonkey's storage
         }
-        out[key] = typeof value === typeof fallback ? value : fallback;
+        out[key] = typeof value === typeof fallback ? (value as SettingValue) : fallback;
     }
-    return out;
+    return out as typeof DEFAULTS; // types checked above
 }
 export const {
     'layout': DEFAULT_MODE,

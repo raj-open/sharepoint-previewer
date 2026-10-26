@@ -5,8 +5,7 @@
 // ===========================================================================
 
 // File types (by extension) that get colours and checks
-/** @type {[string, RegExp][]} */
-const LANGS = [
+const LANGS: [string, RegExp][] = [
     [
         'xml',
         /\.(xml|xsd|xsl|xslt|svg|xaml|config|csproj|vbproj|props|targets|resx|plist|kml|gpx|rss|atom|wsdl|addin)$/i,
@@ -26,8 +25,7 @@ const LANGS = [
     ['log', /\.log$/i], // log files
 ];
 
-/** @type {Object<string, string>} */
-export const LANG_NAMES = {
+export const LANG_NAMES: Record<string, string> = {
     json: 'JSON',
     xml: 'XML',
     yaml: 'YAML',
@@ -53,8 +51,7 @@ export const LANG_NAMES = {
 // ---------------------------------------------------------------------------
 
 // Indentation style of text: tabs, 2 / 4 / ... spaces, or mixed (from first 5,000 lines)
-/** @param {string} text @returns {string|null} */
-export function indentation(text) {
+export function indentation(text: string): string | null {
     let tabs = 0;
     let spaces = 0;
     let prev = 0;
@@ -88,5 +85,4 @@ export function indentation(text) {
     return best ? `${best} spaces` : 'spaces';
 }
 
-/** @param {string} name @returns {string|null} */
-export const langOf = (name) => (LANGS.find(([, re]) => re.test(name)) || [null])[0];
+export const langOf = (name: string): string | null => (LANGS.find(([, re]) => re.test(name)) || [null])[0];

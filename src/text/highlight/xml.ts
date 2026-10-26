@@ -6,7 +6,7 @@
 
 import { tokenise } from './tokenise.ts';
 
-/** @typedef {import('../../_core/types.ts').Token} Token */
+import type { Token } from '../../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -31,8 +31,7 @@ const XML_ATTR_RE = /([^\s=]+)(\s*=\s*)?("[^"]*"|'[^']*')?/g;
 // METHODS
 // ===========================================================================
 
-/** @param {string} text @returns {Token[]} */
-export const highlightXml = (text) =>
+export const highlightXml = (text: string): Token[] =>
     tokenise(text, XML_RE, (m, out) => {
         if (m[1]) out.push(['com', m[1]]);
         else if (m[2]) out.push(['meta', m[2]]);

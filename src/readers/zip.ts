@@ -14,10 +14,10 @@ import { responseDates } from './request.ts';
 import { sameOrigin } from './request.ts';
 import { sniffText } from './text.ts';
 
-/** @typedef {import('../_core/types.ts').Source} Source */
-/** @typedef {import('../_core/types.ts').ByteReader} ByteReader */
-/** @typedef {import('../_core/types.ts').ZipEntry} ZipEntry */
-/** @typedef {import('../_core/types.ts').Deferred} Deferred */
+import type { Source } from '../_core/types.ts';
+import type { ByteReader } from '../_core/types.ts';
+import type { ZipEntry } from '../_core/types.ts';
+import type { Deferred } from '../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -32,12 +32,10 @@ const MAX_ZIP_BYTES = 256 * 1024 * 1024; // archive size limit
 // ===========================================================================
 
 // Entries of ZIP archive from its central directory (at its end)
-/** @param {ByteReader} read @param {number} size @returns {Promise<ZipEntry[]>} */
-export async function zipEntries(read, size) {
+export async function zipEntries(read: ByteReader, size: number): Promise<ZipEntry[]> {
     // End record: in last 22 bytes, unless archive has a comment (then up to 64 KB before)
     let base = 0;
-    /** @type {Uint8Array} */
-    let tail = new Uint8Array(0);
+    let tail: Uint8Array = new Uint8Array(0);
     let end = -1;
     for (const span of [4096, 65557]) {
         base = Math.max(0, size - span);
@@ -80,8 +78,7 @@ export async function zipEntries(read, size) {
 }
 
 // Bytes of one entry: stored (0) or deflated (8)
-/** @param {ByteReader} read @param {ZipEntry} entry @returns {Promise<Uint8Array>} */
-export async function zipEntryBytes(read, entry) {
+export async function zipEntryBytes(read: ByteReader, entry: ZipEntry): Promise<Uint8Array> {
     const at = entry.offset;
     let bytes = await read(at, at + entry.head + entry.packed);
     const dv = dataView(bytes);
@@ -93,14 +90,19 @@ export async function zipEntryBytes(read, entry) {
     const packed = bytes.subarray(start, start + entry.packed);
     if (entry.method === 0) return packed;
     if (entry.method !== 8) throw new Error(`ZIP compression ${entry.method} is not supported`);
-    const blob = new Blob([/** @type {BlobPart} */ (packed)]);
+    const blob = new Blob([packed as BlobPart]);
     return new Uint8Array(
         await new Response(blob.stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer(),
     );
 }
 
-/** @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload @param {(loaded: number, total: number) => void} onProgress @param {boolean} [force] @returns {Promise<Source|Deferred|{ error: string }|{ binary: true }>} */
-export async function openZipSource(url, getSignal, reload, onProgress, force = false) {
+export async function openZipSource(
+    url: string,
+    getSignal: () => AbortSignal,
+    reload: boolean,
+    onProgress: (loaded: number, total: number) => void,
+    force = false,
+): Promise<Source | Deferred | { error: string } | { binary: true }> {
     if (!sameOrigin(url)) return { error: OUTSIDE };
     const res = await fetch(url, {
         credentials: 'same-origin',
@@ -120,7 +122,7 @@ export async function openZipSource(url, getSignal, reload, onProgress, force = 
     }
     const parts = [];
     let loaded = 0;
-    const reader = /** @type {ReadableStream<Uint8Array>} */ (res.body).getReader(); // ok response: has a body
+    const reader = (res.body as ReadableStream<Uint8Array>).getReader(); // ok response: has a body
     for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -129,13 +131,12 @@ export async function openZipSource(url, getSignal, reload, onProgress, force = 
         onProgress(loaded, total);
     }
     const bytes = concatBytes(parts.length ? parts : [new Uint8Array(0)]);
-    /** @type {ByteReader} */
-    const read = async (from, to) => bytes.subarray(from, to);
-    let entries;
+    const read: ByteReader = async (from, to) => bytes.subarray(from, to);
+    let entries: ZipEntry[];
     try {
         entries = await zipEntries(read, bytes.length);
     } catch (err) {
-        return { error: `Not a valid .ifczip (${/** @type {Error} */ (err).message})` };
+        return { error: `Not a valid .ifczip (${(err as Error).message})` };
     }
     const entry = entries.find((e) => /\.ifc$/i.test(e.name));
     if (!entry) return { error: 'No .ifc file inside this archive' };

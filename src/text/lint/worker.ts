@@ -16,23 +16,21 @@ import { lintM } from './m.ts';
 import { lintYaml } from './yaml.ts';
 import { stripYamlComment } from './yaml.ts';
 
-/** @typedef {import('../../_core/types.ts').LintResult} LintResult */
-/** @typedef {import('../../_core/types.ts').Viewer} Viewer */
+import type { LintResult } from '../../_core/types.ts';
+import type { Viewer } from '../../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
 // ===========================================================================
 
-/** @type {string|null} */
-let lintWorkerUrl = null;
+let lintWorkerUrl: string | null = null;
 let workersBlocked = false;
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
-/** @param {Viewer} v @param {string} lang @param {string} text @returns {Promise<LintResult>|null} */
-function startLintWorker(v, lang, text) {
+function startLintWorker(v: Viewer, lang: string, text: string): Promise<LintResult> | null {
     if (workersBlocked || !['json', 'yaml', 'ifc', 'm'].includes(lang)) return null;
     try {
         if (!lintWorkerUrl) {
@@ -79,19 +77,15 @@ function startLintWorker(v, lang, text) {
     }
 }
 
-/** @param {Viewer} v @param {string} lang @param {string} text @returns {Promise<LintResult>} */
-export async function lintFile(v, lang, text) {
+export async function lintFile(v: Viewer, lang: string, text: string): Promise<LintResult> {
     const linter = LINTERS[lang];
 
-    /** @returns {LintResult} */
-    const onPage = () => {
+    const onPage = (): LintResult => {
         try {
             return linter(text);
         } catch (err) {
             return {
-                problems: [
-                    { line: 1, msg: `Check failed: ${/** @type {Error} */ (err).message}`, severity: 'warning' },
-                ],
+                problems: [{ line: 1, msg: `Check failed: ${(err as Error).message}`, severity: 'warning' }],
             };
         }
     };
@@ -103,9 +97,9 @@ export async function lintFile(v, lang, text) {
     try {
         return await job;
     } catch (err) {
-        if (/** @type {Error & { fallback?: boolean }} */ (err).fallback) return onPage();
+        if ((err as Error & { fallback?: boolean }).fallback) return onPage();
         return {
-            problems: [{ line: 1, msg: `Check failed: ${/** @type {Error} */ (err).message}`, severity: 'warning' }],
+            problems: [{ line: 1, msg: `Check failed: ${(err as Error).message}`, severity: 'warning' }],
         };
     }
 }

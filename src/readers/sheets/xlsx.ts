@@ -15,20 +15,17 @@ import { xmlAttrs } from './xml.ts';
 import { xmlString } from './xml.ts';
 import { xmlText } from './xml.ts';
 
-/** @typedef {import('../../_core/types.ts').SheetData} SheetData */
-/** @typedef {import('../../_core/types.ts').SheetParts} SheetParts */
-/** @typedef {import('../../_core/types.ts').TablePart} TablePart */
+import type { SheetData } from '../../_core/types.ts';
+import type { SheetParts } from '../../_core/types.ts';
+import type { TablePart } from '../../_core/types.ts';
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
-/** @type {SheetParts} */
-export const XLSX_PARTS = {
-    /** @param {Uint8Array} bytes */
-    workbook(bytes) {
-        /** @type {{ name: string, id: string, hidden: boolean }[]} */
-        const sheets = [];
+export const XLSX_PARTS: SheetParts = {
+    workbook(bytes: Uint8Array) {
+        const sheets: { name: string; id: string; hidden: boolean }[] = [];
         let active = 0;
         let date1904 = false;
         let views = 0;
@@ -53,12 +50,9 @@ export const XLSX_PARTS = {
         return { sheets, active, date1904 };
     },
 
-    /** @param {Uint8Array} bytes @returns {string[]} */
-    strings(bytes) {
-        /** @type {string[]} */
-        const out = [];
-        /** @type {string|null} */
-        let cur = null;
+    strings(bytes: Uint8Array): string[] {
+        const out: string[] = [];
+        let cur: string | null = null;
         let inText = false;
         let phonetic = 0; // <rPh>: reading aid, not part of the text
         scanXml(
@@ -83,11 +77,9 @@ export const XLSX_PARTS = {
     },
 
     // Number format code per cell style (index = style "s" of cells)
-    /** @param {Uint8Array} bytes @returns {string[]} */
-    styles(bytes) {
+    styles(bytes: Uint8Array): string[] {
         const codes = new Map();
-        /** @type {number[]} */
-        const xfs = [];
+        const xfs: number[] = [];
         let where = ''; // 'numFmts' | 'cellXfs'
         scanXml(
             xmlString(bytes),
@@ -105,13 +97,11 @@ export const XLSX_PARTS = {
         return xfs.map((id) => codes.get(id) ?? BUILTIN_FORMATS[id] ?? '');
     },
 
-    /** @param {Uint8Array} bytes @param {string[]} strings @param {string[]} kinds @param {boolean} date1904 @returns {SheetData} */
-    sheet(bytes, strings, kinds, date1904) {
+    sheet(bytes: Uint8Array, strings: string[], kinds: string[], date1904: boolean): SheetData {
         const grid = sheetGrid();
         let r = -1;
         let c = -1;
-        /** @type {{ t: string, s: number, v: string, is: string }|null} */
-        let cell = null; // { t, s, v, is }
+        let cell: { t: string; s: number; v: string; is: string } | null = null; // { t, s, v, is }
         let field = ''; // 'v' value, 't' inline text
         let phonetic = 0;
         scanXml(
@@ -146,8 +136,7 @@ export const XLSX_PARTS = {
         );
         return grid.done();
 
-        /** @param {{ t: string, s: number, v: string, is: string }} cell @returns {string} */
-        function cellText({ t, s, v, is }) {
+        function cellText({ t, s, v, is }: { t: string; s: number; v: string; is: string }): string {
             if (t === 's') return strings[Number(v)] ?? '';
             if (t === 'inlineStr') return ooxmlText(is);
             if (t === 'str') return ooxmlText(v);
@@ -159,12 +148,9 @@ export const XLSX_PARTS = {
     },
 
     // Table (ECMA-376 part 1, 18.5): name shown in Excel, range, header and totals rows, column names
-    /** @param {Uint8Array} bytes @returns {TablePart|null} */
-    table(bytes) {
-        /** @type {TablePart|null} */
-        let out = null;
-        /** @type {string[]} */
-        const columns = [];
+    table(bytes: Uint8Array): TablePart | null {
+        let out: TablePart | null = null;
+        const columns: string[] = [];
         scanXml(
             xmlString(bytes),
             (n, a) => {

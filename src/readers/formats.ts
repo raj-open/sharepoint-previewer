@@ -10,23 +10,25 @@ import { PARQUET_RE } from './parquet/meta.ts';
 import { SHEET_RE } from './sheets/cells.ts';
 import { ZIP_RE } from './zip.ts';
 
-/** @typedef {'text'|'parquet'|'sheet'|'ifczip'} Reader */
+// ===========================================================================
+// TYPES
+// ===========================================================================
+
+export type Reader = 'text' | 'parquet' | 'sheet' | 'ifczip';
 
 // ===========================================================================
 // CONSTANTS
 // ===========================================================================
 
 // Formats with a reader of their own (binary files); all others are text, coloured by language
-/** @type {Object<string, string>} */
-const FILE_FORMATS = {
+const FILE_FORMATS: Record<string, string> = {
     parquet: 'Parquet',
     sheet: 'Spreadsheet',
     ifczip: 'IFCZIP',
 };
 
 // Lists of the format picker: text formats (plain text first, then by name), file formats
-/** @type {[string, string[]][]} */
-export const FORMAT_LISTS = [
+export const FORMAT_LISTS: [string, string[]][] = [
     ['Text', ['text', ...Object.keys(LANG_NAMES).sort((a, b) => LANG_NAMES[a].localeCompare(LANG_NAMES[b]))]],
     ['Files', Object.keys(FILE_FORMATS)],
 ];
@@ -36,23 +38,19 @@ export const FORMAT_LISTS = [
 // ===========================================================================
 
 // Format recognised from a file name ('text': plain text)
-/** @param {string} name @returns {string} */
-export function formatOf(name) {
+export function formatOf(name: string): string {
     if (PARQUET_RE.test(name)) return 'parquet';
     if (SHEET_RE.test(name)) return 'sheet';
     if (ZIP_RE.test(name)) return 'ifczip';
     return langOf(name) || 'text';
 }
 
-/** @param {string} format @returns {Reader} */
-export const readerOf = (format) => /** @type {Reader} */ (format in FILE_FORMATS ? format : 'text');
+export const readerOf = (format: string): Reader => (format in FILE_FORMATS ? format : 'text') as Reader;
 
 // Language of a format, as in Viewer.lang (null: plain text)
-/** @param {string} format @returns {string|null} */
-export function langOfFormat(format) {
+export function langOfFormat(format: string): string | null {
     if (format === 'ifczip') return 'ifc';
     return format === 'text' ? null : format;
 }
 
-/** @param {string} format @returns {string} */
-export const formatName = (format) => FILE_FORMATS[format] || LANG_NAMES[format] || 'Text';
+export const formatName = (format: string): string => FILE_FORMATS[format] || LANG_NAMES[format] || 'Text';

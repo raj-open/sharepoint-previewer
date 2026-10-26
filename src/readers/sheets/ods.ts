@@ -15,9 +15,10 @@ import { xmlAttrs } from './xml.ts';
 import { xmlString } from './xml.ts';
 import { xmlText } from './xml.ts';
 
-/** @typedef {import('../../_core/types.ts').SheetData} SheetData */
-/** @typedef {import('../../_core/types.ts').Book} Book */
-/** @typedef {import('../../_core/types.ts').Table} Table */
+import type { SheetData } from '../../_core/types.ts';
+import type { Book } from '../../_core/types.ts';
+import type { Package } from '../../_core/types.ts';
+import type { Table } from '../../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -34,27 +35,20 @@ const ODS_ANONYMOUS_RE = /^__Anonymous_Sheet_DB__/;
 // METHODS
 // ===========================================================================
 
-/** @param {string} xml @returns {{ sheets: { name: string, data: SheetData }[], ranges: Object<string, string>[] }} */
-function odsSheets(xml) {
-    /** @type {{ name: string, data: SheetData }[]} */
-    const sheets = [];
-    /** @type {Object<string, string>[]} */
-    const ranges = []; // attributes of database ranges
-    /** @type {ReturnType<typeof sheetGrid>|null} */
-    let grid = null;
+function odsSheets(xml: string): { sheets: { name: string; data: SheetData }[]; ranges: Record<string, string>[] } {
+    const sheets: { name: string; data: SheetData }[] = [];
+    const ranges: Record<string, string>[] = []; // attributes of database ranges
+    let grid: ReturnType<typeof sheetGrid> | null = null;
     let name = '';
     let depth = 0; // tables inside cells (rare) are part of their cell
     let r = 0;
     let c = 0;
-    /** @type {string[]|null} */
-    let row = null; // texts of current row
+    let row: string[] | null = null; // texts of current row
     let rowRepeat = 1;
-    /** @type {{ repeat: number, text: string|null, value: string|null }|null} */
-    let cell = null; // { repeat, text, value } (value: typed, else text shown)
+    let cell: { repeat: number; text: string | null; value: string | null } | null = null; // { repeat, text, value } (value: typed, else text shown)
     let para = 0;
     let note = 0; // annotations (comments): not part of cell text
-    /** @param {string} s */
-    const add = (s) => {
+    const add = (s: string) => {
         if (cell && para && !note) cell.text += s;
     };
     scanXml(
@@ -90,7 +84,7 @@ function odsSheets(xml) {
         (n) => {
             if (n === 'table') {
                 if (--depth) return;
-                sheets.push({ name, data: /** @type {ReturnType<typeof sheetGrid>} */ (grid).done() }); // opened with the table
+                sheets.push({ name, data: (grid as ReturnType<typeof sheetGrid>).done() }); // opened with the table
                 grid = null;
             }
             if (depth !== 1) return;
@@ -105,12 +99,7 @@ function odsSheets(xml) {
                 // repeated rows: often a million empty ones at the end, kept only while they hold text
                 if (row.length) {
                     for (let k = 0; k < rowRepeat && r + k < MAX_SHEET_ROWS; k++) {
-                        if (
-                            !row.every((t, col) =>
-                                /** @type {ReturnType<typeof sheetGrid>} */ (grid).set(r + k, col, t),
-                            )
-                        )
-                            break;
+                        if (!row.every((t, col) => (grid as ReturnType<typeof sheetGrid>).set(r + k, col, t))) break;
                     }
                 }
                 r += rowRepeat;
@@ -124,10 +113,9 @@ function odsSheets(xml) {
 
 // Named database ranges -> tables (header row unless contains-header="false", totals row if
 // contains-footer="true" (LibreOffice extension); no column names)
-/** @param {Object<string, string>[]} ranges @param {string[]} names sheet names @returns {Table[]} */
-function odsTables(ranges, names) {
-    /** @type {Table[]} */
-    const tables = [];
+/** @param names sheet names */
+function odsTables(ranges: Record<string, string>[], names: string[]): Table[] {
+    const tables: Table[] = [];
     for (const at of ranges) {
         const m = ODS_RANGE_RE.exec(at['target-range-address'] || '');
         if (!m || !at.name || ODS_ANONYMOUS_RE.test(at.name)) continue;
@@ -142,8 +130,7 @@ function odsTables(ranges, names) {
 }
 
 // Typed value as the Excel formats show it (ISO dates, plain numbers); null = use cell text
-/** @param {Object<string, string>} at @returns {string|null} */
-function odsValue(at) {
+function odsValue(at: Record<string, string>): string | null {
     const type = at['value-type'];
     const n = Number(at.value);
     if ((type === 'float' || type === 'currency') && at.value) return generalText(n);
@@ -155,12 +142,11 @@ function odsValue(at) {
     return null;
 }
 
-/** @param {Object<string, *>} pkg @returns {Promise<Book>} */
-export async function readOds(pkg) {
+export async function readOds(pkg: Package): Promise<Book> {
     if ((await pkg.text('META-INF/manifest.xml'))?.includes('encryption-data')) {
         throw new Error('the file is password-protected');
     }
-    const found = odsSheets(xmlString(await pkg.bytes('content.xml')));
+    const found = odsSheets(xmlString((await pkg.bytes('content.xml')) as Uint8Array)); // entry checked by the caller
     // all sheets come with content.xml: cached at once
     const sheets = found.sheets.map((s) => ({ name: s.name, hidden: false, kind: 'sheet', size: 0, data: s.data }));
     return {

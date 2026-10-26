@@ -10,12 +10,11 @@ import { u32 } from '../bytes.ts';
 // METHODS
 // ===========================================================================
 
-/** @param {Uint8Array} src @returns {Uint8Array} */
-export function unsnappy(src) {
+export function unsnappy(src: Uint8Array): Uint8Array {
     let pos = 0;
     let len = 0;
     let shift = 0;
-    let b;
+    let b: number;
     do {
         b = src[pos++];
         len += (b & 0x7f) * 2 ** shift;
@@ -39,8 +38,8 @@ export function unsnappy(src) {
             op += n;
             continue;
         }
-        let n;
-        let off;
+        let n: number;
+        let off: number;
         if (kind === 1) {
             n = ((tag >> 2) & 7) + 4;
             off = ((tag >> 5) << 8) | src[pos++];

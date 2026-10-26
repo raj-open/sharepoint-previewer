@@ -6,7 +6,7 @@
 
 import { tokenise } from './tokenise.ts';
 
-/** @typedef {import('../../_core/types.ts').Token} Token */
+import type { Token } from '../../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -25,8 +25,7 @@ const XLF_REF =
 
 // Excel formulas (.xlf), any UI language: functions by their "(", errors by "#".
 // Argument separator , or ; from text (with ; decimal separator is ,).
-/** @param {string} text @returns {',' | ';'} */
-function xlfSeparator(text) {
+function xlfSeparator(text: string): ',' | ';' {
     let commas = 0;
     let semis = 0;
     let depth = 0;
@@ -50,8 +49,7 @@ function xlfSeparator(text) {
     return semis > commas ? ';' : ',';
 }
 
-/** @param {string} text @returns {Token[]} */
-export function highlightXlf(text) {
+export function highlightXlf(text: string): Token[] {
     const decimal = xlfSeparator(text) === ';' ? ',' : '\\.';
     const re = new RegExp(
         [

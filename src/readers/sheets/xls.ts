@@ -15,17 +15,16 @@ import { sheetGrid } from './cells.ts';
 import { compoundFile } from './cfb.ts';
 import { rkNumber } from './xlsb.ts';
 
-/** @typedef {import('../../_core/types.ts').ByteReader} ByteReader */
-/** @typedef {import('../../_core/types.ts').Book} Book */
-/** @typedef {import('../../_core/types.ts').Sheet} Sheet */
+import type { ByteReader } from '../../_core/types.ts';
+import type { Book } from '../../_core/types.ts';
+import type { Sheet } from '../../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
 // ===========================================================================
 
 // Code pages of BIFF5 texts (BIFF8 texts are Unicode)
-/** @type {Object<number, string>} */
-const CODEPAGES = {
+const CODEPAGES: Record<number, string> = {
     367: 'windows-1252',
     932: 'shift_jis',
     936: 'gbk',
@@ -37,15 +36,13 @@ const CODEPAGES = {
 };
 
 const BIFF_BOF = new Set([0x0009, 0x0209, 0x0409, 0x0809]);
-/** @type {Object<number, string>} */
-const XLS_KINDS = { 0: 'sheet', 1: 'sheet', 2: 'chart', 6: 'module' }; // macro sheets have cells too
+const XLS_KINDS: Record<number, string> = { 0: 'sheet', 1: 'sheet', 2: 'chart', 6: 'module' }; // macro sheets have cells too
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
-/** @param {number} cp @returns {TextDecoder} */
-function codepageDecoder(cp) {
+function codepageDecoder(cp: number): TextDecoder {
     try {
         return new TextDecoder(CODEPAGES[cp] || `windows-${cp}`);
     } catch {
@@ -54,8 +51,7 @@ function codepageDecoder(cp) {
 }
 
 // BIFF8 XLUnicodeString: count (2 bytes, or 1 for short ones), flags, [runs, extension sizes], characters
-/** @param {Uint8Array} d @param {number} at @param {boolean} [short] @returns {string} */
-function biffString(d, at, short = false) {
+function biffString(d: Uint8Array, at: number, short = false): string {
     const n = short ? d[at] : d[at] | (d[at + 1] << 8);
     let p = at + (short ? 1 : 2);
     const flags = d[p++];
@@ -65,8 +61,7 @@ function biffString(d, at, short = false) {
 }
 
 // Shared strings: SST record and its CONTINUE records; text crossing them gets a new flag byte
-/** @param {Uint8Array[]} parts @returns {string[]} */
-function biffStrings(parts) {
+function biffStrings(parts: Uint8Array[]): string[] {
     const out = [];
     let k = 0;
     let d = parts[0];
@@ -80,8 +75,7 @@ function biffStrings(parts) {
     };
     const u8 = () => (next() ? d[p++] : 0);
     const u16 = () => u8() | (u8() << 8);
-    /** @param {number} n */
-    const skip = (n) => {
+    const skip = (n: number) => {
         while (n > 0 && next()) {
             const step = Math.min(n, d.length - p);
             p += step;
@@ -118,8 +112,7 @@ function biffStrings(parts) {
     return out;
 }
 
-/** @param {ByteReader} read @param {number} size @returns {Promise<Book>} */
-export async function readXls(read, size) {
+export async function readXls(read: ByteReader, size: number): Promise<Book> {
     const cfb = await compoundFile(read, size);
     if (cfb.find('EncryptedPackage')) throw new Error('the file is password-protected');
     const entry = cfb.find('Workbook') || cfb.find('Book');
@@ -127,11 +120,9 @@ export async function readXls(read, size) {
     const stream = await cfb.stream(entry);
 
     // Records from `from` to the end of their substream (BOF … EOF); nested ones (charts) skipped
-    /** @param {number} from @param {number} to @param {(type: number, data: Uint8Array) => void} on */
-    const records = async (from, to, on) => {
+    const records = async (from: number, to: number, on: (type: number, data: Uint8Array) => void) => {
         let buf = await stream.bytes(from, Math.min(to, from + 65536));
-        /** @param {number} need */
-        const grow = async (need) => {
+        const grow = async (need: number) => {
             if (need > buf.length && from + buf.length < to) {
                 buf = await stream.bytes(from, Math.min(to, from + Math.max(need, 2 * buf.length)));
             }
@@ -154,13 +145,10 @@ export async function readXls(read, size) {
     // Workbook globals: sheets, formats, cell styles, shared strings, date system
     let biff8 = true;
     let text8 = new TextDecoder('windows-1252');
-    /** @type {(Sheet & { pos: number })[]} */
-    const sheets = [];
+    const sheets: (Sheet & { pos: number })[] = [];
     const codes = new Map();
-    /** @type {number[]} */
-    const xfs = [];
-    /** @type {Uint8Array[]|null} */
-    let sst = null;
+    const xfs: number[] = [];
+    let sst: Uint8Array[] | null = null;
     let last = 0;
     let date1904 = false;
     let active = -1;
@@ -197,18 +185,14 @@ export async function readXls(read, size) {
     const starts = [...sheets.map((s) => s.pos), stream.size].sort((a, b) => a - b);
     for (const s of sheets) s.size = Math.max(0, (starts.find((x) => x > s.pos) ?? s.pos) - s.pos);
 
-    /** @param {number} i */
-    const load = async (i) => {
+    const load = async (i: number) => {
         const s = sheets[i];
         if (s.kind !== 'sheet' || s.pos >= stream.size) return null;
         const grid = sheetGrid();
-        /** @param {number} xf @param {number} n */
-        const num = (xf, n) => numberText(n, kinds[xf] || '', date1904);
-        /** @param {Uint8Array} d @param {number} at */
-        const label = (d, at) =>
+        const num = (xf: number, n: number) => numberText(n, kinds[xf] || '', date1904);
+        const label = (d: Uint8Array, at: number) =>
             biff8 ? biffString(d, at) : text8.decode(d.subarray(at + 2, at + 2 + (d[at] | (d[at + 1] << 8))));
-        /** @type {[number, number]|null} */
-        let pending = null; // formula with text result: text follows in STRING record
+        let pending: [number, number] | null = null; // formula with text result: text follows in STRING record
         await records(s.pos, s.pos + s.size, (type, d) => {
             if (type === 0x0207 && pending) {
                 grid.set(pending[0], pending[1], label(d, 0));

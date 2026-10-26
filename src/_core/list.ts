@@ -62,13 +62,13 @@ const OWN = '.tp-viewer, .tp-cell, .tp-head';
 //  .../Shared Documents/Forms/AllItems.aspx -> library root
 // ---------------------------------------------------------------------------
 
-/** @returns {boolean} page is a library's list view (.../Forms/<view>.aspx): eyes only there */
-export function inLibrary() {
+/** @returns page is a library's list view (.../Forms/<view>.aspx): eyes only there */
+export function inLibrary(): boolean {
     return /\/forms\/[^/]+\.aspx$/i.test(decodeURIComponent(location.pathname));
 }
 
-/** @returns {string|null} server-relative folder of the open view, or null outside a library */
-export function currentFolder() {
+/** @returns server-relative folder of the open view, or null outside a library */
+export function currentFolder(): string | null {
     const params = new URLSearchParams(location.search);
     // "parent" is set while SharePoint shows its own file preview
     const id = params.get('parent') || params.get('id') || params.get('RootFolder');
@@ -83,8 +83,7 @@ export function currentFolder() {
 // Row inspection (purely from list view's HTML)
 // ---------------------------------------------------------------------------
 
-/** @param {HTMLElement} row @returns {string|null} */
-export function rowName(row) {
+export function rowName(row: HTMLElement): string | null {
     // 1. Known SharePoint name-field selectors
     const el = row.querySelector(NAME_SELECTORS);
     const name = el?.textContent.trim();
@@ -108,8 +107,7 @@ export function rowName(row) {
     return null;
 }
 
-/** @param {HTMLElement} row @returns {boolean} */
-function isFolder(row) {
+function isFolder(row: HTMLElement): boolean {
     const name = rowName(row);
     for (const el of row.querySelectorAll('*')) {
         if (el.closest('.tp-cell')) continue;
@@ -124,8 +122,7 @@ function isFolder(row) {
 }
 
 // Only rows that show file name (skips folders and totals/footer row)
-/** @param {HTMLElement} row @returns {boolean} */
-function isFileRow(row) {
+function isFileRow(row: HTMLElement): boolean {
     return !!rowName(row) && !isFolder(row);
 }
 
@@ -134,8 +131,7 @@ function isFileRow(row) {
 // ---------------------------------------------------------------------------
 
 // Header eye: overlaid at x position of row eyes (other cell layout)
-/** @param {HTMLElement} row @returns {void} */
-function processHeader(row) {
+function processHeader(row: HTMLElement): void {
     const rowEye = document.querySelector('.tp-cell');
     const ref = row.querySelector('[role="columnheader"]');
     if (!rowEye || !ref || document.querySelector('.tp-overlay')) return;
@@ -152,7 +148,7 @@ function processHeader(row) {
     const y = refRect.top + refRect.height / 2;
 
     // Host = box under that point in header (or one that contains it)
-    let host = /** @type {HTMLElement|null} */ (document.elementFromPoint(x, y));
+    let host = document.elementFromPoint(x, y) as HTMLElement | null;
     if (!host || !(row.contains(host) || host.contains(row))) host = ref;
     if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
 
@@ -181,8 +177,8 @@ function processHeader(row) {
 }
 
 // Return true if row was (re)worked on
-/** @param {HTMLElement} row @returns {boolean} true if the row was (re)worked on */
-function processRow(row) {
+/** @returns true if the row was (re)worked on */
+function processRow(row: HTMLElement): boolean {
     if (row.querySelector('[role="columnheader"]')) return false; // header: see processHeader
 
     // Fast path: same content as last time (SharePoint reuses rows)
@@ -224,8 +220,7 @@ function processRow(row) {
     }
 
     // Align with row's own icon (at top in tall rows)
-    /** @type {Element[]} */
-    const icons = [...row.querySelectorAll('img, svg, i[data-icon-name]')]; // SVG too: Element methods only
+    const icons: Element[] = [...row.querySelectorAll('img, svg, i[data-icon-name]')]; // SVG too: Element methods only
     const icon = icons.find((el) => !el.closest('.tp-cell') && el.getBoundingClientRect().height);
     if (icon) {
         const ir = icon.getBoundingClientRect();
@@ -249,7 +244,7 @@ function processRow(row) {
     }
     if (state === 'file') {
         // Which file this row is now (rows are reused), for eye's cache state
-        const eye = /** @type {HTMLElement} */ (cell.querySelector('.tp-preview')); // written just above
+        const eye = cell.querySelector('.tp-preview') as HTMLElement; // written just above
         const name = rowName(row);
         const folder = currentFolder();
         const guess = folder && `${folder}/${name}`;
@@ -260,16 +255,14 @@ function processRow(row) {
 }
 
 // Eye per file: closed = not cached, half open = partly cached (previewed), open = fully cached
-/** @param {string} [url] @returns {'closed'|'half'|'open'} */
-function eyeState(url) {
+function eyeState(url?: string): 'closed' | 'half' | 'open' {
     if (url && pendingOpens.has(url)) return 'half'; // first fetch under way (e.g. Parquet)
     const src = url && memoryCache.get(url)?.src;
     if (!src) return 'closed';
     return src.done || (src.total > 0 && src.loaded >= src.total) ? 'open' : 'half'; // all bytes here
 }
 
-/** @param {HTMLElement} eye @returns {void} */
-function setEye(eye) {
+function setEye(eye: HTMLElement): void {
     // Row of file shown in viewer: highlighted like row under mouse
     const shown = !!(viewer?.file && eye.dataset.url && sameFile(viewer.file.url, eye.dataset.url));
     eye.closest('[role="row"]')?.classList.toggle('tp-row-shown', shown);
@@ -281,8 +274,7 @@ function setEye(eye) {
 }
 
 // Called whenever cache changes
-/** @returns {void} */
-export function refreshEyes() {
+export function refreshEyes(): void {
     document.querySelectorAll('.tp-preview').forEach(setEye);
     // Header eye: closed = no viewer, half = viewer with file, open = viewer without file
     const head = document.querySelector('.tp-head');
@@ -319,10 +311,10 @@ function scan() {
     if (header) processHeader(header);
 }
 
-/** Watches the list: rescans on DOM changes and resize, plus a first scan. @returns {void} */
-export function watchList() {
+/** Watches the list: rescans on DOM changes and resize, plus a first scan. */
+export function watchList(): void {
     new MutationObserver((changes) => {
-        if (changes.every((c) => /** @type {Element} */ (c.target).closest?.(OWN))) return; // text nodes: no closest()
+        if (changes.every((c) => (c.target as Element).closest?.(OWN))) return; // text nodes: no closest()
         if (!scheduled) {
             scheduled = true;
             requestAnimationFrame(scan);
@@ -339,13 +331,12 @@ export function watchList() {
 // Clicks (capture phase, so SharePoint doesn't select/open row)
 // ---------------------------------------------------------------------------
 
-/** @param {Event} e @returns {HTMLElement|null} */
-const findPreview = (e) => /** @type {HTMLElement|null} */ (e.target)?.closest?.('.tp-preview') ?? null;
-/** @param {Event} e @returns {HTMLElement|null} */
-const findHead = (e) => /** @type {HTMLElement|null} */ (e.target)?.closest?.('.tp-head') ?? null;
+const findPreview = (e: Event): HTMLElement | null =>
+    (e.target as HTMLElement | null)?.closest?.('.tp-preview') ?? null;
+const findHead = (e: Event): HTMLElement | null => (e.target as HTMLElement | null)?.closest?.('.tp-head') ?? null;
 
-/** Eye clicks and keys (capture phase): preview a row, or open the empty viewer. @returns {void} */
-export function handleEyes() {
+/** Eye clicks and keys (capture phase): preview a row, or open the empty viewer. */
+export function handleEyes(): void {
     for (const type of ['pointerdown', 'mousedown', 'dblclick']) {
         document.addEventListener(
             type,
@@ -404,13 +395,11 @@ export function handleEyes() {
 }
 
 // File's path from row's links (search results mix folders)
-/** @param {HTMLElement} row @param {string} name @returns {string|null} */
-export function rowFilePath(row, name) {
+export function rowFilePath(row: HTMLElement, name: string): string | null {
     const host = location.hostname;
 
-    /** @param {string} value */
-    const toPath = (value) => {
-        let u;
+    const toPath = (value: string) => {
+        let u: URL;
         try {
             u = new URL(value, location.href);
         } catch {

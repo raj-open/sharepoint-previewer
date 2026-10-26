@@ -7,15 +7,14 @@
 import { formatBytes } from '../_core/util.ts';
 import { LOAD_ALL_SVG } from '../ui/icons.ts';
 
-/** @typedef {import('../_core/types.ts').Viewer} Viewer */
+import type { Viewer } from '../_core/types.ts';
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
 // Busy (cache in progress): drives stop button
-/** @param {Viewer} v @param {boolean} on @returns {void} */
-export function setBusy(v, on) {
+export function setBusy(v: Viewer, on: boolean): void {
     v.busy = on;
     v.stopBtn.disabled = !on && !v.writeMode;
     if (!on) showCached(v);
@@ -23,8 +22,7 @@ export function setBusy(v, on) {
 
 // Cache progress (bottom left): bar and "42% (1.2 MB of 2.9 MB)
 // Idle: how much of the open file is cached; greyed without file
-/** @param {Viewer} v @returns {void} */
-export function showCached(v) {
+export function showCached(v: Viewer): void {
     const src = v.source;
     if (!src) {
         showProgress(v, 0, 1);
@@ -46,12 +44,11 @@ export function showCached(v) {
             'beforeend',
             ` · Click <span class="tp-inline-icon tp-click" title="Cache the whole file">${icon}</span> to fully cache file`,
         );
-        v.progressText.querySelector('.tp-click').onclick = () => v.loadAllBtn.click();
+        (v.progressText.querySelector('.tp-click') as HTMLElement).onclick = () => v.loadAllBtn.click(); // written above
     }
 }
 
-/** @param {Viewer} v @param {number} loaded @param {number} total @returns {void} */
-export function showProgress(v, loaded, total) {
+export function showProgress(v: Viewer, loaded: number, total: number): void {
     const share = total ? Math.min(1, loaded / total) : 0;
     v.progress.classList.remove('tp-off', 'tp-full', 'tp-idle');
     v.progressFill.style.width = `${(share * 100).toFixed(1)}%`;

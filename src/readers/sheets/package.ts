@@ -10,26 +10,22 @@ import { scanXml } from './xml.ts';
 import { xmlAttrs } from './xml.ts';
 import { xmlString } from './xml.ts';
 
-/** @typedef {import('../../_core/types.ts').ByteReader} ByteReader */
-/** @typedef {import('../../_core/types.ts').Package} Package */
+import type { ByteReader } from '../../_core/types.ts';
+import type { Package } from '../../_core/types.ts';
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
-/** @param {ByteReader} read @param {number} size @returns {Promise<Package>} */
-export async function zipPackage(read, size) {
+export async function zipPackage(read: ByteReader, size: number): Promise<Package> {
     const entries = await zipEntries(read, size);
     const byName = new Map(entries.map((e) => [e.name.replace(/\\/g, '/').toLowerCase(), e])); // some writers use \
-    /** @param {string} [path] */
-    const entry = (path) => (path ? byName.get(path.replace(/^\//, '').toLowerCase()) : undefined);
-    /** @param {string} [path] */
-    const bytes = async (path) => {
+    const entry = (path?: string) => (path ? byName.get(path.replace(/^\//, '').toLowerCase()) : undefined);
+    const bytes = async (path?: string) => {
         const e = entry(path);
         return e ? zipEntryBytes(read, e) : null;
     };
-    /** @param {string} [path] */
-    const text = async (path) => {
+    const text = async (path?: string) => {
         const b = await bytes(path);
         return b ? xmlString(b) : null;
     };
@@ -38,8 +34,7 @@ export async function zipPackage(read, size) {
 }
 
 // Path of target, relative to folder of `base` (or from root with leading "/")
-/** @param {string} base @param {string} target @returns {string} */
-function partPath(base, target) {
+function partPath(base: string, target: string): string {
     if (target.startsWith('/')) return target.slice(1);
     const parts = base.split('/').slice(0, -1);
     for (const p of target.split('/')) {
@@ -49,12 +44,11 @@ function partPath(base, target) {
     return parts.join('/');
 }
 
-/** @param {string} part @returns {string} "xl/workbook.xml" -> "xl/_rels/workbook.xml.rels" */
-const relsPath = (part) => part.replace(/[^/]*$/, (n) => `_rels/${n}.rels`);
+/** @returns "xl/workbook.xml" -> "xl/_rels/workbook.xml.rels" */
+const relsPath = (part: string): string => part.replace(/[^/]*$/, (n) => `_rels/${n}.rels`);
 
 // Relationships of a part: id -> { path, type }
-/** @param {Package} pkg @param {string} part @returns {Promise<Map<string, { path: string, type: string }>>} */
-export async function partRels(pkg, part) {
+export async function partRels(pkg: Package, part: string): Promise<Map<string, { path: string; type: string }>> {
     const out = new Map();
     const xml = await pkg.text(relsPath(part));
     if (!xml) return out;

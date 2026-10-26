@@ -4,8 +4,7 @@
 // METHODS
 // ===========================================================================
 
-/** @param {Uint8Array} src @param {number} outLen @returns {Uint8Array} */
-export function unlz4(src, outLen) {
+export function unlz4(src: Uint8Array, outLen: number): Uint8Array {
     const out = new Uint8Array(outLen);
     let ip = 0;
     let op = 0;
@@ -13,7 +12,7 @@ export function unlz4(src, outLen) {
         const token = src[ip++];
         let lit = token >> 4;
         if (lit === 15) {
-            let b;
+            let b: number;
             do {
                 b = src[ip++];
                 lit += b;
@@ -27,7 +26,7 @@ export function unlz4(src, outLen) {
         ip += 2;
         let m = token & 15;
         if (m === 15) {
-            let b;
+            let b: number;
             do {
                 b = src[ip++];
                 m += b;

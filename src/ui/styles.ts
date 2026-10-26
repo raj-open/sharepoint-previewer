@@ -692,8 +692,8 @@ const CSS = `
 // METHODS
 // ===========================================================================
 
-/** Adds the stylesheet (both themes) to the page. @returns {void} */
-export function injectStyles() {
+/** Adds the stylesheet (both themes) to the page. */
+export function injectStyles(): void {
     const style = document.createElement('style');
     style.textContent = CSS;
     document.documentElement.append(style);

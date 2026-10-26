@@ -82,21 +82,20 @@ import { showSheets } from './views.ts';
 import { tableView } from './views.ts';
 import { updateViews } from './views.ts';
 
-/** @typedef {import('../_core/types.ts').Source} Source */
-/** @typedef {import('../_core/types.ts').Viewer} Viewer */
-/** @typedef {import('../_core/types.ts').Token} Token */
-/** @typedef {import('../_core/types.ts').Deferred} Deferred */
-/** @typedef {import('../_core/types.ts').TableState} TableState */
-/** @typedef {import('../_core/types.ts').SheetMode} SheetMode */
-/** @typedef {import('../_core/types.ts').LogTable} LogTable */
-/** @typedef {import('../_core/types.ts').SheetShown} SheetShown */
+import type { Source } from '../_core/types.ts';
+import type { Viewer } from '../_core/types.ts';
+import type { Token } from '../_core/types.ts';
+import type { Deferred } from '../_core/types.ts';
+import type { TableState } from '../_core/types.ts';
+import type { SheetMode } from '../_core/types.ts';
+import type { LogTable } from '../_core/types.ts';
+import type { SheetShown } from '../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
 // ===========================================================================
 
-/** @type {Viewer|null} */
-export let viewer = null; // single open viewer, if any
+export let viewer: Viewer | null = null; // single open viewer, if any
 
 export const pendingOpens = new Map(); // url -> first fetch still running { promise, relay, ctl }
 export const forcedUrls = new Set(); // big Parquet / IFCZIP files the user chose to cache in full
@@ -107,8 +106,7 @@ const knownSizes = new Map(); // url -> file size seen before (shown right away 
 // METHODS
 // ===========================================================================
 
-/** @returns {void} */
-export function closeViewer() {
+export function closeViewer(): void {
     if (!viewer) return;
     setTimeout(refreshEyes); // row highlight off, once viewer is gone
     if (!confirmDiscard(viewer)) return; // pending: keep viewer open
@@ -118,7 +116,7 @@ export function closeViewer() {
     close3d(viewer);
     if (viewer.mode !== 'popup') layoutPage(viewer, 'popup');
     restorePage(viewer);
-    viewer.removeListeners();
+    viewer.removeListeners?.();
     viewer.backdrop.remove();
     viewer.box.remove();
     viewer = null;
@@ -126,12 +124,19 @@ export function closeViewer() {
 
 // Opens a file (following .url links): { src } or { message }, plus final name and hops
 /**
- * @param {string} fetchUrl @param {string} fileName @param {string[]} hops @param {() => AbortSignal} getSignal @param {boolean} reload
- * @param {(loaded: number, total: number) => void} onProgress @param {(message: string) => void} onLink @param {boolean} force
- * @param {string|null} format chosen by the user for the file as listed (its links are then not followed)
- * @returns {Promise<{ src: Source|null, deferred?: Deferred, message: string|null, fileName: string, hops: string[] }>}
+ * @param format chosen by the user for the file as listed (its links are then not followed)
  */
-async function openFile(fetchUrl, fileName, hops, getSignal, reload, onProgress, onLink, force, format) {
+async function openFile(
+    fetchUrl: string,
+    fileName: string,
+    hops: string[],
+    getSignal: () => AbortSignal,
+    reload: boolean,
+    onProgress: (loaded: number, total: number) => void,
+    onLink: (message: string) => void,
+    force: boolean,
+    format: string | null,
+): Promise<{ src: Source | null; deferred?: Deferred; message: string | null; fileName: string; hops: string[] }> {
     hops = [...hops];
     for (let hop = 0; ; hop++) {
         const chosen = hop === 0 ? format : null;
@@ -144,8 +149,7 @@ async function openFile(fetchUrl, fileName, hops, getSignal, reload, onProgress,
                   : reader === 'ifczip'
                     ? await openZipSource(fetchUrl, getSignal, reload, onProgress, force)
                     : await openSource(fetchUrl, getSignal, reload, onProgress);
-        if ('deferred' in result)
-            return { src: null, deferred: /** @type {Deferred} */ (result), message: null, fileName, hops };
+        if ('deferred' in result) return { src: null, deferred: result as Deferred, message: null, fileName, hops };
         if ('error' in result) {
             // file from search results, not found by name: say so first, details below
             const note = lookupNotes.get(hops[0]);
@@ -178,8 +182,7 @@ async function openFile(fetchUrl, fileName, hops, getSignal, reload, onProgress,
 
 // Open file viewed as another format (a wrong one too: that format's reader tries);
 // the recognised format drops the choice
-/** @param {string} format @returns {void} */
-export function chooseFormat(format) {
+export function chooseFormat(format: string): void {
     const v = viewer;
     if (!v?.file || !confirmDiscard(v)) return;
     const { name, url } = v.file;
@@ -189,10 +192,8 @@ export function chooseFormat(format) {
 }
 
 // Same file, any encoding / case of path
-/** @param {string} a @param {string} b @returns {boolean} */
-export function sameFile(a, b) {
-    /** @param {string} x */
-    const norm = (x) => {
+export function sameFile(a: string, b: string): boolean {
+    const norm = (x: string) => {
         try {
             x = decodeURIComponent(x);
         } catch {}
@@ -203,8 +204,7 @@ export function sameFile(a, b) {
 
 // Header eye: viewer without file (look around, settings, ...). Same toggle as row eyes:
 // again on the empty viewer = close; with a file open = switch to empty.
-/** @returns {void} */
-export function openEmptyViewer() {
+export function openEmptyViewer(): void {
     if (viewer && !viewer.file) return void closeViewer();
     if (!viewer) {
         viewer = createViewer();
@@ -214,8 +214,7 @@ export function openEmptyViewer() {
 }
 
 // Viewer back to no file; false if user keeps pending changes
-/** @param {Viewer} v @returns {boolean} */
-function showEmpty(v) {
+function showEmpty(v: Viewer): boolean {
     if (!confirmDiscard(v)) return false;
     close3d(v);
     if (v.writeMode) exitWriteView(v);
@@ -241,8 +240,7 @@ function showEmpty(v) {
     return true;
 }
 
-/** @param {HTMLElement|null} row @returns {Promise<void>} */
-export async function openPreview(row) {
+export async function openPreview(row: HTMLElement | null): Promise<void> {
     const name = row && rowName(row);
     if (!name) {
         alert('Preview: could not find the file name in this row.');
@@ -261,8 +259,7 @@ export async function openPreview(row) {
 }
 
 // Load file into viewer; `reload` skips browser's cache (refresh button)
-/** @param {string} name @param {string} url @param {boolean} reload @returns {Promise<void>} */
-export async function showFile(name, url, reload) {
+export async function showFile(name: string, url: string, reload: boolean): Promise<void> {
     const encodedUrl = url.split('/').map(encodeURIComponent).join('/');
 
     // Reuse open viewer (e.g. in split mode, click through files one after another)
@@ -291,8 +288,7 @@ export async function showFile(name, url, reload) {
     const reader = readerOf(early); // cached copies of another reader are read anew
     const earlyLang = langOfFormat(early);
     const earlyFormat = (!chosen && sheetFormat(name)) || formatName(early);
-    /** @param {number} total */
-    const earlyMeta = (total) => {
+    const earlyMeta = (total: number) => {
         const parts = [
             total ? `size: ${formatBytes(total)} (${total.toLocaleString()} bytes)` : '',
             `format: ${earlyFormat}`,
@@ -325,8 +321,10 @@ export async function showFile(name, url, reload) {
     const hops = [url];
     v.abort = new AbortController();
     // relay: progress and signal of this file's source, also once another file is shown
-    /** @type {{ fn: ((loaded: number, total: number) => void)|null, controller: AbortController|null }} */
-    const relay = { fn: null, controller: null };
+    const relay: { fn: ((loaded: number, total: number) => void) | null; controller: AbortController | null } = {
+        fn: null,
+        controller: null,
+    };
     const getSignal = () => {
         if (relay.controller) return relay.controller.signal;
         v.abort ||= new AbortController();
@@ -335,8 +333,7 @@ export async function showFile(name, url, reload) {
     let rendered = false; // once text is shown, progress goes to "Cache next" bar
 
     let metaSize = 0;
-    /** @param {number} loaded @param {number} total */
-    const progress = (loaded, total) => {
+    const progress = (loaded: number, total: number) => {
         if (!current()) return;
         if (total) loaded = Math.min(loaded, total); // overlapping reads may count twice
         showProgress(v, loaded, total);
@@ -348,8 +345,7 @@ export async function showFile(name, url, reload) {
         if (total && loaded >= total) v.progressText.textContent += ' · preparing view …';
     };
     relay.fn = progress; // the showFile that shows this source now
-    /** @param {number} loaded @param {number} total */
-    const relayed = (loaded, total) => relay.fn?.(loaded, total);
+    const relayed = (loaded: number, total: number) => relay.fn?.(loaded, total);
     if (reload && memoryCache.delete(url)) refreshEyes(); // refresh: fetch anew
     if (memoryCache.get(url)?.reader !== reader && memoryCache.delete(url)) refreshEyes(); // other format chosen
     const kept = memoryCache.get(url);
@@ -391,7 +387,7 @@ export async function showFile(name, url, reload) {
                         getSignal,
                         reload,
                         relayed,
-                        (/** @type {string} */ m) => current() && showPlain(v, m),
+                        (m: string) => current() && showPlain(v, m),
                         forcedUrls.has(url),
                         chosen,
                     ),
@@ -401,7 +397,7 @@ export async function showFile(name, url, reload) {
                 refreshEyes(); // half open while it caches
                 pending.promise
                     .then(
-                        (/** @type {Awaited<ReturnType<typeof openFile>>} */ r) => {
+                        (r: Awaited<ReturnType<typeof openFile>>) => {
                             if (r.src) {
                                 r.src.relay = relay;
                                 keepInMemory(url, { src: r.src, fileName: r.fileName, hops: [...r.hops], reader });
@@ -424,11 +420,11 @@ export async function showFile(name, url, reload) {
             fileName = r.fileName;
             hops.splice(0, hops.length, ...r.hops);
         } catch (err) {
-            if (/** @type {Error} */ (err).name === 'AbortError') {
+            if ((err as Error).name === 'AbortError') {
                 if (current() && v.userStopped) showPlain(v, 'Caching stopped. Use refresh to cache this file again.');
                 return;
             }
-            message = `Caching failed: ${/** @type {Error} */ (err).message}\n${hops.join('\n→ ')}`;
+            message = `Caching failed: ${(err as Error).message}\n${hops.join('\n→ ')}`;
         }
     if (current()) v.opening = false;
     if (current()) setBusy(v, false);
@@ -442,7 +438,16 @@ export async function showFile(name, url, reload) {
 
     if (deferred) {
         // Big Parquet / IFCZIP: only on request (whole file); "cache all" opens it in full
-        v.source = { total: deferred.size, loaded: 0, done: false, dates: deferred.dates, deferred: true };
+        v.source = {
+            total: deferred.size,
+            loaded: 0,
+            done: false,
+            dates: deferred.dates,
+            deferred: true,
+            text: '',
+            more: async () => {},
+            loadAll: async () => {}, // the viewer's loadAll opens the file in full
+        };
         knownSizes.set(url, deferred.size);
         v.text = '';
         v.copyBtn.disabled = true;
@@ -501,14 +506,11 @@ export async function showFile(name, url, reload) {
     v.text = src.text;
 
     const lang = ['parquet', 'sheet'].includes(v.lang ?? '') ? 'csv' : (v.lang ?? ''); // their rows come as CSV; '' plain text
-    /** @param {string} t @returns {Token[]} */
-    const plain = (t) => [['', t]];
+    const plain = (t: string): Token[] => [['', t]];
     const highlight = HIGHLIGHTERS[lang] || plain;
     let problemsByLine = new Map();
-    /** @type {string[]} */
-    let lines = [];
-    /** @type {LogTable|null} */
-    let logShown = null; // log as a table (while shown)
+    let lines: string[] = [];
+    let logShown: LogTable | null = null; // log as a table (while shown)
 
     // Cached lines; unfinished last line waits (unless there is no break at all)
     const loadedLines = () => {
@@ -518,14 +520,12 @@ export async function showFile(name, url, reload) {
     };
 
     // Table view: sort and filters stay while this file is open (also across "Cache next"); per sheet or table
-    /** @type {TableState} */
-    const tableState = { sort: null, filters: new Map() };
-    /** @type {Map<string, TableState>} */
-    const sheetStates = new Map();
-    /** @param {string} i e.g. "sheets 0" */
-    const sheetState = (i) => {
+    const tableState: TableState = { sort: null, filters: new Map() };
+    const sheetStates: Map<string, TableState> = new Map();
+    /** @param i e.g. "sheets 0" */
+    const sheetState = (i: string) => {
         if (!sheetStates.has(i)) sheetStates.set(i, { sort: null, filters: new Map() });
-        return /** @type {TableState} */ (sheetStates.get(i)); // set just above
+        return sheetStates.get(i) as TableState; // set just above
     };
 
     // Metadata line: dates, size, format and, for tables, their shape
@@ -592,12 +592,11 @@ export async function showFile(name, url, reload) {
             updateViews(v);
         }
         logShown = v.lang === 'log' && tableView(v) ? parseLog(lines.join('\n')) : null;
-        /** @type {SheetShown|null} */
-        const shown = src.isSheet ? src.shown : null;
+        const shown: SheetShown | null = src.isSheet ? src.shown : null;
         if (shown && !shown.rows.length) {
             // chart sheet, empty or unreadable sheet, empty table: a note instead
             v.lineView = mountLines(v.content, renderLines([['', shown.note]], new Map()));
-            v.content.firstElementChild.classList.add('tp-notice');
+            v.content.firstElementChild?.classList.add('tp-notice');
         } else if (shown && view.table) {
             v.lineView = mountTable(v.content, shown.header, shown.rows, {
                 state: sheetState(`${src.mode} ${src.current}`),
@@ -646,8 +645,7 @@ export async function showFile(name, url, reload) {
               `Cache next ${formatBytes(MAX_BYTES)}`;
     };
 
-    /** @param {number} n */
-    const goToLine = (n) => {
+    const goToLine = (n: number) => {
         n = Math.max(1, Math.min(n, lines.length));
         v.lineView?.show(n);
         const el = v.content.querySelector(`[data-line="${n}"]`);
@@ -680,8 +678,7 @@ export async function showFile(name, url, reload) {
     };
 
     // Load more (one chunk, or everything; or `job`, e.g. one sheet), then shows it
-    /** @param {boolean} all @param {() => Promise<void>} [job] @param {number} [need] */
-    const load = async (all, job = src.more, need = MAX_BYTES) => {
+    const load = async (all: boolean, job: () => Promise<void> = src.more, need: number = MAX_BYTES) => {
         if (src.done) return true;
         if (!all && !src.fullJob && !makeRoom(v, need)) return false;
         if (src.fullJob) all = true; // join the "cache all" still running
@@ -708,14 +705,14 @@ export async function showFile(name, url, reload) {
             if (!current()) return false;
             setBusy(v, false);
             v.abort = null;
-            if (/** @type {Error} */ (err).name === 'AbortError') {
+            if ((err as Error).name === 'AbortError') {
                 v.text = src.text;
                 render(); // stopped: show what is cached so far, "Cache next" works again
                 return false;
             }
             v.loadMoreBtn.disabled = false;
             v.loadAllBtn.disabled = false;
-            v.loadMoreBtn.textContent = `Caching failed: ${/** @type {Error} */ (err).message} · Refresh to try again`;
+            v.loadMoreBtn.textContent = `Caching failed: ${(err as Error).message} · Refresh to try again`;
             return false;
         }
         trimMemory();
@@ -743,8 +740,7 @@ export async function showFile(name, url, reload) {
 
     // Other sheet or table: its sheet cached on first choice (stop keeps what was shown before);
     // sheets or tables: remembered for this file
-    /** @param {number} i @param {SheetMode} [mode] */
-    v.selectSheet = async (i, mode = src.mode) => {
+    v.selectSheet = async (i: number, mode: SheetMode = src.mode) => {
         if (!src.isSheet || !(mode === 'tables' ? src.tables : src.sheets)[i]) return;
         if (mode === src.mode && i === src.current && !src.waiting) return;
         if (mode !== src.mode) rememberSheetMode(url, mode);

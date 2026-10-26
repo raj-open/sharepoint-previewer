@@ -16,7 +16,8 @@ import { SPLIT_V_SVG } from '../ui/icons.ts';
 import { placeMoved } from '../ui/move.ts';
 import { viewer } from './open.ts';
 
-/** @typedef {import('../_core/types.ts').Viewer} Viewer */
+import type { Layout } from '../_core/types.ts';
+import type { Viewer } from '../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -62,15 +63,14 @@ const BOX_CSS = {
 // METHODS
 // ===========================================================================
 
-/** @param {HTMLElement} el @param {string|null} original @returns {void} */
-const restoreStyle = (el, original) => {
-    if (original === null) el.removeAttribute('style');
+const restoreStyle = (el: HTMLElement, original?: string | null): void => {
+    if (original == null) el.removeAttribute('style');
     else el.setAttribute('style', original);
 };
 
 // List's card: scroll area plus its frame and scrollbars, no command bar
-/** @returns {{ card: HTMLElement, scroller: HTMLElement }|null} card around the list, and the element that scrolls it */
-export function listRegion() {
+/** @returns card around the list, and the element that scrolls it */
+export function listRegion(): { card: HTMLElement; scroller: HTMLElement } | null {
     const grid = document.querySelector('[role="grid"], [role="treegrid"]');
     let scroller = grid;
     for (let el = grid; el && el !== document.body; el = el.parentElement) {
@@ -100,8 +100,7 @@ export function listRegion() {
 }
 
 // Visible right / bottom edge of list, incl. scrollbars drawn just outside it
-/** @param {HTMLElement} card @param {HTMLElement} scroller @returns {{ right: number, bottom: number }} */
-function listEdges(card, scroller) {
+function listEdges(card: HTMLElement, scroller: HTMLElement): { right: number; bottom: number } {
     const c = scroller.getBoundingClientRect();
     const REACH = 30;
     let right = c.right;
@@ -111,7 +110,7 @@ function listEdges(card, scroller) {
         acceptNode: (n) => (n === scroller ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
     });
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        const n = /** @type {HTMLElement} */ (node); // elements only (SHOW_ELEMENT)
+        const n = node as HTMLElement; // elements only (SHOW_ELEMENT)
         if (n.contains(scroller) || n.closest('.tp-cell, .tp-head')) continue; // frames around list don't count
         const r = n.getBoundingClientRect();
         if (!r.width || !r.height) continue;
@@ -123,8 +122,7 @@ function listEdges(card, scroller) {
     return { right, bottom };
 }
 
-/** @param {Viewer} v @returns {void} */
-export function restorePage(v) {
+export function restorePage(v: Viewer): void {
     v.regionObserver?.disconnect();
     v.regionObserver = null;
     v.containerObserver?.disconnect();
@@ -150,8 +148,7 @@ export function restorePage(v) {
 
 // List share of space (splitter); remembered, setting is start value
 const splitFraction = (() => {
-    /** @type {Object<string, number>} */
-    const start = { vertical: 1 - DEFAULT_PREVIEW_SIZE, horizontal: 1 - DEFAULT_PREVIEW_SIZE };
+    const start: Record<string, number> = { vertical: 1 - DEFAULT_PREVIEW_SIZE, horizontal: 1 - DEFAULT_PREVIEW_SIZE };
     try {
         const kept = JSON.parse(loadPref('tp-preview-split', 'null'));
         for (const m of ['vertical', 'horizontal']) if (kept?.[m] >= 0.1 && kept[m] <= 0.9) start[m] = kept[m];
@@ -160,8 +157,7 @@ const splitFraction = (() => {
 })();
 
 // Element that really scrolls list vertically (prefers one that overflows)
-/** @param {Element} grid @returns {HTMLElement|null} */
-function verticalScroller(grid) {
+function verticalScroller(grid: Element): HTMLElement | null {
     let bounded = null;
     for (let el = grid.parentElement; el && el !== document.body; el = el.parentElement) {
         const { overflowY } = getComputedStyle(el);
@@ -174,18 +170,15 @@ function verticalScroller(grid) {
 }
 
 // SharePoint's wrapper around file list: <div role="" style="display: contents;">
-/** @param {Element} grid @returns {HTMLElement|null} */
-function listWrapper(grid) {
+function listWrapper(grid: Element): HTMLElement | null {
     for (let el = grid.parentElement; el && el !== document.body; el = el.parentElement) {
         if (el.getAttribute('role') === '' && el.style.display === 'contents') return el;
     }
     return null;
 }
 
-// Space for horizontal split: scroller's visible area before it was shrunk
-/** @param {Viewer} v @returns {{ top: number, bottom: number, left: number, right: number }} */
-function dockArea(v) {
-    const d = v.dockBase;
+// Space for horizontal split: scroller's visible area before it was shrunk (d: its bounds then)
+function dockArea(d: DOMRect): { top: number; bottom: number; left: number; right: number } {
     return {
         top: Math.max(0, d.top),
         bottom: Math.min(window.innerHeight, d.bottom),
@@ -194,22 +187,20 @@ function dockArea(v) {
     };
 }
 
-/** @param {number} n @returns {string} */
-const px = (n) => `${Math.max(0, Math.round(n))}px`;
+const px = (n: number): string => `${Math.max(0, Math.round(n))}px`;
 
 // Keep split panel next to (vertical) or below (horizontal) shrunk list
-/** @returns {void} */
-export function syncPanel() {
+export function syncPanel(): void {
     const v = viewer;
     if (!v || v.mode === 'popup') return;
     const s = v.box.style;
+    const { anchor, anchorParent: p, region, scroller, base, dock, dockBase, grid } = v;
 
-    if (v.mode === 'horizontal' && v.anchor) {
+    if (v.mode === 'horizontal' && anchor && p && region && scroller && v.anchorSpace !== undefined) {
         // In page after list wrapper, below shortened list
-        if (v.box.previousElementSibling !== v.anchor) v.anchor.after(v.box);
-        const sr = v.scroller.getBoundingClientRect();
-        const edge = listEdges(v.region, v.scroller);
-        const p = v.anchorParent;
+        if (v.box.previousElementSibling !== anchor) anchor.after(v.box);
+        const sr = scroller.getBoundingClientRect();
+        const edge = listEdges(region, scroller);
         const pr = p.getBoundingClientRect();
         s.left = `${Math.round(sr.left - pr.left - p.clientLeft + p.scrollLeft)}px`;
         s.top = `${Math.round(edge.bottom + SPLIT_GAP - pr.top - p.clientTop + p.scrollTop)}px`;
@@ -218,12 +209,12 @@ export function syncPanel() {
         return;
     }
 
-    if (v.mode === 'horizontal' && v.dock) {
+    if (v.mode === 'horizontal' && dock && dockBase && grid) {
         // Fill space below shrunk scroller
-        const area = dockArea(v);
-        const d = v.dock.getBoundingClientRect();
-        const g = v.grid.getBoundingClientRect();
-        const edge = listEdges(v.dock, v.dock);
+        const area = dockArea(dockBase);
+        const d = dock.getBoundingClientRect();
+        const g = grid.getBoundingClientRect();
+        const edge = listEdges(dock, dock);
         s.left = px(Math.max(g.left, d.left));
         s.right = px(window.innerWidth - Math.min(g.right, edge.right, d.right));
         s.top = px(d.bottom + SPLIT_GAP);
@@ -231,25 +222,24 @@ export function syncPanel() {
         return;
     }
 
-    if (v.mode === 'vertical' && v.region) {
+    if (v.mode === 'vertical' && region && scroller && base) {
         // Align with visible list (scroll area + its scrollbars), not card frame around it
-        const sr = v.scroller.getBoundingClientRect();
-        const edge = listEdges(v.region, v.scroller);
+        const sr = scroller.getBoundingClientRect();
+        const edge = listEdges(region, scroller);
 
-        if (v.anchor) {
+        if (anchor && p) {
             // In page after list wrapper: moves with list
-            if (v.box.previousElementSibling !== v.anchor) v.anchor.after(v.box);
-            const p = v.anchorParent;
+            if (v.box.previousElementSibling !== anchor) anchor.after(v.box);
             const pr = p.getBoundingClientRect();
             s.left = `${Math.round(edge.right + SPLIT_GAP - pr.left - p.clientLeft + p.scrollLeft)}px`;
             s.top = `${Math.round(sr.top - pr.top - p.clientTop + p.scrollTop)}px`;
-            s.width = px(v.base.right - edge.right - SPLIT_GAP);
+            s.width = px(base.right - edge.right - SPLIT_GAP);
             s.height = px(edge.bottom - sr.top);
             return;
         }
 
         s.left = px(edge.right + SPLIT_GAP);
-        s.right = px(window.innerWidth - v.base.right);
+        s.right = px(window.innerWidth - base.right);
         s.top = px(sr.top);
         s.bottom = px(window.innerHeight - edge.bottom);
         return;
@@ -263,29 +253,29 @@ export function syncPanel() {
     s.bottom = `${SPLIT_GAP}px`;
 }
 
-/** @param {Viewer} v @returns {void} */
-function applySplit(v) {
+function applySplit(v: Viewer): void {
     const f = splitFraction[v.mode];
     const vertical = v.mode === 'vertical';
-    if (vertical && v.region) {
-        const size = `${Math.round(v.base.width * f)}px`;
-        const st = v.region.style;
+    const { region, base, anchorSpace, dock, dockBase } = v;
+    if (vertical && region && base) {
+        const size = `${Math.round(base.width * f)}px`;
+        const st = region.style;
         st.width = size;
         st.maxWidth = size;
         st.minWidth = '0';
         st.flex = 'none';
-    } else if (v.mode === 'horizontal' && v.anchor) {
+    } else if (v.mode === 'horizontal' && v.anchor && region && anchorSpace !== undefined) {
         // List (card) gets shorter; panel goes into freed space below it
-        const height = `${Math.round(v.anchorSpace * f)}px`;
-        const st = v.region.style;
+        const height = `${Math.round(anchorSpace * f)}px`;
+        const st = region.style;
         st.height = height;
         st.maxHeight = height;
         st.minHeight = '0';
         st.flex = 'none';
-    } else if (v.mode === 'horizontal' && v.dock) {
-        const area = dockArea(v);
+    } else if (v.mode === 'horizontal' && dock && dockBase) {
+        const area = dockArea(dockBase);
         const height = `${Math.round((area.bottom - area.top) * f)}px`;
-        const st = v.dock.style;
+        const st = dock.style;
         st.height = height;
         st.maxHeight = height;
         st.minHeight = '0';
@@ -305,8 +295,7 @@ function applySplit(v) {
 }
 
 // Let SharePoint re-measure its lists (ignored by our own resize handler)
-/** @param {Viewer} v @returns {void} */
-function notifyResize(v) {
+function notifyResize(v: Viewer): void {
     v.selfResize = true;
     window.dispatchEvent(new Event('resize'));
     v.selfResize = false;
@@ -316,8 +305,7 @@ function notifyResize(v) {
 }
 
 // Make room for split panel (top bar, command bar, navigation untouched)
-/** @param {Viewer} v @param {'popup'|'horizontal'|'vertical'} mode @returns {void} */
-export function layoutPage(v, mode) {
+export function layoutPage(v: Viewer, mode: Layout): void {
     restorePage(v);
 
     if (mode !== 'popup') {
@@ -337,7 +325,7 @@ export function layoutPage(v, mode) {
             // Preferred: after list wrapper (<div role="" style="display: contents;">)
             const anchor = v.grid && listWrapper(v.grid);
             if (anchor) {
-                const parent = /** @type {HTMLElement} */ (anchor.parentElement); // wrapper inside the page
+                const parent = anchor.parentElement as HTMLElement; // wrapper inside the page
                 v.anchor = anchor;
                 v.anchorParent = parent;
                 v.anchorParentStyle = parent.getAttribute('style');
@@ -362,7 +350,7 @@ export function layoutPage(v, mode) {
                 v.regionObserver = new ResizeObserver(syncPanel);
                 v.regionObserver.observe(region);
 
-                const parent = /** @type {HTMLElement} */ (anchor.parentElement); // wrapper inside the page
+                const parent = anchor.parentElement as HTMLElement; // wrapper inside the page
                 v.anchor = anchor;
                 v.anchorParent = parent;
                 v.anchorParentStyle = parent.getAttribute('style');
@@ -387,8 +375,7 @@ export function layoutPage(v, mode) {
 }
 
 // SharePoint's side panels change width without window resize: lay out anew
-/** @param {Viewer} v @returns {void} */
-function watchContainer(v) {
+function watchContainer(v: Viewer): void {
     const el = v.anchorParent || v.region?.parentElement || v.dock?.parentElement;
     if (!el) return;
     let width = Math.round(el.getBoundingClientRect().width);
@@ -407,27 +394,26 @@ function watchContainer(v) {
 }
 
 // Splitter drag (left edge in vertical mode, top edge in horizontal mode)
-/** @param {PointerEvent} e @returns {void} */
-export function startDrag(e) {
+export function startDrag(e: PointerEvent): void {
     const v = viewer;
     if (!v || v.mode === 'popup') return;
     e.preventDefault();
-    const handle = /** @type {HTMLElement} */ (e.currentTarget); // the splitter
+    const handle = e.currentTarget as HTMLElement; // the splitter
     handle.setPointerCapture(e.pointerId);
     handle.classList.add('tp-drag');
     const vertical = v.mode === 'vertical';
 
     let queued = false;
 
-    /** @param {PointerEvent} ev */
-    const onMove = (ev) => {
-        let f;
-        if (vertical && v.region) {
-            f = (ev.clientX - v.region.getBoundingClientRect().left) / v.base.width;
-        } else if (!vertical && v.anchor) {
-            f = (ev.clientY - v.region.getBoundingClientRect().top) / v.anchorSpace;
-        } else if (!vertical && v.dock) {
-            const area = dockArea(v);
+    const onMove = (ev: PointerEvent) => {
+        let f: number;
+        const { region, base, anchorSpace, dockBase } = v;
+        if (vertical && region && base) {
+            f = (ev.clientX - region.getBoundingClientRect().left) / base.width;
+        } else if (!vertical && v.anchor && region && anchorSpace !== undefined) {
+            f = (ev.clientY - region.getBoundingClientRect().top) / anchorSpace;
+        } else if (!vertical && v.dock && dockBase) {
+            const area = dockArea(dockBase);
             f = (ev.clientY - area.top) / (area.bottom - area.top);
         } else {
             f = vertical ? ev.clientX / window.innerWidth : ev.clientY / window.innerHeight;
@@ -455,8 +441,7 @@ export function startDrag(e) {
     handle.addEventListener('pointercancel', onUp);
 }
 
-/** @param {'popup'|'horizontal'|'vertical'} mode @returns {void} */
-export function setMode(mode) {
+export function setMode(mode: Layout): void {
     const v = viewer;
     if (!v) return;
     v.mode = mode;
@@ -482,7 +467,7 @@ export function setMode(mode) {
         [v.hBtn, 'horizontal'],
         [v.vBtn, 'vertical'],
         [v.pBtn, 'popup'],
-    ]) {
+    ] as const) {
         const active = mode === m;
         btn.setAttribute('aria-pressed', String(active));
     }

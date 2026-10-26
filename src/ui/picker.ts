@@ -7,16 +7,16 @@
 
 import { esc } from '../_core/util.ts';
 
-/** @typedef {import('../_core/types.ts').PickerList} PickerList */
-/** @typedef {import('../_core/types.ts').Picker} Picker */
+import type { PickerList } from '../_core/types.ts';
+import type { Picker } from '../_core/types.ts';
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
 // Button (shows the entry chosen) and its menu; the menu opens above the button, inside `host`
-/** @param {HTMLElement} host positioned element the menu is placed in @param {(list: number, item: number) => void} onPick @returns {Picker} */
-export function createPicker(host, onPick) {
+/** @param host positioned element the menu is placed in */
+export function createPicker(host: HTMLElement, onPick: (list: number, item: number) => void): Picker {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'tp-picker';
@@ -28,14 +28,12 @@ export function createPicker(host, onPick) {
     menu.tabIndex = -1;
     host.append(menu);
 
-    /** @type {PickerList[]} */
-    let lists = [];
+    let lists: PickerList[] = [];
     let chosen = { list: 0, item: 0 };
     let shown = 0; // list shown in the menu
     let active = 0; // entry marked for the keyboard
 
-    /** @param {number} list */
-    const show = (list) => {
+    const show = (list: number) => {
         shown = (list + lists.length) % lists.length;
         active = shown === chosen.list && chosen.item >= 0 ? chosen.item : lists[shown].start;
         draw();
@@ -66,9 +64,8 @@ export function createPicker(host, onPick) {
         button.setAttribute('aria-expanded', 'false');
         document.removeEventListener('pointerdown', outside, true);
     };
-    /** @param {Event} e */
-    const outside = (e) => {
-        const t = /** @type {Node} */ (e.target);
+    const outside = (e: Event) => {
+        const t = e.target as Node;
         if (!menu.contains(t) && !button.contains(t)) close();
     };
     const open = () => {
@@ -85,8 +82,7 @@ export function createPicker(host, onPick) {
         menu.focus();
         document.addEventListener('pointerdown', outside, true);
     };
-    /** @param {number} list @param {number} item */
-    const pick = (list, item) => {
+    const pick = (list: number, item: number) => {
         close();
         button.focus();
         if (list !== chosen.list || item !== chosen.item) onPick(list, item);
@@ -94,7 +90,7 @@ export function createPicker(host, onPick) {
 
     button.onclick = () => (menu.hidden ? open() : close());
     menu.onclick = (e) => {
-        const t = /** @type {HTMLElement} */ (e.target).closest('[data-list], [data-step], [data-item]');
+        const t = (e.target as HTMLElement).closest('[data-list], [data-step], [data-item]');
         if (!(t instanceof HTMLElement)) return;
         if (t.dataset.list) show(Number(t.dataset.list));
         else if (t.dataset.step) show(shown + Number(t.dataset.step));

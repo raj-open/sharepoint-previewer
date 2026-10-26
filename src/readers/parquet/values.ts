@@ -6,31 +6,33 @@
 
 import { utf8 } from '../bytes.ts';
 
+import type { Cell } from './meta.ts';
+import type { Column } from './meta.ts';
+import type { LogicalType } from './meta.ts';
+import type { TimeUnit } from './meta.ts';
+
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
-/** @param {Uint8Array} b @returns {bigint} */
-const bytesToBigInt = (b) => {
+const bytesToBigInt = (b: Uint8Array): bigint => {
     let v = 0n;
     for (const x of b) v = (v << 8n) | BigInt(x);
     return b.length && b[0] & 0x80 ? v - (1n << BigInt(b.length * 8)) : v;
 };
 
-/** @param {bigint} v @param {number} scale @returns {string} */
-const decimalText = (v, scale) => {
+const decimalText = (v: bigint, scale: number): string => {
     if (!scale) return v.toString();
     const neg = v < 0n;
     const digits = (neg ? -v : v).toString().padStart(scale + 1, '0');
     return `${neg ? '-' : ''}${digits.slice(0, -scale)}.${digits.slice(-scale)}`;
 };
 
-/** @param {Uint8Array} b @returns {string} */
-const hexText = (b) =>
+const hexText = (b: Uint8Array): string =>
     [...b.subarray(0, 32)].map((x) => x.toString(16).padStart(2, '0')).join('') + (b.length > 32 ? '…' : '');
 
-/** @param {number|bigint} v @param {number} unit 1 ms, 2 µs, 3 ns @param {boolean} withDate @returns {string} */
-function timeText(v, unit, withDate) {
+/** @param unit 1 ms, 2 µs, 3 ns */
+function timeText(v: number | bigint, unit: number, withDate: boolean): string {
     const per = { 1: 1n, 2: 1000n, 3: 1000000n }[unit] || 1n;
     const big = BigInt(v);
     const ms = Number(big / per);
@@ -44,15 +46,13 @@ function timeText(v, unit, withDate) {
     }
 }
 
-/** @param {Object|undefined} u @returns {number} */
-const unitOf = (u) => (u ? Number(Object.keys(u)[0]) : 1);
+const unitOf = (u: TimeUnit | undefined): number => (u ? Number(Object.keys(u)[0]) : 1);
 
-/** @param {Object<string, *>} col @param {*} v @returns {string|null} */
-export function valueText(col, v) {
+export function valueText(col: Column, v: Cell | undefined): string | null {
     if (v === null || v === undefined) return null;
     if (Array.isArray(v)) return JSON.stringify(v.map((x) => valueText(col, x)));
     if (v instanceof Date) return Number.isNaN(v.getTime()) ? '' : v.toISOString();
-    const lt = col.logical || {};
+    const lt: LogicalType = col.logical || {};
     const ct = col.converted;
     const scale = lt[5]?.[1] ?? col.scale ?? 0;
 
@@ -74,7 +74,7 @@ export function valueText(col, v) {
         if (ct === 9 || ct === 10) return timeText(v, ct === 9 ? 1 : 2, true);
         if (lt[7]) return timeText(v, unitOf(lt[7][2]), false);
         if (ct === 7 || ct === 8) return timeText(v, ct === 7 ? 1 : 2, false);
-        if ((lt[10] && lt[10][2] === false) || (ct >= 11 && ct <= 14)) {
+        if ((lt[10] && lt[10][2] === false) || (ct !== undefined && ct >= 11 && ct <= 14)) {
             return typeof v === 'bigint' ? BigInt.asUintN(64, v).toString() : String(v >>> 0);
         }
     }

@@ -6,7 +6,7 @@
 
 import { tokenise } from './tokenise.ts';
 
-/** @typedef {import('../../_core/types.ts').Token} Token */
+import type { Token } from '../../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -49,7 +49,7 @@ const LOG_RE = new RegExp(
             .concat(')'), // 3 date / time
         /\b([A-Za-z_$][\w.$]*(?:Exception|Error))\b/.source, // 4 exception
         ...LOG_LEVEL_CLASSES.map((cls) => {
-            const words = LOG_LEVELS[/** @type {keyof typeof LOG_LEVELS} */ (cls)];
+            const words = LOG_LEVELS[cls as keyof typeof LOG_LEVELS];
             const forms = words.flatMap((w) => [w, w[0] + w.slice(1).toLowerCase(), w.toLowerCase()]);
             return `\\b(${forms.join('|')})\\b`;
         }), // 5-8 levels
@@ -66,8 +66,7 @@ const LOG_RE = new RegExp(
 // METHODS
 // ===========================================================================
 
-/** @param {string} text @returns {Token[]} */
-export const highlightLog = (text) =>
+export const highlightLog = (text: string): Token[] =>
     tokenise(text, LOG_RE, (m, out) => {
         if (m[1]) out.push(['log-frame', m[1]]);
         else if (m[2]) out.push(['str', m[2]]);

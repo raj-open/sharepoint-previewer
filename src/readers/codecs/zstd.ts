@@ -7,12 +7,21 @@
 import { u32 } from '../bytes.ts';
 
 // ===========================================================================
+// TYPES
+// ===========================================================================
+
+/** Huffman decoding table: symbol and code length by code prefix */
+export type HuffmanTable = { symbol: Uint8Array; bits: Uint8Array; maxBits: number };
+/** decoder state kept across the blocks of a frame: repeat offsets, last Huffman and sequence tables */
+type FrameState = { rep: number[]; huf?: HuffmanTable; ll?: FseTable; of?: FseTable; ml?: FseTable };
+export type FseTable = Array<{ symbol: number; nbBits: number; baseline: number }> & { log: number };
+
+// ===========================================================================
 // CONSTANTS
 // ===========================================================================
 
 // Literal and match length codes: [baseline, extra bits]
-/** @type {[number, number][]} */
-const LL_CODES = [];
+const LL_CODES: [number, number][] = [];
 for (let c = 0; c < 16; c++) LL_CODES.push([c, 0]);
 LL_CODES.push(
     [16, 1],
@@ -36,8 +45,7 @@ LL_CODES.push(
     [32768, 15],
     [65536, 16],
 );
-/** @type {[number, number][]} */
-const ML_CODES = [];
+const ML_CODES: [number, number][] = [];
 for (let c = 0; c < 32; c++) ML_CODES.push([c + 3, 0]);
 ML_CODES.push(
     [35, 1],
@@ -68,16 +76,24 @@ ML_CODES.push(
 // ===========================================================================
 
 // Backward bitstream (ZSTD Huffman / FSE): from last set bit; past start = 0
-/** @param {Uint8Array} bytes @param {number} start @param {number} end @returns {{ bit(p: number): number, read(n: number): number, peek(n: number): number, skip(n: number): void, overflow(): boolean, done(): boolean }} */
-function backReader(bytes, start, end) {
+function backReader(
+    bytes: Uint8Array,
+    start: number,
+    end: number,
+): {
+    bit(p: number): number;
+    read(n: number): number;
+    peek(n: number): number;
+    skip(n: number): void;
+    overflow(): boolean;
+    done(): boolean;
+} {
     const last = bytes[end - 1];
     if (!last) throw new Error('ZSTD: damaged bitstream');
     let pos = (end - start - 1) * 8 + (31 - Math.clz32(last)); // just below end marker
-    /** @param {number} p */
-    const bit = (p) => (p < 0 ? 0 : (bytes[start + (p >> 3)] >> (p & 7)) & 1);
+    const bit = (p: number) => (p < 0 ? 0 : (bytes[start + (p >> 3)] >> (p & 7)) & 1);
 
-    /** @param {number} p @param {number} n */
-    const take = (p, n) => {
+    const take = (p: number, n: number) => {
         let v = 0;
         for (let i = 0; i < n; ) {
             const q = p + i;
@@ -110,19 +126,20 @@ function backReader(bytes, start, end) {
 }
 
 // FSE table description (forward bits) -> normalised counts; returns them and position after
-/** @param {Uint8Array} bytes @param {number} pos @param {number} maxSymbol @returns {{ counts: number[], log: number, pos: number }} */
-function readFseCounts(bytes, pos, maxSymbol) {
+function readFseCounts(
+    bytes: Uint8Array,
+    pos: number,
+    maxSymbol: number,
+): { counts: number[]; log: number; pos: number } {
     let bitPos = pos * 8;
 
-    /** @param {number} n */
-    const read = (n) => {
+    const read = (n: number) => {
         let v = 0;
         for (let i = 0; i < n; i++, bitPos++) v |= ((bytes[bitPos >> 3] >> (bitPos & 7)) & 1) << i;
         return v;
     };
 
-    /** @param {number} n */
-    const peek = (n) => {
+    const peek = (n: number) => {
         const keep = bitPos;
         const v = read(n);
         bitPos = keep;
@@ -136,7 +153,7 @@ function readFseCounts(bytes, pos, maxSymbol) {
     let previousZero = false;
     while (remaining > 1 && counts.length <= maxSymbol) {
         if (previousZero) {
-            let repeat;
+            let repeat: number;
             do {
                 repeat = read(2);
                 for (let i = 0; i < repeat; i++) counts.push(0);
@@ -144,7 +161,7 @@ function readFseCounts(bytes, pos, maxSymbol) {
         }
         if (counts.length > maxSymbol) break;
         const max = 2 * threshold - 1 - remaining;
-        let count;
+        let count: number;
         if (peek(nbBits - 1) < max) {
             count = read(nbBits - 1);
         } else {
@@ -165,13 +182,10 @@ function readFseCounts(bytes, pos, maxSymbol) {
 }
 
 // Decode table from normalised counts: { symbol, nbBits, baseline }
-/** @typedef {Array<{ symbol: number, nbBits: number, baseline: number }> & { log?: number }} FseTable */
-/** @param {number[]} counts @param {number} log @returns {FseTable} */
-function buildFseTable(counts, log) {
+function buildFseTable(counts: number[], log: number): FseTable {
     const size = 1 << log;
-    const symbols = new Array(size);
-    /** @type {number[]} */
-    const next = [];
+    const symbols: number[] = new Array(size);
+    const next: number[] = [];
     let high = size - 1;
     counts.forEach((c, s) => {
         if (c === -1) {
@@ -190,15 +204,13 @@ function buildFseTable(counts, log) {
             while (pos > high);
         }
     });
-    /** @type {FseTable} */
-    const table = new Array(size);
+    const table: FseTable = Object.assign(new Array(size), { log });
     for (let u = 0; u < size; u++) {
         const s = symbols[u];
         const state = next[s]++;
         const nbBits = log - (31 - Math.clz32(state));
         table[u] = { symbol: s, nbBits, baseline: (state << nbBits) - size };
     }
-    table.log = log;
     return table;
 }
 
@@ -220,10 +232,9 @@ const OF_DEFAULT = buildFseTable(
 );
 
 // Huffman description -> decode table (index = next maxBits bits)
-/** @param {Uint8Array} bytes @param {number} pos @returns {{ table: { symbol: Uint8Array, bits: Uint8Array, maxBits: number }, pos: number }} */
-function readHuffmanTable(bytes, pos) {
+function readHuffmanTable(bytes: Uint8Array, pos: number): { table: HuffmanTable; pos: number } {
     const header = bytes[pos++];
-    let weights;
+    let weights: number[];
     if (header < 128) {
         // Weights are FSE-compressed, decoded with two interleaved states
         const end = pos + header;
@@ -234,8 +245,7 @@ function readHuffmanTable(bytes, pos) {
         let s2 = r.read(log);
         weights = [];
 
-        /** @param {number} s */
-        const step = (s) => {
+        const step = (s: number) => {
             const e = table[s];
             weights.push(e.symbol);
             return e.baseline + r.read(e.nbBits);
@@ -287,8 +297,15 @@ function readHuffmanTable(bytes, pos) {
     return { table: { symbol, bits, maxBits }, pos };
 }
 
-/** @param {Uint8Array} bytes @param {number} start @param {number} end @param {{ symbol: Uint8Array, bits: Uint8Array, maxBits: number }} huf @param {Uint8Array} out @param {number} outPos @param {number} count @returns {void} */
-function huffmanStream(bytes, start, end, huf, out, outPos, count) {
+function huffmanStream(
+    bytes: Uint8Array,
+    start: number,
+    end: number,
+    huf: HuffmanTable,
+    out: Uint8Array,
+    outPos: number,
+    count: number,
+): void {
     const r = backReader(bytes, start, end);
     const { symbol, bits, maxBits } = huf;
     for (let i = 0; i < count; i++) {
@@ -300,13 +317,13 @@ function huffmanStream(bytes, start, end, huf, out, outPos, count) {
 }
 
 // One compressed block: literals, then sequences that copy literals and earlier output
-/** @param {Uint8Array} src @param {number} pos @param {number} end @param {Uint8Array} out @param {number} op @param {Object<string, *>} st frame state @returns {number} new output position */
-function zstdBlock(src, pos, end, out, op, st) {
+/** @param st frame state @returns new output position */
+function zstdBlock(src: Uint8Array, pos: number, end: number, out: Uint8Array, op: number, st: FrameState): number {
     // --- Literals section ---
     const b0 = src[pos];
     const type = b0 & 3;
     const format = (b0 >> 2) & 3;
-    let regen;
+    let regen: number;
     let compressed = 0;
     let streams = 1;
     if (type < 2) {
@@ -341,7 +358,7 @@ function zstdBlock(src, pos, end, out, op, st) {
         }
     }
 
-    let literals;
+    let literals: Uint8Array;
     if (type === 0) {
         literals = src.subarray(pos, pos + regen);
         pos += regen;
@@ -391,8 +408,7 @@ function zstdBlock(src, pos, end, out, op, st) {
     if (nbSeq) {
         const modes = src[pos++];
 
-        /** @param {number} mode @param {FseTable} def @param {number} maxSymbol @param {string} key */
-        const table = (mode, def, maxSymbol, key) => {
+        const table = (mode: number, def: FseTable, maxSymbol: number, key: 'll' | 'of' | 'ml'): FseTable => {
             if (mode === 0) st[key] = def;
             else if (mode === 1) {
                 // RLE: every sequence uses same code
@@ -401,8 +417,10 @@ function zstdBlock(src, pos, end, out, op, st) {
                 const { counts, log, pos: at } = readFseCounts(src, pos, maxSymbol);
                 st[key] = buildFseTable(counts, log);
                 pos = at;
-            } else if (!st[key]) throw new Error('ZSTD: missing sequence table');
-            return st[key];
+            }
+            const t = st[key];
+            if (!t) throw new Error('ZSTD: missing sequence table');
+            return t;
         };
         const llT = table(modes >> 6, LL_DEFAULT, 35, 'll');
         const ofT = table((modes >> 4) & 3, OF_DEFAULT, 31, 'of');
@@ -421,7 +439,7 @@ function zstdBlock(src, pos, end, out, op, st) {
             const matchLen = mlBase + r.read(mlBits);
             const litLen = llBase + r.read(llBits);
 
-            let offset;
+            let offset: number;
             if (ofValue > 3) {
                 offset = ofValue - 3;
                 rep[2] = rep[1];
@@ -456,8 +474,7 @@ function zstdBlock(src, pos, end, out, op, st) {
     return op + literals.length - lit;
 }
 
-/** @param {Uint8Array} src @param {number} outLen @returns {Uint8Array} */
-export function unzstd(src, outLen) {
+export function unzstd(src: Uint8Array, outLen: number): Uint8Array {
     const out = new Uint8Array(outLen);
     let pos = 0;
     let op = 0;
@@ -476,7 +493,7 @@ export function unzstd(src, outLen) {
         if (!single) pos++; // window descriptor
         pos += [0, 1, 2, 4][dictFlag];
         pos += [single ? 1 : 0, 2, 4, 8][fcsFlag];
-        const st = { rep: [1, 4, 8] };
+        const st: FrameState = { rep: [1, 4, 8] };
         for (let last = 0; !last; ) {
             const h = src[pos] | (src[pos + 1] << 8) | (src[pos + 2] << 16);
             pos += 3;

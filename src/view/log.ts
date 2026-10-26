@@ -10,8 +10,8 @@ import { LOG_LEVELS } from '../text/highlight/log.ts';
 import { indentJson } from '../text/segments.ts';
 import { segments } from '../text/segments.ts';
 
-/** @typedef {import('../_core/types.ts').LogTable} LogTable */
-/** @typedef {import('../text/segments.ts').Segment} Segment */
+import type { LogTable } from '../_core/types.ts';
+import type { Segment } from '../text/segments.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -26,8 +26,7 @@ const MIN_SHARED = 0.8; // share of entries a field must be in
 const LEVEL_WORDS = Object.values(LOG_LEVELS).flat().join('|');
 
 // Fields at the start of an entry (sticky); groups: the value
-/** @type {[string, RegExp][]} */
-const FIELDS = [
+const FIELDS: [string, RegExp][] = [
     [
         'time',
         new RegExp(
@@ -49,22 +48,19 @@ const FIELDS = [
 const SEP_RE = /[ \t]*(?:[-|][ \t]+|:[ \t]*)?[ \t]*/y; // between fields: spaces, " - ", " | ", ":"
 const WORD_RE = /[^\s[\]()]+(?=[ \t])/y; // source (e.g. host, worker): a word, counted only if a field follows
 const EXPAND_TITLE = 'Expand: message split into text, JSON and lists';
-/** @type {Object<string, string>} */
-const SEGMENT_LABELS = { json: 'JSON', python: 'Python' };
+const SEGMENT_LABELS: Record<string, string> = { json: 'JSON', python: 'Python' };
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
 // Log text -> table: line of the entry, fields, message (continuation lines joined); null: no fields found
-/** @param {string} text @returns {LogTable|null} */
-export function parseLog(text) {
+export function parseLog(text: string): LogTable | null {
     const lines = text.split(/\r?\n/);
     const kinds = template(lines.slice(0, SAMPLE_LINES));
     if (!kinds) return null;
     const header = ['line', ...names(kinds), 'message'];
-    /** @type {string[][]} */
-    const rows = [];
+    const rows: string[][] = [];
     lines.forEach((line, i) => {
         const head = /^\s/.test(line) ? null : readHead(line);
         const last = rows[rows.length - 1];
@@ -89,29 +85,26 @@ export function parseLog(text) {
 }
 
 // Fields found in the first lines (whether the table view is offered)
-/** @param {string[]} lines @returns {boolean} */
-export const hasFields = (lines) => !!template(lines.slice(0, SAMPLE_LINES));
+export const hasFields = (lines: string[]): boolean => !!template(lines.slice(0, SAMPLE_LINES));
 
 // Level class of a value ('lv-err', ...), as in the highlighter; '' if none
-/** @param {string} value @returns {string} */
-export function levelClass(value) {
+export function levelClass(value: string): string {
     const word = value.toUpperCase();
     const entry = Object.entries(LOG_LEVELS).find(([, words]) => words.includes(word));
     return entry ? entry[0] : '';
 }
 
 // Expand of a log table's rows: messages with objects, lists or several lines; segments worked out once per row
-/** @param {string[][]} rows @param {boolean} colour @returns {{ can: (i: number) => boolean, html: (i: number) => string, title: string }} */
-export function logExpand(rows, colour) {
-    /** @type {Map<number, Segment[]>} */
-    const cache = new Map();
-    /** @param {number} i */
-    const message = (i) => rows[i][rows[i].length - 1];
-    /** @param {number} i @returns {Segment[]} */
-    const parts = (i) => {
+export function logExpand(
+    rows: string[][],
+    colour: boolean,
+): { can: (i: number) => boolean; html: (i: number) => string; title: string } {
+    const cache: Map<number, Segment[]> = new Map();
+    const message = (i: number) => rows[i][rows[i].length - 1];
+    const parts = (i: number): Segment[] => {
         if (!cache.has(i))
             cache.set(i, /[{[]/.test(message(i)) ? segments(message(i)) : [{ kind: 'text', text: message(i) }]);
-        return /** @type {Segment[]} */ (cache.get(i)); // set just above
+        return cache.get(i) as Segment[]; // set just above
     };
     return {
         title: EXPAND_TITLE,
@@ -128,8 +121,7 @@ export function logExpand(rows, colour) {
 // ===========================================================================
 
 // One segment: text as is (blank lines at its ends dropped), objects and lists labelled and indented
-/** @param {Segment} s @param {boolean} colour @returns {string} */
-function segmentHtml(s, colour) {
+function segmentHtml(s: Segment, colour: boolean): string {
     if (s.kind === 'text') return `<div class="tp-seg"><pre>${esc(s.text.replace(/^\s*\n|\s+$/g, ''))}</pre></div>`;
     const json = indentJson(s.text);
     const body = colour
@@ -142,14 +134,10 @@ function segmentHtml(s, colour) {
 }
 
 // Fields at the start of a line: kinds, values, end of the head
-/** @param {string} line @returns {{ kinds: string[], values: string[], ends: number[] }|null} */
-function readHead(line) {
-    /** @type {string[]} */
-    const kinds = [];
-    /** @type {string[]} */
-    const values = [];
-    /** @type {number[]} */
-    const ends = []; // after each field and its separator
+function readHead(line: string): { kinds: string[]; values: string[]; ends: number[] } | null {
+    const kinds: string[] = [];
+    const values: string[] = [];
+    const ends: number[] = []; // after each field and its separator
     let at = 0;
     while (kinds.length < MAX_FIELDS) {
         let m = field(line, at, kinds);
@@ -174,8 +162,7 @@ function readHead(line) {
 }
 
 // Field at a position (kinds already found are not looked for again, brackets may repeat)
-/** @param {string} line @param {number} at @param {string[]} found @returns {{ kind: string, value: string, end: number }|null} */
-function field(line, at, found) {
+function field(line: string, at: number, found: string[]): { kind: string; value: string; end: number } | null {
     for (const [kind, re] of FIELDS) {
         if (kind !== 'context' && found.includes(kind)) continue;
         re.lastIndex = at;
@@ -186,21 +173,18 @@ function field(line, at, found) {
 }
 
 // Fields shared by the entries: first field starts enough lines, then the longest run most entries share
-/** @param {string[]} lines @returns {string[]|null} */
-function template(lines) {
+function template(lines: string[]): string[] | null {
     const filled = lines.filter((l) => l.trim());
     const heads = filled.filter((l) => !/^\s/.test(l)).map(readHead);
-    /** @type {Map<string, number>} */
-    const firsts = new Map();
+    const firsts: Map<string, number> = new Map();
     for (const h of heads) if (h) firsts.set(h.kinds[0], (firsts.get(h.kinds[0]) || 0) + 1);
     const [first, count] = [...firsts].sort((a, b) => b[1] - a[1])[0] || ['', 0];
     const strong = first === 'time' || first === 'level'; // printed output in between may outweigh the entries
     if (count < 2 || (!strong && count < filled.length * MIN_STARTS)) return null;
-    const entries = /** @type {{ kinds: string[] }[]} */ (heads.filter((h) => h?.kinds[0] === first));
+    const entries = heads.filter((h) => h?.kinds[0] === first) as { kinds: string[] }[];
     const kinds = [first];
     while (kinds.length < MAX_FIELDS) {
-        /** @type {Map<string, number>} */
-        const next = new Map();
+        const next: Map<string, number> = new Map();
         for (const e of entries) {
             const same = kinds.every((k, i) => e.kinds[i] === k);
             const k = same ? e.kinds[kinds.length] : undefined;
@@ -214,10 +198,8 @@ function template(lines) {
 }
 
 // Column names of the fields: context, context 2, ...
-/** @param {string[]} kinds @returns {string[]} */
-function names(kinds) {
-    /** @type {Map<string, number>} */
-    const seen = new Map();
+function names(kinds: string[]): string[] {
+    const seen: Map<string, number> = new Map();
     return kinds.map((k) => {
         const n = (seen.get(k) || 0) + 1;
         seen.set(k, n);

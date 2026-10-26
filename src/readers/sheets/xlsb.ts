@@ -11,8 +11,8 @@ import { numberText } from './cells.ts';
 import { SHEET_ERRORS } from './cells.ts';
 import { sheetGrid } from './cells.ts';
 
-/** @typedef {import('../../_core/types.ts').SheetParts} SheetParts */
-/** @typedef {import('../../_core/types.ts').TablePart} TablePart */
+import type { SheetParts } from '../../_core/types.ts';
+import type { TablePart } from '../../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -26,8 +26,7 @@ const rkView = new DataView(new ArrayBuffer(8));
 // ===========================================================================
 
 // Records: type and size as 7-bit varints, then data
-/** @param {Uint8Array} b @param {(type: number, data: Uint8Array) => void} on @returns {void} */
-function biff12Records(b, on) {
+function biff12Records(b: Uint8Array, on: (type: number, data: Uint8Array) => void): void {
     let p = 0;
     while (p < b.length) {
         let type = b[p++];
@@ -44,8 +43,7 @@ function biff12Records(b, on) {
 }
 
 // XLWideString: character count (4 bytes), then UTF-16; count 0xFFFFFFFF = none
-/** @param {Uint8Array} d @param {number} at @returns {{ text: string, end: number }} */
-function wideString(d, at) {
+function wideString(d: Uint8Array, at: number): { text: string; end: number } {
     if (at + 4 > d.length) return { text: '', end: d.length };
     const n = dataView(d).getUint32(at, true);
     if (n === 0xffffffff) return { text: '', end: at + 4 };
@@ -53,9 +51,8 @@ function wideString(d, at) {
     return { text: utf16le.decode(d.subarray(at + 4, end)), end };
 }
 
-/** @param {number} rk @returns {number} */
-export function rkNumber(rk) {
-    let n;
+export function rkNumber(rk: number): number {
+    let n: number;
     if (rk & 2) n = rk >> 2;
     else {
         rkView.setUint32(0, 0, true);
@@ -65,11 +62,9 @@ export function rkNumber(rk) {
     return rk & 1 ? n / 100 : n;
 }
 
-/** @type {SheetParts} */
-export const XLSB_PARTS = {
+export const XLSB_PARTS: SheetParts = {
     workbook(bytes) {
-        /** @type {{ name: string, id: string, hidden: boolean }[]} */
-        const sheets = [];
+        const sheets: { name: string; id: string; hidden: boolean }[] = [];
         let active = 0;
         let date1904 = false;
         let views = 0;
@@ -87,8 +82,7 @@ export const XLSB_PARTS = {
     },
 
     strings(bytes) {
-        /** @type {string[]} */
-        const out = [];
+        const out: string[] = [];
         biff12Records(bytes, (type, d) => {
             if (type === 19) out.push(wideString(d, 1).text); // BrtSSTItem: flags, text
         });
@@ -97,8 +91,7 @@ export const XLSB_PARTS = {
 
     styles(bytes) {
         const codes = new Map();
-        /** @type {number[]} */
-        const xfs = [];
+        const xfs: number[] = [];
         let inXfs = false;
         biff12Records(bytes, (type, d) => {
             if (type === 44 && d.length >= 2)
@@ -122,8 +115,7 @@ export const XLSB_PARTS = {
             if (!((type >= 2 && type <= 11) || type === 62) || d.length < 9) return; // cells only
             const dv = dataView(d);
             const c = dv.getUint32(0, true);
-            /** @param {number} n */
-            const num = (n) => numberText(n, kinds[dv.getUint32(4, true) & 0xffffff] || '', date1904);
+            const num = (n: number) => numberText(n, kinds[dv.getUint32(4, true) & 0xffffff] || '', date1904);
             let text = '';
             if (type === 2) text = num(rkNumber(dv.getUint32(8, true)));
             else if (type === 5 || type === 9) text = d.length >= 16 ? num(dv.getFloat64(8, true)) : '';
@@ -139,10 +131,8 @@ export const XLSB_PARTS = {
 
     // Table: BrtBeginList (range, header and totals rows, names), BrtBeginListCol (column names)
     table(bytes) {
-        /** @type {TablePart|null} */
-        let out = null;
-        /** @type {string[]} */
-        const columns = [];
+        let out: TablePart | null = null;
+        const columns: string[] = [];
         biff12Records(bytes, (type, d) => {
             const dv = dataView(d);
             if (type === 343 && d.length >= 68 && !out) {

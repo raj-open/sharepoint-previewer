@@ -16,8 +16,8 @@ import { setBusy } from './status.ts';
 import { close3d } from './view3d.ts';
 import { showSheets } from './views.ts';
 
-/** @typedef {import('../_core/types.ts').Source} Source */
-/** @typedef {import('../_core/types.ts').Viewer} Viewer */
+import type { Source } from '../_core/types.ts';
+import type { Viewer } from '../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -33,12 +33,11 @@ export const clearedUrls = new Set();
 // METHODS
 // ===========================================================================
 
-/** @param {{ src: Source }} entry @returns {number} bytes */
-const keptSize = (entry) => entry.src.loaded || 0; // bytes of the file cached
+/** @returns bytes */
+const keptSize = (entry: { src: Source }): number => entry.src.loaded || 0; // bytes of the file cached
 
 // Room for `need` more bytes in the cache; else asks to clear the other files first
-/** @param {Viewer} v @param {number} need @returns {boolean} */
-export function makeRoom(v, need) {
+export function makeRoom(v: Viewer, need: number): boolean {
     let used = 0;
     for (const entry of memoryCache.values()) used += keptSize(entry);
     if (used + need <= MEMORY_CACHE_BYTES) return true;
@@ -65,8 +64,7 @@ export function makeRoom(v, need) {
     return true;
 }
 
-/** @returns {void} */
-export function trimMemory() {
+export function trimMemory(): void {
     let total = 0;
     for (const entry of memoryCache.values()) total += keptSize(entry);
     for (const [url, entry] of memoryCache) {
@@ -78,16 +76,17 @@ export function trimMemory() {
     refreshEyes();
 }
 
-/** @param {string} url @param {{ src: Source, fileName: string, hops: string[], reader: string }} entry @returns {void} */
-export function keepInMemory(url, entry) {
+export function keepInMemory(
+    url: string,
+    entry: { src: Source; fileName: string; hops: string[]; reader: string },
+): void {
     memoryCache.delete(url);
     memoryCache.set(url, entry);
     trimMemory();
 }
 
 // Clear every file this previewer cached (its own memory only; nothing else is touched)
-/** @returns {void} */
-export function clearAllCached() {
+export function clearAllCached(): void {
     if (viewer?.file && memoryCache.has(viewer.file.url)) {
         clearCached(viewer);
         if (memoryCache.has(viewer.file.url)) return; // kept: pending, user stayed
@@ -97,14 +96,15 @@ export function clearAllCached() {
     refreshEyes();
 }
 
-/** @param {Viewer} v @returns {void} */
-export function clearCached(v) {
+export function clearCached(v: Viewer): void {
+    const file = v.file;
+    if (!file) return;
     close3d(v);
-    if (v.file) forcedUrls.delete(v.file.url); // asks again next time
+    forcedUrls.delete(file.url); // asks again next time
     cancelLoad(v, true);
     setBusy(v, false);
-    clearedUrls.add(v.file.url);
-    memoryCache.delete(v.file.url);
+    clearedUrls.add(file.url);
+    memoryCache.delete(file.url);
     refreshEyes();
     if (!confirmDiscard(v)) return;
     if (v.writeMode) exitWriteView(v);
@@ -122,10 +122,8 @@ export function clearCached(v) {
     showPlain(v, 'Cache cleared for this file. Use refresh, or open the file again, to cache it anew.');
 }
 
-/** @param {Viewer} v @returns {void} */
 // Cancel the fetch; a running "cache all" goes on in the background (unless `stop`)
-/** @param {Viewer} v @param {boolean} [stop] @returns {void} */
-export function cancelLoad(v, stop = false) {
+export function cancelLoad(v: Viewer, stop = false): void {
     if (stop || !(v.source?.fullJob || v.opening)) v.abort?.abort();
     v.opening = false;
     v.abort = null;

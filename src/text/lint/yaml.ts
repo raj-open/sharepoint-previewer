@@ -7,15 +7,14 @@
 import { YAML_KEY_RE } from '../highlight/yaml.ts';
 import { collector } from './core.ts';
 
-/** @typedef {import('../../_core/types.ts').LintResult} LintResult */
+import type { LintResult } from '../../_core/types.ts';
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
 // Remove "# comment" at end of line, if it is outside quotes
-/** @param {string} line @returns {string} */
-export function stripYamlComment(line) {
+export function stripYamlComment(line: string): string {
     let quote = null;
     for (let i = 0; i < line.length; i++) {
         const c = line[i];
@@ -32,13 +31,11 @@ export function stripYamlComment(line) {
 }
 
 // Lightweight structural checks (no full YAML parser available without libraries)
-/** @param {string} text @returns {LintResult} */
-export function lintYaml(text) {
+export function lintYaml(text: string): LintResult {
     const { problems, add } = collector();
     const stack = [{ indent: -1, keys: new Set(), lastValue: false }];
     const top = () => stack[stack.length - 1];
-    /** @type {number|null} */
-    let blockIndent = null; // inside a | or > block scalar
+    let blockIndent: number | null = null; // inside a | or > block scalar
 
     text.split(/\r?\n/).forEach((raw, idx) => {
         const n = idx + 1;
@@ -59,7 +56,7 @@ export function lintYaml(text) {
             return;
         }
 
-        const lead = /** @type {RegExpMatchArray} */ (line.match(/^( *)((?:- +|-$)*)/)); // all optional: always matches
+        const lead = line.match(/^( *)((?:- +|-$)*)/) as RegExpMatchArray; // all optional: always matches
         const rest = line.slice(lead[0].length);
         const col = lead[0].length;
         const key = rest.match(YAML_KEY_RE);

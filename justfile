@@ -23,12 +23,11 @@ set windows-shell := ["bash", "-euo", "pipefail", "-c"]
 NAME := env("NAME", "sharepoint-previewer")
 # local port of the explorative tests (mock SharePoint)
 HTTP_PORT := env("HTTP_PORT", "8080")
-# userscript: modules under /src (entry, header, shared types);
+# userscript: TypeScript modules under /src (entry, header);
 # bundled by build-src into /dist/userscript.js (kept in the repo, version and 3D hashes as dummies)
 PATH_MODULES := "src"
 PATH_ENTRY := PATH_MODULES / "main.ts"
 PATH_HEADER := PATH_MODULES / "_core/header.ts"
-PATH_TYPES := PATH_MODULES / "_core/types.ts"
 PATH_SRC_3D := "src/@apis/ifc-lite/main.ts"
 PATH_DIST := "dist"
 PATH_BUNDLE := PATH_DIST / "userscript.js"
@@ -92,7 +91,7 @@ build-lock:
 build-src:
     #!/usr/bin/env bash
     set -euo pipefail
-    node --disable-warning=ExperimentalWarning scripts/bundle.ts "{{PATH_ENTRY}}" "{{PATH_HEADER}}" "{{PATH_TYPES}}" "{{PATH_BUNDLE}}"
+    node --disable-warning=ExperimentalWarning scripts/bundle.ts "{{PATH_ENTRY}}" "{{PATH_HEADER}}" "{{PATH_BUNDLE}}"
     node --check "{{PATH_BUNDLE}}"
     just _size "{{PATH_BUNDLE}}" "{{MAX_KB_SRC}}"
 

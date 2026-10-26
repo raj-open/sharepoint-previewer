@@ -17,19 +17,18 @@ import { listRegion } from './layout.ts';
 import { viewer } from './open.ts';
 import { close3d } from './view3d.ts';
 
-/** @typedef {import('../_core/types.ts').Viewer} Viewer */
+import type { Viewer } from '../_core/types.ts';
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
-/** @param {Viewer} v @returns {boolean} */
-export const canWrite = (v) => !!(v.source && !v.source.isParquet && !v.source.isZip && !v.source.isSheet); // read only
+export const canWrite = (v: Viewer): boolean =>
+    !!(v.source && !v.source.isParquet && !v.source.isZip && !v.source.isSheet); // read only
 
-/** @param {Viewer} v @returns {Promise<void>} */
-export async function enterWrite(v) {
+export async function enterWrite(v: Viewer): Promise<void> {
     const src = v.source;
-    if (v.writeMode || !canWrite(v)) return;
+    if (!src || v.writeMode || !canWrite(v)) return;
     if (src.total > LARGE_FILE_BYTES) {
         alert(
             'This file is too large to edit in the previewer.\n' +
@@ -39,7 +38,7 @@ export async function enterWrite(v) {
     }
     if (!src.done) {
         if (!confirm('To edit, the whole file has to be cached first. Cache it now?')) return;
-        if (!(await v.loadAll()) || !src.done) return;
+        if (!(await v.loadAll?.()) || !src.done) return;
     }
     close3d(v); // edits happen in text
     v.writeMode = true;
@@ -78,8 +77,7 @@ export async function enterWrite(v) {
 // ---------------------------------------------------------------------------
 
 // Ask before pending changes lost; false = user keeps them
-/** @param {Viewer} v @returns {boolean} */
-export function confirmDiscard(v) {
+export function confirmDiscard(v: Viewer): boolean {
     if (!v.dirty && v.staged == null) return true;
     const btn = v.dirty ? v.saveBtn : v.uploadBtn;
     flash(btn);
@@ -95,8 +93,7 @@ export function confirmDiscard(v) {
 }
 
 // Drop pending changes; show file as cached
-/** @param {Viewer} v @returns {void} */
-export function discardEdits(v) {
+export function discardEdits(v: Viewer): void {
     const src = v.source;
     if (src && src.originalText != null) {
         src.text = src.originalText;
@@ -111,8 +108,7 @@ export function discardEdits(v) {
 }
 
 // Back to read view (keeps saved changes, drops unsaved edits)
-/** @param {Viewer} v @returns {void} */
-export function exitWriteView(v) {
+export function exitWriteView(v: Viewer): void {
     v.writeMode = false;
     v.dirty = false;
     v.tableEditing = false;
@@ -129,22 +125,20 @@ export function exitWriteView(v) {
 }
 
 // Text being edited: text box, or CSV table
-/** @param {Viewer} v @returns {string} */
-export function editedText(v) {
-    return v.tableEditing ? v.lineView.csvText() + (v.source.trailingNewline ? '\n' : '') : v.editor.value;
+export function editedText(v: Viewer): string {
+    if (!v.tableEditing) return v.editor.value;
+    return (v.lineView?.csvText?.() ?? '') + (v.source?.trailingNewline ? '\n' : '');
 }
 
 // Edited: save (again) before upload
-/** @param {Viewer} v @returns {void} */
-export function markEdited(v) {
+export function markEdited(v: Viewer): void {
     v.dirty = true;
     v.saveBtn.disabled = false;
     v.uploadBtn.disabled = true;
 }
 
 // Draw attention to button: blue glow that fades out over 3 seconds
-/** @param {HTMLElement} btn @returns {void} */
-export function flash(btn) {
+export function flash(btn: HTMLElement): void {
     btn.classList.remove('tp-attn');
     void btn.offsetWidth; // restart animation
     btn.classList.add('tp-attn');
@@ -153,9 +147,10 @@ export function flash(btn) {
 
 // Upload as user would (drop, or SharePoint's upload dialogue); no API. HEAD request
 // confirms change; otherwise user can save file locally.
-/** @param {Viewer} v @param {string} edited @returns {Promise<boolean>} true once SharePoint has the new file */
-export async function uploadEdits(v, edited) {
+/** @returns true once SharePoint has the new file */
+export async function uploadEdits(v: Viewer, edited: string): Promise<boolean> {
     const src = v.source;
+    if (!src || !v.file) return false;
     const url = v.file.url;
     const folder = currentFolder();
     const dir = url.slice(0, url.lastIndexOf('/'));
@@ -177,7 +172,7 @@ export async function uploadEdits(v, edited) {
 
     let text = edited;
     if (src.crlf) text = text.replace(/\r?\n/g, '\r\n');
-    const file = new File([src.bom ? `﻿${text}` : text], v.fileName, {
+    const file = new File([src.bom ? `﻿${text}` : text], v.fileName ?? v.file.name, {
         type: 'text/plain',
         lastModified: Date.now(),
     });
@@ -198,8 +193,7 @@ export async function uploadEdits(v, edited) {
     };
     const before = await stamp();
     // Watch for SharePoint to change file (it may first ask "replace?"): up to `ms`
-    /** @param {number} ms */
-    const changed = async (ms) => {
+    const changed = async (ms: number) => {
         for (const end = Date.now() + ms; Date.now() < end; ) {
             await new Promise((r) => setTimeout(r, 1500));
             const now = await stamp();
@@ -229,7 +223,7 @@ export async function uploadEdits(v, edited) {
     if (!done) {
         const input = [...document.querySelectorAll('input[type="file"]')].find((i) => !i.closest('.tp-viewer'));
         if (input) {
-            /** @type {HTMLInputElement} */ (input).files = transfer.files;
+            (input as HTMLInputElement).files = transfer.files;
             input.dispatchEvent(new Event('input', { bubbles: true }));
             input.dispatchEvent(new Event('change', { bubbles: true }));
             done = await changed(20000);
@@ -249,7 +243,7 @@ export async function uploadEdits(v, edited) {
         ) {
             const a = document.createElement('a');
             a.href = URL.createObjectURL(file);
-            a.download = v.fileName;
+            a.download = file.name;
             a.click();
             setTimeout(() => URL.revokeObjectURL(a.href), 10000);
         }
@@ -264,8 +258,8 @@ export async function uploadEdits(v, edited) {
     return true;
 }
 
-/** Page-wide edit guards: Ctrl+S / Cmd+S saves, unsaved changes ask before leaving. @returns {void} */
-export function guardEdits() {
+/** Page-wide edit guards: Ctrl+S / Cmd+S saves, unsaved changes ask before leaving. */
+export function guardEdits(): void {
     // Ctrl+S / Cmd+S: save (not upload)
     document.addEventListener(
         'keydown',
@@ -284,10 +278,9 @@ export function guardEdits() {
 }
 
 // Fill and wires delimiter / quote selects; `fileSep` is file's own delimiter
-/** @param {Viewer} v @param {string} fileSep @returns {void} */
-function setupCsvBar(v, fileSep) {
-    const sepSel = v.csvBar.querySelector('.tp-csv-sep');
-    const quoteSel = v.csvBar.querySelector('.tp-csv-quote');
+function setupCsvBar(v: Viewer, fileSep: string): void {
+    const sepSel = v.csvBar.querySelector('.tp-csv-sep') as HTMLSelectElement; // in the bar's HTML
+    const quoteSel = v.csvBar.querySelector('.tp-csv-quote') as HTMLSelectElement;
     const fill = () => {
         sepSel.innerHTML =
             `<option value="">Delimiter: as in the file (${SEPARATOR_NAMES[fileSep]})</option>` +

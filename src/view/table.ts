@@ -10,17 +10,16 @@ import { BIN_SVG } from '../ui/icons.ts';
 import { CHUNK_LINES } from './lines.ts';
 import { watchBlocks } from './lines.ts';
 
-/** @typedef {import('../_core/types.ts').LineView} LineView */
-/** @typedef {import('../_core/types.ts').TableState} TableState */
-/** @typedef {import('../_core/types.ts').CsvRow} CsvRow */
+import type { LineView } from '../_core/types.ts';
+import type { TableState } from '../_core/types.ts';
+import type { CsvRow } from '../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
 // ===========================================================================
 
 // Quote styles as in Python's csv module ('none' can break file)
-/** @type {Object<string, string>} */
-export const QUOTE_MODES = {
+export const QUOTE_MODES: Record<string, string> = {
     minimal: 'Quotes: only when needed',
     all: 'Quotes: all cells',
     nonnumeric: 'Quotes: all but numbers',
@@ -34,17 +33,13 @@ const MAX_TITLE = 2000; // characters of a cell's tooltip
 // ===========================================================================
 
 // CSV text -> rows of cells; row.raw keeps original text for unedited rows
-/** @param {string} text @param {string} sep @returns {CsvRow[]} */
-export function parseCsv(text, sep) {
-    /** @type {CsvRow[]} */
-    const rows = [];
-    /** @type {CsvRow} */
-    let row = [];
+export function parseCsv(text: string, sep: string): CsvRow[] {
+    const rows: CsvRow[] = [];
+    let row: CsvRow = [];
     let cell = '';
     let quoted = false;
     let start = 0;
-    /** @param {number} end */
-    const endRow = (end) => {
+    const endRow = (end: number) => {
         row.push(cell);
         row.raw = text.slice(start, end);
         rows.push(row);
@@ -75,8 +70,7 @@ export function parseCsv(text, sep) {
 }
 
 // One CSV cell, quoted as quote style says
-/** @param {string} value @param {string} sep @param {string} [mode] @returns {string} */
-function csvQuote(value, sep, mode = 'minimal') {
+function csvQuote(value: string, sep: string, mode = 'minimal'): string {
     const quoted = `"${value.replace(/"/g, '""')}"`;
     if (mode === 'none') return value;
     if (mode === 'all') return quoted;
@@ -87,15 +81,24 @@ function csvQuote(value, sep, mode = 'minimal') {
 
 // Table view: fixed header and row numbers, sort, ▾ filter; opts.editable for CSV write mode
 /**
- * @param {HTMLElement} content @param {string[]} header @param {CsvRow[]} rows
- * @param {{ state: TableState,
- *   editable?: boolean, onEdit?: () => void, sep?: string, colour?: boolean, format?: { sep: string, quote: string }|null,
- *   classOf?: (c: number, value: string) => string,
- *   expand?: { can: (i: number) => boolean, html: (i: number) => string, title: string } }} opts
- *   classOf: own colours per cell (with colour on); expand: rows that open a detail row below them (▸ in the row number)
- * @returns {LineView & { csvText: () => string }}
+ * @param opts classOf: own colours per cell (with colour on);
+ *   expand: rows that open a detail row below them (▸ in the row number)
  */
-export function mountTable(content, header, rows, opts) {
+export function mountTable(
+    content: HTMLElement,
+    header: string[],
+    rows: CsvRow[],
+    opts: {
+        state: TableState;
+        editable?: boolean;
+        onEdit?: () => void;
+        sep?: string;
+        colour?: boolean;
+        format?: { sep: string; quote: string } | null;
+        classOf?: (c: number, value: string) => string;
+        expand?: { can: (i: number) => boolean; html: (i: number) => string; title: string };
+    },
+): LineView & { csvText: () => string } {
     const { state } = opts;
     for (const n of content.querySelectorAll(':scope > .tp-plus, :scope > .tp-col-widths')) n.remove(); // earlier table
     if (!state.widths) state.widths = new Map(); // column -> width in px (column edge drag)
@@ -117,8 +120,7 @@ export function mountTable(content, header, rows, opts) {
     const table = document.createElement('table');
     table.className = opts.editable ? 'tp-table tp-editing' : 'tp-table';
     table.dataset.tid = tableId;
-    /** @type {IntersectionObserver|null} */
-    let io = null;
+    let io: IntersectionObserver | null = null;
 
     // Rows to show: filtered, then sorted (indexes into rows)
     const viewRows = () => {
@@ -162,14 +164,12 @@ export function mountTable(content, header, rows, opts) {
         return `<thead><tr>${cells}</tr></thead>`;
     };
 
-    /** @param {number} c @param {string} value */
-    const colourOf = (c, value) => {
+    const colourOf = (c: number, value: string) => {
         if (!opts.colour) return '';
         const cls = opts.classOf ? opts.classOf(c, value) : CSV_COLOURS[c % CSV_COLOURS.length];
         return cls ? ` class="tp-${cls}"` : '';
     };
-    /** @param {number} i @param {number} pos */
-    const rowHtml = (i, pos) => {
+    const rowHtml = (i: number, pos: number) => {
         const r = rows[i];
         const edit = opts.editable ? ' contenteditable="plaintext-only"' : '';
         let cells = '';
@@ -188,11 +188,9 @@ export function mountTable(content, header, rows, opts) {
     };
 
     // Detail rows (expand): ▸ / ▾ in the row number, detail below the row; open ones kept in state
-    /** @param {number} i @param {boolean} open */
-    const toggleHtml = (i, open) =>
+    const toggleHtml = (i: number, open: boolean) =>
         `<button class="tp-expand" data-x="${i}" title="${open ? 'Collapse' : esc(opts.expand?.title ?? '')}">${open ? '▾' : '▸'}</button>`;
-    /** @param {number} i */
-    const detailHtml = (i) =>
+    const detailHtml = (i: number) =>
         `<tr class="tp-detail"><td class="tp-rn"></td><td colspan="${cols}"><div class="tp-detail-box">` +
         `${opts.expand?.html(i) ?? ''}</div></td></tr>`;
     // All rows shown (filters applied) open or closed at once
@@ -203,10 +201,9 @@ export function mountTable(content, header, rows, opts) {
         for (const i of shown) state.allOpen ? state.expanded.add(i) : state.expanded.delete(i);
         build();
     };
-    /** @param {HTMLElement} btn */
-    const toggleDetail = (btn) => {
+    const toggleDetail = (btn: HTMLElement) => {
         const i = Number(btn.dataset.x);
-        const tr = /** @type {HTMLElement} */ (btn.closest('tr'));
+        const tr = btn.closest('tr') as HTMLElement;
         if (!state.expanded) state.expanded = new Set();
         const open = !state.expanded.has(i);
         if (open) {
@@ -220,13 +217,11 @@ export function mountTable(content, header, rows, opts) {
     };
 
     // Structure edits use file's order (sort and filters off first)
-    /** @param {Array<*>} list @param {number} from @param {number} to */
-    const moveItem = (list, from, to) => {
+    const moveItem = <T>(list: T[], from: number, to: number) => {
         const [item] = list.splice(from, 1);
         list.splice(to > from ? to - 1 : to, 0, item);
     };
-    /** @param {string} act @param {number} at @param {number} [to] */
-    const structure = (act, at, to) => {
+    const structure = (act: string, at: number, to?: number) => {
         state.sort = null;
         state.filters.clear();
         if (act.startsWith('col-')) widths.clear(); // columns shift: widths start fresh
@@ -234,7 +229,7 @@ export function mountTable(content, header, rows, opts) {
             rows.splice(at, 0, new Array(cols).fill(''));
         } else if (act === 'row-move') {
             if (at === to || at + 1 === to) return;
-            moveItem(rows, at, /** @type {number} */ (to)); // moves come with their target
+            moveItem(rows, at, to as number); // moves come with their target
         } else if (act === 'col-insert') {
             const name = prompt('Name of the new column:', '');
             if (name === null) return;
@@ -253,7 +248,7 @@ export function mountTable(content, header, rows, opts) {
             if (at === to || at + 1 === to) return;
             for (const r of [header, ...rows]) {
                 while (r.length < cols) r.push('');
-                moveItem(r, at, /** @type {number} */ (to));
+                moveItem(r, at, to as number);
             }
             allEdited = true;
         }
@@ -262,8 +257,7 @@ export function mountTable(content, header, rows, opts) {
     };
 
     const ROW_HEIGHT = 23 * (Number(content.style?.getPropertyValue?.('--tp-zoom')) || 1); // text size (panel)
-    /** @param {number} h */
-    const spacer = (h) => `<tr class="tp-spacer"><td colspan="${cols + 1}" style="height:${h}px"></td></tr>`;
+    const spacer = (h: number) => `<tr class="tp-spacer"><td colspan="${cols + 1}" style="height:${h}px"></td></tr>`;
 
     const build = () => {
         io?.disconnect();
@@ -278,8 +272,7 @@ export function mountTable(content, header, rows, opts) {
             table.append(body);
             blocks.push(body);
         }
-        /** @param {HTMLElement} b */
-        const fill = (b) => {
+        const fill = (b: HTMLElement) => {
             if (b.dataset.on) return;
             b.innerHTML = view
                 .slice(Number(b.dataset.from), Number(b.dataset.from) + Number(b.dataset.count))
@@ -287,8 +280,7 @@ export function mountTable(content, header, rows, opts) {
                 .join('');
             b.dataset.on = '1';
         };
-        /** @param {HTMLElement} b */
-        const empty = (b) => {
+        const empty = (b: HTMLElement) => {
             if (!b.dataset.on || b.contains(document.activeElement)) return; // keep cell being edited
             b.innerHTML = spacer(b.getBoundingClientRect().height);
             delete b.dataset.on;
@@ -298,15 +290,15 @@ export function mountTable(content, header, rows, opts) {
 
     // Sort: click column title
     table.addEventListener('click', (e) => {
-        if (/** @type {HTMLElement} */ (e.target).closest('.tp-resize')) return; // end of width change, not sort
-        const expand = /** @type {HTMLElement} */ (e.target).closest('.tp-expand');
-        if (expand) return void toggleDetail(/** @type {HTMLElement} */ (expand));
-        if (/** @type {HTMLElement} */ (e.target).closest('.tp-expand-all')) return void toggleAll();
-        const del = /** @type {HTMLElement} */ (e.target).closest('.tp-col-delete');
+        if ((e.target as HTMLElement).closest('.tp-resize')) return; // end of width change, not sort
+        const expand = (e.target as HTMLElement).closest('.tp-expand');
+        if (expand) return void toggleDetail(expand as HTMLElement);
+        if ((e.target as HTMLElement).closest('.tp-expand-all')) return void toggleAll();
+        const del = (e.target as HTMLElement).closest('.tp-col-delete');
         if (del) return void structure('col-delete', Number(del.dataset.c));
-        const btn = /** @type {HTMLElement} */ (e.target).closest('.tp-filter');
+        const btn = (e.target as HTMLElement).closest('.tp-filter');
         if (btn) return void openFilter(btn, Number(btn.dataset.c));
-        const th = /** @type {HTMLElement} */ (e.target).closest('th[data-c]');
+        const th = (e.target as HTMLElement).closest('th[data-c]');
         if (!th) return;
         const col = Number(th.dataset.c);
         const s = state.sort;
@@ -315,24 +307,17 @@ export function mountTable(content, header, rows, opts) {
     });
 
     // Filter panel: unique values with checkboxes, plus "contains" text field
-    /** @type {HTMLElement|null} */
-    let panel = null;
+    let panel: HTMLElement | null = null;
     const closePanel = () => {
         panel?.remove();
         panel = null;
         document.removeEventListener('pointerdown', outside, true);
     };
-    /** @param {Event} e */
-    const outside = (e) => {
-        if (
-            panel &&
-            !panel.contains(/** @type {Node} */ (e.target)) &&
-            !(/** @type {HTMLElement} */ (e.target).closest('.tp-filter'))
-        )
+    const outside = (e: Event) => {
+        if (panel && !panel.contains(e.target as Node) && !(e.target as HTMLElement).closest('.tp-filter'))
             closePanel();
     };
-    /** @param {HTMLElement} btn @param {number} c */
-    const openFilter = (btn, c) => {
+    const openFilter = (btn: HTMLElement, c: number) => {
         closePanel();
         const f = state.filters.get(c) || { values: null, text: '' };
         const counts = new Map();
@@ -361,12 +346,12 @@ export function mountTable(content, header, rows, opts) {
         const box = content.getBoundingClientRect();
         panel.style.left = `${Math.max(0, Math.min(r.left - box.left, box.width - 240))}px`;
         panel.style.top = `${r.bottom - box.top + 2}px`;
-        /** @type {HTMLElement} */ (content.parentElement).append(panel); // content sits in the viewer
+        (content.parentElement as HTMLElement).append(panel); // content sits in the viewer
         document.addEventListener('pointerdown', outside, true);
 
-        const boxes = /** @type {HTMLInputElement[]} */ ([...panel.querySelectorAll('[data-i]')]); // checkboxes
-        const all = /** @type {HTMLInputElement} */ (panel.querySelector('[data-all]')); // in the panel's HTML above
-        const input = /** @type {HTMLInputElement} */ (panel.querySelector('input[type="text"]'));
+        const boxes = [...panel.querySelectorAll('[data-i]')] as HTMLInputElement[]; // checkboxes
+        const all = panel.querySelector('[data-all]') as HTMLInputElement; // in the panel's HTML above
+        const input = panel.querySelector('input[type="text"]') as HTMLInputElement;
         all.checked = boxes.every((b) => b.checked);
         const apply = () => {
             const checked = boxes.filter((b) => b.checked).map((b) => values[Number(b.dataset.i)]);
@@ -380,16 +365,14 @@ export function mountTable(content, header, rows, opts) {
             for (const b of boxes) b.checked = all.checked;
             apply();
         };
-        /** @type {HTMLElement} */ (panel.querySelector('.tp-filter-list')).onchange = () => {
+        (panel.querySelector('.tp-filter-list') as HTMLElement).onchange = () => {
             all.checked = boxes.every((b) => b.checked);
             apply();
         };
         input.oninput = () => {
             const t = input.value.toLowerCase();
             for (const b of boxes) {
-                /** @type {HTMLElement} */ (b.parentElement).style.display = values[Number(b.dataset.i)]
-                    .toLowerCase()
-                    .includes(t)
+                (b.parentElement as HTMLElement).style.display = values[Number(b.dataset.i)].toLowerCase().includes(t)
                     ? ''
                     : 'none';
             }
@@ -400,15 +383,13 @@ export function mountTable(content, header, rows, opts) {
 
     // Write mode: drag row numbers / column titles to move; "+" at edges to insert
     if (opts.editable) {
-        /** @type {{ kind: 'row'|'col', from: number }|null} */
-        let dragging = null; // { kind: 'row'|'col', from }
-        /** @param {DragEvent} e */
-        const dropTarget = (e) => {
+        let dragging: { kind: 'row' | 'col'; from: number } | null = null; // { kind: 'row'|'col', from }
+        const dropTarget = (e: DragEvent) => {
             if (!dragging) return null;
             const el =
                 dragging.kind === 'row'
-                    ? /** @type {HTMLElement} */ (e.target).closest('td.tp-rn[data-row]')
-                    : /** @type {HTMLElement} */ (e.target).closest('th[data-c]');
+                    ? (e.target as HTMLElement).closest('td.tp-rn[data-row]')
+                    : (e.target as HTMLElement).closest('th[data-c]');
             if (!el) return null;
             const r = el.getBoundingClientRect();
             const i = dragging.kind === 'row' ? Number(el.dataset.row) : Number(el.dataset.c);
@@ -421,15 +402,15 @@ export function mountTable(content, header, rows, opts) {
             }
         };
         table.addEventListener('dragstart', (e) => {
-            const rn = /** @type {HTMLElement} */ (e.target).closest?.('td.tp-rn[data-row]');
-            const th = /** @type {HTMLElement} */ (e.target).closest?.('th[data-c]');
+            const rn = (e.target as HTMLElement).closest?.('td.tp-rn[data-row]');
+            const th = (e.target as HTMLElement).closest?.('th[data-c]');
             if (!rn && !th) return;
-            if (/** @type {HTMLElement} */ (e.target).closest?.('.tp-col-delete, .tp-filter, .tp-resize'))
+            if ((e.target as HTMLElement).closest?.('.tp-col-delete, .tp-filter, .tp-resize'))
                 return void e.preventDefault();
             dragging = rn
                 ? { kind: 'row', from: Number(rn.dataset.row) }
-                : { kind: 'col', from: Number(/** @type {HTMLElement} */ (th).dataset.c) };
-            const transfer = /** @type {DataTransfer} */ (e.dataTransfer); // always set on dragstart
+                : { kind: 'col', from: Number((th as HTMLElement).dataset.c) };
+            const transfer = e.dataTransfer as DataTransfer; // always set on dragstart
             transfer.effectAllowed = 'move';
             transfer.setData('text/x-tp-move', '1');
             e.stopPropagation();
@@ -448,7 +429,7 @@ export function mountTable(content, header, rows, opts) {
             if (!t) return;
             e.preventDefault();
             e.stopPropagation();
-            const { kind, from } = /** @type {{ kind: 'row'|'col', from: number }} */ (dragging); // drop target found: dragging
+            const { kind, from } = dragging as { kind: 'row' | 'col'; from: number }; // drop target found: dragging
             dragging = null;
             structure(kind === 'row' ? 'row-move' : 'col-move', from, t.to);
         });
@@ -461,11 +442,9 @@ export function mountTable(content, header, rows, opts) {
         plus.className = 'tp-plus';
         plus.textContent = '+';
         plus.hidden = true;
-        /** @type {{ kind: 'row'|'col', at: number }|null} */
-        let plusAt = null;
+        let plusAt: { kind: 'row' | 'col'; at: number } | null = null;
         const EDGE = 6; // px from line that count as "on line"
-        /** @param {'row'|'col'} kind @param {number} at @param {number} x @param {number} y */
-        const showPlus = (kind, at, x, y) => {
+        const showPlus = (kind: 'row' | 'col', at: number, x: number, y: number) => {
             const box = content.getBoundingClientRect();
             plus.style.left = `${x - box.left + content.scrollLeft - 8}px`;
             plus.style.top = `${y - box.top + content.scrollTop - 8}px`;
@@ -475,11 +454,11 @@ export function mountTable(content, header, rows, opts) {
         };
         table.addEventListener('mousemove', (e) => {
             if (dragging) return;
-            const rn = /** @type {HTMLElement} */ (e.target).closest('td.tp-rn[data-row]');
-            const corner = /** @type {HTMLElement} */ (e.target).closest('th.tp-rn');
-            const th = /** @type {HTMLElement} */ (e.target).closest('th[data-c]');
+            const rn = (e.target as HTMLElement).closest('td.tp-rn[data-row]');
+            const corner = (e.target as HTMLElement).closest('th.tp-rn');
+            const th = (e.target as HTMLElement).closest('th[data-c]');
             if (rn || corner) {
-                const r = /** @type {HTMLElement} */ (rn || corner).getBoundingClientRect();
+                const r = ((rn || corner) as HTMLElement).getBoundingClientRect();
                 const i = rn ? Number(rn.dataset.row) : -1;
                 if (rn && e.clientY - r.top < EDGE) return showPlus('row', i, r.left, r.top);
                 if (r.bottom - e.clientY < EDGE) return showPlus('row', i + 1, r.left, r.bottom);
@@ -503,7 +482,7 @@ export function mountTable(content, header, rows, opts) {
     // Cell edits (CSV write mode)
     if (opts.editable) {
         table.addEventListener('input', (e) => {
-            const td = /** @type {HTMLElement} */ (e.target).closest('td[data-r]');
+            const td = (e.target as HTMLElement).closest('td[data-r]');
             if (!td) return;
             const i = Number(td.dataset.r);
             while (rows[i].length < cols) rows[i].push('');
@@ -512,9 +491,9 @@ export function mountTable(content, header, rows, opts) {
             opts.onEdit?.();
         });
         table.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey && /** @type {HTMLElement} */ (e.target).closest('td[data-r]')) {
+            if (e.key === 'Enter' && !e.shiftKey && (e.target as HTMLElement).closest('td[data-r]')) {
                 e.preventDefault();
-                /** @type {HTMLElement} */ (e.target).blur();
+                (e.target as HTMLElement).blur();
             }
         });
     }
@@ -526,16 +505,15 @@ export function mountTable(content, header, rows, opts) {
 
     // Column widths: drag lower right edge of title (upper part has "+")
     table.addEventListener('pointerdown', (e) => {
-        const handle = /** @type {HTMLElement} */ (e.target).closest('.tp-resize');
+        const handle = (e.target as HTMLElement).closest('.tp-resize');
         if (!handle) return;
         e.preventDefault();
         e.stopPropagation();
         const c = Number(handle.dataset.c);
         const startX = e.clientX;
-        const startW = /** @type {HTMLElement} */ (handle.parentElement).getBoundingClientRect().width;
+        const startW = (handle.parentElement as HTMLElement).getBoundingClientRect().width;
         handle.setPointerCapture(e.pointerId);
-        /** @param {PointerEvent} ev */
-        const move = (ev) => {
+        const move = (ev: PointerEvent) => {
             widths.set(c, Math.max(40, Math.round(startW + ev.clientX - startX)));
             applyWidths();
         };
@@ -557,14 +535,14 @@ export function mountTable(content, header, rows, opts) {
         show: () => {},
         // As CSV: edited rows rewritten, others as before (all with chosen format)
         csvText: () => {
-            const sep = /** @type {string} */ (opts.format?.sep || opts.sep); // tables in write mode come with their delimiter
+            const sep = (opts.format?.sep || opts.sep) as string; // tables in write mode come with their delimiter
             const quote = opts.format?.quote || 'minimal';
             const all = allEdited || !!opts.format?.sep || !!opts.format?.quote;
             return [header, ...rows]
                 .map((r) =>
-                    all || edited.has(r) || /** @type {CsvRow} */ (r).raw === undefined
+                    all || edited.has(r) || (r as CsvRow).raw === undefined
                         ? r.map((v) => csvQuote(v ?? '', sep, quote)).join(sep)
-                        : /** @type {string} */ (/** @type {CsvRow} */ (r).raw),
+                        : ((r as CsvRow).raw as string),
                 )
                 .join('\n');
         },

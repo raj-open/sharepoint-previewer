@@ -6,7 +6,7 @@
 
 import { tokenise } from './tokenise.ts';
 
-/** @typedef {import('../../_core/types.ts').Token} Token */
+import type { Token } from '../../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -37,8 +37,7 @@ const PY_CLASSES = ['', 'com', 'str', 'meta', 'kw', 'lit', 'num', 'type', 'enum'
 // METHODS
 // ===========================================================================
 
-/** @param {string} text @returns {Token[]} */
-export const highlightPy = (text) =>
+export const highlightPy = (text: string): Token[] =>
     tokenise(text, PY_RE, (m, out) => {
         const i = m.findIndex((g, idx) => idx > 0 && g !== undefined);
         out.push([PY_CLASSES[i], m[0]]);

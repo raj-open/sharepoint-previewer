@@ -4,14 +4,13 @@
 // IMPORTS
 // ===========================================================================
 
-/** @typedef {import('../../_core/types.ts').LintResult} LintResult */
+import type { LintResult } from '../../_core/types.ts';
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
-/** @param {string} text @returns {LintResult} */
-export function lintXml(text) {
+export function lintXml(text: string): LintResult {
     const doc = new DOMParser().parseFromString(text.replace(/^\uFEFF/, ''), 'application/xml');
     const err = doc.getElementsByTagName('parsererror')[0];
     if (!err) {

@@ -6,21 +6,18 @@
 
 import { collector } from './core.ts';
 
-/** @typedef {import('../../_core/types.ts').LintResult} LintResult */
+import type { LintResult } from '../../_core/types.ts';
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
 // Power Query M: brackets, strings, comments and let / in pairs
-/** @param {string} text @returns {LintResult} */
-export function lintM(text) {
+export function lintM(text: string): LintResult {
     const { problems, add } = collector();
     const PAIRS = { ')': '(', ']': '[', '}': '{' };
-    /** @type {[string, number][]} */
-    const stack = []; // [char, line]
-    /** @type {number[]} */
-    const lets = []; // lines of "let" that still need their "in"
+    const stack: [string, number][] = []; // [char, line]
+    const lets: number[] = []; // lines of "let" that still need their "in"
     let line = 1;
 
     for (let i = 0; i < text.length; i++) {

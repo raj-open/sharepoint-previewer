@@ -1,6 +1,13 @@
 // Message segments: text, JSON and Python-like literals (dicts, lists, tuples) found in a message
 
 // ===========================================================================
+// TYPES
+// ===========================================================================
+
+/** text; json: as in the message; python: converted to JSON */
+export type Segment = { kind: 'text' | 'json' | 'python'; text: string };
+
+// ===========================================================================
 // CONSTANTS
 // ===========================================================================
 
@@ -12,17 +19,13 @@ const PY_TOKEN_RE = /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[{}[\](),:]|[^\s"'{}[\]
 // JSON tokens for indenting: strings, punctuation, other
 const JSON_TOKEN_RE = /"(?:\\.|[^"\\])*"|[{}[\],:]|[^\s"{}[\],:]+|\s+/gy;
 
-/** @typedef {{ kind: 'text'|'json'|'python', text: string }} Segment text; json: as in the message; python: converted to JSON */
-
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
 // Message -> segments in order; objects and lists start at { or [ (not after a letter, e.g. sshd[123])
-/** @param {string} text @returns {Segment[]} */
-export function segments(text) {
-    /** @type {Segment[]} */
-    const out = [];
+export function segments(text: string): Segment[] {
+    const out: Segment[] = [];
     if (text.length > MAX_CHARS) return [{ kind: 'text', text }];
     let from = 0; // start of pending text
     for (let i = 0; i < text.length; i++) {
@@ -42,8 +45,7 @@ export function segments(text) {
 }
 
 // JSON indented by 2 spaces; values (numbers, strings) kept as written
-/** @param {string} json @returns {string} */
-export function indentJson(json) {
+export function indentJson(json: string): string {
     const tokens = [...json.matchAll(JSON_TOKEN_RE)].map((m) => m[0]).filter((t) => t.trim());
     let out = '';
     let depth = 0;
@@ -75,8 +77,7 @@ export function indentJson(json) {
 // ===========================================================================
 
 // End (exclusive) of the bracket opened at i, quotes respected; -1 if not closed
-/** @param {string} text @param {number} i @returns {number} */
-function closing(text, i) {
+function closing(text: string, i: number): number {
     const stack = [];
     for (let k = i; k < text.length; k++) {
         const c = text[k];
@@ -96,8 +97,7 @@ function closing(text, i) {
 }
 
 // Object or list as JSON (as is) or as Python literal (converted); null: neither
-/** @param {string} part @returns {Segment|null} */
-function asJson(part) {
+function asJson(part: string): Segment | null {
     try {
         JSON.parse(part);
         return { kind: 'json', text: part };
@@ -107,10 +107,8 @@ function asJson(part) {
 }
 
 // Python literal -> JSON: quotes, True / False / None, tuples as lists, trailing commas; null if not valid
-/** @param {string} part @returns {string|null} */
-function fromPython(part) {
-    /** @type {string[]} */
-    const out = [];
+function fromPython(part: string): string | null {
+    const out: string[] = [];
     PY_TOKEN_RE.lastIndex = 0;
     let m = PY_TOKEN_RE.exec(part);
     while (m) {

@@ -6,7 +6,7 @@
 
 import { tokenise } from './tokenise.ts';
 
-/** @typedef {import('../../_core/types.ts').Token} Token */
+import type { Token } from '../../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -33,8 +33,7 @@ const IFC_CLASSES = ['', 'com', 'str', 'ref', 'enum', 'kw', 'type', 'num', 'lit'
 // METHODS
 // ===========================================================================
 
-/** @param {string} text @returns {Token[]} */
-export const highlightIfc = (text) =>
+export const highlightIfc = (text: string): Token[] =>
     tokenise(text, IFC_RE, (m, out) => {
         const i = m.findIndex((g, idx) => idx > 0 && g !== undefined);
         out.push([IFC_CLASSES[i], m[0]]);

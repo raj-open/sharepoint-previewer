@@ -8,18 +8,26 @@ import { concatBytes } from '../bytes.ts';
 import { dataView } from '../bytes.ts';
 import { utf16le } from '../bytes.ts';
 
-/** @typedef {import('../../_core/types.ts').ByteReader} ByteReader */
+import type { ByteReader } from '../../_core/types.ts';
+
+// ===========================================================================
+// TYPES
+// ===========================================================================
+
+/** directory entry (type 1 storage, 2 stream, 5 root) */
+export type CfbEntry = { name: string; type: number; start: number; size: number };
+export type CfbStream = { size: number; bytes: ByteReader };
+export type CompoundFile = {
+    find: (name: string) => CfbEntry | undefined;
+    stream: (e: CfbEntry) => Promise<CfbStream>;
+};
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
 // Compound file: directory at once; streams read sector by sector, only where needed
-/** @typedef {{ name: string, type: number, start: number, size: number }} CfbEntry directory entry (type 1 storage, 2 stream, 5 root) */
-/** @typedef {{ size: number, bytes: ByteReader }} CfbStream */
-/** @typedef {{ find: (name: string) => CfbEntry|undefined, stream: (e: CfbEntry) => Promise<CfbStream> }} CompoundFile */
-/** @param {ByteReader} read @param {number} size @returns {Promise<CompoundFile>} */
-export async function compoundFile(read, size) {
+export async function compoundFile(read: ByteReader, size: number): Promise<CompoundFile> {
     const h = await read(0, 512);
     const dv = dataView(h);
     if (h.length < 512 || dv.getUint32(0, true) !== 0xe011cfd0 || dv.getUint32(4, true) !== 0xe11ab1a1) {
@@ -29,12 +37,10 @@ export async function compoundFile(read, size) {
     const mss = 2 ** dv.getUint16(32, true); // mini sector size: 64
     const cutoff = dv.getUint32(56, true); // smaller streams live in the mini stream
     const SPECIAL = 0xfffffffa; // ids from here on: end of chain, free, …
-    /** @param {number} s */
-    const off = (s) => (s + 1) * ss; // header takes the first sector's place
+    const off = (s: number) => (s + 1) * ss; // header takes the first sector's place
 
     // Sectors -> bytes (consecutive ones in one request)
-    /** @param {number[]} ids */
-    const readSectors = async (ids) => {
+    const readSectors = async (ids: number[]) => {
         const parts = [];
         for (let i = 0; i < ids.length; ) {
             let j = i + 1;
@@ -44,8 +50,7 @@ export async function compoundFile(read, size) {
         }
         return concatBytes(parts.length ? parts : [new Uint8Array(0)]);
     };
-    /** @param {Uint8Array} b */
-    const u32s = (b) => {
+    const u32s = (b: Uint8Array) => {
         const d = dataView(b);
         return Uint32Array.from({ length: b.length >> 2 }, (_, i) => d.getUint32(4 * i, true));
     };
@@ -60,8 +65,7 @@ export async function compoundFile(read, size) {
         s = d.getUint32(ss - 4, true);
     }
     const fat = u32s(await readSectors(fatIds));
-    /** @param {number} start @param {Uint32Array} [table] */
-    const chain = (start, table = fat) => {
+    const chain = (start: number, table: Uint32Array = fat) => {
         const ids = [];
         for (let s = start; s < SPECIAL && s < table.length && ids.length < table.length; s = table[s]) ids.push(s);
         return ids;
@@ -70,8 +74,7 @@ export async function compoundFile(read, size) {
     // Directory: 128 bytes per entry (name, type, first sector, size)
     const dir = await readSectors(chain(dv.getUint32(48, true)));
     const dd = dataView(dir);
-    /** @type {CfbEntry[]} */
-    const entries = [];
+    const entries: CfbEntry[] = [];
     for (let at = 0; at + 128 <= dir.length; at += 128) {
         const type = dir[at + 66];
         if (!type) continue;
@@ -86,8 +89,7 @@ export async function compoundFile(read, size) {
     const root = entries.find((e) => e.type === 5);
 
     // Big stream: sectors fetched when a range of it is asked for, kept for later
-    /** @param {number} start @param {number} length @returns {CfbStream} */
-    const bigStream = (start, length) => {
+    const bigStream = (start: number, length: number): CfbStream => {
         const ids = chain(start);
         const buf = new Uint8Array(Math.min(length, ids.length * ss));
         const have = new Uint8Array(ids.length);
@@ -113,10 +115,8 @@ export async function compoundFile(read, size) {
     };
 
     // Small stream: in the mini stream (root's stream), read whole
-    /** @type {{ table: Uint32Array, data: Uint8Array }|null} */
-    let mini = null;
-    /** @param {number} start @param {number} length @returns {Promise<CfbStream>} */
-    const smallStream = async (start, length) => {
+    let mini: { table: Uint32Array; data: Uint8Array } | null = null;
+    const smallStream = async (start: number, length: number): Promise<CfbStream> => {
         if (!mini) {
             const table = u32s(await readSectors(chain(dv.getUint32(60, true))));
             const data = root ? await bigStream(root.start, root.size).bytes(0, root.size) : new Uint8Array(0);

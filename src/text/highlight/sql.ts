@@ -6,7 +6,7 @@
 
 import { tokenise } from './tokenise.ts';
 
-/** @typedef {import('../../_core/types.ts').Token} Token */
+import type { Token } from '../../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -150,8 +150,7 @@ const SQL_CLASSES = ['', 'com', 'str', 'key', 'kw', 'type', 'enum', 'num', 'anch
 // METHODS
 // ===========================================================================
 
-/** @param {string} text @returns {Token[]} */
-export const highlightSql = (text) =>
+export const highlightSql = (text: string): Token[] =>
     tokenise(text, SQL_RE, (m, out) => {
         const i = m.findIndex((g, idx) => idx > 0 && g !== undefined);
         out.push([SQL_CLASSES[i], m[0]]);

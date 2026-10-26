@@ -6,15 +6,14 @@
 
 import { parseCsv } from '../../view/table.ts';
 
-/** @typedef {import('../../_core/types.ts').Token} Token */
+import type { Token } from '../../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
 // ===========================================================================
 
 // CSV: one colour per column (cycles); "quoted" fields may hold separators, "" and breaks
-/** @type {Object<string, string>} */
-export const SEPARATOR_NAMES = {
+export const SEPARATOR_NAMES: Record<string, string> = {
     ',': 'comma',
     ';': 'semicolon',
     '\t': 'tab',
@@ -30,8 +29,8 @@ export const CSV_COLOURS = ['key', 'str', 'num', 'type', 'enum', 'meta', 'anchor
 
 // Delimiter: , ; or tab, one in every first line most often (ties: that order);
 // else widest run of spaces that splits all lines alike
-/** @param {string} text @returns {string} ',' ';' tab, or a run of spaces */
-export function csvSeparator(text) {
+/** @returns ',' ';' tab, or a run of spaces */
+export function csvSeparator(text: string): string {
     const lines = text
         .split('\n', 6)
         .filter((l) => l.trim())
@@ -63,11 +62,9 @@ export function csvSeparator(text) {
     return best;
 }
 
-/** @param {string} text @returns {Token[]} */
-export function highlightCsv(text) {
+export function highlightCsv(text: string): Token[] {
     const sep = csvSeparator(text);
-    /** @type {Token[]} */
-    const out = [];
+    const out: Token[] = [];
     let col = 0;
     let field = '';
     let quoted = false;

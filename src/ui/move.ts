@@ -11,8 +11,7 @@ import { savePref } from '../_core/prefs.ts';
 // METHODS
 // ===========================================================================
 
-/** @param {string} key @returns {{ x: number, y: number }} */
-function loadOffset(key) {
+function loadOffset(key: string): { x: number; y: number } {
     try {
         const o = JSON.parse(loadPref(key, 'null'));
         if (o && Number.isFinite(o.x) && Number.isFinite(o.y)) return o;
@@ -21,8 +20,7 @@ function loadOffset(key) {
 }
 
 // Offset clamped so top edge and 80 px of window stay on screen
-/** @param {{ x: number, y: number }} o @param {DOMRect} base @returns {{ x: number, y: number }} */
-function clampOffset(o, base) {
+function clampOffset(o: { x: number; y: number }, base: DOMRect): { x: number; y: number } {
     return {
         x: Math.round(Math.min(innerWidth - 80 - base.left, Math.max(80 - base.left - base.width, o.x))),
         y: Math.round(Math.min(innerHeight - 40 - base.top, Math.max(-base.top, o.y))),
@@ -30,8 +28,7 @@ function clampOffset(o, base) {
 }
 
 // Apply remembered offset to `target` (CSS translate)
-/** @param {HTMLElement} target @param {string} key @returns {void} */
-export function placeMoved(target, key) {
+export function placeMoved(target: HTMLElement, key: string): void {
     target.style.translate = '0 0';
     if (!target.isConnected) return void requestAnimationFrame(() => target.isConnected && placeMoved(target, key));
     const base = target.getBoundingClientRect();
@@ -40,10 +37,9 @@ export function placeMoved(target, key) {
 }
 
 // Drag `target` from pointerdown on its handle
-/** @param {PointerEvent} e @param {HTMLElement} target @param {string} key @returns {void} */
-export function startMove(e, target, key) {
+export function startMove(e: PointerEvent, target: HTMLElement, key: string): void {
     e.preventDefault();
-    const handle = /** @type {HTMLElement} */ (e.currentTarget); // the element the listener is on
+    const handle = e.currentTarget as HTMLElement; // the element the listener is on
     handle.setPointerCapture(e.pointerId);
     const now = target.getBoundingClientRect();
     const o = loadOffset(key);
@@ -52,8 +48,7 @@ export function startMove(e, target, key) {
     const base = new DOMRect(now.left - tx, now.top - ty, now.width, now.height);
     const start = { x: e.clientX - tx, y: e.clientY - ty };
     let last = { x: tx, y: ty };
-    /** @param {PointerEvent} ev */
-    const move = (ev) => {
+    const move = (ev: PointerEvent) => {
         last = clampOffset({ x: ev.clientX - start.x, y: ev.clientY - start.y }, base);
         target.style.translate = `${last.x}px ${last.y}px`;
     };

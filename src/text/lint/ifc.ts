@@ -6,15 +6,14 @@
 
 import { collector } from './core.ts';
 
-/** @typedef {import('../../_core/types.ts').LintResult} LintResult */
+import type { LintResult } from '../../_core/types.ts';
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
 // IFC = ISO 10303-21 (STEP physical file)
-/** @param {string} text @returns {LintResult} */
-export function lintIfc(text) {
+export function lintIfc(text: string): LintResult {
     const { problems, add } = collector();
 
     // Split into statements (";"-terminated), ignoring comments and string contents
@@ -63,8 +62,7 @@ export function lintIfc(text) {
 
     // Structure: ISO-10303-21; HEADER; ... ENDSEC; DATA; ... ENDSEC; END-ISO-10303-21;
     const ids = new Map(); // id -> line
-    /** @type {[string, number][]} */
-    const refs = []; // [id, line]
+    const refs: [string, number][] = []; // [id, line]
     const headerSeen = new Set();
     let section = 'start';
     let entities = 0;

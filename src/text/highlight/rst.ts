@@ -6,7 +6,7 @@
 
 import { tokenise } from './tokenise.ts';
 
-/** @typedef {import('../../_core/types.ts').Token} Token */
+import type { Token } from '../../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -33,8 +33,7 @@ const RST_ADORNMENT_RE = /^([=\-`:'"~^_*+#<>.])\1{2,}\s*$/;
 // METHODS
 // ===========================================================================
 
-/** @param {string} text @param {Token[]} out @returns {void} */
-function rstInline(text, out) {
+function rstInline(text: string, out: Token[]): void {
     out.push(
         ...tokenise(text, RST_INLINE_RE, (m, o) => {
             if (m[1]) o.push(['str', m[1]]);
@@ -49,13 +48,10 @@ function rstInline(text, out) {
     );
 }
 
-/** @param {string} text @returns {Token[]} */
-export function highlightRst(text) {
-    /** @type {Token[]} */
-    const out = [];
+export function highlightRst(text: string): Token[] {
+    const out: Token[] = [];
     const lines = text.split('\n');
-    /** @type {number|null} */
-    let literal = null; // indent of paragraph that ended in "::"
+    let literal: number | null = null; // indent of paragraph that ended in "::"
     let literalStarted = false;
     lines.forEach((line, i) => {
         if (i) out.push(['', '\n']);
@@ -103,9 +99,9 @@ export function highlightRst(text) {
             return;
         }
 
-        const lead = /** @type {RegExpMatchArray} */ (
-            line.match(/^(\s*)((?:[-*+•]|\d+[.)]|#\.|\(?[a-zA-Z0-9]\))\s+)?(:[^:\s][^:]*:(?=\s|$))?/)
-        ); // all parts optional: always matches
+        const lead = line.match(
+            /^(\s*)((?:[-*+•]|\d+[.)]|#\.|\(?[a-zA-Z0-9]\))\s+)?(:[^:\s][^:]*:(?=\s|$))?/,
+        ) as RegExpMatchArray; // all parts optional: always matches
         if (lead[1]) out.push(['', lead[1]]);
         if (lead[2]) out.push(['punct', lead[2]]);
         if (lead[3]) out.push(['key', lead[3]]);

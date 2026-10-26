@@ -6,7 +6,7 @@
 
 import { tokenise } from './tokenise.ts';
 
-/** @typedef {import('../../_core/types.ts').Token} Token */
+import type { Token } from '../../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -29,8 +29,7 @@ const MD_INLINE_RE = new RegExp(
 // METHODS
 // ===========================================================================
 
-/** @param {string} text @param {Token[]} out @returns {void} */
-function mdInline(text, out) {
+function mdInline(text: string, out: Token[]): void {
     out.push(
         ...tokenise(text, MD_INLINE_RE, (m, o) => {
             if (m[1]) o.push(['str', m[0]]);
@@ -43,12 +42,9 @@ function mdInline(text, out) {
     );
 }
 
-/** @param {string} text @returns {Token[]} */
-export function highlightMd(text) {
-    /** @type {Token[]} */
-    const out = [];
-    /** @type {string|null} */
-    let fence = null; // end marker of open ``` / ~~~ block
+export function highlightMd(text: string): Token[] {
+    const out: Token[] = [];
+    let fence: string | null = null; // end marker of open ``` / ~~~ block
     text.split('\n').forEach((line, i) => {
         if (i) out.push(['', '\n']);
         if (fence) {
@@ -74,9 +70,7 @@ export function highlightMd(text) {
             out.push(['punct', line]); // horizontal rule
             return;
         }
-        const lead = /** @type {RegExpMatchArray} */ (
-            line.match(/^(\s*(?:>\s?)*)((?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?)?/)
-        ); // all parts optional: always matches
+        const lead = line.match(/^(\s*(?:>\s?)*)((?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?)?/) as RegExpMatchArray; // all parts optional: always matches
         if (lead[1]) out.push(['punct', lead[1]]);
         if (lead[2]) out.push(['punct', lead[2]]);
         const rest = line.slice(lead[0].length);

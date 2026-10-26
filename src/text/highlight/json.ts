@@ -6,7 +6,7 @@
 
 import { tokenise } from './tokenise.ts';
 
-/** @typedef {import('../../_core/types.ts').Token} Token */
+import type { Token } from '../../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -19,8 +19,7 @@ const JSON_RE =
 // METHODS
 // ===========================================================================
 
-/** @param {string} text @returns {Token[]} */
-export const highlightJson = (text) =>
+export const highlightJson = (text: string): Token[] =>
     tokenise(text, JSON_RE, (m, out) => {
         if (m[1] && m[2]) out.push(['key', m[1]], ['punct', m[2]]);
         else if (m[1]) out.push(['str', m[1]]);

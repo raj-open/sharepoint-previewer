@@ -73,15 +73,18 @@ import { tableView } from './views.ts';
 import { updateViews } from './views.ts';
 import { viewKey } from './views.ts';
 
-/** @typedef {import('../_core/types.ts').Viewer} Viewer */
+import type { Viewer } from '../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
 // ===========================================================================
 
 // Preferences of the views switched by Text / Preview
-/** @type {Object<string, string>} */
-const VIEW_KEYS = { table: 'tp-preview-table', logTable: 'tp-preview-log-table', markdown: 'tp-preview-markdown' };
+const VIEW_KEYS: Record<string, string> = {
+    table: 'tp-preview-table',
+    logTable: 'tp-preview-log-table',
+    markdown: 'tp-preview-markdown',
+};
 
 const ZOOM_STEP = 0.1;
 const WHEEL_STEP = 40; // wheel distance per zoom step (mouse notch ~100, touchpad pinch: small steps)
@@ -104,8 +107,7 @@ const SQUARE_BTN_CSS = `
 // METHODS
 // ===========================================================================
 
-/** @returns {Viewer} */
-export function createViewer() {
+export function createViewer(): Viewer {
     // Dark backdrop (popup mode only)
     const backdrop = document.createElement('div');
     backdrop.style.cssText = `
@@ -130,8 +132,13 @@ export function createViewer() {
 
     // Header buttons
     const ROW1 = 8;
-    /** @param {string} svg @param {string} title @param {number} left @param {number} [top] @param {{ disabled?: boolean, pressed?: boolean }} [opts] */
-    const button = (svg, title, left, top = ROW1, { disabled = false, pressed } = {}) => {
+    const button = (
+        svg: string,
+        title: string,
+        left: number,
+        top: number = ROW1,
+        { disabled = false, pressed }: { disabled?: boolean; pressed?: boolean } = {},
+    ) => {
         const btn = document.createElement('button');
         btn.className = 'tp-mode-btn';
         btn.innerHTML = svg;
@@ -151,8 +158,7 @@ export function createViewer() {
     });
     const uploadBtn = button(UPLOAD_SVG, 'Upload the saved changes to SharePoint', 190, ROW1, { disabled: true });
     // View switch (status bar, bottom right): Text | Preview (Table, 3D or Markdown, by file type)
-    /** @param {string} svg @param {string} label @param {string} title */
-    const viewBtn = (svg, label, title) => {
+    const viewBtn = (svg: string, label: string, title: string) => {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'tp-view-btn';
@@ -169,8 +175,7 @@ export function createViewer() {
     moreBtn.style.right = '86px';
 
     // Menu entries (icon + label); toggles show check mark when on
-    /** @param {string} svg @param {string} label @param {{ disabled?: boolean, pressed?: boolean }} [opts] */
-    const item = (svg, label, opts) => {
+    const item = (svg: string, label: string, opts?: { disabled?: boolean; pressed?: boolean }) => {
         const b = button(svg, label, 0, 0, opts);
         b.className = 'tp-menu-item';
         b.style.cssText = '';
@@ -189,8 +194,7 @@ export function createViewer() {
     const settingsBtn = item(SETTINGS_SVG, 'Full settings …');
 
     // Small drop-down under its button; closes on any click outside or on entry
-    /** @param {HTMLElement} anchor @param {HTMLElement[]} entries @param {boolean} [alignRight] */
-    const menu = (anchor, entries, alignRight = false) => {
+    const menu = (anchor: HTMLElement, entries: HTMLElement[], alignRight = false) => {
         const m = document.createElement('div');
         m.className = 'tp-menu';
         m.hidden = true;
@@ -199,9 +203,8 @@ export function createViewer() {
             m.hidden = true;
             document.removeEventListener('pointerdown', outside, true);
         };
-        /** @param {Event} e */
-        const outside = (e) => {
-            const t = /** @type {Node} */ (e.target);
+        const outside = (e: Event) => {
+            const t = e.target as Node;
             if (!m.contains(t) && !anchor.contains(t)) close();
         };
         anchor.onclick = () => {
@@ -213,7 +216,7 @@ export function createViewer() {
             document.addEventListener('pointerdown', outside, true);
         };
         m.addEventListener('click', (e) => {
-            if (/** @type {HTMLElement} */ (e.target).closest('.tp-menu-item')) close();
+            if ((e.target as HTMLElement).closest('.tp-menu-item')) close();
         });
         return m;
     };
@@ -265,8 +268,8 @@ export function createViewer() {
     header.title =
         'Note: this viewer is primarily for text files. Parquet files and spreadsheets may also be viewed (read only). ' +
         'Write mode is only partially supported.';
-    const titleName = title.querySelector('.tp-title-name');
-    const titleSheet = title.querySelector('.tp-title-sheet');
+    const titleName = title.querySelector('.tp-title-name') as HTMLElement; // in the title's HTML
+    const titleSheet = title.querySelector('.tp-title-sheet') as HTMLElement;
 
     // Metadata (second line, full width): dates, size, format, table shape, ...
     const metaLine = document.createElement('div');
@@ -335,8 +338,7 @@ export function createViewer() {
     const metaGrip = document.createElement('div');
     metaGrip.className = 'tp-meta-grip';
     metaGrip.title = 'Drag to show more or fewer lines';
-    /** @param {number} n */
-    const setMetaLines = (n) => {
+    const setMetaLines = (n: number) => {
         view.metaLines = Math.max(1, Math.min(6, n));
         savePref('tp-preview-meta-lines', String(view.metaLines));
         const h = view.props ? view.metaLines * 15 : -4; // hidden: header ends under buttons
@@ -355,8 +357,7 @@ export function createViewer() {
         const start = view.metaLines;
         metaGrip.setPointerCapture(e.pointerId);
         metaGrip.classList.add('tp-drag');
-        /** @param {PointerEvent} ev */
-        const move = (ev) => setMetaLines(start + Math.round((ev.clientY - startY) / 15));
+        const move = (ev: PointerEvent) => setMetaLines(start + Math.round((ev.clientY - startY) / 15));
         const up = () => {
             metaGrip.classList.remove('tp-drag');
             metaGrip.removeEventListener('pointermove', move);
@@ -481,9 +482,9 @@ export function createViewer() {
     progress.className = 'tp-progress';
     progress.innerHTML = '<div class="tp-progress-bar"><div class="tp-progress-fill"></div></div><span></span>';
     // (children written just above)
-    const progressBar = /** @type {HTMLElement} */ (progress.firstElementChild);
-    const progressFill = /** @type {HTMLElement} */ (progressBar.firstElementChild);
-    const progressText = /** @type {HTMLElement} */ (progress.lastElementChild);
+    const progressBar = progress.firstElementChild as HTMLElement;
+    const progressFill = progressBar.firstElementChild as HTMLElement;
+    const progressText = progress.lastElementChild as HTMLElement;
     // Status bar (fixed height): cache state left, view switch right
     const statusBar = document.createElement('div');
     statusBar.className = 'tp-statusbar';
@@ -504,7 +505,7 @@ export function createViewer() {
     <button type="button" class="tp-view-btn" title="Smaller text (Ctrl −, Ctrl + wheel)">−</button>
     <button type="button" class="tp-view-btn tp-zoom-value" title="Text size: back to 100 % (Ctrl 0)"></button>
     <button type="button" class="tp-view-btn" title="Larger text (Ctrl +, Ctrl + wheel)">+</button>`;
-    const [zoomOut, zoomValue, zoomIn] = /** @type {HTMLButtonElement[]} */ ([...zoomBar.children]);
+    const [zoomOut, zoomValue, zoomIn] = [...zoomBar.children] as HTMLButtonElement[];
     statusBar.append(progress, formatBar, zoomBar, views);
     box.append(header, csvBar, content, stage3d, editorWrap, loadMoreBtn, statusBar, splitter);
 
@@ -513,8 +514,7 @@ export function createViewer() {
         box.addEventListener(type, (e) => e.stopPropagation());
     }
 
-    /** @type {Viewer} */
-    const v = {
+    const v: Viewer = {
         backdrop,
         box,
         header,
@@ -565,18 +565,13 @@ export function createViewer() {
     // Popup: drag header (not its buttons, menus or properties grip) to move window
     header.addEventListener('pointerdown', (e) => {
         if (v.mode !== 'popup' || e.button !== 0) return;
-        if (
-            /** @type {HTMLElement} */ (e.target).closest(
-                'button, select, input, textarea, a, .tp-menu, .tp-meta-grip, .tp-lint',
-            )
-        )
+        if ((e.target as HTMLElement).closest('button, select, input, textarea, a, .tp-menu, .tp-meta-grip, .tp-lint'))
             return;
-        if (metaLine.contains(/** @type {Node} */ (e.target))) return; // properties stay selectable
+        if (metaLine.contains(e.target as Node)) return; // properties stay selectable
         startMove(e, box, POPUP_POS_KEY);
     });
 
-    /** @param {KeyboardEvent} e */
-    const onEscape = (e) => {
+    const onEscape = (e: KeyboardEvent) => {
         if (e.key === 'Escape' && viewer === v) {
             e.stopPropagation();
             for (const p of [sheetPicker, formatPicker]) if (!p.menu.hidden) return void p.close(); // open drop-down first
@@ -625,8 +620,7 @@ export function createViewer() {
     settingsBtn.onclick = () => openSettingsForm();
     writeBtn.onclick = () => (v.writeMode ? leaveWrite() : enterWrite(v));
     // 3D choice remembered for next IFC files (also across reloads)
-    /** @param {boolean} on */
-    const set3d = (on) => {
+    const set3d = (on: boolean) => {
         view.show3d = on;
         savePref('tp-preview-3d', on ? '1' : '0');
     };
@@ -650,8 +644,7 @@ export function createViewer() {
         updateViews(v);
     };
     // Table or Markdown view on / off (remembered for files of its type)
-    /** @param {'table'|'markdown'} key @param {boolean} on */
-    const showView = (key, on) => {
+    const showView = (key: 'table' | 'markdown', on: boolean) => {
         if (v.writeMode && v.dirty) {
             alert('Please save your changes first, then switch the view.');
             return void flash(saveBtn);
@@ -677,12 +670,13 @@ export function createViewer() {
     };
     // Save stages edits; upload hands saved state to SharePoint
     saveBtn.onclick = () => {
-        if (!v.writeMode || !v.dirty) return;
-        v.staged = editedText(v);
         const src = v.source;
+        if (!v.writeMode || !v.dirty || !src) return;
+        const staged = editedText(v);
+        v.staged = staged;
         if (src.originalText == null) src.originalText = src.text; // for cancel / discard
-        src.text = v.staged;
-        v.text = v.staged;
+        src.text = staged;
+        v.text = staged;
         src.lintResult = null;
         // Saved text is checked again: now if colours are on, else once they are switched on
         src.needsLint = true;
@@ -714,7 +708,7 @@ export function createViewer() {
         const big = src.total > LARGE_FILE_BYTES;
         if (big && !confirm(`This file is large (${formatBytes(src.total)}). Cache all of it?`)) return;
         if (!makeRoom(v, src.total - src.loaded)) return;
-        v.loadAll();
+        v.loadAll?.();
     };
     const applyColour = () => colourBtn.setAttribute('aria-pressed', String(colourOn(v)));
     v.applyColour = applyColour;
@@ -747,8 +741,7 @@ export function createViewer() {
 
     // Text size (content area and editor): CSS variable; text and table views are laid out anew
     // (their unfilled blocks keep heights measured at the old size), keeping the position in the file
-    /** @param {number} z */
-    const applyZoom = (z) => {
+    const applyZoom = (z: number) => {
         for (const el of [content, editorWrap]) el.style.setProperty('--tp-zoom', String(z));
         zoomValue.textContent = `${Math.round(z * 100)} %`;
         zoomOut.disabled = z <= ZOOM_RANGE[0];
@@ -757,8 +750,7 @@ export function createViewer() {
     applyZoom(view.zoom);
     let relayout = 0;
     let scrollShare = 0;
-    /** @param {number} z */
-    const setZoom = (z) => {
+    const setZoom = (z: number) => {
         z = Math.round(Math.max(ZOOM_RANGE[0], Math.min(ZOOM_RANGE[1], z)) * 100) / 100;
         if (z === view.zoom) return;
         view.zoom = z;
@@ -774,8 +766,7 @@ export function createViewer() {
             content.scrollTop = scrollShare * content.scrollHeight;
         }, 150);
     };
-    /** @param {number} steps */
-    const zoomBy = (steps) => setZoom(view.zoom + steps * ZOOM_STEP);
+    const zoomBy = (steps: number) => setZoom(view.zoom + steps * ZOOM_STEP);
     zoomOut.onclick = () => zoomBy(-1);
     zoomIn.onclick = () => zoomBy(1);
     zoomValue.onclick = () => setZoom(1);
@@ -783,7 +774,7 @@ export function createViewer() {
     box.addEventListener(
         'wheel',
         (e) => {
-            const t = /** @type {Node} */ (e.target);
+            const t = e.target as Node;
             if (!(e.ctrlKey || e.metaKey) || !(content.contains(t) || editorWrap.contains(t))) return;
             e.preventDefault(); // not the page's zoom
             wheel += e.deltaY;
@@ -814,7 +805,7 @@ export function createViewer() {
 
     // Keys in the content area (once clicked into) or editor: Ctrl / ⌘ with + − 0 (text size), A (select all)
     box.addEventListener('keydown', (e) => {
-        const t = /** @type {Node} */ (e.target);
+        const t = e.target as Node;
         if (!(e.ctrlKey || e.metaKey) || e.altKey || !(content.contains(t) || t === editor)) return;
         if (e.key === '+' || e.key === '=') zoomBy(1);
         else if (e.key === '-') zoomBy(-1);
@@ -831,12 +822,12 @@ export function createViewer() {
                 if (big && !confirm('This text file is large are you sure you want to load it all into the previewer?'))
                     return;
                 copyBtn.disabled = true;
-                const ok = await v.loadAll();
+                const ok = await v.loadAll?.();
                 copyBtn.disabled = false;
                 if (!ok) throw new Error('caching failed');
             }
             await navigator.clipboard.writeText(
-                v.tableEditing ? v.lineView.csvText() : v.writeMode ? v.editor.value : v.text,
+                v.tableEditing ? (v.lineView?.csvText?.() ?? '') : v.writeMode ? v.editor.value : v.text,
             );
             copyBtn.innerHTML = CHECK_SVG;
             copyBtn.title = 'Copied!';

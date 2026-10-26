@@ -9,6 +9,8 @@ import { placeMoved } from '../ui/move.ts';
 import { startMove } from '../ui/move.ts';
 import { removePref } from './prefs.ts';
 import { view } from './prefs.ts';
+import type { Settings } from './settings.ts';
+import type { SettingValue } from './settings.ts';
 import { DEFAULTS } from './settings.ts';
 import { esc } from './util.ts';
 
@@ -17,8 +19,7 @@ import { esc } from './util.ts';
 // ===========================================================================
 
 // Settings form, opened from Tampermonkey menu: [key, label, choices or unit]
-/** @type {[string, string, (string[]|string)?][]} */
-const SETTING_FORM = [
+const SETTING_FORM: [string, string, (string[] | string)?][] = [
     ['layout', 'Layout', ['horizontal', 'vertical', 'popup']],
     ['viewer-share', 'Viewer takes up % of screen'],
     ['theme', 'Colours', ['dark', 'light']],
@@ -40,16 +41,13 @@ const SETTING_FORM = [
     ['viewer-3d-max-bytes', '3D view up to', 'MB'],
     ['logo', 'Logo (data:image/… URI, empty = no image)'],
 ];
-/** @type {Object<string, number>} */
-const UNIT_BYTES = { KB: 1024, MB: 1024 * 1024 };
+const UNIT_BYTES: Record<string, number> = { KB: 1024, MB: 1024 * 1024 };
 
 // Defaults by key (any setting)
-/** @type {Object<string, *>} */
-const defaults = DEFAULTS;
+const defaults: Settings = DEFAULTS;
 
 // Start-value settings for viewer choices in browser storage
-/** @type {Object<string, string>} */
-const REMEMBERED_BY = {
+const REMEMBERED_BY: Record<string, string> = {
     'layout': 'tp-preview-mode',
     'viewer-share': 'tp-preview-split',
     'theme': 'tp-preview-theme',
@@ -67,8 +65,7 @@ export const POPUP_POS_KEY = 'tp-preview-popup-pos';
 // METHODS
 // ===========================================================================
 
-/** @returns {void} */
-export function openSettingsForm() {
+export function openSettingsForm(): void {
     document.querySelector('.tp-settings')?.remove();
     const wrap = document.createElement('div');
     wrap.className = 'tp-settings';
@@ -99,7 +96,9 @@ export function openSettingsForm() {
     const form = document.createElement('form');
     form.style.cssText = `background:${c.bg}; color:${c.fg}; padding:20px 24px; border-radius:10px; width:min(620px, 92vw); max-height:86vh; overflow:auto; box-shadow:0 8px 32px rgba(0,0,0,.3); font:13px ${font}; color-scheme:${dark ? 'dark' : 'light'}; user-select:text;`;
     const field = `font:13px ${font}; color:${c.fg}; background:${c.field}; padding:4px 8px; border:1px solid ${c.border}; border-radius:6px; box-sizing:border-box;`;
-    const stored = Object.fromEntries(SETTING_FORM.map(([key]) => [key, GM_getValue(key, defaults[key])]));
+    const stored: Settings = Object.fromEntries(
+        SETTING_FORM.map(([key]) => [key, GM_getValue(key, defaults[key]) as SettingValue]),
+    );
 
     const rows = SETTING_FORM.map(([key, label, extra]) => {
         if (key === 'logo') {
@@ -110,7 +109,7 @@ export function openSettingsForm() {
                 `resize:none; overflow-y:auto; word-break:break-all; font-family:${mono}; font-size:12px; line-height:16px; height:${4 * 16 + 10}px"></textarea>`
             );
         }
-        let input;
+        let input: string;
         if (key === 'viewer-share') {
             // slider over full 0–100 %, held between 20 and 80 %
             input =
@@ -134,8 +133,7 @@ export function openSettingsForm() {
             `<div style="display:flex; align-items:center; min-width:0">${input}</div>`
         );
     });
-    /** @param {string} mode @param {string} text */
-    const tab = (mode, text) =>
+    const tab = (mode: string, text: string) =>
         `<button type="button" data-mode="${mode}" style="border:none; padding:4px 12px; font:12px ${font}; cursor:pointer">${text}</button>`;
     form.innerHTML = `<div data-drag title="Drag to move" style="display:flex; align-items:center; gap:12px; margin:0 0 14px; cursor:move">
       <div style="display:flex; border:1px solid ${c.border}; border-radius:6px; overflow:hidden">${tab('form', 'Form')}${tab('json', 'JSON')}</div>
@@ -157,40 +155,37 @@ export function openSettingsForm() {
       <button type="submit" data-act="save" style="${field} padding:5px 16px">Save</button>
     </div>`;
     // Parts of the form (all written in its HTML above)
-    /** @param {string} selector @returns {HTMLElement} */
-    const part = (selector) => /** @type {HTMLElement} */ (form.querySelector(selector));
-    /** @param {string} name @returns {HTMLInputElement} input or select of a setting */
-    const setting = (name) => /** @type {HTMLInputElement} */ (form.elements.namedItem(name));
-    const json = /** @type {HTMLTextAreaElement} */ (part('[data-json]'));
+    const part = (selector: string): HTMLElement => form.querySelector(selector) as HTMLElement;
+    /** @returns input or select of a setting */
+    const setting = (name: string): HTMLInputElement => form.elements.namedItem(name) as HTMLInputElement;
+    const json = part('[data-json]') as HTMLTextAreaElement;
     const errorsEl = part('[data-errors]');
     const note = part('[data-note]');
-    const saveBtn = /** @type {HTMLButtonElement} */ (part('[data-act="save"]'));
+    const saveBtn = part('[data-act="save"]') as HTMLButtonElement;
     const slider = setting('viewer-share');
     let mode = 'form';
 
     // Form inputs <-> stored values
-    /** @param {Object<string, *>} values */
-    const setForm = (values) => {
+    const setForm = (values: Settings) => {
         for (const [key, , extra] of SETTING_FORM) {
             const el = setting(key);
             const value = values[key];
             if (key === 'viewer-share') {
-                el.value = String(Math.round(Math.min(0.8, Math.max(0.2, value)) * 100));
+                el.value = String(Math.round(Math.min(0.8, Math.max(0.2, Number(value))) * 100));
                 part('[data-pct]').textContent = `${el.value} %`;
-            } else if (typeof defaults[key] === 'boolean') el.checked = value;
-            else if (typeof defaults[key] === 'number')
-                el.value = String(
-                    +(extra && UNIT_BYTES[String(extra)] ? value / UNIT_BYTES[String(extra)] : value).toFixed(2),
-                );
-            else el.value = value;
+            } else if (typeof defaults[key] === 'boolean') el.checked = Boolean(value);
+            else if (typeof defaults[key] === 'number') {
+                const n = Number(value);
+                el.value = String(+(extra && UNIT_BYTES[String(extra)] ? n / UNIT_BYTES[String(extra)] : n).toFixed(2));
+            } else el.value = String(value);
         }
     };
-    const readForm = () =>
+    const readForm = (): Settings =>
         Object.fromEntries(
             SETTING_FORM.map(([key, , extra]) => {
                 const el = setting(key);
                 const fallback = defaults[key];
-                let value;
+                let value: number | boolean | string;
                 if (key === 'viewer-share') value = Math.min(80, Math.max(20, Number(el.value))) / 100;
                 else if (typeof fallback === 'boolean') value = el.checked;
                 else if (typeof fallback === 'number') {
@@ -203,8 +198,7 @@ export function openSettingsForm() {
 
     // JSON text <-> stored values (LOGO last, as it is long); reasons when it is not valid
     // (missing settings = defaults, unknown ones ignored: Save writes the completed JSON back)
-    /** @param {Object<string, *>} values */
-    const toJson = (values) =>
+    const toJson = (values: Settings) =>
         JSON.stringify(
             Object.fromEntries([
                 ...SETTING_FORM.filter(([key]) => key !== 'logo').map(([key]) => [key, values[key]]),
@@ -213,47 +207,46 @@ export function openSettingsForm() {
             null,
             2,
         );
-    const readJson = () => {
-        /** @type {Object<string, *>} */
-        let data;
+    const readJson = (): { errors: string[]; values?: undefined } | { values: Settings; errors?: undefined } => {
+        let data: Record<string, unknown>;
         try {
             data = JSON.parse(json.value);
         } catch (err) {
-            return { errors: [`Not valid JSON: ${/** @type {Error} */ (err).message}`] };
+            return { errors: [`Not valid JSON: ${(err as Error).message}`] };
         }
         if (!data || typeof data !== 'object' || Array.isArray(data))
             return { errors: ['The settings must be one JSON object { … }'] };
         data = completeSettings(data);
-        /** @type {string[]} */
-        const errors = [];
-        /** @type {Object<string, *>} */
-        const values = {};
+        const errors: string[] = [];
+        const values: Settings = {};
         for (const [key, , extra] of SETTING_FORM) {
-            const value = data[key];
             const type = typeof defaults[key];
             const expected = type === 'boolean' ? 'true or false' : `a ${type}`;
-            if (typeof value !== type) errors.push(`${key}: must be ${expected}`);
-            else if (Array.isArray(extra) && !extra.includes(value)) {
+            if (typeof data[key] !== type) {
+                errors.push(`${key}: must be ${expected}`);
+                continue;
+            }
+            const value = data[key] as SettingValue; // type checked above
+            if (Array.isArray(extra) && !extra.includes(String(value))) {
                 const allowed = extra.map((o) => `"${o}"`).join(', ');
                 errors.push(`${key}: must be one of ${allowed}`);
-            } else if (key === 'viewer-share' && (value < 0.2 || value > 0.8))
+            } else if (key === 'viewer-share' && (Number(value) < 0.2 || Number(value) > 0.8))
                 errors.push(`${key}: must be between 0.2 and 0.8`);
-            else if (type === 'number' && !(value > 0 && Number.isFinite(value)))
+            else if (typeof value === 'number' && !(value > 0 && Number.isFinite(value)))
                 errors.push(`${key}: must be greater than 0`);
             // trimmed; share rounded to whole % (as form shows it)
             values[key] =
                 typeof value === 'string'
                     ? value.trim()
                     : key === 'viewer-share'
-                      ? Math.round(value * 100) / 100
+                      ? Math.round(Number(value) * 100) / 100
                       : value;
         }
         return errors.length ? { errors } : { values };
     };
 
     // JSON text replaced (Save, reset); border flashes briefly if it changed
-    /** @param {string} text */
-    const setJson = (text) => {
+    const setJson = (text: string) => {
         if (text === json.value) return;
         json.value = text;
         json.animate?.([{ borderColor: '#0078d4', boxShadow: '0 0 0 3px #0078d4' }, {}], {
@@ -292,8 +285,7 @@ export function openSettingsForm() {
     };
 
     // Form / JSON switch: other view takes over values entered so far
-    /** @param {string} next */
-    const setMode = (next) => {
+    const setMode = (next: string) => {
         if (next === mode) return;
         if (next === 'form') {
             const { values, errors } = readJson();
@@ -351,8 +343,7 @@ export function openSettingsForm() {
     };
 
     // JSON entered: obsolete settings dropped and missing ones added on Save (warning below JSON)
-    /** @returns {string[]} */
-    const completions = () => {
+    const completions = (): string[] => {
         const keys = Object.keys(JSON.parse(json.value));
         const dropped = keys.filter((key) => !(key in DEFAULTS));
         const added = Object.keys(DEFAULTS).filter((key) => !keys.includes(key));
@@ -392,8 +383,7 @@ export function openSettingsForm() {
         document.removeEventListener('keydown', onKey, true);
         wrap.remove();
     };
-    /** @param {KeyboardEvent} e */
-    const onKey = (e) => {
+    const onKey = (e: KeyboardEvent) => {
         if (e.key !== 'Escape') return;
         e.stopPropagation();
         close();
@@ -411,8 +401,7 @@ export function openSettingsForm() {
     };
     // Drag title row (not its buttons) to move window
     part('[data-drag]').addEventListener('pointerdown', (e) => {
-        if (e.button === 0 && !(/** @type {HTMLElement} */ (e.target).closest('button')))
-            startMove(e, form, SETTINGS_POS_KEY);
+        if (e.button === 0 && !(e.target as HTMLElement).closest('button')) startMove(e, form, SETTINGS_POS_KEY);
     });
 
     wrap.append(form);
@@ -424,14 +413,12 @@ export function openSettingsForm() {
 }
 /**
  * Settings as given, missing ones from defaults, unknown ones dropped (values not checked).
- * @param {Object<string, *>} data
- * @returns {Object<string, *>}
  */
-export function completeSettings(data) {
+export function completeSettings(data: Record<string, unknown>): Record<string, unknown> {
     return Object.fromEntries(Object.keys(DEFAULTS).map((key) => [key, key in data ? data[key] : defaults[key]]));
 }
-/** Tampermonkey menu: settings form, reset to defaults. @returns {void} */
-export function registerMenu() {
+/** Tampermonkey menu: settings form, reset to defaults. */
+export function registerMenu(): void {
     GM_registerMenuCommand('Settings …', openSettingsForm);
 
     GM_registerMenuCommand('Reset settings to defaults', () => {

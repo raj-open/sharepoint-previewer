@@ -6,7 +6,7 @@
 
 import { tokenise } from './tokenise.ts';
 
-/** @typedef {import('../../_core/types.ts').Token} Token */
+import type { Token } from '../../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -34,8 +34,7 @@ const TOML_RE = new RegExp(
 // METHODS
 // ===========================================================================
 
-/** @param {string} text @returns {Token[]} */
-export const highlightToml = (text) =>
+export const highlightToml = (text: string): Token[] =>
     tokenise(text, TOML_RE, (m, out) => {
         if (m[2]) {
             if (m[1]) out.push(['', m[1]]);

@@ -10,23 +10,24 @@ import { unsnappy } from '../codecs/snappy.ts';
 import { unzstd } from '../codecs/zstd.ts';
 import { CODEC_NAMES } from './meta.ts';
 
+import type { Column } from './meta.ts';
+import type { ParquetValue } from './meta.ts';
+
 // ===========================================================================
 // CONSTANTS
 // ===========================================================================
 
-/** @type {Object<number, number>} */
-const TYPE_WIDTH = { 1: 4, 2: 8, 4: 4, 5: 8 };
+const TYPE_WIDTH: Record<number, number> = { 1: 4, 2: 8, 4: 4, 5: 8 };
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
-/** @param {number} codec @param {Uint8Array} data @param {number} outLen @returns {Promise<Uint8Array>} */
-export async function decompress(codec, data, outLen) {
+export async function decompress(codec: number, data: Uint8Array, outLen: number): Promise<Uint8Array> {
     if (codec === 0) return data;
     if (codec === 1) return unsnappy(data);
     if (codec === 2) {
-        const stream = new Blob([/** @type {BlobPart} */ (data)]).stream().pipeThrough(new DecompressionStream('gzip'));
+        const stream = new Blob([data as BlobPart]).stream().pipeThrough(new DecompressionStream('gzip'));
         return new Uint8Array(await new Response(stream).arrayBuffer());
     }
     if (codec === 7) return unlz4(data, outLen);
@@ -39,14 +40,20 @@ export async function decompress(codec, data, outLen) {
 // ---------------------------------------------------------------------------
 
 // RLE / bit-packed hybrid (levels, dictionary indices, booleans)
-/** @param {Uint8Array} bytes @param {number} pos @param {number} end @param {number} width @param {number} count @param {number[]} out @returns {number[]} */
-export function readHybrid(bytes, pos, end, width, count, out) {
+export function readHybrid(
+    bytes: Uint8Array,
+    pos: number,
+    end: number,
+    width: number,
+    count: number,
+    out: number[],
+): number[] {
     const byteWidth = (width + 7) >> 3;
     let n = 0;
     while (n < count && pos < end) {
         let header = 0;
         let shift = 0;
-        let b;
+        let b: number;
         do {
             b = bytes[pos++];
             header += (b & 0x7f) * 2 ** shift;
@@ -76,12 +83,11 @@ export function readHybrid(bytes, pos, end, width, count, out) {
 }
 
 // DELTA_BINARY_PACKED; returns values and position after them
-/** @param {Uint8Array} bytes @param {number} pos @param {boolean} big @returns {{ values: Array<number|bigint>, pos: number }} */
-function readDelta(bytes, pos, big) {
+function readDelta(bytes: Uint8Array, pos: number, big: boolean): { values: Array<number | bigint>; pos: number } {
     const uvar = () => {
         let r = 0n;
         let s = 0n;
-        let b;
+        let b: number;
         do {
             b = bytes[pos++];
             r |= BigInt(b & 0x7f) << s;
@@ -89,8 +95,7 @@ function readDelta(bytes, pos, big) {
         } while (b & 0x80);
         return r;
     };
-    /** @param {bigint} n */
-    const zigzag = (n) => (n >> 1n) ^ -(n & 1n);
+    const zigzag = (n: bigint) => (n >> 1n) ^ -(n & 1n);
     const blockSize = Number(uvar());
     const minis = Number(uvar());
     const total = Number(uvar());
@@ -126,17 +131,22 @@ function readDelta(bytes, pos, big) {
 }
 
 // INT96 (old timestamp format): nanoseconds of day + Julian day
-/** @param {DataView} dv @param {number} pos @returns {Date} */
-function int96Date(dv, pos) {
+function int96Date(dv: DataView, pos: number): Date {
     const nanos = dv.getBigInt64(pos, true);
     const day = dv.getInt32(pos + 8, true);
     return new Date((day - 2440588) * 86400000 + Number(nanos / 1000000n));
 }
 
-/** @param {number} type @param {Uint8Array} bytes @param {number} pos @param {number} n @param {number} typeLength @returns {{ values: Array<*>, pos: number }} */
-export function readPlain(type, bytes, pos, n, typeLength) {
+/** @param type physical type (missing: fixed length) @param typeLength length of fixed-length values */
+export function readPlain(
+    type: number | undefined,
+    bytes: Uint8Array,
+    pos: number,
+    n: number,
+    typeLength: number | undefined,
+): { values: ParquetValue[]; pos: number } {
     const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    const out = new Array(n);
+    const out: ParquetValue[] = new Array(n);
     for (let i = 0; i < n; i++) {
         switch (type) {
             case 0:
@@ -168,26 +178,35 @@ export function readPlain(type, bytes, pos, n, typeLength) {
                 pos += 4 + len;
                 break;
             }
-            default:
-                out[i] = bytes.subarray(pos, pos + typeLength);
-                pos += typeLength;
+            default: {
+                const len = Number(typeLength); // NaN if missing (damaged file)
+                out[i] = bytes.subarray(pos, pos + len);
+                pos += len;
+            }
         }
     }
     if (type === 0) pos += Math.ceil(n / 8);
     return { values: out, pos };
 }
 
-/** @param {Object<string, *>} st column state @param {number} encoding @param {Uint8Array} data @param {number} pos @param {number} n @returns {Array<*>} */
-export function decodeValues(st, encoding, data, pos, n) {
+/** @param st column state: column, dictionary (if read) */
+export function decodeValues(
+    st: { col: Column; dict: ParquetValue[] | null },
+    encoding: number | undefined,
+    data: Uint8Array,
+    pos: number,
+    n: number,
+): ParquetValue[] {
     const { type, typeLength } = st.col;
     switch (encoding) {
         case 0:
             return readPlain(type, data, pos, n, typeLength).values;
         case 2:
         case 8: {
-            if (!st.dict) throw new Error('dictionary page missing');
+            const dict = st.dict;
+            if (!dict) throw new Error('dictionary page missing');
             const idx = readHybrid(data, pos + 1, data.length, data[pos], n, new Array(n));
-            return idx.map((i) => st.dict[i]);
+            return idx.map((i) => dict[i]);
         }
         case 3: {
             const len = u32(data, pos);
@@ -222,7 +241,7 @@ export function decodeValues(st, encoding, data, pos, n) {
             });
         }
         case 9: {
-            const w = TYPE_WIDTH[type] || typeLength;
+            const w = Number(TYPE_WIDTH[type ?? -1] || typeLength); // NaN if unknown (damaged file)
             const joined = new Uint8Array(n * w);
             for (let i = 0; i < n; i++) for (let k = 0; k < w; k++) joined[i * w + k] = data[pos + k * n + i];
             return readPlain(type, joined, 0, n, typeLength).values;

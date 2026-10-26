@@ -4,13 +4,12 @@
 // METHODS
 // ===========================================================================
 
-/** @param {string} name @param {string} text @returns {{ display: string, name: string, fetchUrl: string }|null} */
-export function linkTarget(name, text) {
+export function linkTarget(name: string, text: string): { display: string; name: string; fetchUrl: string } | null {
     if (!/\.url$/i.test(name) && !/^\s*\[InternetShortcut\]/i.test(text)) return null;
     const m = text.match(/^\s*URL\s*=\s*(\S+)\s*$/im);
     if (!m) return null;
 
-    let target;
+    let target: URL;
     try {
         target = new URL(m[1], location.href);
     } catch {

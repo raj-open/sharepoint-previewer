@@ -19,14 +19,13 @@ import { highlightXlf } from './xlf.ts';
 import { highlightXml } from './xml.ts';
 import { highlightYaml } from './yaml.ts';
 
-/** @typedef {import('../../_core/types.ts').Token} Token */
+import type { Token } from '../../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
 // ===========================================================================
 
-/** @type {Object<string, (text: string) => Token[]>} */
-export const HIGHLIGHTERS = {
+export const HIGHLIGHTERS: Record<string, (text: string) => Token[]> = {
     sql: highlightSql,
     py: highlightPy,
     xlf: highlightXlf,

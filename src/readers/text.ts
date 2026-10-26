@@ -10,7 +10,7 @@ import { OUTSIDE } from './request.ts';
 import { responseDates } from './request.ts';
 import { sameOrigin } from './request.ts';
 
-/** @typedef {import('../_core/types.ts').Source} Source */
+import type { Source } from '../_core/types.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -39,11 +39,14 @@ const BINARY_MAGIC = [
 
 // Open file in chunks of MAX_BYTES, same origin only (nothing is sent elsewhere).
 // Ranges if supported, else paused transfer. Returns { error } | { binary } | source.
-/** @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload @param {(loaded: number, total: number) => void} onProgress @returns {Promise<Source|{ error: string }|{ binary: true, name?: string }>} */
-export async function openSource(url, getSignal, reload, onProgress) {
+export async function openSource(
+    url: string,
+    getSignal: () => AbortSignal,
+    reload: boolean,
+    onProgress: (loaded: number, total: number) => void,
+): Promise<Source | { error: string } | { binary: true; name?: string }> {
     if (!sameOrigin(url)) return { error: OUTSIDE };
-    /** @param {number} from */
-    const request = (from) =>
+    const request = (from: number) =>
         fetch(url, {
             credentials: 'same-origin',
             cache: reload ? 'reload' : 'default', // 'reload': fresh copy, which also updates cache
@@ -67,8 +70,7 @@ export async function openSource(url, getSignal, reload, onProgress) {
     }
 
     const ranged = response.status === 206;
-    /** @type {Object<string, *>} */
-    const src = {
+    const src: Source = {
         name,
         dates: responseDates(response, cd),
         total: ranged
@@ -77,15 +79,14 @@ export async function openSource(url, getSignal, reload, onProgress) {
         loaded: 0,
         done: false,
         text: '',
+        more,
+        loadAll,
     };
-    /** @type {TextDecoder|null} */
-    let decoder = null; // chosen from first bytes
-    /** @type {ReadableStreamDefaultReader<Uint8Array>|null} */
-    let reader = null; // open transfer (when SharePoint ignores ranges)
+    let decoder: TextDecoder | null = null; // chosen from first bytes
+    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null; // open transfer (when SharePoint ignores ranges)
 
     // Add bytes to text; false = binary data (only first bytes decide)
-    /** @param {Uint8Array} bytes */
-    const feed = (bytes) => {
+    const feed = (bytes: Uint8Array) => {
         if (!decoder) {
             const encoding = sniffText(bytes);
             if (!encoding) return false;
@@ -105,10 +106,13 @@ export async function openSource(url, getSignal, reload, onProgress) {
     };
 
     // Read `budget` bytes (after `skip`); 'more' | 'end' | 'binary'
-    /** @param {Response|{ body: { getReader: () => ReadableStreamDefaultReader<Uint8Array> }, arrayBuffer?: undefined }} res @param {number} budget @param {number} [skip] */
-    const read = async (res, budget, skip = 0) => {
+    const read = async (
+        res: Response | { body: { getReader: () => ReadableStreamDefaultReader<Uint8Array> }; arrayBuffer?: undefined },
+        budget: number,
+        skip = 0,
+    ) => {
         if (!res.body) {
-            const all = new Uint8Array(await /** @type {Response} */ (res).arrayBuffer()).subarray(skip); // response without stream
+            const all = new Uint8Array(await (res as Response).arrayBuffer()).subarray(skip); // response without stream
             return feed(all) ? 'end' : 'binary';
         }
         const r = res.body.getReader();
@@ -136,16 +140,16 @@ export async function openSource(url, getSignal, reload, onProgress) {
     const first = await read(response, MAX_BYTES);
     if (first === 'binary') return { binary: true, name };
     if (ranged) {
-        /** @type {ReadableStreamDefaultReader<Uint8Array>|null} */ (reader)?.cancel(); // read() may have set it
+        (reader as ReadableStreamDefaultReader<Uint8Array> | null)?.cancel(); // read() may have set it
         reader = null;
         if (src.total && src.loaded >= src.total) finish();
     } else if (first === 'end') {
         finish();
     }
 
-    src.more = async () => {
+    async function more(): Promise<void> {
         if (src.done) return;
-        let state;
+        let state: string | null = null;
         if (reader) {
             // Resume paused transfer; if it was cut off, new request
             const r = reader;
@@ -168,26 +172,26 @@ export async function openSource(url, getSignal, reload, onProgress) {
             if (!res.ok) throw new Error(`Error ${res.status} on caching`);
             state = await read(res, MAX_BYTES, res.status === 206 ? 0 : src.loaded);
             if (res.status === 206) {
-                /** @type {ReadableStreamDefaultReader<Uint8Array>|null} */ (reader)?.cancel(); // read() may have set it
+                (reader as ReadableStreamDefaultReader<Uint8Array> | null)?.cancel(); // read() may have set it
                 reader = null;
             }
         }
         if (state === 'end' || (src.total && src.loaded >= src.total)) finish();
-    };
+    }
 
-    src.loadAll = async () => {
+    async function loadAll(): Promise<void> {
         while (!src.done) {
             const before = src.loaded;
-            await src.more();
+            await more();
             if (!src.done && src.loaded === before) throw new Error('no progress from SharePoint');
         }
-    };
-    return /** @type {Source} */ (src);
+    }
+    return src;
 }
 
 // First bytes -> text encoding, or null for binary
-/** @param {Uint8Array} bytes @returns {string|null} encoding, or null for binary data */
-export function sniffText(bytes) {
+/** @returns encoding, or null for binary data */
+export function sniffText(bytes: Uint8Array): string | null {
     if (bytes[0] === 0xff && bytes[1] === 0xfe) return 'utf-16le';
     if (bytes[0] === 0xfe && bytes[1] === 0xff) return 'utf-16be';
     if (BINARY_MAGIC.some((sig) => sig.every((b, i) => bytes[i] === b))) return null;

@@ -7,16 +7,20 @@
 import { esc } from '../_core/util.ts';
 import { HIGHLIGHTERS } from '../text/highlight/index.ts';
 
-/** @typedef {import('../_core/types.ts').LineView} LineView */
-/** @typedef {{ colour?: boolean, base?: string }} MarkdownOptions */
+import type { LineView } from '../_core/types.ts';
+
+// ===========================================================================
+// TYPES
+// ===========================================================================
+
+export type MarkdownOptions = { colour?: boolean; base?: string };
 
 // ===========================================================================
 // CONSTANTS
 // ===========================================================================
 
 // Info strings of fenced code -> highlighter
-/** @type {Object<string, string>} */
-const CODE_LANGS = {
+const CODE_LANGS: Record<string, string> = {
     python: 'py',
     javascript: 'js',
     yml: 'yaml',
@@ -45,8 +49,7 @@ const UNSAFE_URL_RE = /^\s*(javascript|vbscript|data|file):/i;
 // ---------------------------------------------------------------------------
 
 // Link target against the file's folder; null: not followed (scripts, data)
-/** @param {string} url @param {string} base @returns {string|null} */
-function resolveUrl(url, base) {
+function resolveUrl(url: string, base: string): string | null {
     if (UNSAFE_URL_RE.test(url)) return null;
     if (url.startsWith('#')) return url;
     try {
@@ -57,11 +60,9 @@ function resolveUrl(url, base) {
 }
 
 // Same site: images from the library are shown, others only linked (nothing fetched from elsewhere)
-/** @param {string} href @returns {boolean} */
-const sameSite = (href) => href.startsWith(`${location.origin}/`);
+const sameSite = (href: string): boolean => href.startsWith(`${location.origin}/`);
 
-/** @param {string} text @returns {string} */
-export const slug = (text) =>
+export const slug = (text: string): string =>
     text
         .toLowerCase()
         .replace(/<[^>]*>|&\w+;/g, '')
@@ -69,10 +70,9 @@ export const slug = (text) =>
         .trim()
         .replace(/\s+/g, '-');
 
-/** @param {string} text @param {MarkdownOptions} [opts] @param {string[]} [kept] finished HTML, out of reach of later rules @returns {string} */
-export function inlineHtml(text, opts = {}, kept = []) {
-    /** @param {string} html */
-    const keep = (html) => `\uE000${kept.push(html) - 1}\uE000`;
+/** @param kept finished HTML, out of reach of later rules */
+export function inlineHtml(text: string, opts: MarkdownOptions = {}, kept: string[] = []): string {
+    const keep = (html: string) => `\uE000${kept.push(html) - 1}\uE000`;
     const base = opts.base || '';
 
     let s = text
@@ -118,16 +118,14 @@ export function inlineHtml(text, opts = {}, kept = []) {
 // Blocks: headings, paragraphs, lists, quotes, code, tables, rules
 // ---------------------------------------------------------------------------
 
-/** @param {string} line @returns {string[]} */
-const tableCells = (line) =>
+const tableCells = (line: string): string[] =>
     line
         .trim()
         .replace(/^\||\|$/g, '')
         .split(/(?<!\\)\|/)
         .map((c) => c.trim());
 
-/** @param {string} code @param {string} info @param {MarkdownOptions} opts @returns {string} */
-function codeHtml(code, info, opts) {
+function codeHtml(code: string, info: string, opts: MarkdownOptions): string {
     const lang = CODE_LANGS[info.toLowerCase()] || info.toLowerCase();
     const highlight = opts.colour ? HIGHLIGHTERS[lang] : null;
     if (!highlight) return esc(code);
@@ -137,14 +135,11 @@ function codeHtml(code, info, opts) {
 }
 
 // Starts a block other than a paragraph (ends a paragraph before it)
-/** @param {string} line @returns {boolean} */
-const opensBlock = (line) =>
+const opensBlock = (line: string): boolean =>
     FENCE_RE.test(line) || HEADING_RE.test(line) || RULE_RE.test(line) || QUOTE_RE.test(line) || ITEM_RE.test(line);
 
-/** @param {string[]} lines @param {MarkdownOptions} opts @returns {string} */
-function blocksHtml(lines, opts) {
-    /** @type {string[]} */
-    const out = [];
+function blocksHtml(lines: string[], opts: MarkdownOptions): string {
+    const out: string[] = [];
     let i = 0;
     while (i < lines.length) {
         const line = lines[i];
@@ -178,8 +173,7 @@ function blocksHtml(lines, opts) {
             const align = tableCells(lines[i + 1]).map((c) =>
                 c.endsWith(':') ? (c.startsWith(':') ? 'center' : 'right') : c.startsWith(':') ? 'left' : '',
             );
-            /** @param {string[]} cells @param {string} tag */
-            const row = (cells, tag) =>
+            const row = (cells: string[], tag: string) =>
                 cells
                     .map((c, j) => {
                         const a = align[j] ? ` style="text-align:${align[j]}"` : '';
@@ -214,13 +208,11 @@ function blocksHtml(lines, opts) {
 }
 
 // List from line `start`: items of one kind, their lines dedented to the item's text; returns next line
-/** @param {string[]} lines @param {number} start @param {MarkdownOptions} opts @param {string[]} out @returns {number} */
-function listHtml(lines, start, opts, out) {
-    const first = /** @type {RegExpExecArray} */ (ITEM_RE.exec(lines[start]));
+function listHtml(lines: string[], start: number, opts: MarkdownOptions, out: string[]): number {
+    const first = ITEM_RE.exec(lines[start]) as RegExpExecArray;
     const ordered = /\d/.test(first[2]);
     const marker = ordered ? first[2].slice(-1) : first[2];
-    /** @type {string[][]} */
-    const items = [];
+    const items: string[][] = [];
     let loose = false;
     let i = start;
     while (i < lines.length) {
@@ -257,8 +249,7 @@ function listHtml(lines, start, opts, out) {
     return i;
 }
 
-/** @param {string} text @param {MarkdownOptions} [opts] @returns {string} */
-export function markdownHtml(text, opts = {}) {
+export function markdownHtml(text: string, opts: MarkdownOptions = {}): string {
     return blocksHtml(text.replace(/\r\n?/g, '\n').replace(/\t/g, '    ').split('\n'), opts);
 }
 
@@ -267,13 +258,12 @@ export function markdownHtml(text, opts = {}) {
 // ---------------------------------------------------------------------------
 
 // Whole document at once (Markdown files are small); links to headings scroll within the view
-/** @param {HTMLElement} content @param {string} text @param {MarkdownOptions} [opts] @returns {LineView} */
-export function mountMarkdown(content, text, opts = {}) {
+export function mountMarkdown(content: HTMLElement, text: string, opts: MarkdownOptions = {}): LineView {
     const doc = document.createElement('div');
     doc.className = 'tp-md';
     doc.innerHTML = markdownHtml(text, opts);
     doc.addEventListener('click', (e) => {
-        const a = /** @type {HTMLElement} */ (e.target).closest('a[href^="#"]');
+        const a = (e.target as HTMLElement).closest('a[href^="#"]');
         if (!a) return;
         e.preventDefault();
         const name = decodeURIComponent((a.getAttribute('href') || '').slice(1)).toLowerCase();

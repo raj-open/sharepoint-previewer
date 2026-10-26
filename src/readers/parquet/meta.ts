@@ -7,6 +7,98 @@
 import { utf8 } from '../bytes.ts';
 
 // ===========================================================================
+// TYPES
+// ===========================================================================
+
+// Thrift (compact protocol): values as decoded, structs keyed by field id
+export type ThriftValue =
+    | boolean
+    | number
+    | bigint
+    | Uint8Array
+    | ThriftValue[]
+    | Map<ThriftValue, ThriftValue>
+    | ThriftStruct;
+export type ThriftStruct = { [id: number]: ThriftValue };
+
+// Parts of the Parquet metadata read here, by Thrift field id (cf. parquet.thrift of the format)
+type Count = number | bigint;
+type FileMetaData = { 2?: SchemaElementRaw[]; 3?: Count; 4?: RowGroupRaw[]; 6?: Uint8Array };
+type SchemaElementRaw = {
+    1?: number;
+    2?: number;
+    3?: number;
+    4?: Uint8Array;
+    5?: number;
+    6?: number;
+    7?: number;
+    10?: LogicalType;
+};
+type RowGroupRaw = { 1?: { 3?: ColumnMetaRaw }[]; 3?: Count };
+type ColumnMetaRaw = { 4?: number; 5?: Count; 7?: Count; 9?: Count; 11?: Count };
+/** time unit (union): 1 ms, 2 µs, 3 ns */
+export type TimeUnit = { 1?: ThriftStruct; 2?: ThriftStruct; 3?: ThriftStruct };
+/**
+ * logical type (union, one field set): 1 string, 4 enum, 5 decimal (1 scale), 6 date, 7 time (2 unit),
+ * 8 timestamp (2 unit), 10 integer (2 signed), 12 JSON, 14 UUID
+ */
+export type LogicalType = {
+    1?: ThriftStruct;
+    4?: ThriftStruct;
+    5?: { 1?: number };
+    6?: ThriftStruct;
+    7?: { 2?: TimeUnit };
+    8?: { 2?: TimeUnit };
+    10?: { 2?: boolean };
+    12?: ThriftStruct;
+    14?: ThriftStruct;
+};
+/**
+ * page header: 1 type (0 data, 2 dictionary, 3 data v2), 2 uncompressed / 3 compressed size,
+ * 5 data (1 values, 2 encoding), 7 dictionary (1 values),
+ * 8 data v2 (1 values, 4 encoding, 5 / 6 definition / repetition levels' length, 7 compressed)
+ */
+export type PageHeader = {
+    1: number;
+    2: number;
+    3: number;
+    5?: DataPageHeader;
+    7?: { 1: number };
+    8?: DataPageHeader;
+};
+export type DataPageHeader = { 1: number; 2?: number; 4?: number; 5?: number; 6?: number; 7?: boolean };
+
+// Schema element (repetition: 0 required, 1 optional, 2 repeated)
+export type SchemaElement = {
+    type?: number;
+    typeLength?: number;
+    repetition?: number;
+    name: string;
+    children: number;
+    converted?: number;
+    scale?: number;
+    logical?: LogicalType;
+};
+// Leaf column with path and nesting depth (definition / repetition levels)
+export type Column = SchemaElement & { path: string[]; maxDef: number; maxRep: number };
+export type ColumnChunk = {
+    codec: number;
+    numValues: number;
+    size: number;
+    dataOffset: number;
+    dictOffset: number | null;
+};
+// Value as decoded from a page; cell of a row: null, value, or list (repeated column)
+export type ParquetValue = boolean | number | bigint | Date | Uint8Array;
+export type Cell = ParquetValue | null | Cell[];
+export type Footer = {
+    createdBy: string;
+    numRows: number;
+    schema: SchemaElement[];
+    rowGroups: { numRows: number; columns: ColumnChunk[] }[];
+};
+
+// ===========================================================================
 // CONSTANTS
 // ===========================================================================
 
@@ -18,8 +110,7 @@ export const CODEC_NAMES = ['none', 'SNAPPY', 'GZIP', 'LZO', 'BROTLI', 'LZ4', 'Z
 // ===========================================================================
 
 // Thrift compact protocol (Parquet metadata): structs keyed by field id
-/** @param {Uint8Array} bytes @param {number} [start] @returns {{ struct: () => Object<number, *>, pos: () => number }} */
-export function thriftReader(bytes, start = 0) {
+export function thriftReader(bytes: Uint8Array, start = 0): { struct: () => ThriftStruct; pos: () => number } {
     let pos = start;
 
     const byte = () => {
@@ -30,7 +121,7 @@ export function thriftReader(bytes, start = 0) {
     const varint = () => {
         let r = 0n;
         let shift = 0n;
-        let b;
+        let b: number;
         do {
             b = byte();
             r |= BigInt(b & 0x7f) << shift;
@@ -38,13 +129,10 @@ export function thriftReader(bytes, start = 0) {
         } while (b & 0x80);
         return r;
     };
-    /** @param {bigint} n */
-    const zigzag = (n) => (n >> 1n) ^ -(n & 1n);
-    /** @param {bigint} n */
-    const small = (n) => (n >= -(2n ** 53n) && n <= 2n ** 53n ? Number(n) : n);
+    const zigzag = (n: bigint) => (n >> 1n) ^ -(n & 1n);
+    const small = (n: bigint) => (n >= -(2n ** 53n) && n <= 2n ** 53n ? Number(n) : n);
 
-    /** @param {number} type @returns {*} */
-    function value(type) {
+    function value(type: number): ThriftValue {
         switch (type) {
             case 1:
                 return true;
@@ -77,13 +165,13 @@ export function thriftReader(bytes, start = 0) {
                 let size = h >> 4;
                 const elem = h & 15;
                 if (size === 15) size = Number(varint());
-                const out = [];
+                const out: ThriftValue[] = [];
                 for (let i = 0; i < size; i++) out.push(elem === 1 || elem === 2 ? byte() === 1 : value(elem));
                 return out;
             }
             case 11: {
                 const size = Number(varint());
-                const out = new Map();
+                const out = new Map<ThriftValue, ThriftValue>();
                 if (size) {
                     const kv = byte();
                     for (let i = 0; i < size; i++) out.set(value(kv >> 4), value(kv & 15));
@@ -97,10 +185,8 @@ export function thriftReader(bytes, start = 0) {
         }
     }
 
-    /** @returns {Object<number, *>} */
-    function struct() {
-        /** @type {Object<number, *>} */
-        const out = {};
+    function struct(): ThriftStruct {
+        const out: ThriftStruct = {};
         let id = 0;
         for (;;) {
             const h = byte();
@@ -114,15 +200,13 @@ export function thriftReader(bytes, start = 0) {
     return { struct, pos: () => pos };
 }
 
-/** @param {Uint8Array} bytes @returns {{ createdBy: string, numRows: number, schema: Object<string, *>[], rowGroups: { numRows: number, columns: Object<string, *>[] }[] }} */
-export function parseFooter(bytes) {
-    const m = thriftReader(bytes).struct();
-    /** @param {Uint8Array} [b] */
-    const text = (b) => (b ? utf8.decode(b) : '');
+export function parseFooter(bytes: Uint8Array): Footer {
+    const m = thriftReader(bytes).struct() as FileMetaData; // shape per the format
+    const text = (b?: Uint8Array) => (b ? utf8.decode(b) : '');
     return {
         createdBy: m[6] ? text(m[6]) : '',
         numRows: Number(m[3] || 0),
-        schema: (m[2] || []).map((/** @type {Object<number, *>} */ e) => ({
+        schema: (m[2] || []).map((e) => ({
             type: e[1],
             typeLength: e[2],
             repetition: e[3],
@@ -132,10 +216,10 @@ export function parseFooter(bytes) {
             scale: e[7],
             logical: e[10],
         })),
-        rowGroups: (m[4] || []).map((/** @type {Object<number, *>} */ rg) => ({
+        rowGroups: (m[4] || []).map((rg) => ({
             numRows: Number(rg[3] || 0),
-            columns: (rg[1] || []).map((/** @type {Object<number, *>} */ c) => {
-                const md = c[3] || {};
+            columns: (rg[1] || []).map((c) => {
+                const md: ColumnMetaRaw = c[3] || {};
                 return {
                     codec: md[4] || 0,
                     numValues: Number(md[5] || 0),
@@ -149,14 +233,12 @@ export function parseFooter(bytes) {
 }
 
 // Leaf columns with their nesting depth (definition / repetition levels)
-/** @param {Object<string, *>[]} schema @returns {Object<string, *>[]} leaf columns with path, maxDef, maxRep */
-export function leafColumns(schema) {
-    /** @type {Object<string, *>[]} */
-    const leaves = [];
+/** @returns leaf columns with path, maxDef, maxRep */
+export function leafColumns(schema: SchemaElement[]): Column[] {
+    const leaves: Column[] = [];
     let i = 1;
 
-    /** @param {string[]} path @param {number} maxDef @param {number} maxRep @param {number} count */
-    const walk = (path, maxDef, maxRep, count) => {
+    const walk = (path: string[], maxDef: number, maxRep: number, count: number) => {
         for (let k = 0; k < count && i < schema.length; k++) {
             const e = schema[i++];
             const def = maxDef + (e.repetition ? 1 : 0); // OPTIONAL (1) and REPEATED (2) add level
@@ -170,5 +252,4 @@ export function leafColumns(schema) {
     return leaves;
 }
 
-/** @param {number} max @returns {number} */
-export const bitWidth = (max) => 32 - Math.clz32(max);
+export const bitWidth = (max: number): number => 32 - Math.clz32(max);

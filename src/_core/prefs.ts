@@ -15,7 +15,8 @@ import { DEFAULT_TABLE_COLOURS } from './settings.ts';
 import { DEFAULT_WRAP } from './settings.ts';
 import { THEME } from './settings.ts';
 
-/** @typedef {import('./types.ts').SheetMode} SheetMode */
+import type { Layout } from './types.ts';
+import type { SheetMode } from './types.ts';
 
 // ===========================================================================
 // CONSTANTS
@@ -44,8 +45,7 @@ const MAX_SHEET_MODES = 500;
 // ===========================================================================
 
 // Settings remembered in browser (localStorage): light / dark, colours, line wrap
-/** @template {string|null} T @param {string} key @param {T} fallback @returns {string|T} */
-export function loadPref(key, fallback) {
+export function loadPref<T extends string | null>(key: string, fallback: T): string | T {
     try {
         return localStorage.getItem(key) ?? fallback;
     } catch {
@@ -53,23 +53,20 @@ export function loadPref(key, fallback) {
     }
 }
 
-/** @param {string} key @returns {void} */
-export function removePref(key) {
+export function removePref(key: string): void {
     try {
         localStorage.removeItem(key);
     } catch {}
 }
 
-/** @param {string} key @param {string} value @returns {void} */
-export function savePref(key, value) {
+export function savePref(key: string, value: string): void {
     try {
         localStorage.setItem(key, value);
     } catch {}
 }
 
 // Sheets or tables chosen for a spreadsheet (file path -> mode)
-/** @returns {Object<string, SheetMode>} */
-function sheetModes() {
+function sheetModes(): Record<string, SheetMode> {
     try {
         const modes = JSON.parse(loadPref(SHEET_MODES_KEY, '{}'));
         return modes && typeof modes === 'object' && !Array.isArray(modes) ? modes : {};
@@ -79,14 +76,12 @@ function sheetModes() {
 }
 
 // View of a spreadsheet: last choice for this file, else the setting
-/** @param {string} url @returns {SheetMode} */
-export function sheetMode(url) {
+export function sheetMode(url: string): SheetMode {
     const mode = sheetModes()[url] ?? DEFAULT_SHEET_VIEW;
     return mode === 'tables' ? 'tables' : 'sheets';
 }
 
-/** @param {string} url @param {SheetMode} mode @returns {void} */
-export function rememberSheetMode(url, mode) {
+export function rememberSheetMode(url: string, mode: SheetMode): void {
     const modes = sheetModes();
     delete modes[url];
     const kept = Object.entries(modes).slice(0, MAX_SHEET_MODES - 1);
@@ -114,9 +109,9 @@ export const view = {
     metaLines: Math.max(1, Math.min(6, Number(loadPref('tp-preview-meta-lines', '1')) || 1)),
     props: loadPref('tp-preview-properties', '0') === '1',
     // Layout: popup / vertical / horizontal
-    mode: ['popup', 'vertical', 'horizontal'].includes(loadPref('tp-preview-mode', ''))
+    mode: (['popup', 'vertical', 'horizontal'].includes(loadPref('tp-preview-mode', ''))
         ? loadPref('tp-preview-mode', '')
-        : DEFAULT_MODE,
+        : DEFAULT_MODE) as Layout,
     theme: ['light', 'dark'].includes(loadPref(THEME_KEY, '')) ? loadPref(THEME_KEY, '') : THEME,
     wrap: loadPref(WRAP_KEY, DEFAULT_WRAP ? '1' : '0') === '1',
     // 3D view chosen by user
