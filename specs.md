@@ -33,6 +33,7 @@
 - Start-up: modules only define (no listeners, observers, menu or DOM changes on load);
   the entry `/src/main.js` starts everything explicitly, in order, at the end of the bundle.
 - Version: `/dist/VERSION` is the single source;
+  `just build-lock` writes it into `/package.json` and `/package-lock.json` (semver form, cf. `just tag`);
   the build writes it into the userscript's `@version`,
   except on the commit tagged `v<VERSION>` as `<VERSION>-beta.<short commit>` (release files only).
 - 3D hashes: the release build writes the SHA-256 of the built 3D files into the userscript;
