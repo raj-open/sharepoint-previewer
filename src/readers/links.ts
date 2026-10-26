@@ -1,4 +1,4 @@
-// Links: .url shortcut files ("[InternetShortcut] URL=...") point to another file
+// Links: .url shortcut files ("[InternetShortcut] URL=...") point to another file; clean URLs of files and folders
 
 // ===========================================================================
 // IMPORTS
@@ -49,4 +49,44 @@ export function linkTarget(name: string, text: string): { display: string; name:
     // Other sites not followed (openSource() refuses other origins)
     const last = decodeURIComponent(target.pathname).split('/').pop();
     return { display, name: last ?? '', fetchUrl: target.href };
+}
+
+// ---------------------------------------------------------------------------
+// Clean URLs: origin + path, not encoded, without query or fragment
+// ---------------------------------------------------------------------------
+
+/** @returns server-relative path a Sharepoint URL stands for (viewer pages: their id; direct links: /:t:/r/ dropped), not encoded */
+export function serverPath(u: URL): string {
+    const id = u.searchParams.get('id');
+    if (/\.aspx$/i.test(u.pathname) && id) return id;
+    return decode(u.pathname.replace(/^\/:[a-z]:\/r(?=\/)/i, ''));
+}
+
+/**
+ * @param place server-relative path (as Sharepoint names it, not encoded) or URL (absolute, may be encoded)
+ * @returns full URL as a person reads it: not encoded, no query, no fragment, no trailing "/"
+ */
+export function cleanUrl(place: string): string {
+    if (/^\/(?!\/)/.test(place)) return `${location.origin}${place.replace(/\/+$/, '')}`;
+    let u: URL;
+    try {
+        u = new URL(place, location.href);
+    } catch {
+        return place;
+    }
+    const path = u.origin === location.origin ? serverPath(u) : decode(u.pathname);
+    return `${u.origin}${path.replace(/\/+$/, '')}`;
+}
+
+// ===========================================================================
+// AUXILIARY METHODS
+// ===========================================================================
+
+/** @returns decoded, or as is if not valid (e.g. a lone "%") */
+function decode(value: string): string {
+    try {
+        return decodeURIComponent(value);
+    } catch {
+        return value;
+    }
 }

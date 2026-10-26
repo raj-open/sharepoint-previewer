@@ -1,6 +1,6 @@
 # Sharepoint Previewer #
 
-[![qa (main)](../../actions/workflows/qa-auto.yaml/badge.svg?branch=main)](../../actions/workflows/qa-auto.yaml?query=branch%3Amain)
+[![qa (main)](../../actions/workflows/qa-manual.yaml/badge.svg?branch=main)](../../actions/workflows/qa-manual.yaml?query=branch%3Amain)
 [![qa (staging)](../../actions/workflows/qa-auto.yaml/badge.svg?branch=staging)](../../actions/workflows/qa-auto.yaml?query=branch%3Astaging)
 [![release](../../actions/workflows/release.yaml/badge.svg)](../../actions/workflows/release.yaml)
 
@@ -24,13 +24,11 @@ We built a **previewer** that simply augments the Sharepoint experience to overc
 
 ## Demonstration ##
 
-See
+See the [demos](demos/README.md):
+screenshots and the logic of each part
+(list view, layouts, title bar, text, tables, 3D, editing, caching, settings).
 
-- [Overview](demos/overview.md): list view, text, syntax checks, Markdown
-- [Tables and spreadsheets](demos/tables.md): CSV, Excel tables and sheets, logs
-- [3D](demos/3d.md): IFC models
-
-Technical descriptions (behaviour, network, storage, security, deployment):
+For reviewing the script (permissions, network, storage, security, deployment):
 see [NOTES.md](NOTES.md).
 
 ## Motivation ##
@@ -100,7 +98,7 @@ and IT teams who want all this without another app to roll out.
       In particular the (relative!) path to your ifc-lite artefacts should be set (if you wish to use the IFC-viewer),
       and an optional company or private logo can be entered as base64 encoding of an image.
 
-    2. You should see an "eye" logo to the left of all files (but not folders). Click on these to preview any plaintext file
+    2. You should see an "eye" logo to the left of all files and folders. Click on these to preview any plaintext file
         (as well as a small selection of binaries like `*.xlsx` and `*.parquet` files).
 
 > [!IMPORTANT]
@@ -118,8 +116,8 @@ and IT teams who want all this without another app to roll out.
 
 ## Notes ##
 
-- See [TECHNICAL.md](./TECHNICAL.md) for basic technical notes about this repository.
-- See [NOTES.md](./NOTES.md) for notes on application logic and design.
+- See [NOTES.md](./NOTES.md) for reviewing the script: permissions, network, storage, security, deployment.
+- See [TECHNICAL.md](./TECHNICAL.md) for development: repository, build, tests, and the logic inside (formats, caching, editing, settings).
 
 ## Credits and licences ##
 

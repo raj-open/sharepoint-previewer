@@ -1,16 +1,8 @@
-# Demo: Overview #
+# Demo: Text, checks and Markdown #
 
-All screenshots show the mock SharePoint of the tests
+All screenshots show the mock Sharepoint of the tests
 (`/tests/mocks/mock-sharepoint`),
 written by `just demos`.
-
-## List view ##
-
-Each file in the library gets an eye.
-One click opens the preview next to the list,
-without downloading the file or leaving the page.
-
-![List view with eyes](img/list.png)
 
 ## Text ##
 
@@ -33,4 +25,4 @@ Markdown files are rendered;
 
 ![Rendered Markdown file](img/markdown.png)
 
-[Back to the README](../README.md)
+[Back to the demos](README.md)

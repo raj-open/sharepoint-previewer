@@ -65,7 +65,7 @@ export async function enterWrite(v: Viewer): Promise<void> {
         v.saveBtn.disabled = true;
         if (csvFormat.sep || csvFormat.quote) markEdited(v); // remembered format: file changes when saved
         v.stopBtn.disabled = false;
-        v.stopBtn.title = 'Cancel changes (Esc)';
+        v.stopBtn.title = 'Cancel changes';
         v.writeBtn.setAttribute('aria-pressed', 'true');
         return;
     }
@@ -77,7 +77,7 @@ export async function enterWrite(v: Viewer): Promise<void> {
     v.loadMoreBtn.style.display = 'none';
     v.saveBtn.disabled = true;
     v.stopBtn.disabled = false;
-    v.stopBtn.title = 'Cancel changes (Esc)';
+    v.stopBtn.title = 'Cancel changes';
     v.writeBtn.setAttribute('aria-pressed', 'true');
     v.editor.focus();
 }
@@ -102,7 +102,7 @@ export function confirmDiscard(v: Viewer): boolean {
     return true;
 }
 
-// Cancel (button, Esc): drop all changes (unsaved and saved) after asking, back to read view
+// Cancel (button): drop all changes (unsaved and saved) after asking, back to read view
 // (new file: to the empty viewer); false = user keeps them
 export function cancelEdits(v: Viewer): boolean {
     if (!v.writeMode || !confirmDiscard(v)) return false;
@@ -171,24 +171,24 @@ export function flash(btn: HTMLElement): void {
 }
 
 // ---------------------------------------------------------------------------
-// Upload: as a user would (drop, or SharePoint's upload dialogue); no API
+// Upload: as a user would (drop, or Sharepoint's upload dialogue); no API
 // ---------------------------------------------------------------------------
 
-/** @returns file shown is in the folder open in SharePoint (only there can it be uploaded); else says so */
+/** @returns file shown is in the folder open in Sharepoint (only there can it be uploaded); else says so */
 export function uploadable(v: Viewer): boolean {
     const url = v.file?.url ?? '';
     const folder = currentFolder();
     if (!v.linked && folder && url.slice(0, url.lastIndexOf('/')).toLowerCase() === folder.toLowerCase()) return true;
     alert(
-        'Uploading only works for a file in the folder that is open in SharePoint\n' +
+        'Uploading only works for a file in the folder that is open in Sharepoint\n' +
             '(not for search results or files reached through a link).\n' +
             "Open the file's folder and upload from there.",
     );
     return false;
 }
 
-// Saved text to SharePoint: the file itself, or under another name a new file (the original stays)
-/** @returns true once SharePoint has the new file */
+// Saved text to Sharepoint: the file itself, or under another name a new file (the original stays)
+/** @returns true once Sharepoint has the new file */
 export async function uploadEdits(v: Viewer, edited: string): Promise<boolean> {
     const src = v.source;
     if (!src || !v.file || !uploadable(v)) return false;
@@ -217,21 +217,21 @@ export async function uploadEdits(v: Viewer, edited: string): Promise<boolean> {
     return true;
 }
 
-// Hands a file to SharePoint (drop, else its upload dialogue); a HEAD request confirms the change,
+// Hands a file to Sharepoint (drop, else its upload dialogue); a HEAD request confirms the change,
 // otherwise the user can save the file and upload it by hand
-/** @returns true once SharePoint has the file */
+/** @returns true once Sharepoint has the file */
 export async function uploadFile(v: Viewer, file: File, to: Target): Promise<boolean> {
     const transfer = new DataTransfer();
     transfer.items.add(file);
 
-    // How file looks on SharePoint right now (none: new file); upload changes this
+    // How file looks on Sharepoint right now (none: new file); upload changes this
     const stamp = () => fileStamp(to.url);
     const before = await stamp();
-    // Watch for SharePoint to change file (it may first ask "replace?"): up to `ms`, shown in the status bar
+    // Watch for Sharepoint to change file (it may first ask "replace?"): up to `ms`, shown in the status bar
     const changed = async (ms: number, how: string) => {
         for (const end = Date.now() + ms; Date.now() < end; ) {
             const left = Math.ceil((end - Date.now()) / 1000);
-            showStatus(v, `Uploading "${to.name}" (${how}) … waiting for SharePoint (${left} s)`);
+            showStatus(v, `Uploading "${to.name}" (${how}) … waiting for Sharepoint (${left} s)`);
             await new Promise((r) => setTimeout(r, 1500));
             const now = await stamp();
             if (now && now !== before) return true;
@@ -255,25 +255,25 @@ export async function uploadFile(v: Viewer, file: File, to: Target): Promise<boo
         done = await changed(20000, 'dropped on the list');
     }
 
-    // 2. Like choice in SharePoint's own upload dialogue
+    // 2. Like choice in Sharepoint's own upload dialogue
     if (!done) {
         const input = [...document.querySelectorAll('input[type="file"]')].find((i) => !i.closest('.tp-viewer'));
         if (input) {
             (input as HTMLInputElement).files = transfer.files;
             input.dispatchEvent(new Event('input', { bubbles: true }));
             input.dispatchEvent(new Event('change', { bubbles: true }));
-            done = await changed(20000, "SharePoint's upload dialogue");
+            done = await changed(20000, "Sharepoint's upload dialogue");
         }
     }
 
     showCached(v);
-    v.uploadBtn.title = 'Upload the saved changes to SharePoint';
+    v.uploadBtn.title = 'Upload the saved changes to Sharepoint';
     if (done) return true;
     v.uploadBtn.disabled = !ready;
     // 3. user does it: file is saved locally, ready to drag into folder
     if (
         confirm(
-            'SharePoint did not take the file automatically.\n\n' +
+            'Sharepoint did not take the file automatically.\n\n' +
                 'Download the file now, so you can drag it into the folder yourself?\n' +
                 '(Saved changes stay in the viewer until an upload is confirmed.)',
         )

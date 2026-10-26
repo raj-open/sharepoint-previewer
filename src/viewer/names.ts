@@ -21,7 +21,7 @@ import type { Viewer } from '../_core/types.ts';
 // CONSTANTS
 // ===========================================================================
 
-// SharePoint's rules for names (cf. https://support.microsoft.com/office/64883a5d-228e-48f5-b3d2-eb39e07630fa)
+// Sharepoint's rules for names (cf. https://support.microsoft.com/office/64883a5d-228e-48f5-b3d2-eb39e07630fa)
 const BAD_CHARS = /["*:<>?/\\|]/;
 const RESERVED = /^(?:\.lock|con|prn|aux|nul|com\d|lpt\d|desktop\.ini)$/i;
 // Common binary types without a reader of their own (no text: never a new or edited file under such a name)
@@ -36,14 +36,14 @@ const BINARY_RE =
 // Names and targets
 // ---------------------------------------------------------------------------
 
-/** @returns why SharePoint would refuse the name; '' if it is fine */
+/** @returns why Sharepoint would refuse the name; '' if it is fine */
 export function nameProblem(name: string): string {
     if (!name.trim()) return 'Please enter a file name.';
     if (name !== name.trim()) return 'A file name may not start or end with a space.';
     if (BAD_CHARS.test(name)) return 'A file name may not contain any of " * : < > ? / \\ |';
     if (name.endsWith('.')) return 'A file name may not end with a full stop.';
     if (RESERVED.test(name) || name.startsWith('~$') || /_vti_/i.test(name))
-        return `SharePoint does not allow the name "${name}".`;
+        return `Sharepoint does not allow the name "${name}".`;
     return '';
 }
 
@@ -54,7 +54,7 @@ export function textNameProblem(name: string): string {
     return `A ${ext} file is not plain text: please choose a text format (e.g. .txt, .csv, .json, .md).`;
 }
 
-/** @returns same name for SharePoint (it ignores case) */
+/** @returns same name for Sharepoint (it ignores case) */
 export const sameName = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
 
 /** @param name another name (null: the file's own) @returns where the edit of the open file goes */
@@ -109,7 +109,7 @@ export function showName(v: Viewer): void {
         !t.isNew
             ? ''
             : v.source?.fresh
-              ? 'New file: in SharePoint once uploaded.'
+              ? 'New file: in Sharepoint once uploaded.'
               : `New file: "${v.file.name}" stays unchanged.`,
         !on
             ? ''

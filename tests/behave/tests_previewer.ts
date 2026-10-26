@@ -1,4 +1,4 @@
-// Behavioural tests (preliminary): userscript on the mock SharePoint (cf. /tests/mocks/mock-sharepoint/server.ts)
+// Behavioural tests (preliminary): userscript on the mock Sharepoint (cf. /tests/mocks/mock-sharepoint/server.ts)
 
 import assert from 'node:assert/strict';
 import { after } from 'node:test';
@@ -29,20 +29,47 @@ const FORMAT_PICKER = '.tp-format > .tp-picker';
 /** @returns "Properties: …" line */
 const properties = (v: Locator): Promise<string> => h.text(v.locator('.tp-title').nth(1));
 
+/** @returns link the chain icon copies (its tooltip, once hovered) */
+async function link(v: Locator): Promise<string> {
+    const btn = v.locator('.tp-mode-btn[title^="Copy the link"]');
+    await btn.hover();
+    return ((await btn.getAttribute('title')) ?? '').split('\n').pop() ?? '';
+}
+
 describe('list view', () => {
-    it('shows an eye on files only, not on folders', async () => {
+    it('shows an eye on files and folders', async () => {
         const page = await openFolder(h.LIBRARY);
         assert.equal(await h.eye(page, 'notes.txt').count(), 1);
         assert.equal(await h.eye(page, 'README.md').count(), 1);
-        assert.equal(await h.row(page, 'Data').locator('.tp-preview').count(), 0);
+        assert.equal(await h.eye(page, 'Data').getAttribute('data-kind'), 'folder');
         assert.equal(await page.locator('.tp-head').count(), 1);
+    });
+
+    it('folder eye: viewer without file for that folder; again: closed', async () => {
+        const page = await openFolder(h.LIBRARY);
+        await h.eye(page, 'Data').click();
+        const v = page.locator('.tp-viewer');
+        await v.waitFor();
+        assert.equal(await h.text(v.locator('.tp-title-name')), '–');
+        assert.equal(await link(v), `${h.ORIGIN}${h.LIBRARY}/Data`);
+        await h.eye(page, 'Data').click();
+        assert.equal(await v.count(), 0);
+    });
+
+    it('link: clean URL of the file shown, else of the folder open', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Data`);
+        await page.locator('.tp-head').dispatchEvent('click'); // header eye (mock: overlaid)
+        const v = page.locator('.tp-viewer');
+        assert.equal(await link(v), `${h.ORIGIN}${h.LIBRARY}/Data`); // not encoded, no query
+        await h.preview(page, 'prices.csv');
+        assert.equal(await link(v), `${h.ORIGIN}${h.LIBRARY}/Data/prices.csv`);
     });
 
     it('follows in-place navigation into nested folders (recycled rows)', async () => {
         const page = await openFolder(h.LIBRARY);
-        await page.locator('a', { hasText: 'Data' }).click();
+        await page.locator('#grid a', { hasText: /^Data$/ }).click();
         await h.eye(page, 'prices.csv').waitFor();
-        await page.locator('a', { hasText: 'Reports' }).click();
+        await page.locator('#grid a', { hasText: /^Reports$/ }).click();
         await h.eye(page, '2025.csv').waitFor();
         assert.equal(await page.locator('.tp-preview').count(), 1);
     });
@@ -50,9 +77,9 @@ describe('list view', () => {
     it('goes back to parent folders by the breadcrumb', async () => {
         const page = await openFolder(`${h.LIBRARY}/Data/Reports`);
         await h.eye(page, '2025.csv').waitFor();
-        await page.locator('#breadcrumb a', { hasText: 'Data' }).click();
+        await page.locator('#breadcrumb a', { hasText: /^Data$/ }).click();
         await h.eye(page, 'prices.csv').waitFor();
-        await page.locator('#breadcrumb a', { hasText: 'Shared Documents' }).click();
+        await page.locator('#breadcrumb a', { hasText: 'Mock Data' }).click();
         await h.eye(page, 'notes.txt').waitFor();
     });
 
@@ -60,6 +87,108 @@ describe('list view', () => {
         const { page } = await browser.open(`${h.SITE}/SitePages/Home.aspx`);
         await page.waitForTimeout(300);
         assert.equal(await page.locator('.tp-cell, .tp-head').count(), 0);
+    });
+});
+
+describe('search results', () => {
+    /** Searches the library below the folder open (box in the command bar), waits for the results */
+    async function search(page: Page, term: string): Promise<void> {
+        await page.locator('#search').fill(term);
+        await page.locator('#search').press('Enter');
+        await page.locator('#breadcrumb', { hasText: 'Search results' }).waitFor();
+    }
+
+    it('file of a sub-folder (row without path): found by name, shown from where it is; link to there', async () => {
+        const { page, requests } = await browser.open(h.LIST_PAGE);
+        await search(page, '2025');
+        const v = await h.preview(page, '2025.csv');
+        await v.locator('.tp-content', { hasText: 'Alexander' }).waitFor();
+        assert.ok(requests.some((r) => r.url.includes('/_api/web/GetList')));
+        assert.equal(await link(v), `${h.ORIGIN}${h.LIBRARY}/Data/Reports/2025.csv`);
+        assert.match((await h.row(page, '2025.csv').getAttribute('class')) ?? '', /tp-row-shown/); // row found again
+    });
+
+    it('folder in the results: its eye opens that folder (link to it)', async () => {
+        const { page } = await browser.open(h.LIST_PAGE);
+        await search(page, 'report');
+        assert.equal(await h.eye(page, 'Reports').getAttribute('data-kind'), 'folder');
+        await h.eye(page, 'Reports').click();
+        assert.equal(await link(page.locator('.tp-viewer')), `${h.ORIGIN}${h.LIBRARY}/Data/Reports`);
+    });
+
+    it('library list refuses (large library): found by the search index; Parquet through its parent folder', async () => {
+        const { page, requests } = await browser.open(h.LIST_PAGE);
+        await page.route(/\/_api\/web\/GetList/, (route) => route.fulfill({ status: 500, body: '' }));
+        await search(page, 'people');
+        const v = await h.preview(page, 'people.parquet');
+        await v.locator('.tp-content', { hasText: 'Grace' }).waitFor();
+        assert.ok(requests.some((r) => r.url.includes('/_api/search/query')));
+        assert.equal(await link(v), `${h.ORIGIN}${h.LIBRARY}/Data/people.parquet`);
+    });
+
+    it('not found by either: says why, with how the lookup went', async () => {
+        const { page } = await browser.open(h.LIST_PAGE);
+        await page.route(/\/_api\/(web\/GetList|search\/query)/, (route) => route.fulfill({ status: 500, body: '' }));
+        await search(page, '2025');
+        const v = await h.preview(page, '2025.csv');
+        const content = await h.text(v.locator('.tp-content'));
+        assert.match(content, /cannot be viewed from search results/);
+        assert.match(content, /Looked up by name below \/sites\/Test\/Mock Data/);
+        assert.match(content, /library list: HTTP 500/);
+    });
+
+    it('search box empty again: the folder as before', async () => {
+        const { page } = await browser.open(h.LIST_PAGE);
+        await search(page, '2025');
+        await page.locator('#search').fill('');
+        await page.locator('#search').press('Enter');
+        await h.eye(page, 'notes.txt').waitFor();
+        assert.equal(await h.row(page, '2025.csv').count(), 0);
+    });
+});
+
+describe('layouts', () => {
+    /** @returns top of the file name in the viewer, relative to its header */
+    async function nameTop(v: Locator): Promise<number> {
+        const header = await v.locator('.tp-header').boundingBox();
+        const name = await v.locator('.tp-title-name').boundingBox();
+        return (name?.y ?? 0) - (header?.y ?? 0);
+    }
+
+    it('wide header: file name between the buttons, one row', async () => {
+        const page = await openFolder(h.LIBRARY);
+        const v = await h.preview(page, 'notes.txt');
+        assert.equal(await v.locator('.tp-header.tp-narrow').count(), 0);
+        assert.ok((await nameTop(v)) < 40);
+    });
+
+    it('narrow header (right of the list): file name on a second row, properties below it', async () => {
+        const page = await openFolder(h.LIBRARY, { layout: 'vertical' });
+        await h.eye(page, 'notes.txt').click();
+        const v = page.locator('.tp-viewer');
+        await v.locator('.tp-header.tp-narrow').waitFor();
+        assert.ok((await nameTop(v)) > 40);
+        assert.equal(await v.locator('.tp-title-name').isVisible(), true);
+        await v.locator('.tp-mode-btn[title^="Display file metadata"]').click();
+        const meta = await v.locator('.tp-title').nth(1).boundingBox();
+        const well = await v.locator('.tp-title').first().boundingBox();
+        assert.ok(meta && well && meta.y >= well.y + well.height); // not over the file name
+    });
+
+    it('popup: resizable (corner), size kept for the next popup', async () => {
+        const page = await openFolder(h.LIBRARY, { layout: 'popup' });
+        const v = await h.preview(page, 'notes.txt');
+        assert.equal(await v.evaluate((el) => getComputedStyle(el).resize), 'both');
+        await v.evaluate((el) => {
+            el.style.width = '700px'; // as the browser writes it when the user drags the corner
+            el.style.height = '500px';
+        });
+        await page.waitForFunction(() => localStorage.getItem('tp-preview-popup-size') !== null);
+        await page.keyboard.press('Escape');
+        await h.preview(page, 'README.md');
+        const b = await page.locator('.tp-viewer').boundingBox();
+        assert.equal(Math.round(b?.width ?? 0), 700);
+        assert.equal(Math.round(b?.height ?? 0), 500);
     });
 });
 
@@ -317,7 +446,7 @@ describe('preview per file type', () => {
         assert.match(await h.text(v.locator('.tp-content')), /Not a plain text file/);
     });
 
-    it('fetches by byte range and only from SharePoint itself', async () => {
+    it('fetches by byte range and only from Sharepoint itself', async () => {
         const { page, requests } = await browser.open(h.LIST_PAGE);
         await page.locator('.tp-preview').first().waitFor();
         await h.preview(page, 'notes.txt');
@@ -343,7 +472,7 @@ describe('editing', () => {
         await v.locator('.tp-editor').waitFor();
     }
 
-    it('Esc: same as cancel; asks only if there are changes', async () => {
+    it('Esc: only back to reading (saved changes stay, asks for unsaved ones); Esc again: closed', async () => {
         const page = await openFolder(h.LIBRARY);
         const v = await h.preview(page, 'notes.txt');
         await edit(v);
@@ -354,14 +483,23 @@ describe('editing', () => {
 
         await edit(v);
         await v.locator('.tp-editor').press('End');
-        await page.keyboard.type(' (edited)');
+        await page.keyboard.type(' (saved)');
+        await v.locator('.tp-mode-btn[title^="Save"]').click();
+        await v.locator('.tp-editor').press('End');
+        await page.keyboard.type(' (unsaved)');
         await page.keyboard.press('Escape');
         assert.match((await dialogues(page)).confirms.join('\n'), /unsaved changes/);
         assert.equal(await v.locator('.tp-editor').isVisible(), false);
-        assert.doesNotMatch(await h.text(v.locator('.tp-content')), /\(edited\)/); // changes dropped
+        assert.equal(await v.isVisible(), true);
+        await v.locator('.tp-content', { hasText: '(saved)' }).waitFor(); // saved changes kept
+        assert.doesNotMatch(await h.text(v.locator('.tp-content')), /\(unsaved\)/);
+
+        await page.keyboard.press('Escape'); // close: asks (not uploaded)
+        assert.match((await dialogues(page)).confirms.join('\n'), /not been uploaded/);
+        assert.equal(await v.count(), 0);
     });
 
-    it('name: click in write mode, checked, marked as a new file; Esc in the box keeps the old one', async () => {
+    it('name: click in write mode, checked, marked as a new file (link too); Esc in the box keeps the old one', async () => {
         const page = await openFolder(h.LIBRARY);
         const v = await h.preview(page, 'notes.txt');
         await edit(v);
@@ -376,6 +514,7 @@ describe('editing', () => {
         await name.filter({ hasText: 'README.md' }).waitFor(); // after the look-up
         assert.match((await dialogues(page)).confirms.join('\n'), /"README\.md" already exists/);
         assert.match((await name.getAttribute('class')) ?? '', /tp-new-name/);
+        assert.equal(await link(v), `${h.ORIGIN}${h.LIBRARY}/README.md`); // where the upload goes
         assert.equal(await v.locator('.tp-mode-btn[title^="Save"]').isDisabled(), false); // saved with the text
 
         await name.click();
@@ -426,7 +565,7 @@ describe('editing', () => {
         assert.doesNotMatch((await v.locator('.tp-title-name').getAttribute('class')) ?? '', /tp-renamable/);
     });
 
-    it('upload (simulated): new file into the folder, then shown from SharePoint', async () => {
+    it('upload (simulated): new file into the folder, then shown from Sharepoint', async () => {
         const page = await openFolder(`${h.LIBRARY}/Data`);
         await page.locator('.tp-head').dispatchEvent('click');
         const v = page.locator('.tp-viewer');
@@ -439,7 +578,7 @@ describe('editing', () => {
         await v.locator('.tp-mode-btn[title^="Upload"]').click();
         await h.row(page, 'todo.json').waitFor({ timeout: 10000 }); // the list shows it
         await v.locator('.tp-title-name:not(.tp-new-name)', { hasText: 'todo.json' }).waitFor({ timeout: 10000 });
-        await v.locator('.tp-content', { hasText: '"a": 1' }).waitFor(); // fetched from SharePoint now
+        await v.locator('.tp-content', { hasText: '"a": 1' }).waitFor(); // fetched from Sharepoint now
         assert.match((await dialogues(page)).confirms.join('\n'), /new file "todo\.json" will be uploaded/);
     });
 

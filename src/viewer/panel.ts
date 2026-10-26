@@ -15,6 +15,7 @@ import { ZOOM_KEY } from '../_core/prefs.ts';
 import { ZOOM_RANGE } from '../_core/prefs.ts';
 import { openSettingsForm } from '../_core/settings-form.ts';
 import { POPUP_POS_KEY } from '../_core/settings-form.ts';
+import { POPUP_SIZE_KEY } from '../_core/settings-form.ts';
 import { LARGE_FILE_BYTES } from '../_core/settings.ts';
 import { LOGO } from '../_core/settings.ts';
 import { esc } from '../_core/util.ts';
@@ -23,6 +24,7 @@ import { CHECK_SVG } from '../ui/icons.ts';
 import { CLEAR_SVG } from '../ui/icons.ts';
 import { COLOUR_SVG } from '../ui/icons.ts';
 import { COPY_SVG } from '../ui/icons.ts';
+import { LINK_SVG } from '../ui/icons.ts';
 import { LOAD_ALL_SVG } from '../ui/icons.ts';
 import { MORE_SVG } from '../ui/icons.ts';
 import { NEW_FILE_SVG } from '../ui/icons.ts';
@@ -40,6 +42,7 @@ import { UPLOAD_SVG } from '../ui/icons.ts';
 import { WRAP_SVG } from '../ui/icons.ts';
 import { WRITE_SVG } from '../ui/icons.ts';
 import { FORMAT_LISTS } from '../readers/formats.ts';
+import { keepSize } from '../ui/move.ts';
 import { startMove } from '../ui/move.ts';
 import { createPicker } from '../ui/picker.ts';
 import { QUOTE_MODES } from '../view/table.ts';
@@ -66,6 +69,7 @@ import { chooseFormat } from './open.ts';
 import { closeViewer } from './open.ts';
 import { newFile } from './open.ts';
 import { showFile } from './open.ts';
+import { shownUrl } from './open.ts';
 import { viewer } from './open.ts';
 import { setBusy } from './status.ts';
 import { close3d } from './view3d.ts';
@@ -91,6 +95,12 @@ const VIEW_KEYS: Record<string, string> = {
     logTable: 'tp-preview-log-table',
     markdown: 'tp-preview-markdown',
 };
+
+// Header widths: below NARROW the file name moves to a second row (room for at least 200 px of it beside
+// the buttons: 232 px left, 256 px right); below TIGHT also the version and logo are left out (buttons only)
+const HEADER_TIGHT = 232 + 256;
+const HEADER_NARROW = HEADER_TIGHT + 200;
+const ROW2 = 36; // height the second row adds (title well and gap)
 
 const ZOOM_STEP = 0.1;
 const WHEEL_STEP = 40; // wheel distance per zoom step (mouse notch ~100, touchpad pinch: small steps)
@@ -120,7 +130,7 @@ export function createViewer(): Viewer {
     position: fixed;
     inset: 0;
     background: rgba(0,0,0,.5);
-    z-index: 2147483000; /* above SharePoint's own panels (settings, details, ...) */
+    z-index: 2147483000; /* above Sharepoint's own panels (settings, details, ...) */
   `;
 
     // Panel
@@ -162,7 +172,7 @@ export function createViewer(): Viewer {
     const saveBtn = button(SAVE_SVG, 'Save: keep the changes, ready for upload (Ctrl+S)', 154, ROW1, {
         disabled: true,
     });
-    const uploadBtn = button(UPLOAD_SVG, 'Upload the saved changes to SharePoint', 190, ROW1, { disabled: true });
+    const uploadBtn = button(UPLOAD_SVG, 'Upload the saved changes to Sharepoint', 190, ROW1, { disabled: true });
     // View switch (status bar, bottom right): Text | Preview (Table, 3D or Markdown, by file type)
     const viewBtn = (svg: string, label: string, title: string) => {
         const b = document.createElement('button');
@@ -255,13 +265,13 @@ export function createViewer(): Viewer {
       <strong>File:</strong> <span class="tp-title-name"></span><span class="tp-title-sheet" hidden></span>
     </div>
   `;
-    // Properties on/off: small (i) button in the title well, left of "File:"
-    const propsBtn = button(PROPS_SVG, 'Display file metadata and properties', 0, 0, { pressed: view.props });
-    propsBtn.style.cssText = `
+    // Small buttons in the title well, left of "File:": properties on/off (i), link (copied on click)
+    const wellBtn = (btn: HTMLButtonElement, margin: number) => {
+        btn.style.cssText = `
     flex: none;
     width: 24px;
     height: 24px;
-    margin-left: -6px;
+    margin-left: ${margin}px;
     padding: 0;
     display: flex;
     align-items: center;
@@ -270,13 +280,20 @@ export function createViewer(): Viewer {
     border-radius: 4px;
     cursor: pointer;
   `;
-    title.prepend(propsBtn);
+        return btn;
+    };
+    const propsBtn = wellBtn(
+        button(PROPS_SVG, 'Display file metadata and properties', 0, 0, { pressed: view.props }),
+        -6,
+    );
+    const linkBtn = wellBtn(button(LINK_SVG, 'Copy the link', 0, 0), -6);
+    title.prepend(propsBtn, linkBtn);
     // New file: in the title well while no file is open (also in the ⋯ menu)
     const newBtn = document.createElement('button');
     newBtn.type = 'button';
     newBtn.className = 'tp-new-file';
     newBtn.innerHTML = `${NEW_FILE_SVG}<span>New file</span>`;
-    newBtn.title = 'Create a new file in the folder open in SharePoint';
+    newBtn.title = 'Create a new file in the folder open in Sharepoint';
     newBtn.hidden = true;
     title.append(newBtn);
     // Note: tooltip on header
@@ -358,15 +375,32 @@ export function createViewer(): Viewer {
         view.metaLines = Math.max(1, Math.min(6, n));
         savePref('tp-preview-meta-lines', String(view.metaLines));
         const h = view.props ? view.metaLines * 15 : -4; // hidden: header ends under buttons
+        const top = 44 + (header.classList.contains('tp-narrow') ? ROW2 : 0); // below the title well
         metaLine.style.display = view.props ? '' : 'none';
         metaGrip.style.display = view.props ? '' : 'none';
         propsBtn.setAttribute('aria-pressed', String(view.props));
+        metaLine.style.top = `${top}px`;
         metaLine.style.height = `${h}px`;
         metaLine.style.webkitLineClamp = String(view.metaLines);
-        header.style.setProperty('--tp-lint-top', `${44 + h + 4}px`); // not on lint: its style is observed
+        header.style.setProperty('--tp-lint-top', `${top + h + 4}px`); // not on lint: its style is observed
         const lintShown = lint.style.display !== 'none' && lint.style.display !== '';
-        header.style.height = `${44 + h + 6 + (lintShown ? 18 : 0)}px`; // room for check line only when shown
+        header.style.height = `${top + h + 6 + (lintShown ? 18 : 0)}px`; // room for check line only when shown
     };
+    // Narrow header: file name on a second row (full width); very narrow: no version and logo either
+    const fitHeader = () => {
+        const w = header.clientWidth;
+        if (!w) return; // not shown yet
+        const narrow = w < HEADER_NARROW;
+        brand.style.display = w < HEADER_TIGHT ? 'none' : 'flex';
+        if (narrow === header.classList.contains('tp-narrow')) return;
+        header.classList.toggle('tp-narrow', narrow);
+        title.style.top = narrow ? '44px' : '8px';
+        title.style.left = narrow ? '12px' : '232px';
+        title.style.right = narrow ? '12px' : '256px';
+        setMetaLines(view.metaLines);
+    };
+    const headerObserver = new ResizeObserver(fitHeader);
+    headerObserver.observe(header);
     metaGrip.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         const startY = e.clientY;
@@ -525,7 +559,7 @@ export function createViewer(): Viewer {
     statusBar.append(progress, formatBar, zoomBar, views);
     box.append(header, csvBar, content, stage3d, editorWrap, loadMoreBtn, statusBar, splitter);
 
-    // Keep panel's events away from SharePoint's handlers (split mode: inside its DOM)
+    // Keep panel's events away from Sharepoint's handlers (split mode: inside its DOM)
     for (const type of ['click', 'dblclick', 'mousedown', 'pointerdown', 'keydown', 'keyup', 'contextmenu', 'wheel']) {
         box.addEventListener(type, (e) => e.stopPropagation());
     }
@@ -547,6 +581,7 @@ export function createViewer(): Viewer {
         uploadBtn,
         writeBtn,
         newBtn,
+        linkBtn,
         textBtn,
         previewBtn,
         sheetPicker,
@@ -588,13 +623,13 @@ export function createViewer(): Viewer {
         startMove(e, box, POPUP_POS_KEY);
     });
 
-    // Esc: open drop-down first, then edit (same as cancel), then viewer; settings form: its own
+    // Esc: open drop-down first, then write mode (back to reading, as the edit button), then viewer; settings form: its own
     const onEscape = (e: KeyboardEvent) => {
         if (e.key !== 'Escape' || viewer !== v || document.querySelector('.tp-settings')) return;
         if ((e.target as HTMLElement).classList?.contains('tp-name-input')) return; // name box: its own Esc
         e.stopPropagation();
         for (const p of [sheetPicker, formatPicker]) if (!p.menu.hidden) return void p.close();
-        if (v.writeMode) return void cancelEdits(v);
+        if (v.writeMode) return void leaveWrite(); // only back to reading: Esc again closes
         closeViewer();
     };
 
@@ -604,9 +639,13 @@ export function createViewer(): Viewer {
     };
     document.addEventListener('keydown', onEscape, true);
     window.addEventListener('resize', onResize);
+    // Popup resized by the user (corner bottom right): size kept for next time
+    const sizeObserver = keepSize(box, POPUP_SIZE_KEY, () => v.mode === 'popup');
     v.removeListeners = () => {
         document.removeEventListener('keydown', onEscape, true);
         window.removeEventListener('resize', onResize);
+        headerObserver.disconnect();
+        sizeObserver.disconnect();
     };
 
     backdrop.onclick = closeViewer;
@@ -684,7 +723,7 @@ export function createViewer(): Viewer {
         }
         exitWriteView(v);
     };
-    // Save stages edits; upload hands saved state to SharePoint
+    // Save stages edits; upload hands saved state to Sharepoint
     saveBtn.onclick = () => {
         const src = v.source;
         if (!v.writeMode || !v.dirty || !src) return;
@@ -748,6 +787,23 @@ export function createViewer(): Viewer {
     const applyWrap = () => {
         content.classList.toggle('tp-wrap', view.wrap);
         wrapBtn.setAttribute('aria-pressed', String(view.wrap));
+    };
+    // Link: clean URL of the file shown (a link file: where it leads), else of the folder
+    linkBtn.onmouseenter = linkBtn.onfocus = () => {
+        linkBtn.title = `Copy the link:\n${shownUrl(v)}`;
+    };
+    linkBtn.onclick = async () => {
+        const url = shownUrl(v);
+        try {
+            await navigator.clipboard.writeText(url);
+            linkBtn.innerHTML = CHECK_SVG;
+            linkBtn.title = `Copied:\n${url}`;
+        } catch (_err) {
+            linkBtn.title = `Copy failed:\n${url}`;
+        }
+        setTimeout(() => {
+            linkBtn.innerHTML = LINK_SVG;
+        }, 2000);
     };
     propsBtn.onclick = () => {
         view.props = !view.props;

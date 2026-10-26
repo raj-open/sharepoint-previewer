@@ -15,7 +15,7 @@ import type { ByteReader } from '../_core/types.ts';
 // METHODS
 // ===========================================================================
 
-// Parts of file by range; whole file at once if SharePoint ignores ranges. Same origin only.
+// Parts of file by range; whole file at once if Sharepoint ignores ranges. Same origin only.
 export async function openRanges(
     url: string,
     getSignal: () => AbortSignal,
@@ -23,7 +23,7 @@ export async function openRanges(
     onProgress: (loaded: number, total: number) => void,
 ): Promise<RangeFile | { error: string }> {
     if (!sameOrigin(url)) return { error: OUTSIDE };
-    let whole: Uint8Array | null = null; // whole file, if SharePoint ignores partial requests
+    let whole: Uint8Array | null = null; // whole file, if Sharepoint ignores partial requests
     let size = 0;
     let fetched = 0;
     const request = (range: string) =>

@@ -1,4 +1,4 @@
-// Layout (split modes measure SharePoint's page: behavioural tests); without viewer nothing moves
+// Layout (split modes measure Sharepoint's page: behavioural tests); without viewer nothing moves
 import assert from 'node:assert/strict';
 import { describe } from 'node:test';
 import { it } from 'node:test';

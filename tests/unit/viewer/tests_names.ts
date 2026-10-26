@@ -14,7 +14,7 @@ setLocation('https://acme.sharepoint.com/sites/Test/Shared%20Documents/Forms/All
 const FILE = { name: 'notes.txt', url: '/sites/Test/Shared Documents/notes.txt' };
 
 describe('viewer/names', () => {
-    it('names SharePoint refuses', () => {
+    it('names Sharepoint refuses', () => {
         assert.equal(nameProblem('copy of notes.txt'), '');
         assert.equal(nameProblem('#1 50%.txt'), '');
         for (const bad of [

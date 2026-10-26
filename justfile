@@ -21,16 +21,17 @@ set windows-shell := ["bash", "-euo", "pipefail", "-c"]
 # --------------------------------
 
 NAME := env("NAME", "sharepoint-previewer")
-# local port of the explorative tests (mock SharePoint)
+# local port of the explorative tests (mock Sharepoint)
 HTTP_PORT := env("HTTP_PORT", "8080")
 # userscript: TypeScript modules under /src (entry, header);
-# bundled by build-src into /dist/userscript.js (kept in the repo, version and 3D hashes as dummies)
+# bundled by build-src into /dist/userscript.js + minified (local only, version and 3D hashes as dummies)
 PATH_MODULES := "src"
 PATH_ENTRY := PATH_MODULES / "main.ts"
 PATH_HEADER := PATH_MODULES / "_core/header.ts"
 PATH_SRC_3D := "src/@apis/ifc-lite/main.ts"
 PATH_DIST := "dist"
 PATH_BUNDLE := PATH_DIST / "userscript.js"
+PATH_BUNDLE_MIN := PATH_DIST / "userscript.min.js"
 PATH_VERSION := "dist/VERSION"
 VERSION := trim(read(PATH_VERSION))
 # release tag: short pre-release forms in /dist/VERSION (1.1.0a1, 1.1.0b2, 1.1.0rc1), long in tags (v1.1.0-alpha.1, ...)
@@ -74,11 +75,18 @@ setup:
 [group("build")]
 build: build-deps build-dist
 
-# installs dependencies per lock; updates lock only if dependencies in manifest changed (version: cf. build-lock)
+# installs dependencies per lock; updates lock only if dependencies in manifest changed (version: cf. build-lock);
+# browser for the behavioural tests: Playwright's Chromium, unless BROWSER_CHANNEL names one installed (e.g. chrome)
 [group("build")]
 build-deps:
-    @npm ci --no-audit --no-fund || npm install --no-audit --no-fund
-    @npx playwright install chromium
+    #!/usr/bin/env bash
+    set -euo pipefail
+    npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+    if [[ -z "${BROWSER_CHANNEL:-}" ]]; then
+        npx playwright install chromium
+    else
+        echo "browser: ${BROWSER_CHANNEL} (installed; none downloaded)"
+    fi
 
 # writes /dist/VERSION (as semver, cf. TAG) into manifest + lock, then updates lock per manifest; installs nothing
 [group("build")]
@@ -86,7 +94,7 @@ build-lock:
     @npm version "{{trim_start_match(TAG, "v")}}" --no-git-tag-version --allow-same-version > /dev/null
     @npm install --package-lock-only --no-audit --no-fund
 
-# bundles the modules into the userscript (/dist/userscript.js, readable; types removed; version and 3D hashes as dummies)
+# bundles the modules into the userscript (/dist/userscript.js, readable; types removed) + minified (/dist/userscript.min.js); local only, version and 3D hashes as dummies
 [group("build")]
 build-src:
     #!/usr/bin/env bash
@@ -94,6 +102,8 @@ build-src:
     node --disable-warning=ExperimentalWarning scripts/bundle.ts "{{PATH_ENTRY}}" "{{PATH_HEADER}}" "{{PATH_BUNDLE}}"
     node --check "{{PATH_BUNDLE}}"
     just _size "{{PATH_BUNDLE}}" "{{MAX_KB_SRC}}"
+    just _minify "{{PATH_BUNDLE}}" "{{PATH_BUNDLE_MIN}}"
+    just _size "{{PATH_BUNDLE_MIN}}" "{{MAX_KB_MIN}}"
 
 # writes release to /dist/v<VERSION>: userscript with @version (not the commit tagged with the release tag: <VERSION>-beta.<short commit>) and 3D hashes stamped, minified, 3D files, notes
 [group("build")]
@@ -184,12 +194,12 @@ tests-behave:
 tests-integration:
     @just _tests integration
 
-# explorative tests: mock SharePoint + userscript (/dist/userscript.js) on http://localhost:${HTTP_PORT}; library: Mock Data + Data, or folder
+# explorative tests: mock Sharepoint + userscript (/dist/userscript.js) on http://localhost:${HTTP_PORT}; libraries: Mock Data (tests), Local Data (/data, or folder)
 [group("tests")]
 tests-explore folder="":
     @node tests/explore/server.ts "{{HTTP_PORT}}" "{{folder}}"
 
-# screenshots for /demos (/demos/img/<case>.png) on the mock SharePoint; no case: all (cf. /scripts/demos.ts)
+# screenshots for /demos (/demos/img/<case>.png) on the mock Sharepoint; no case: all (cf. /scripts/demos.ts)
 [group("tests")]
 demos *cases:
     @node scripts/demos.ts "$@"
@@ -244,5 +254,6 @@ type-check:
 clean:
     @rm -rf node_modules
     @rm -rf "{{PATH_DIST}}"/v*/
+    @rm -f "{{PATH_BUNDLE}}" "{{PATH_BUNDLE_MIN}}"
     @rm -rf tests/mocks/mock-sharepoint/__uploads__
     @find . -name '.DS_Store' -not -path './__human__/*' -delete 2> /dev/null || true

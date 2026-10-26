@@ -41,7 +41,7 @@ type SourceBase = {
     // caching: relay of progress, "cache all" running
     relay?: { fn: ((loaded: number, total: number) => void) | null; controller: AbortController | null };
     fullJob?: Promise<void> | null;
-    // editing: new file (not on SharePoint until uploaded), text as read, checks of the text shown
+    // editing: new file (not on Sharepoint until uploaded), text as read, checks of the text shown
     fresh?: boolean;
     originalText?: string | null;
     lintResult?: LintResult | null;
@@ -87,6 +87,7 @@ export type Viewer = {
     uploadBtn: HTMLButtonElement;
     writeBtn: HTMLButtonElement;
     newBtn: HTMLButtonElement;
+    linkBtn: HTMLButtonElement;
     textBtn: HTMLButtonElement;
     previewBtn: HTMLButtonElement;
     sheetPicker: Picker;
@@ -136,6 +137,8 @@ export type Viewer = {
     text: string;
     loadToken: number;
     file?: { name: string; url: string } | null;
+    /** file shown (a link file: where it leads; path or URL), or folder of the empty viewer (null: open in Sharepoint) */
+    place?: string | null;
     fileName?: string;
     linked?: boolean;
     lang?: string | null;

@@ -25,6 +25,7 @@ import { formatName } from '../readers/formats.ts';
 import { formatOf } from '../readers/formats.ts';
 import { langOfFormat } from '../readers/formats.ts';
 import { readerOf } from '../readers/formats.ts';
+import { cleanUrl } from '../readers/links.ts';
 import { linkTarget } from '../readers/links.ts';
 import { openParquetSource } from '../readers/parquet/source.ts';
 import { encodePath } from '../readers/request.ts';
@@ -70,6 +71,7 @@ import { setMode } from './layout.ts';
 import { renderLint } from './messages.ts';
 import { askName } from './names.ts';
 import { showName } from './names.ts';
+import { target } from './names.ts';
 import { showLintWait } from './messages.ts';
 import { showPlain } from './messages.ts';
 import { createViewer } from './panel.ts';
@@ -161,7 +163,7 @@ async function openFile(
             const note = lookupNotes.get(hops[0]);
             const type = (fileName.match(/\.[^.]+$/)?.[0] ?? 'this type').toLowerCase();
             const hint = note
-                ? `Files of type ${type} cannot be viewed from search results (SharePoint gives no path for them).\n` +
+                ? `Files of type ${type} cannot be viewed from search results (Sharepoint gives no path for them).\n` +
                   "Open the file's folder to view it."
                 : '';
             const message = [hint, `${result.error}\n${hops.join('\n→ ')}`, note].filter(Boolean).join('\n\n');
@@ -170,7 +172,7 @@ async function openFile(
         if ('binary' in result) {
             return {
                 src: null,
-                message: 'Not a plain text file: use the standard SharePoint preview, or download the file.',
+                message: 'Not a plain text file: use the standard Sharepoint preview, or download the file.',
                 fileName,
                 hops,
             };
@@ -216,23 +218,41 @@ export function sameFile(a: string, b: string): boolean {
     return norm(a) === norm(b);
 }
 
-// Header eye: viewer without file (look around, settings, ...). Same toggle as row eyes:
-// again on the empty viewer = close; with a file open = switch to empty.
-export function openEmptyViewer(): void {
-    if (viewer && !viewer.file) return void closeViewer();
+// Header eye (folder open in Sharepoint) or folder eye: viewer without file (look around, settings, link, ...).
+// Same toggle as file eyes: again on the same folder = close; else switch to it.
+/** @param folder server-relative; null: the folder open in Sharepoint */
+export function openFolder(folder: string | null): void {
+    if (viewer && !viewer.file && (viewer.place ?? null) === folder) return void closeViewer();
     if (!viewer) {
         viewer = createViewer();
         setMode(view.mode);
     }
-    showEmpty(viewer);
+    if (showEmpty(viewer)) viewer.place = folder;
+    refreshEyes();
 }
 
-// New file in the folder open in SharePoint (plain text): name asked (checked), then shown as any file
+/** @returns folder shown in the empty viewer (null: none, or no viewer / a file shown) */
+export function shownFolder(): string | null {
+    if (!viewer || viewer.file) return null;
+    return viewer.place ?? currentFolder();
+}
+
+/**
+ * @returns clean URL of what the viewer shows: the file (a link file: where it leads; renamed: the new name),
+ * else the folder
+ */
+export function shownUrl(v: Viewer): string {
+    if (v.file && v.newName) return cleanUrl(target(v).url); // links are never renamed
+    const place = v.file ? (v.place ?? v.file.url) : (v.place ?? currentFolder());
+    return cleanUrl(place ?? location.pathname);
+}
+
+// New file in the folder open in Sharepoint (plain text): name asked (checked), then shown as any file
 // (colours, checks, views by its format) and edited; the empty text counts as saved (may be uploaded as it is)
 export async function newFile(): Promise<void> {
     const folder = currentFolder();
     if (!inLibrary() || !folder) {
-        alert('New files go into the folder open in SharePoint: please open a folder of a library first.');
+        alert('New files go into the folder open in Sharepoint: please open a folder of a library first.');
         return;
     }
     if (viewer && !confirmDiscard(viewer)) return; // pending in the open file: stay
@@ -260,6 +280,7 @@ export function showEmpty(v: Viewer): boolean {
     setBusy(v, false);
     v.loadToken++; // ignore anything still on its way
     v.file = null;
+    v.place = null; // the folder open in Sharepoint
     v.source = null;
     v.rerender = null;
     v.relint = null;
@@ -319,6 +340,7 @@ export async function showFile(name: string, url: string, reload: boolean, keep 
     const token = ++v.loadToken;
     const current = () => viewer === v && token === v.loadToken; // not closed / replaced
     v.file = { name, url };
+    v.place = url; // where links lead: below
     refreshEyes(); // highlight its row
 
     if (clearedUrls.delete(url)) reload = true; // cleared before: skip stored copy once
@@ -474,6 +496,7 @@ export async function showFile(name: string, url: string, reload: boolean, keep 
         }
     if (current()) v.opening = false;
     if (current()) setBusy(v, false);
+    if (current()) v.place = hops[hops.length - 1]; // the file a link leads to
     if (hops.length > 1) {
         v.titleName.textContent = `${name} → ${fileName}`;
         v.titleName.title = hops.join('\n→ ');

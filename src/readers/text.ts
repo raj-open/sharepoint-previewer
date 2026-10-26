@@ -58,7 +58,7 @@ export async function openSource(
     if (response.status === 416) response = await fetch(url, { credentials: 'same-origin', signal: getSignal() }); // empty file
     if (!response.ok) return { error: `Error ${response.status} on caching` };
 
-    // File name from SharePoint (share links have none in URL)
+    // File name from Sharepoint (share links have none in URL)
     const cd = response.headers.get('content-disposition') || '';
     const cdName = (cd.match(/filename\*=UTF-8''([^;]+)/i) || [])[1];
     const name = cdName ? decodeURIComponent(cdName) : (cd.match(/filename="?([^";]+)"?/i) || [])[1];
@@ -83,7 +83,7 @@ export async function openSource(
         loadAll,
     };
     let decoder: TextDecoder | null = null; // chosen from first bytes
-    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null; // open transfer (when SharePoint ignores ranges)
+    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null; // open transfer (when Sharepoint ignores ranges)
 
     // Add bytes to text; false = binary data (only first bytes decide)
     const feed = (bytes: Uint8Array) => {
@@ -163,7 +163,7 @@ export async function openSource(
             }
         }
         if (!state) {
-            // Next range (if SharePoint suddenly sends whole file, skip what we have)
+            // Next range (if Sharepoint suddenly sends whole file, skip what we have)
             const res = await request(src.loaded);
             if (res.status === 416) {
                 finish(); // nothing left (size was unknown)
@@ -183,7 +183,7 @@ export async function openSource(
         while (!src.done) {
             const before = src.loaded;
             await more();
-            if (!src.done && src.loaded === before) throw new Error('no progress from SharePoint');
+            if (!src.done && src.loaded === before) throw new Error('no progress from Sharepoint');
         }
     }
     return src;

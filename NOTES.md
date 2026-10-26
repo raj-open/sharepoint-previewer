@@ -1,30 +1,26 @@
-# Sharepoint Previewer - Technical Notes #
+# Sharepoint Previewer - Notes for review #
 
 A userscript (Tampermonkey)
-that adds a preview column to Sharepoint Online document libraries.
-It shows text-like files directly in the browser,
+that adds a preview column to Sharepoint Online document libraries
+and shows files in the browser,
 including files Sharepoint itself cannot preview.
-It displays CSV, Parquet and spreadsheets (Excel, OpenDocument) as sortable tables,
-IFC building models in 3D
-and Markdown as formatted text,
-and offers a simple editor for plain-text files.
 
-This document is written for IT staff
-who need to decide whether the script can be used permanently within the company's Sharepoint.
-It describes what the script does,
-what it does **not** do,
-which network requests it makes
-and where it stores data.
+This document is for reviewing the script before it is installed or deployed:
+what it does and does **not** do,
+which network requests it makes,
+where it stores data,
+and how it can be deployed.
+Development: [TECHNICAL.md](TECHNICAL.md).
 
 ---
 
-## 1. Summary for decision makers ##
+## 1. Summary ##
 
 | Topic | Behaviour |
 | :---- | :-------- |
-| Form | One JavaScript file (userscript, ~280 KB; minified ~200 KB), runs in the user's browser via Tampermonkey. Built from TypeScript modules in the repository (types removed by the build) |
+| Form | One JavaScript file (userscript, ~470 KB; minified ~260 KB), runs in the user's browser via Tampermonkey. Built from TypeScript modules in the repository (types removed by the build) |
 | Scope | Only on `https://*.sharepoint.com/*/*/*`, and only inside a library's file list |
-| APIs | **No** Sharepoint REST / Graph API calls. It reads the page's HTML and fetches the file itself, like opening its URL |
+| APIs | No Graph API. It reads the page's HTML and fetches the file itself, like opening its URL. Only for files found by the library search (their rows carry no path): two read-only Sharepoint REST queries by file name (library list, else search index) |
 | Third parties | **None.** No CDN, no analytics, no external servers. All requests go to the same Sharepoint origin |
 | External libraries | None in the script itself. Optional 3D view: two files (ifc-lite, MPL-2.0) that **you** host in your own Sharepoint |
 | Permissions | Those of the signed-in user, through the browser's normal session. No extra rights, no tokens |
@@ -35,85 +31,97 @@ and where it stores data.
 
 ---
 
-## 2. What the user sees ##
+## 2. What it does ##
 
-- **Eye column** at the far left of every file row in a document library:
-  - closed eye = not cached
-  - half-open eye = partly cached
-  - open eye = fully cached
-  - the eye in the column header opens the viewer without a file,
-    e.g. to change settings
-- **Viewer** in three layouts:
-  - below the list
-  - right of the list
-  - as a movable pop-up
-- **Header:**
-  - layout, edit, cache whole file, stop / cancel, save, upload
-  - file name
-  - ⋯ menu: new file, full settings, dark mode, syntax colours, line wrap, properties, reload, clear cache
-- **Properties line:**
-  modified date (from the file's own HTTP response),
-  size, format, encoding, indentation,
-  CSV delimiter and table shape,
-  Parquet details,
-  number of sheets and tables, shape of the sheet or table shown.
-- **Status bar:**
-  - left: cache progress
-    (blue while caching, neutral when idle or complete),
-    with a "click to fully cache" hint
-  - right: format of the file (recognised from its name);
-    its menu lists text formats and file formats (Parquet, spreadsheet, IFCZIP) side by side,
-    any of them can be chosen (also a wrong one: the file is then read as that format, or a message says why not;
-    a chosen format is marked and kept while the page is open);
-    text size **− 100 % +**
-    (also Ctrl / ⌘ with + − 0, or Ctrl / ⌘ + wheel, in the content area);
-    view switch **Text | Preview**,
-    the preview by file type: **Table** (CSV, Parquet, spreadsheets, logs), **3D** (IFC), **Markdown**;
-    for spreadsheets a picker right of **Table**:
-    its menu shows the sheets or the tables, switched with ‹ › or ← →
-    (● cached, ○ not cached yet; hidden sheets marked);
-    picking a table shows tables, picking a sheet shows sheets
-    (start value: setting `spreadsheet-view`, then the last choice per file);
-    spreadsheets larger than `spreadsheet-autoload-bytes` show nothing until a sheet or table is chosen,
-    the sheet shown is also named next to the file name
-- **Text view:** Ctrl / ⌘ + A (once clicked into it) selects the whole text, copy gives the whole cached text
-- **Markdown view:** headings, lists, task lists, quotes, code (with colours), tables, links, images;
-  raw HTML is shown as text;
-  links open in a new tab (scripts not followed);
-  images are shown only from the same Sharepoint, others only as links (nothing fetched from elsewhere)
-
-The script never changes Sharepoint's own UI,
-apart from adding the eye column and making room for the viewer.
-It ignores lists inside dialogues and pop-ups (e.g. "Copy to"),
-and it does not depend on the UI language.
-
----
-
-## 3. Architecture ##
-
-```text
-Sharepoint page (DOM)
- └─ userscript (Tampermonkey, @grant GM_getValue/GM_setValue/GM_registerMenuCommand)
-     ├─ MutationObserver: finds file rows → adds eye cells (HTML only)
-     ├─ Viewer (own DOM elements, own CSS, prefix "tp-")
-     │   ├─ text view: syntax colours, whitespace markers, virtualised rendering
-     │   ├─ table view: CSV / Parquet / spreadsheets / logs, sort, filter, column widths, CSV editing
-     │   ├─ Markdown view: own small renderer (no library), raw HTML escaped
-     │   └─ 3D view: ifc-lite (optional, loaded from your Sharepoint on first use)
-     ├─ Sources: same-origin fetch with HTTP Range (chunks), in-memory cache (LRU)
-     ├─ Decoders built in: Parquet (Thrift, RLE/bit-packing, dictionary, v1/v2 pages),
-     │   Snappy, LZ4_RAW, ZSTD (RFC 8878); GZIP / ZIP via the browser's DecompressionStream;
-     │   spreadsheets: OOXML (XML scanner, no DOM), XLSB (BIFF12), XLS (BIFF8/BIFF5 in a
-     │   compound file), OpenDocument
-     └─ Checks (linters) in a Web Worker created from the script's own code (blob: URL)
-```
-
+- **Eye column** at the far left of every file and folder row in a document library:
+  one click opens a viewer next to the list (below, right of it, or as a pop-up).
+- **Viewer:** shows text-like files, CSV, Parquet, spreadsheets, Markdown and IFC models
+  in the browser, read from the file itself (formats: [TECHNICAL.md](TECHNICAL.md#supported-formats)).
+- **Editing:** plain-text files can be edited;
+  an upload goes through Sharepoint's own upload, as the signed-in user (§3).
+- **Sharepoint's own UI is not changed,**
+  apart from the eye column and the room for the viewer.
+  Lists inside dialogues and pop-ups (e.g. "Copy to") are left alone,
+  and nothing depends on the UI language.
 - **File identification:**
   - the file name is read from the row's HTML
   - the folder comes from the browser URL (`id=` parameter or library path)
-  - in search results, the path is taken from the row's own link
+  - in search results, the path is taken from the row's own link,
+    else looked up by name below the open folder (§4)
 - **Nothing else from the list is read.**
   No column values, no hidden data.
+
+What it looks like: [demos](demos/README.md).
+
+---
+
+## 3. Communication ##
+
+Who talks to whom, from page load to upload
+(requests: §4; storage: §5).
+All requests go to the Sharepoint the page comes from, nowhere else.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant TM as Tampermonkey
+    participant US as Userscript
+    participant Page as Sharepoint page<br>(DOM, own code)
+    participant LS as localStorage
+    participant W as Check worker
+    participant IFC as ifc-lite<br>(3D, WebAssembly)
+    participant SP as Sharepoint server<br>(same origin)
+
+    Note over TM,Page: Page load
+    TM->>US: injects the script (document-idle)
+    US->>TM: GM_getValue (settings)
+    US->>TM: GM_registerMenuCommand (Settings …)
+    US->>LS: reads view choices (layout, theme, …)
+    US->>Page: MutationObserver: an eye per file and folder row
+
+    Note over User,SP: Preview
+    User->>Page: clicks an eye
+    Page->>US: click (capture phase, Sharepoint does not act on it)
+    US->>Page: file name from the row, folder from the URL
+    opt row without path (search results)
+        US->>SP: GET _api/web/GetList(…)/items (by name)
+        SP-->>US: path (if refused: GET _api/search/query)
+    end
+    US->>SP: GET file, Range: bytes=…
+    SP-->>US: first chunk
+    US->>Page: viewer (own elements, prefix tp-)
+    US->>W: text of a structured file (JSON, XML, YAML, IFC, …)
+    W-->>US: problems by line
+    User->>US: Cache next / Cache all
+    US->>SP: GET file, further ranges
+    SP-->>US: chunks (kept in memory only)
+
+    Note over User,SP: 3D view (first use per page)
+    User->>US: Preview of an IFC file
+    US->>SP: GET 3D folder/ifc-lite-3d.js and ifc-lite_bg.wasm
+    SP-->>US: both files
+    US->>US: SHA-256 checked against the hashes in the release userscript
+    US->>IFC: start (library and engine binary)
+    IFC-->>US: model drawn in the viewer's canvas (WebGPU)
+
+    Note over User,SP: Edit and upload
+    User->>US: Edit, type, Save (kept in memory)
+    User->>US: Upload
+    US->>Page: file dropped on the list (else Sharepoint's own upload input)
+    Page->>SP: upload by Sharepoint's own code, as the signed-in user
+    loop until changed (up to 20 s)
+        US->>SP: HEAD file (ETag, Last-Modified, size)
+    end
+    SP-->>US: changed: upload confirmed
+
+    Note over User,LS: Settings and view choices
+    User->>TM: menu: Settings … (or viewer: ⋯ → Full settings …)
+    TM->>US: opens the settings form
+    User->>US: form or JSON, Save
+    US->>TM: GM_setValue (applied on the next page load)
+    User->>US: view choices (layout, theme, colours, …)
+    US->>LS: kept (keys tp-preview-*)
+```
 
 ---
 
@@ -146,7 +154,7 @@ The logo setting only accepts `data:` URIs.
 | What | Where | Lifetime |
 | :--- | :---- | :------- |
 | File contents (cached chunks) | JavaScript memory of the tab | Until reload, "Clear cache", or eviction at the cache limit |
-| Settings (16 values, see §9) | Tampermonkey storage for this script | Until changed / reset / script removed |
+| Settings (cf. [TECHNICAL.md, Settings](TECHNICAL.md#settings)) | Tampermonkey storage for this script | Until changed / reset / script removed |
 | View choices (layout, split size, theme, colours, wrap, text size, table / Markdown / 3D on/off, properties lines, CSV format, sheets or tables per spreadsheet path) and window positions | `localStorage` of the Sharepoint origin, keys `tp-preview-*` | Until the user clears site data |
 | 3D camera per file | Memory | Until reload |
 
@@ -162,171 +170,7 @@ The logo setting only accepts `data:` URIs.
 
 ---
 
-## 6. Supported formats ##
-
-| Format | Colours | Check (lint) | Table | 3D | Edit |
-| :----- | :-----: | :----------: | :---: | :-: | :--: |
-| JSON, XML (incl. `.addin`, `.config`, `.csproj`, …) | ✓ | ✓ | | | ✓ |
-| YAML, TOML, Power Query M, JavaScript, Python, SQL, Markdown, reStructuredText, Excel formulas (`.xlf`) | ✓ | YAML, M | | | ✓ |
-| Log files (`.log`) | ✓ | | ✓ (experimental, read only; text first) | | ✓ |
-| CSV / TSV (delimiter detected) | ✓ (per column) | | ✓ (sort, filter, edit cells, rows, columns) | | ✓ |
-| Parquet (Snappy, GZIP, ZSTD, LZ4_RAW, uncompressed) | ✓ | | ✓ (read only) | | |
-| Spreadsheets: Excel `.xlsx` `.xlsm` `.xltx` `.xltm`, `.xlsb`, `.xls` `.xlt` (97–2003, 5.0/95), OpenDocument `.ods` `.ots` | ✓ | | ✓ (read only, per sheet) | | |
-| IFC / IFCZIP | ✓ | ✓ | | ✓ (up to 8 MB, setting) | IFC only |
-| Any other text file | – | | | | ✓ |
-
-Spreadsheets show the last saved value of each cell (formulas are not recalculated):
-numbers as Excel's "General" shows them (15 significant digits),
-percentages with `%`,
-dates and times as ISO 8601 (`2026-10-24`, `14:30:00`, `2026-10-24 14:30:00`),
-both date systems (1900, 1904).
-Number formats beyond that (decimals, currencies, thousands separators) are not applied.
-Password-protected workbooks are not opened.
-
-Tables (Excel's "Format as Table" in `.xlsx` and `.xlsb`; named database ranges in `.ods`)
-can be shown instead of whole sheets:
-the table's rows below its header row (totals rows left out), its column names as header.
-`.xls` files show sheets only.
-The text view of a sheet shows the column letters as first line and the row numbers as first column,
-as Excel does (`,A,B,C`, then `1,…`).
-
-Log files (experimental) open as text; their table view is chosen separately (`tp-preview-log-table`).
-It guesses the fields from the start of the lines
-(time, level, `[…]` context, logger or process name before a separator,
-a source word such as a host before one of these; e.g. Python `logging`, log4j, syslog):
-one row per entry with its line number, the fields found and the message;
-lines that do not start an entry (stack traces, printed tables, other output) are added to the message as one block
-(⏎ in the cell).
-Rows with such blocks, JSON or Python-like objects and lists in their message expand (▸ in the row number):
-the message split into text and objects / lists, these indented and coloured (numbers as written);
-▸ above the row numbers expands (▾ collapses) all rows shown, as filtered.
-Without recognisable fields the table view is not offered.
-
-Other binary files (PDF, Word, PowerPoint, images, archives, …)
-are detected from their first bytes and not shown.
-
----
-
-## 7. Caching logic ##
-
-- **Opening a file** fetches the first chunk (default 512 KB).
-  "Cache next" fetches the next chunk,
-  and "Cache all" fetches the rest.
-- **Spreadsheets are cached sheet by sheet:**
-  opening one fetches the workbook's directory, shared strings and styles
-  and the sheet that was active when it was saved.
-  Other sheets are fetched when chosen in the drop-down,
-  or with "Cache next sheet" / "Cache all".
-  OpenDocument files hold all sheets in one part, so they are cached whole.
-  The eye is fully open once every sheet is cached.
-- **Big files:**
-  - Big Parquet and IFCZIP files (larger than one chunk)
-    are **not** fetched automatically.
-    The viewer asks the user to fully cache them.
-  - "Cache all" asks for confirmation above 16 MB (setting).
-- **Background caching:**
-  a running full cache,
-  or the first fetch of a Parquet / IFCZIP file,
-  continues in the background when the user switches to another file.
-  Coming back resumes the display;
-  nothing is fetched twice.
-  The stop button cancels it.
-- **Clearing:**
-  - "Clear this file" / "Clear all files" remove contents from memory.
-  - The browser's own HTTP cache is bypassed (`cache: 'reload'`)
-    on the next fetch of a cleared file.
-- **Progress bar:**
-  blue only while caching.
-  "Fully cached" only when every byte is present
-  (percentages are rounded down).
-
----
-
-## 8. Editing and upload ##
-
-- **Write mode** is available for plain-text files.
-  - The whole file is cached first;
-    above 16 MB the user is asked.
-  - CSV can be edited in the table:
-    cells, rows and columns can be inserted, moved and deleted,
-    and delimiter and quote style can be changed.
-- **Another name** (click the file name, or F2):
-  - Text files: in write mode; the name is saved with the text.
-    The upload then creates a new file (or replaces the one of that name, after asking again).
-  - Read-only files (spreadsheets, Parquet, other binary files): any time;
-    the file is uploaded unchanged as a copy under the new name (after asking).
-  - Either way the name is checked against Sharepoint's rules
-    (if a file of that name exists, the user is asked),
-    the original file stays unchanged,
-    and the viewer opens the new file.
-- **New file:**
-  button in the title of the empty viewer (eye in the column header), or ⋯ menu.
-  - Plain text only: names of spreadsheets, Parquet and other binary types are refused;
-    the name is checked as above
-    (a new file goes into the folder open in Sharepoint).
-  - It is shown as any file of its format (by extension, or chosen in the format picker):
-    colours, checks, Text / Preview.
-  - The empty text counts as saved: it may be uploaded as it is.
-  - Cancel (or Esc in write mode) goes back to the empty viewer.
-- **Save** keeps the edits in the browser (staged).
-  **Upload** is a separate step.
-- **Upload uses no API.**
-  The script hands the file to Sharepoint the way a user would:
-  1. a simulated drop onto the file list, or
-  2. Sharepoint's own file-upload input.
-
-  Sharepoint then performs the upload as the signed-in user,
-  including its usual "replace?" prompt.
-  A `HEAD` request then confirms the change
-  (the status bar shows the wait: up to 20 s per way).
-- **If Sharepoint does not accept it,**
-  the user is offered a local save of the edited file to upload by hand.
-- **Cancel** (button or Esc) ends write mode
-  and drops all changes (unsaved and saved, not yet uploaded),
-  after asking if there are any.
-- **Unsaved or not-yet-uploaded changes** trigger warnings:
-  when cancelling,
-  switching files,
-  closing the viewer
-  or leaving the page.
-
----
-
-## 9. Settings ##
-
-They are opened via the Tampermonkey menu → "Settings …",
-or the viewer's ⋯ → "Full settings …".
-There is a form view and a JSON view (with validation),
-plus "Reset to defaults".
-
-| Key | Default | Meaning |
-| :-- | :------ | :------ |
-| `layout` | `horizontal` | Start layout: `horizontal`, `vertical`, `popup` |
-| `viewer-share` | `0.33` | Share of the space for the viewer (0.2 – 0.8) |
-| `theme` | `light` | `light` / `dark` |
-| `show-whitespace` | `true` | Markers for spaces and tabs |
-| `wrap-lines` | `false` | Wrap long lines |
-| `colours-text` / `colours-table` / `colours-log` | `true` / `false` / `true` | Syntax colours per view (`colours-log`: table view of logs) |
-| `colours-sheet` | `false` | Column colours in the table view of spreadsheets (rows are always striped) |
-| `spreadsheet-view` | `tables` | Spreadsheets show `sheets` or `tables` (sheets if a file has none); the last choice is kept per file, a new value here resets those |
-| `spreadsheet-autoload-bytes` | 512 KB | Larger spreadsheets cache no sheet until a sheet or table is chosen |
-| `cache-chunk-bytes` | 512 KB | Chunk size; also the threshold for asking before big Parquet / IFCZIP |
-| `memory-cache-bytes` | 256 MB | Cache limit for all files together |
-| `cache-all-confirm-bytes` | 16 MB | "Cache all" asks above this size |
-| `parquet-rows` | `100` | Table rows shown per step |
-| `max-line-chars` | `5000` | Longer lines are cut for display |
-| `follow-links` | `true` | Follow `.url` link files (same origin only) |
-| `viewer-3d-folder` | *(empty)* | Folder with the 3D files: relative to the site, or from the top with a leading `/` |
-| `viewer-3d-max-bytes` | 8 MB | 3D view only up to this IFC size |
-| `logo` | *(empty)* | `data:image/…` URI shown in the header |
-
-Settings that are start values (layout, size, theme, colours, wrap)
-are then overridden by the user's last choice in the viewer.
-Changing them in the form resets that remembered choice.
-
----
-
-## 10. Security assessment ##
+## 6. Security assessment ##
 
 ### Risk reduction ###
 
@@ -371,7 +215,7 @@ Changing them in the form resets that remembered choice.
 
 ---
 
-## 11. Deployment options ##
+## 7. Deployment options ##
 
 1. **Per user:**
    install Tampermonkey (Chrome / Edge),
@@ -401,14 +245,14 @@ Changing them in the form resets that remembered choice.
      so the script and the 3D files are always deployed together.
 
 **Long-term alternative:**
-if a permanent, company-wide solution is preferred,
+if a permanent solution without a userscript manager is preferred,
 the same logic could be ported to an SPFx extension
 (list view command set / field customiser).
 That is outside the scope of this script.
 
 ---
 
-## 12. Limitations and status ##
+## 8. Limitations and status ##
 
 - **Platform:**
   Sharepoint Online (modern library view); Chrome and Edge.
@@ -435,7 +279,7 @@ That is outside the scope of this script.
 
 ---
 
-## 13. Credits and licences ##
+## 9. Credits and licences ##
 
 - **The script:**
   written for this purpose and contains no third-party code;

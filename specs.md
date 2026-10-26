@@ -22,10 +22,10 @@
   the userscript stays plain JavaScript, laid out as the modules.
 - Tests and scripts: TypeScript as well, run by Node itself (≥ 22.18);
   `/tests/explore/tampermonkey.js` stays JavaScript (runs in the browser).
-- Userscript: `/dist/userscript.js` (bundle), written by `just build-src`
-  and committed (to follow how the whole script changes between versions); never edited by hand.
-  Its `@version` and 3D hashes are dummies (`0.0.0`, `<sha256>`);
-  only the release files in `/dist/v<VERSION>` carry real values (minified there, not in the repo).
+- Userscript: `/dist/userscript.js` (bundle) and `/dist/userscript.min.js` (minified),
+  written by `just build-src`; local only (not synchronised), never edited by hand.
+  Their `@version` and 3D hashes are dummies (`0.0.0`, `<sha256>`);
+  only the release files in `/dist/v<VERSION>` carry real values.
   Identifier names are kept (the check worker is built from the script's own function sources).
 - Modules: one concern each; a module only writes its own top-level variables
   (shared, changeable state lives in objects, e.g. `view` in `prefs.ts`).
@@ -56,15 +56,20 @@
 
 - `just qa` = lint checks + all tests (unit, behave, integration).
 - `just qa` must pass before merging to staging, before versioning up and before merging to main.
-- Behavioural tests: `/tests/behave`, Playwright (Chromium) on a mock SharePoint (`/tests/mocks/mock-sharepoint`);
-  browser installed by `just build-deps`.
-- Explorative tests: `just tests-explore [folder]` serves the mock SharePoint on `http://localhost:<HTTP_PORT>` (loopback only),
+- Behavioural tests: `/tests/behave`, Playwright (Chromium) on a mock Sharepoint (`/tests/mocks/mock-sharepoint`);
+  browser: Playwright's Chromium (downloaded by `just build-deps`),
+  or one installed already, named in `BROWSER_CHANNEL` (e.g. `chrome`; the workflows use the runner image's Google Chrome: nothing downloaded).
+- Explorative tests: `just tests-explore [folder]` serves the mock Sharepoint on `http://localhost:<HTTP_PORT>` (loopback only),
   the userscript injected per page load with a Tampermonkey stand-in (`/tests/explore`);
-  the library shows folders `Mock Data` (`/tests/mocks/mock-sharepoint/library`) and `Data` (`/data`, local only),
-  or only `folder` if given; files are read from disk per request (read only);
-  uploads are simulated: kept apart in `/tests/mocks/mock-sharepoint/__uploads__/<session>` (library paths mirrored),
+  the site has two libraries: `Mock Data` (test fixtures, `/tests/mocks/mock-sharepoint/library`; behavioural tests and demos use it alone)
+  and `Local Data` (own files: `/data`, local only, or `folder` if given);
+  files are read from disk per request (read only);
+  search (box in the command bar) lists files and folders below the folder open;
+  file rows carry no path (as in Sharepoint), so the userscript looks them up by name
+  (the site's list and search REST APIs are mocked as well);
+  uploads are simulated: kept apart in `/tests/mocks/mock-sharepoint/__uploads__/<session>` (site paths mirrored),
   listed and served over the originals, removed when the server stops (behavioural tests: when their browser closes)
   and by `just clean`; never synchronised;
-  the 3D files of the release (`just build`) appear in the library as folder `previewer`,
+  the 3D files of the release (`just build`) appear in `Mock Data` as folder `previewer`,
   empty settings `viewer-3d-folder` (pointing there) and `logo` (a test logo) are filled in on each page load;
   not part of `just qa`.

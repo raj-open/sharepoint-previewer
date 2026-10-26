@@ -8,12 +8,14 @@ import { loadPref } from '../_core/prefs.ts';
 import { savePref } from '../_core/prefs.ts';
 import { view } from '../_core/prefs.ts';
 import { POPUP_POS_KEY } from '../_core/settings-form.ts';
+import { POPUP_SIZE_KEY } from '../_core/settings-form.ts';
 import { DEFAULT_PREVIEW_SIZE } from '../_core/settings.ts';
 import { SPLIT_GAP } from '../_core/settings.ts';
 import { POPUP_SVG } from '../ui/icons.ts';
 import { SPLIT_H_SVG } from '../ui/icons.ts';
 import { SPLIT_V_SVG } from '../ui/icons.ts';
 import { placeMoved } from '../ui/move.ts';
+import { placeSized } from '../ui/move.ts';
 import { viewer } from './open.ts';
 
 import type { Layout } from '../_core/types.ts';
@@ -23,7 +25,7 @@ import type { Viewer } from '../_core/types.ts';
 // CONSTANTS
 // ===========================================================================
 
-// Card look, like SharePoint's own list card: grey border, round corners, soft shadow
+// Card look, like Sharepoint's own list card: grey border, round corners, soft shadow
 const CARD_CSS = `
   border: 1px solid var(--tp-edge);
   border-radius: 8px;
@@ -36,6 +38,11 @@ const BOX_CSS = {
     top: 10vh;
     width: 80vw;
     height: 80vh;
+    min-width: 360px;
+    min-height: 240px;
+    max-width: 100vw;
+    max-height: 100vh;
+    resize: both; /* corner bottom right; size kept (cf. keepSize) */
     ${CARD_CSS}
     box-shadow: 0 8px 32px rgba(0,0,0,.35);
   `,
@@ -138,7 +145,7 @@ export function restorePage(v: Viewer): void {
     }
     if (v.anchor) {
         v.anchor = null;
-        document.documentElement.append(v.box); // back out of SharePoint's container
+        document.documentElement.append(v.box); // back out of Sharepoint's container
     }
     if (v.anchorParent) {
         restoreStyle(v.anchorParent, v.anchorParentStyle);
@@ -169,7 +176,7 @@ function verticalScroller(grid: Element): HTMLElement | null {
     return bounded;
 }
 
-// SharePoint's wrapper around file list: <div role="" style="display: contents;">
+// Sharepoint's wrapper around file list: <div role="" style="display: contents;">
 function listWrapper(grid: Element): HTMLElement | null {
     for (let el = grid.parentElement; el && el !== document.body; el = el.parentElement) {
         if (el.getAttribute('role') === '' && el.style.display === 'contents') return el;
@@ -294,12 +301,12 @@ function applySplit(v: Viewer): void {
     syncPanel();
 }
 
-// Let SharePoint re-measure its lists (ignored by our own resize handler)
+// Let Sharepoint re-measure its lists (ignored by our own resize handler)
 function notifyResize(v: Viewer): void {
     v.selfResize = true;
     window.dispatchEvent(new Event('resize'));
     v.selfResize = false;
-    // List can also move (not just resize) while SharePoint re-flows
+    // List can also move (not just resize) while Sharepoint re-flows
     requestAnimationFrame(syncPanel);
     setTimeout(syncPanel, 300);
 }
@@ -374,7 +381,7 @@ export function layoutPage(v: Viewer, mode: Layout): void {
     notifyResize(v);
 }
 
-// SharePoint's side panels change width without window resize: lay out anew
+// Sharepoint's side panels change width without window resize: lay out anew
 function watchContainer(v: Viewer): void {
     const el = v.anchorParent || v.region?.parentElement || v.dock?.parentElement;
     if (!el) return;
@@ -450,7 +457,7 @@ export function setMode(mode: Layout): void {
 
     v.box.style.cssText = `
     ${BOX_CSS[mode]}
-    z-index: ${mode === 'popup' ? 2147483001 : 10}; /* popup: above SharePoint's panels; split: just above the page, below SharePoint menus */
+    z-index: ${mode === 'popup' ? 2147483001 : 10}; /* popup: above Sharepoint's panels; split: just above the page, below Sharepoint menus */
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -458,7 +465,10 @@ export function setMode(mode: Layout): void {
   `;
     v.backdrop.style.display = mode === 'popup' ? 'block' : 'none';
     v.header.style.cursor = mode === 'popup' ? 'move' : ''; // popup: drag header to move it
-    if (mode === 'popup') placeMoved(v.box, POPUP_POS_KEY);
+    if (mode === 'popup') {
+        placeSized(v.box, POPUP_SIZE_KEY); // before the position: it keeps the window on screen
+        placeMoved(v.box, POPUP_POS_KEY);
+    }
     v.splitter.className = `tp-splitter tp-splitter-${mode}`;
     v.backdrop.classList.toggle('tp-overlay', mode === 'popup');
 

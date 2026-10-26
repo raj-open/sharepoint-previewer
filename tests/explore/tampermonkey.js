@@ -2,7 +2,7 @@
 //
 // - GM_getValue / GM_setValue: localStorage (kept across reloads; "Clear settings" in the panel empties it);
 //   settings not set (missing, empty, or an earlier default) get the server's defaults on each page load
-//   (`viewer-3d-folder` of the mock SharePoint, a test logo)
+//   (`viewer-3d-folder` of the mock Sharepoint, a test logo)
 // - GM_registerMenuCommand: buttons in a small panel at the top right (where Tampermonkey's menu is)
 // - GM_info.script.version: the userscript's @version
 

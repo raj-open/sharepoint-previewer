@@ -1,19 +1,21 @@
-// SharePoint list: eye per file row and in the header, current folder, clicks
+// Sharepoint list: eye per file and folder row and in the header, current folder, clicks
 
 // ===========================================================================
 // IMPORTS
 // ===========================================================================
 
+import { serverPath } from '../readers/links.ts';
 import { foundPaths } from '../readers/search.ts';
 import { EYE_CLOSED_SVG } from '../ui/icons.ts';
 import { EYE_FULL_SVG } from '../ui/icons.ts';
 import { EYE_HALF_SVG } from '../ui/icons.ts';
 import { memoryCache } from '../viewer/cache.ts';
 import { syncPanel } from '../viewer/layout.ts';
-import { openEmptyViewer } from '../viewer/open.ts';
+import { openFolder } from '../viewer/open.ts';
 import { openPreview } from '../viewer/open.ts';
 import { pendingOpens } from '../viewer/open.ts';
 import { sameFile } from '../viewer/open.ts';
+import { shownFolder } from '../viewer/open.ts';
 import { viewer } from '../viewer/open.ts';
 import { COL_WIDTH } from './settings.ts';
 
@@ -40,10 +42,11 @@ const EYE_TITLES = {
     half: 'Preview (partly cached)',
     open: 'Preview (fully cached)',
 };
+const FOLDER_TITLE = 'Open the previewer for this folder (no file)';
 
 let scheduled = false;
 
-// Containers of SharePoint's dialogues, panels and pop-ups (Fluent UI layers)
+// Containers of Sharepoint's dialogues, panels and pop-ups (Fluent UI layers)
 const OVERLAY =
     '.ms-Layer, .fui-Portal, [role="dialog"], [role="alertdialog"], [aria-modal="true"], .ms-Panel, .ms-Modal, .ms-Callout';
 
@@ -70,7 +73,7 @@ export function inLibrary(): boolean {
 /** @returns server-relative folder of the open view, or null outside a library */
 export function currentFolder(): string | null {
     const params = new URLSearchParams(location.search);
-    // "parent" is set while SharePoint shows its own file preview
+    // "parent" is set while Sharepoint shows its own file preview
     const id = params.get('parent') || params.get('id') || params.get('RootFolder');
     if (id) return id.replace(/\/+$/, '');
 
@@ -84,7 +87,7 @@ export function currentFolder(): string | null {
 // ---------------------------------------------------------------------------
 
 export function rowName(row: HTMLElement): string | null {
-    // 1. Known SharePoint name-field selectors
+    // 1. Known Sharepoint name-field selectors
     const el = row.querySelector(NAME_SELECTORS);
     const name = el?.textContent.trim();
     if (name) return name;
@@ -121,9 +124,10 @@ function isFolder(row: HTMLElement): boolean {
     return false;
 }
 
-// Only rows that show file name (skips folders and totals/footer row)
-function isFileRow(row: HTMLElement): boolean {
-    return !!rowName(row) && !isFolder(row);
+// Rows that show a name: file or folder (skips totals/footer row)
+function rowKind(row: HTMLElement): 'file' | 'folder' | 'none' {
+    if (!rowName(row)) return 'none';
+    return isFolder(row) ? 'folder' : 'file';
 }
 
 // ---------------------------------------------------------------------------
@@ -181,7 +185,7 @@ function processHeader(row: HTMLElement): void {
 function processRow(row: HTMLElement): boolean {
     if (row.querySelector('[role="columnheader"]')) return false; // header: see processHeader
 
-    // Fast path: same content as last time (SharePoint reuses rows)
+    // Fast path: same content as last time (Sharepoint reuses rows)
     const sig = row.textContent;
     if (row.dataset.tpSig === sig && row.querySelector('.tp-cell')) return false;
     row.dataset.tpSig = sig;
@@ -230,25 +234,26 @@ function processRow(row: HTMLElement): boolean {
         cell.style.height = '28px';
     }
 
-    // SharePoint recycles row elements -> re-check state on every pass
-    const state = isFileRow(row) ? 'file' : 'none';
+    // Sharepoint recycles row elements -> re-check state on every pass
+    const state = rowKind(row);
     if (cell.dataset.state !== state) {
         cell.dataset.state = state;
         cell.innerHTML =
-            state === 'file'
-                ? `
-        <span class="tp-preview" role="button" tabindex="0" title="Preview"
+            state === 'none'
+                ? ''
+                : `
+        <span class="tp-preview" role="button" tabindex="0" title="Preview" data-kind="${state}"
               style="display:flex; cursor:pointer; color:#0078d4; padding:4px"></span>
-      `
-                : '';
+      `;
     }
-    if (state === 'file') {
-        // Which file this row is now (rows are reused), for eye's cache state
+    if (state !== 'none') {
+        // Which file or folder this row is now (rows are reused), for eye's state
         const eye = cell.querySelector('.tp-preview') as HTMLElement; // written just above
         const name = rowName(row);
         const folder = currentFolder();
         const guess = folder && `${folder}/${name}`;
-        eye.dataset.url = (name && (rowFilePath(row, name) || (guess && (foundPaths.get(guess) || guess)))) || '';
+        const found = state === 'file' && guess ? foundPaths.get(guess) : null; // search: files only
+        eye.dataset.url = (name && (rowFilePath(row, name) || found || guess)) || '';
         setEye(eye);
     }
     return true;
@@ -262,15 +267,25 @@ function eyeState(url?: string): 'closed' | 'half' | 'open' {
     return src.done || (src.total > 0 && src.loaded >= src.total) ? 'open' : 'half'; // all bytes here
 }
 
+// Eye per folder: open = viewer shows this folder (no file), else closed
 function setEye(eye: HTMLElement): void {
-    // Row of file shown in viewer: highlighted like row under mouse
-    const shown = !!(viewer?.file && eye.dataset.url && sameFile(viewer.file.url, eye.dataset.url));
+    const url = eye.dataset.url;
+    const folder = eye.dataset.kind === 'folder';
+    // Row of file / folder shown in viewer: highlighted like row under mouse
+    const shown =
+        !!url && (folder ? sameFile(shownFolder() ?? '\0', url) : !!viewer?.file && sameFile(viewer.file.url, url));
     eye.closest('[role="row"]')?.classList.toggle('tp-row-shown', shown);
-    const state = eyeState(eye.dataset.url);
+    const state = folder ? (shown ? 'open' : 'closed') : eyeState(url);
     if (eye.dataset.eye === state) return;
     eye.dataset.eye = state;
     eye.innerHTML = { closed: EYE_CLOSED_SVG, half: EYE_HALF_SVG, open: EYE_FULL_SVG }[state];
-    eye.title = EYE_TITLES[state];
+    eye.title = folder ? FOLDER_TITLE : EYE_TITLES[state];
+}
+
+// Row eye clicked: file previewed, folder opened in the empty viewer
+function openEye(eye: HTMLElement): void {
+    if (eye.dataset.kind === 'folder') return void openFolder(eye.dataset.url || null);
+    openPreview(eye.closest('[role="row"]'));
 }
 
 // Called whenever cache changes
@@ -290,7 +305,7 @@ export function refreshEyes(): void {
 
 function scan() {
     scheduled = false;
-    // H-mode panel inside SharePoint's container: put it back if SharePoint re-rendered
+    // H-mode panel inside Sharepoint's container: put it back if Sharepoint re-rendered
     if (viewer?.anchor && !viewer.box.isConnected) syncPanel();
     if (!inLibrary()) {
         for (const el of document.querySelectorAll('.tp-cell, .tp-head')) el.remove(); // left from library page
@@ -328,7 +343,7 @@ export function watchList(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Clicks (capture phase, so SharePoint doesn't select/open row)
+// Clicks (capture phase, so Sharepoint doesn't select/open row)
 // ---------------------------------------------------------------------------
 
 const findPreview = (e: Event): HTMLElement | null =>
@@ -354,7 +369,7 @@ export function handleEyes(): void {
             if (!findHead(e)) return;
             e.preventDefault();
             e.stopPropagation();
-            openEmptyViewer();
+            openFolder(null);
         },
         true,
     );
@@ -364,7 +379,7 @@ export function handleEyes(): void {
             if (!findHead(e) || (e.key !== 'Enter' && e.key !== ' ')) return;
             e.preventDefault();
             e.stopPropagation();
-            openEmptyViewer();
+            openFolder(null);
         },
         true,
     );
@@ -376,7 +391,7 @@ export function handleEyes(): void {
             if (!btn) return;
             e.preventDefault();
             e.stopPropagation();
-            openPreview(btn.closest('[role="row"]'));
+            openEye(btn);
         },
         true,
     );
@@ -388,13 +403,13 @@ export function handleEyes(): void {
             if (!btn || (e.key !== 'Enter' && e.key !== ' ')) return;
             e.preventDefault();
             e.stopPropagation();
-            openPreview(btn.closest('[role="row"]'));
+            openEye(btn);
         },
         true,
     );
 }
 
-// File's path from row's links (search results mix folders)
+// Path of row's file or folder from its links (search results mix folders): where the row leads
 export function rowFilePath(row: HTMLElement, name: string): string | null {
     const host = location.hostname;
 
@@ -405,10 +420,7 @@ export function rowFilePath(row: HTMLElement, name: string): string | null {
         } catch {
             return null;
         }
-        if (u.hostname !== host) return null;
-        const id = u.searchParams.get('id');
-        if (/\.aspx$/i.test(u.pathname) && id) return id;
-        return decodeURIComponent(u.pathname.replace(/^\/:[a-z]:\/r(?=\/)/i, ''));
+        return u.hostname === host ? serverPath(u) : null;
     };
     for (const el of row.querySelectorAll('*')) {
         if (el.closest('.tp-cell')) continue;
