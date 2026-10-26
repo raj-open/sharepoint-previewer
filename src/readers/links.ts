@@ -55,7 +55,7 @@ export function linkTarget(name: string, text: string): { display: string; name:
 // Clean URLs: origin + path, not encoded, without query or fragment
 // ---------------------------------------------------------------------------
 
-/** @returns server-relative path a SharePoint URL stands for (viewer pages: their id; direct links: /:t:/r/ dropped), not encoded */
+/** @returns server-relative path a Sharepoint URL stands for (viewer pages: their id; direct links: /:t:/r/ dropped), not encoded */
 export function serverPath(u: URL): string {
     const id = u.searchParams.get('id');
     if (/\.aspx$/i.test(u.pathname) && id) return id;
@@ -63,7 +63,7 @@ export function serverPath(u: URL): string {
 }
 
 /**
- * @param place server-relative path (as SharePoint names it, not encoded) or URL (absolute, may be encoded)
+ * @param place server-relative path (as Sharepoint names it, not encoded) or URL (absolute, may be encoded)
  * @returns full URL as a person reads it: not encoded, no query, no fragment, no trailing "/"
  */
 export function cleanUrl(place: string): string {

@@ -230,7 +230,7 @@ const CSS = `
     user-select: none;
   }
   .tp-viewer .tp-editor, .tp-viewer .tp-gutter {
-    font-family: Consolas, "Courier New", monospace !important; /* SharePoint styles text boxes */
+    font-family: Consolas, "Courier New", monospace !important; /* Sharepoint styles text boxes */
   }
   .tp-editor {
     flex: 1;
@@ -487,7 +487,7 @@ const CSS = `
     overflow: hidden;
   }
   .tp-progress-fill { height: 100%; width: 0; background: #0078d4; transition: width .15s; }
-  /* Row of the file in the viewer (SharePoint's own hover colour) */
+  /* Row of the file in the viewer (Sharepoint's own hover colour) */
   [role="row"].tp-row-shown, [role="row"].tp-row-shown:hover { background-color: #f3f2f1 !important; }
   .tp-notice .tp-code { font-style: italic; color: #d13438; }
   .tp-inline-icon svg { width: 14px; height: 14px; vertical-align: -2px; }

@@ -23,7 +23,7 @@ import type { Viewer } from '../_core/types.ts';
 // CONSTANTS
 // ===========================================================================
 
-// Card look, like SharePoint's own list card: grey border, round corners, soft shadow
+// Card look, like Sharepoint's own list card: grey border, round corners, soft shadow
 const CARD_CSS = `
   border: 1px solid var(--tp-edge);
   border-radius: 8px;
@@ -138,7 +138,7 @@ export function restorePage(v: Viewer): void {
     }
     if (v.anchor) {
         v.anchor = null;
-        document.documentElement.append(v.box); // back out of SharePoint's container
+        document.documentElement.append(v.box); // back out of Sharepoint's container
     }
     if (v.anchorParent) {
         restoreStyle(v.anchorParent, v.anchorParentStyle);
@@ -169,7 +169,7 @@ function verticalScroller(grid: Element): HTMLElement | null {
     return bounded;
 }
 
-// SharePoint's wrapper around file list: <div role="" style="display: contents;">
+// Sharepoint's wrapper around file list: <div role="" style="display: contents;">
 function listWrapper(grid: Element): HTMLElement | null {
     for (let el = grid.parentElement; el && el !== document.body; el = el.parentElement) {
         if (el.getAttribute('role') === '' && el.style.display === 'contents') return el;
@@ -294,12 +294,12 @@ function applySplit(v: Viewer): void {
     syncPanel();
 }
 
-// Let SharePoint re-measure its lists (ignored by our own resize handler)
+// Let Sharepoint re-measure its lists (ignored by our own resize handler)
 function notifyResize(v: Viewer): void {
     v.selfResize = true;
     window.dispatchEvent(new Event('resize'));
     v.selfResize = false;
-    // List can also move (not just resize) while SharePoint re-flows
+    // List can also move (not just resize) while Sharepoint re-flows
     requestAnimationFrame(syncPanel);
     setTimeout(syncPanel, 300);
 }
@@ -374,7 +374,7 @@ export function layoutPage(v: Viewer, mode: Layout): void {
     notifyResize(v);
 }
 
-// SharePoint's side panels change width without window resize: lay out anew
+// Sharepoint's side panels change width without window resize: lay out anew
 function watchContainer(v: Viewer): void {
     const el = v.anchorParent || v.region?.parentElement || v.dock?.parentElement;
     if (!el) return;
@@ -450,7 +450,7 @@ export function setMode(mode: Layout): void {
 
     v.box.style.cssText = `
     ${BOX_CSS[mode]}
-    z-index: ${mode === 'popup' ? 2147483001 : 10}; /* popup: above SharePoint's panels; split: just above the page, below SharePoint menus */
+    z-index: ${mode === 'popup' ? 2147483001 : 10}; /* popup: above Sharepoint's panels; split: just above the page, below Sharepoint menus */
     overflow: hidden;
     display: flex;
     flex-direction: column;

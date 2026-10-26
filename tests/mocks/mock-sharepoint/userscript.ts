@@ -1,4 +1,4 @@
-// Userscript (/dist/userscript.js) as the build stamps it for the mock SharePoint: 3D hashes of this release (if built).
+// Userscript (/dist/userscript.js) as the build stamps it for the mock Sharepoint: 3D hashes of this release (if built).
 
 // ================================================================
 // IMPORTS

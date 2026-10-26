@@ -56,9 +56,9 @@
 
 - `just qa` = lint checks + all tests (unit, behave, integration).
 - `just qa` must pass before merging to staging, before versioning up and before merging to main.
-- Behavioural tests: `/tests/behave`, Playwright (Chromium) on a mock SharePoint (`/tests/mocks/mock-sharepoint`);
+- Behavioural tests: `/tests/behave`, Playwright (Chromium) on a mock Sharepoint (`/tests/mocks/mock-sharepoint`);
   browser installed by `just build-deps`.
-- Explorative tests: `just tests-explore [folder]` serves the mock SharePoint on `http://localhost:<HTTP_PORT>` (loopback only),
+- Explorative tests: `just tests-explore [folder]` serves the mock Sharepoint on `http://localhost:<HTTP_PORT>` (loopback only),
   the userscript injected per page load with a Tampermonkey stand-in (`/tests/explore`);
   the library shows folders `Mock Data` (`/tests/mocks/mock-sharepoint/library`) and `Data` (`/data`, local only),
   or only `folder` if given; files are read from disk per request (read only);

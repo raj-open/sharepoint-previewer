@@ -1,4 +1,4 @@
-// Mock SharePoint Online: one site with one document library, served from ./library (or another folder,
+// Mock Sharepoint Online: one site with one document library, served from ./library (or another folder,
 // or several folders shown by name in the library root). Read only: files are read from disk per request.
 // Uploads (optional, simulated): kept apart in a session folder under ./__uploads__ that mirrors the library's
 // paths; they are listed and served over the originals (which stay untouched) until the session ends.
@@ -12,9 +12,9 @@
 //   /sites/Test/Shared Documents/_api/tree                          folders and files (JSON; list refresh)
 //
 // The list view mimics only what the userscript reads: ARIA grid rows, name fields,
-// folder icons, the scroll card and SharePoint's `display: contents` wrapper.
+// folder icons, the scroll card and Sharepoint's `display: contents` wrapper.
 // Navigation between folders happens in place (history API) and recycles row elements,
-// as SharePoint does.
+// as Sharepoint does.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -160,7 +160,7 @@ function tree(files: Files, uploads?: string): Record<string, Entry[]> {
         const dir = uploads && uploadPath(uploads, folder);
         if (!dir || !fs.existsSync(dir)) continue;
         for (const e of listing(dir).filter((x) => !x.folder)) {
-            const i = entries.findIndex((x) => x.name.toLowerCase() === e.name.toLowerCase()); // SharePoint ignores case
+            const i = entries.findIndex((x) => x.name.toLowerCase() === e.name.toLowerCase()); // Sharepoint ignores case
             entries.splice(i < 0 ? entries.length : i, i < 0 ? 0 : 1, { ...e, uploaded: true });
         }
         entries.sort(byName);
@@ -269,7 +269,7 @@ function listPage(files: Files, uploads?: string): Reply {
     return id ? id.replace(/\\/+$/, '') : LIBRARY;
   }
 
-  // Rows are reused across folders (as SharePoint's virtualised list does)
+  // Rows are reused across folders (as Sharepoint's virtualised list does)
   function render() {
     const folder = folderOfUrl();
     const entries = TREE[folder] || [];
@@ -285,7 +285,7 @@ function listPage(files: Files, uploads?: string): Reply {
       const e = entries[i];
       row.hidden = !e;
       if (!e) return void (row.innerHTML = '');
-      // Same row element, new cells contents: like SharePoint after navigation
+      // Same row element, new cells contents: like Sharepoint after navigation
       const nameField = e.folder ? folderLink(folder + '/' + e.name, e.name) : '<button type="button">' + e.name + '</button>';
       row.innerHTML =
         '<div role="gridcell" class="c-icon"><img alt="" src="' + icon(e) + '"></div>' +
@@ -386,7 +386,7 @@ function upload(
 }
 
 /**
- * Answers one request to the mock SharePoint.
+ * Answers one request to the mock Sharepoint.
  *
  * @param opts library folder (default: ./library), or folders by name in the library root;
  *   folder of the session's uploads (none: uploads refused)

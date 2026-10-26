@@ -1,6 +1,6 @@
 # Demo: Overview #
 
-All screenshots show the mock SharePoint of the tests
+All screenshots show the mock Sharepoint of the tests
 (`/tests/mocks/mock-sharepoint`),
 written by `just demos`.
 

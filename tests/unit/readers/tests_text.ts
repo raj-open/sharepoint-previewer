@@ -47,6 +47,6 @@ describe('readers/text', () => {
     it('binary files and other origins are refused', async () => {
         serve({ '/x.pdf': new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]) });
         assert.equal((await open('/x.pdf')).binary, true);
-        assert.match((await open('https://example.com/x.txt')).error, /outside this SharePoint/);
+        assert.match((await open('https://example.com/x.txt')).error, /outside this Sharepoint/);
     });
 });

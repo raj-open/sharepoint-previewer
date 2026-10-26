@@ -1,4 +1,4 @@
-// .url shortcut files: target inside this SharePoint is followed, others only shown; clean URLs
+// .url shortcut files: target inside this Sharepoint is followed, others only shown; clean URLs
 import assert from 'node:assert/strict';
 import { describe } from 'node:test';
 import { it } from 'node:test';

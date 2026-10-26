@@ -1,4 +1,4 @@
-// Requests: this SharePoint only; dates from the file's own response
+// Requests: this Sharepoint only; dates from the file's own response
 import assert from 'node:assert/strict';
 import { describe } from 'node:test';
 import { it } from 'node:test';
@@ -14,7 +14,7 @@ describe('readers/request', () => {
         assert.equal(sameOrigin('https://acme.sharepoint.com/x'), true);
         assert.equal(sameOrigin('https://example.com/x'), false);
         assert.equal(sameOrigin('https://acme.sharepoint.com.evil.example/x'), false);
-        assert.match(OUTSIDE, /outside this SharePoint/);
+        assert.match(OUTSIDE, /outside this Sharepoint/);
     });
     it('dates: Last-Modified, else Content-Disposition; in UTC', () => {
         const res = new Response('', { headers: { 'last-modified': 'Thu, 01 Oct 2026 12:00:00 GMT' } });

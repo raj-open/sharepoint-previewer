@@ -1,8 +1,8 @@
-// Screenshots for the demos (/demos/img/<case>.png): the userscript on the mock SharePoint,
+// Screenshots for the demos (/demos/img/<case>.png): the userscript on the mock Sharepoint,
 // in full Chromium (Playwright, new headless mode),
 // with the harness of the behavioural tests (/tests/behave/harness.ts).
 // Usage: node scripts/demos.ts [case ...] (no case: all); cf. `just demos`.
-// NOTE: only fixtures of the mock SharePoint are shown (/tests/mocks/mock-sharepoint/library).
+// NOTE: only fixtures of the mock Sharepoint are shown (/tests/mocks/mock-sharepoint/library).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -27,7 +27,7 @@ const CHANNEL = 'chromium';
 const STATUS_3D = /\d+ objects · /;
 const WAIT_3D = 1000;
 
-// settings for the 3D view (as `just tests-explore` fills them in): release folder of the mock SharePoint
+// settings for the 3D view (as `just tests-explore` fills them in): release folder of the mock Sharepoint
 const SETTINGS_3D = { 'viewer-3d-folder': RELEASE_SETTING };
 
 // Demo case: folder (relative to the library), file to preview (optional), steps after opening

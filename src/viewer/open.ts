@@ -162,7 +162,7 @@ async function openFile(
             const note = lookupNotes.get(hops[0]);
             const type = (fileName.match(/\.[^.]+$/)?.[0] ?? 'this type').toLowerCase();
             const hint = note
-                ? `Files of type ${type} cannot be viewed from search results (SharePoint gives no path for them).\n` +
+                ? `Files of type ${type} cannot be viewed from search results (Sharepoint gives no path for them).\n` +
                   "Open the file's folder to view it."
                 : '';
             const message = [hint, `${result.error}\n${hops.join('\n→ ')}`, note].filter(Boolean).join('\n\n');
@@ -171,7 +171,7 @@ async function openFile(
         if ('binary' in result) {
             return {
                 src: null,
-                message: 'Not a plain text file: use the standard SharePoint preview, or download the file.',
+                message: 'Not a plain text file: use the standard Sharepoint preview, or download the file.',
                 fileName,
                 hops,
             };
@@ -242,12 +242,12 @@ export function shownUrl(v: Viewer): string {
     return cleanUrl(place ?? location.pathname);
 }
 
-// New file in the folder open in SharePoint (plain text): name asked (checked), then shown as any file
+// New file in the folder open in Sharepoint (plain text): name asked (checked), then shown as any file
 // (colours, checks, views by its format) and edited; the empty text counts as saved (may be uploaded as it is)
 export async function newFile(): Promise<void> {
     const folder = currentFolder();
     if (!inLibrary() || !folder) {
-        alert('New files go into the folder open in SharePoint: please open a folder of a library first.');
+        alert('New files go into the folder open in Sharepoint: please open a folder of a library first.');
         return;
     }
     if (viewer && !confirmDiscard(viewer)) return; // pending in the open file: stay

@@ -1,4 +1,4 @@
-// Explorative tests: the mock SharePoint on http://localhost:<port>, with the userscript (/dist/userscript.js) injected.
+// Explorative tests: the mock Sharepoint on http://localhost:<port>, with the userscript (/dist/userscript.js) injected.
 //
 //   node tests/explore/server.ts <port> [folder]    (cf. `just tests-explore`)
 //
