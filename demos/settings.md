@@ -3,7 +3,7 @@
 All screenshots show the mock Sharepoint of the tests
 (`/tests/mocks/mock-sharepoint`),
 written by `just demos`.
-Details: [NOTES.md, §9](../NOTES.md#9-settings).
+Details: [TECHNICAL.md, Settings](../TECHNICAL.md#settings).
 
 ## Opening ##
 

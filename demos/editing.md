@@ -4,7 +4,7 @@ All screenshots show the mock Sharepoint of the tests
 (`/tests/mocks/mock-sharepoint`),
 written by `just demos`
 (uploads simulated: kept apart, the test files stay untouched).
-Details: [NOTES.md, §8](../NOTES.md#8-editing-and-upload).
+Details: [TECHNICAL.md, Editing and upload](../TECHNICAL.md#editing-and-upload).
 
 ## Logic ##
 
