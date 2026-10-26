@@ -50,7 +50,7 @@ and where it stores data.
 - **Header:**
   - layout, edit, cache whole file, stop / cancel, save, upload
   - file name
-  - ⋯ menu: full settings, dark mode, syntax colours, line wrap, properties, reload, clear cache
+  - ⋯ menu: new file, full settings, dark mode, syntax colours, line wrap, properties, reload, clear cache
 - **Properties line:**
   modified date (from the file's own HTTP response),
   size, format, encoding, indentation,
@@ -250,6 +250,20 @@ are detected from their first bytes and not shown.
   - CSV can be edited in the table:
     cells, rows and columns can be inserted, moved and deleted,
     and delimiter and quote style can be changed.
+- **Save under another name:**
+  in write mode, click the file name (or press F2) and enter a new one.
+  - The name is checked against Sharepoint's rules;
+    if a file of that name exists, the user is asked.
+  - The upload then creates a new file (or replaces the one of that name, after asking again);
+    the original file stays unchanged,
+    and the viewer opens the new file.
+- **New file:**
+  button in the title of the empty viewer (eye in the column header), or ⋯ menu.
+  - The name is asked for and checked as above
+    (a new file goes into the folder open in Sharepoint).
+  - The empty text opens in write mode;
+    it may be saved and uploaded empty.
+  - Cancel (or Esc) goes back to the empty viewer.
 - **Save** keeps the edits in the browser (staged).
   **Upload** is a separate step.
 - **Upload uses no API.**
@@ -262,8 +276,12 @@ are detected from their first bytes and not shown.
   A `HEAD` request then confirms the change.
 - **If Sharepoint does not accept it,**
   the user is offered a local save of the edited file to upload by hand.
+- **Cancel** (button or Esc) ends write mode
+  and drops all changes (unsaved and saved, not yet uploaded),
+  after asking if there are any.
 - **Unsaved or not-yet-uploaded changes** trigger warnings:
-  when switching files,
+  when cancelling,
+  switching files,
   closing the viewer
   or leaving the page.
 
