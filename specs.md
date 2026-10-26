@@ -22,10 +22,10 @@
   the userscript stays plain JavaScript, laid out as the modules.
 - Tests and scripts: TypeScript as well, run by Node itself (≥ 22.18);
   `/tests/explore/tampermonkey.js` stays JavaScript (runs in the browser).
-- Userscript: `/dist/userscript.js` (bundle), written by `just build-src`
-  and committed (to follow how the whole script changes between versions); never edited by hand.
-  Its `@version` and 3D hashes are dummies (`0.0.0`, `<sha256>`);
-  only the release files in `/dist/v<VERSION>` carry real values (minified there, not in the repo).
+- Userscript: `/dist/userscript.js` (bundle) and `/dist/userscript.min.js` (minified),
+  written by `just build-src`; local only (not synchronised), never edited by hand.
+  Their `@version` and 3D hashes are dummies (`0.0.0`, `<sha256>`);
+  only the release files in `/dist/v<VERSION>` carry real values.
   Identifier names are kept (the check worker is built from the script's own function sources).
 - Modules: one concern each; a module only writes its own top-level variables
   (shared, changeable state lives in objects, e.g. `view` in `prefs.ts`).

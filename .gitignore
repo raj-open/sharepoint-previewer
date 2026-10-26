@@ -34,7 +34,6 @@
 
 !/dist
 !/dist/VERSION
-!/dist/userscript.js
 
 !/src
 !/src/**
