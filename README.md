@@ -28,7 +28,7 @@ See the [demos](demos/README.md):
 screenshots and the logic of each part
 (list view, layouts, title bar, text, tables, 3D, editing, caching, settings).
 
-Technical descriptions (behaviour, network, storage, security, deployment):
+For reviewing the script (permissions, network, storage, security, deployment):
 see [NOTES.md](NOTES.md).
 
 ## Motivation ##
@@ -116,8 +116,8 @@ and IT teams who want all this without another app to roll out.
 
 ## Notes ##
 
-- See [TECHNICAL.md](./TECHNICAL.md) for basic technical notes about this repository.
-- See [NOTES.md](./NOTES.md) for notes on application logic and design.
+- See [NOTES.md](./NOTES.md) for reviewing the script: permissions, network, storage, security, deployment.
+- See [TECHNICAL.md](./TECHNICAL.md) for development: repository, build, tests, and the logic inside (formats, caching, editing, settings).
 
 ## Credits and licences ##
 

@@ -1,6 +1,7 @@
-# Basic technical notes #
+# Technical notes #
 
-This document contains information for developers.
+For developers: repository, build, tests, and how the script works inside.
+For reviewing the script (permissions, network, storage, security, deployment): [NOTES.md](NOTES.md).
 
 ## Repository structure ##
 
@@ -54,7 +55,7 @@ Each build writes one flat release folder `/dist/v<VERSION>`:
 | `sharepoint-previewer.min.js` | the same, minified (whitespace and syntax; names kept) |
 | `ifc-lite-3d.js` | ifc-lite bundle (esbuild, versions pinned in `package.json`) |
 | `ifc-lite_bg.wasm` | engine binary, copied unchanged from `@ifc-lite/wasm` |
-| `NOTES.md` | technical description for IT |
+| `NOTES.md` | notes for review (permissions, network, storage, security, deployment) |
 
 The build writes into the userscript:
 
@@ -83,3 +84,237 @@ the lock is only rewritten when `package.json` has changed.
 | `qa-auto` | each push and pull request | `just qa` |
 | `qa-manual` | on demand (any branch, tag or commit) | `just qa` |
 | `release` | on a release tag (`just tag`) | `just qa`, then `just build-dist`; attaches the files of `/dist/v<VERSION>` to the GitHub release (pre-release for alpha, beta, rc) |
+
+## Architecture ##
+
+```text
+Sharepoint page (DOM)
+ └─ userscript (Tampermonkey, @grant GM_getValue/GM_setValue/GM_registerMenuCommand)
+     ├─ MutationObserver: finds file and folder rows → adds eye cells (HTML only)
+     ├─ Viewer (own DOM elements, own CSS, prefix "tp-")
+     │   ├─ text view: syntax colours, whitespace markers, virtualised rendering
+     │   ├─ table view: CSV / Parquet / spreadsheets / logs, sort, filter, column widths, CSV editing
+     │   ├─ Markdown view: own small renderer (no library), raw HTML escaped
+     │   └─ 3D view: ifc-lite (optional, loaded from your Sharepoint on first use)
+     ├─ Sources: same-origin fetch with HTTP Range (chunks), in-memory cache (LRU)
+     ├─ Decoders built in: Parquet (Thrift, RLE/bit-packing, dictionary, v1/v2 pages),
+     │   Snappy, LZ4_RAW, ZSTD (RFC 8878); GZIP / ZIP via the browser's DecompressionStream;
+     │   spreadsheets: OOXML (XML scanner, no DOM), XLSB (BIFF12), XLS (BIFF8/BIFF5 in a
+     │   compound file), OpenDocument
+     └─ Checks (linters) in a Web Worker created from the script's own code (blob: URL)
+```
+
+How the parts communicate: [NOTES.md, §3](NOTES.md#3-communication).
+
+## Viewer ##
+
+- **Eye column** at the far left of every file and folder row in a document library:
+  - closed eye = not cached
+  - half-open eye = partly cached
+  - open eye = fully cached
+  - the eye in the column header opens the viewer without a file,
+    e.g. to change settings
+  - the eye of a folder does the same for that folder (open eye = folder shown)
+- **Viewer** in three layouts:
+  - below the list
+  - right of the list
+  - as a movable pop-up, resizable at its lower right corner (position and size kept)
+- **Header:**
+  - layout, edit, cache whole file, stop / cancel, save, upload
+  - when narrow: the file name on a second row; very narrow: without version and logo
+  - file name, with (i) for the properties and a chain icon:
+    a click copies the clean link (not encoded, no query) of the file shown
+    (a link file or search result: where it leads),
+    or of the folder in the viewer without a file
+  - ⋯ menu: new file, full settings, dark mode, syntax colours, line wrap, properties, reload, clear cache
+- **Properties line:**
+  modified date (from the file's own HTTP response),
+  size, format, encoding, indentation,
+  CSV delimiter and table shape,
+  Parquet details,
+  number of sheets and tables, shape of the sheet or table shown.
+- **Status bar:**
+  - left: cache progress
+    (blue while caching, neutral when idle or complete),
+    with a "click to fully cache" hint
+  - right: format of the file (recognised from its name);
+    its menu lists text formats and file formats (Parquet, spreadsheet, IFCZIP) side by side,
+    any of them can be chosen (also a wrong one: the file is then read as that format, or a message says why not;
+    a chosen format is marked and kept while the page is open);
+    text size **− 100 % +**
+    (also Ctrl / ⌘ with + − 0, or Ctrl / ⌘ + wheel, in the content area);
+    view switch **Text | Preview**,
+    the preview by file type: **Table** (CSV, Parquet, spreadsheets, logs), **3D** (IFC), **Markdown**;
+    for spreadsheets a picker right of **Table**:
+    its menu shows the sheets or the tables, switched with ‹ › or ← →
+    (● cached, ○ not cached yet; hidden sheets marked);
+    picking a table shows tables, picking a sheet shows sheets
+    (start value: setting `spreadsheet-view`, then the last choice per file);
+    spreadsheets larger than `spreadsheet-autoload-bytes` show nothing until a sheet or table is chosen,
+    the sheet shown is also named next to the file name
+- **Text view:** Ctrl / ⌘ + A (once clicked into it) selects the whole text, copy gives the whole cached text
+- **Markdown view:** headings, lists, task lists, quotes, code (with colours), tables, links, images;
+  raw HTML is shown as text;
+  links open in a new tab (scripts not followed);
+  images are shown only from the same Sharepoint, others only as links (nothing fetched from elsewhere)
+
+What the script reads from the list and leaves alone: [NOTES.md, §2](NOTES.md#2-what-it-does).
+
+## Supported formats ##
+
+| Format | Colours | Check (lint) | Table | 3D | Edit |
+| :----- | :-----: | :----------: | :---: | :-: | :--: |
+| JSON, XML (incl. `.addin`, `.config`, `.csproj`, …) | ✓ | ✓ | | | ✓ |
+| YAML, TOML, Power Query M, JavaScript, Python, SQL, Markdown, reStructuredText, Excel formulas (`.xlf`) | ✓ | YAML, M | | | ✓ |
+| Log files (`.log`) | ✓ | | ✓ (experimental, read only; text first) | | ✓ |
+| CSV / TSV (delimiter detected) | ✓ (per column) | | ✓ (sort, filter, edit cells, rows, columns) | | ✓ |
+| Parquet (Snappy, GZIP, ZSTD, LZ4_RAW, uncompressed) | ✓ | | ✓ (read only) | | |
+| Spreadsheets: Excel `.xlsx` `.xlsm` `.xltx` `.xltm`, `.xlsb`, `.xls` `.xlt` (97–2003, 5.0/95), OpenDocument `.ods` `.ots` | ✓ | | ✓ (read only, per sheet) | | |
+| IFC / IFCZIP | ✓ | ✓ | | ✓ (up to 8 MB, setting) | IFC only |
+| Any other text file | – | | | | ✓ |
+
+Spreadsheets show the last saved value of each cell (formulas are not recalculated):
+numbers as Excel's "General" shows them (15 significant digits),
+percentages with `%`,
+dates and times as ISO 8601 (`2026-10-24`, `14:30:00`, `2026-10-24 14:30:00`),
+both date systems (1900, 1904).
+Number formats beyond that (decimals, currencies, thousands separators) are not applied.
+Password-protected workbooks are not opened.
+
+Tables (Excel's "Format as Table" in `.xlsx` and `.xlsb`; named database ranges in `.ods`)
+can be shown instead of whole sheets:
+the table's rows below its header row (totals rows left out), its column names as header.
+`.xls` files show sheets only.
+The text view of a sheet shows the column letters as first line and the row numbers as first column,
+as Excel does (`,A,B,C`, then `1,…`).
+
+Log files (experimental) open as text; their table view is chosen separately (`tp-preview-log-table`).
+It guesses the fields from the start of the lines
+(time, level, `[…]` context, logger or process name before a separator,
+a source word such as a host before one of these; e.g. Python `logging`, log4j, syslog):
+one row per entry with its line number, the fields found and the message;
+lines that do not start an entry (stack traces, printed tables, other output) are added to the message as one block
+(⏎ in the cell).
+Rows with such blocks, JSON or Python-like objects and lists in their message expand (▸ in the row number):
+the message split into text and objects / lists, these indented and coloured (numbers as written);
+▸ above the row numbers expands (▾ collapses) all rows shown, as filtered.
+Without recognisable fields the table view is not offered.
+
+Other binary files (PDF, Word, PowerPoint, images, archives, …)
+are detected from their first bytes and not shown.
+
+## Caching ##
+
+- **Opening a file** fetches the first chunk (default 512 KB).
+  "Cache next" fetches the next chunk,
+  and "Cache all" fetches the rest.
+- **Spreadsheets are cached sheet by sheet:**
+  opening one fetches the workbook's directory, shared strings and styles
+  and the sheet that was active when it was saved.
+  Other sheets are fetched when chosen in the drop-down,
+  or with "Cache next sheet" / "Cache all".
+  OpenDocument files hold all sheets in one part, so they are cached whole.
+  The eye is fully open once every sheet is cached.
+- **Big files:**
+  - Big Parquet and IFCZIP files (larger than one chunk)
+    are **not** fetched automatically.
+    The viewer asks the user to fully cache them.
+  - "Cache all" asks for confirmation above 16 MB (setting).
+- **Background caching:**
+  a running full cache,
+  or the first fetch of a Parquet / IFCZIP file,
+  continues in the background when the user switches to another file.
+  Coming back resumes the display;
+  nothing is fetched twice.
+  The stop button cancels it.
+- **Clearing:**
+  - "Clear this file" / "Clear all files" remove contents from memory.
+  - The browser's own HTTP cache is bypassed (`cache: 'reload'`)
+    on the next fetch of a cleared file.
+- **Progress bar:**
+  blue only while caching.
+  "Fully cached" only when every byte is present
+  (percentages are rounded down).
+
+## Editing and upload ##
+
+- **Write mode** is available for plain-text files.
+  - The whole file is cached first;
+    above 16 MB the user is asked.
+  - CSV can be edited in the table:
+    cells, rows and columns can be inserted, moved and deleted,
+    and delimiter and quote style can be changed.
+- **Another name** (click the file name, or F2):
+  - Text files: in write mode; the name is saved with the text.
+    The upload then creates a new file (or replaces the one of that name, after asking again).
+  - Read-only files (spreadsheets, Parquet, other binary files): any time;
+    the file is uploaded unchanged as a copy under the new name (after asking).
+  - Either way the name is checked against Sharepoint's rules
+    (if a file of that name exists, the user is asked),
+    the original file stays unchanged,
+    and the viewer opens the new file.
+- **New file:**
+  button in the title of the empty viewer (eye in the column header), or ⋯ menu.
+  - Plain text only: names of spreadsheets, Parquet and other binary types are refused;
+    the name is checked as above
+    (a new file goes into the folder open in Sharepoint).
+  - It is shown as any file of its format (by extension, or chosen in the format picker):
+    colours, checks, Text / Preview.
+  - The empty text counts as saved: it may be uploaded as it is.
+  - Cancel goes back to the empty viewer.
+- **Save** keeps the edits in the browser (staged).
+  **Upload** is a separate step.
+- **Upload uses no API.**
+  The script hands the file to Sharepoint the way a user would:
+  1. a simulated drop onto the file list, or
+  2. Sharepoint's own file-upload input.
+
+  Sharepoint then performs the upload as the signed-in user,
+  including its usual "replace?" prompt.
+  A `HEAD` request then confirms the change
+  (the status bar shows the wait: up to 20 s per way).
+- **If Sharepoint does not accept it,**
+  the user is offered a local save of the edited file to upload by hand.
+- **Cancel** (button) ends write mode
+  and drops all changes (unsaved and saved, not yet uploaded),
+  after asking if there are any.
+- **Esc** only ends write mode, as the edit button does
+  (saved changes stay; asks if there are unsaved ones);
+  Esc again closes the viewer.
+- **Unsaved or not-yet-uploaded changes** trigger warnings:
+  when cancelling,
+  switching files,
+  closing the viewer
+  or leaving the page.
+
+## Settings ##
+
+They are opened via the Tampermonkey menu → "Settings …",
+or the viewer's ⋯ → "Full settings …".
+There is a form view and a JSON view (with validation),
+plus "Reset to defaults".
+
+| Key | Default | Meaning |
+| :-- | :------ | :------ |
+| `layout` | `horizontal` | Start layout: `horizontal`, `vertical`, `popup` |
+| `viewer-share` | `0.33` | Share of the space for the viewer (0.2 – 0.8) |
+| `theme` | `light` | `light` / `dark` |
+| `show-whitespace` | `true` | Markers for spaces and tabs |
+| `wrap-lines` | `false` | Wrap long lines |
+| `colours-text` / `colours-table` / `colours-log` | `true` / `false` / `true` | Syntax colours per view (`colours-log`: table view of logs) |
+| `colours-sheet` | `false` | Column colours in the table view of spreadsheets (rows are always striped) |
+| `spreadsheet-view` | `tables` | Spreadsheets show `sheets` or `tables` (sheets if a file has none); the last choice is kept per file, a new value here resets those |
+| `spreadsheet-autoload-bytes` | 512 KB | Larger spreadsheets cache no sheet until a sheet or table is chosen |
+| `cache-chunk-bytes` | 512 KB | Chunk size; also the threshold for asking before big Parquet / IFCZIP |
+| `memory-cache-bytes` | 256 MB | Cache limit for all files together |
+| `cache-all-confirm-bytes` | 16 MB | "Cache all" asks above this size |
+| `parquet-rows` | `100` | Table rows shown per step |
+| `max-line-chars` | `5000` | Longer lines are cut for display |
+| `follow-links` | `true` | Follow `.url` link files (same origin only) |
+| `viewer-3d-folder` | *(empty)* | Folder with the 3D files: relative to the site, or from the top with a leading `/` |
+| `viewer-3d-max-bytes` | 8 MB | 3D view only up to this IFC size |
+| `logo` | *(empty)* | `data:image/…` URI shown in the header |
+
+Settings that are start values (layout, size, theme, colours, wrap)
+are then overridden by the user's last choice in the viewer.
+Changing them in the form resets that remembered choice.

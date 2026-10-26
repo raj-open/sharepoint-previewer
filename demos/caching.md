@@ -5,7 +5,7 @@ All screenshots show the mock Sharepoint of the tests
 written by `just demos`
 (with chunks of 1 KB, so that the small test files are cached in parts;
 the default is 512 KB, setting `cache-chunk-bytes`).
-Details: [NOTES.md, §7](../NOTES.md#7-caching-logic).
+Details: [TECHNICAL.md, Caching](../TECHNICAL.md#caching).
 
 ## Logic ##
 
