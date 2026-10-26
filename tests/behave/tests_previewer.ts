@@ -446,6 +446,7 @@ describe('editing', () => {
     it('upload (simulated): text under another name is a new file; the original stays', async () => {
         const page = await openFolder(h.LIBRARY);
         const v = await h.preview(page, 'notes.txt');
+        await v.locator('.tp-content', { hasText: 'Meeting notes' }).waitFor(); // lines are drawn a frame later
         const original = await h.text(v.locator('.tp-content'));
         await edit(v);
         await v.locator('.tp-title-name').click();
@@ -459,6 +460,7 @@ describe('editing', () => {
         await v.locator('.tp-title-name:not(.tp-new-name)', { hasText: 'notes-2.txt' }).waitFor({ timeout: 10000 });
         await v.locator('.tp-content', { hasText: '(copy)' }).waitFor();
         await h.preview(page, 'notes.txt');
+        await v.locator('.tp-content', { hasText: 'Meeting notes' }).waitFor();
         assert.equal(await h.text(v.locator('.tp-content')), original);
     });
 
