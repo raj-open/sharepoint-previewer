@@ -137,7 +137,7 @@ and IT teams who want all this without another app to roll out.
 
 - **[ifc-lite](https://github.com/LTplus-AG/ifc-lite)** by Louis True / LTplus AG
   (<https://ifclite.dev>), **MPL-2.0**:
-  the engine of the optional 3D view.
+  the engine of the optional 3D model-viewer.
   - The release bundles `@ifc-lite/geometry` and `@ifc-lite/renderer` (with their dependencies) into `ifc-lite-3d.js`
     and ships the engine binary of `@ifc-lite/wasm` unchanged as `ifc-lite_bg.wasm`;
     versions pinned in [package.json](./package.json).
