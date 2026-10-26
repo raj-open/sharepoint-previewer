@@ -87,6 +87,7 @@ export type Viewer = {
     uploadBtn: HTMLButtonElement;
     writeBtn: HTMLButtonElement;
     newBtn: HTMLButtonElement;
+    linkBtn: HTMLButtonElement;
     textBtn: HTMLButtonElement;
     previewBtn: HTMLButtonElement;
     sheetPicker: Picker;
@@ -136,6 +137,8 @@ export type Viewer = {
     text: string;
     loadToken: number;
     file?: { name: string; url: string } | null;
+    /** file shown (a link file: where it leads; path or URL), or folder of the empty viewer (null: open in Sharepoint) */
+    place?: string | null;
     fileName?: string;
     linked?: boolean;
     lang?: string | null;

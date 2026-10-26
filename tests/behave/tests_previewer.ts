@@ -29,13 +29,40 @@ const FORMAT_PICKER = '.tp-format > .tp-picker';
 /** @returns "Properties: …" line */
 const properties = (v: Locator): Promise<string> => h.text(v.locator('.tp-title').nth(1));
 
+/** @returns link the chain icon copies (its tooltip, once hovered) */
+async function link(v: Locator): Promise<string> {
+    const btn = v.locator('.tp-mode-btn[title^="Copy the link"]');
+    await btn.hover();
+    return ((await btn.getAttribute('title')) ?? '').split('\n').pop() ?? '';
+}
+
 describe('list view', () => {
-    it('shows an eye on files only, not on folders', async () => {
+    it('shows an eye on files and folders', async () => {
         const page = await openFolder(h.LIBRARY);
         assert.equal(await h.eye(page, 'notes.txt').count(), 1);
         assert.equal(await h.eye(page, 'README.md').count(), 1);
-        assert.equal(await h.row(page, 'Data').locator('.tp-preview').count(), 0);
+        assert.equal(await h.eye(page, 'Data').getAttribute('data-kind'), 'folder');
         assert.equal(await page.locator('.tp-head').count(), 1);
+    });
+
+    it('folder eye: viewer without file for that folder; again: closed', async () => {
+        const page = await openFolder(h.LIBRARY);
+        await h.eye(page, 'Data').click();
+        const v = page.locator('.tp-viewer');
+        await v.waitFor();
+        assert.equal(await h.text(v.locator('.tp-title-name')), '–');
+        assert.equal(await link(v), `${h.ORIGIN}${h.LIBRARY}/Data`);
+        await h.eye(page, 'Data').click();
+        assert.equal(await v.count(), 0);
+    });
+
+    it('link: clean URL of the file shown, else of the folder open', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Data`);
+        await page.locator('.tp-head').dispatchEvent('click'); // header eye (mock: overlaid)
+        const v = page.locator('.tp-viewer');
+        assert.equal(await link(v), `${h.ORIGIN}${h.LIBRARY}/Data`); // not encoded, no query
+        await h.preview(page, 'prices.csv');
+        assert.equal(await link(v), `${h.ORIGIN}${h.LIBRARY}/Data/prices.csv`);
     });
 
     it('follows in-place navigation into nested folders (recycled rows)', async () => {
@@ -343,7 +370,7 @@ describe('editing', () => {
         await v.locator('.tp-editor').waitFor();
     }
 
-    it('Esc: same as cancel; asks only if there are changes', async () => {
+    it('Esc: only back to reading (saved changes stay, asks for unsaved ones); Esc again: closed', async () => {
         const page = await openFolder(h.LIBRARY);
         const v = await h.preview(page, 'notes.txt');
         await edit(v);
@@ -354,11 +381,20 @@ describe('editing', () => {
 
         await edit(v);
         await v.locator('.tp-editor').press('End');
-        await page.keyboard.type(' (edited)');
+        await page.keyboard.type(' (saved)');
+        await v.locator('.tp-mode-btn[title^="Save"]').click();
+        await v.locator('.tp-editor').press('End');
+        await page.keyboard.type(' (unsaved)');
         await page.keyboard.press('Escape');
         assert.match((await dialogues(page)).confirms.join('\n'), /unsaved changes/);
         assert.equal(await v.locator('.tp-editor').isVisible(), false);
-        assert.doesNotMatch(await h.text(v.locator('.tp-content')), /\(edited\)/); // changes dropped
+        assert.equal(await v.isVisible(), true);
+        await v.locator('.tp-content', { hasText: '(saved)' }).waitFor(); // saved changes kept
+        assert.doesNotMatch(await h.text(v.locator('.tp-content')), /\(unsaved\)/);
+
+        await page.keyboard.press('Escape'); // close: asks (not uploaded)
+        assert.match((await dialogues(page)).confirms.join('\n'), /not been uploaded/);
+        assert.equal(await v.count(), 0);
     });
 
     it('name: click in write mode, checked, marked as a new file; Esc in the box keeps the old one', async () => {
