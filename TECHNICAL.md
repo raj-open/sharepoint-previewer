@@ -36,7 +36,7 @@ just build-dist         # artefacts only (dependencies already installed)
 just prettify           # format + lint with fixes (Biome)
 just lint-check         # same, dry run
 just tests              # all tests (tests-unit, tests-behave, tests-integration)
-just tests-explore      # mock Sharepoint with the userscript on localhost (HTTP_PORT in .env)
+just tests-explore      # mock Sharepoint with the userscript on localhost (HTTP_PORT in .env); [folder]: own files
 just demos [case ...]   # screenshots for /demos (/demos/img)
 just type-check         # type check (strict): modules, tests, scripts
 just qa                 # lint checks + type check + all tests

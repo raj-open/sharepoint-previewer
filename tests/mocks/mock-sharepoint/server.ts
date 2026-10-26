@@ -1,20 +1,25 @@
-// Mock Sharepoint Online: one site with one document library, served from ./library (or another folder,
-// or several folders shown by name in the library root). Read only: files are read from disk per request.
-// Uploads (optional, simulated): kept apart in a session folder under ./__uploads__ that mirrors the library's
-// paths; they are listed and served over the originals (which stay untouched) until the session ends.
+// Mock Sharepoint Online: one site with document libraries, each served from a local folder
+// (default: library "Mock Data" from ./library). Read only: files are read from disk per request.
+// Uploads (optional, simulated): kept apart in a session folder under ./__uploads__ that mirrors the site's
+// paths (<library>/<path>); they are listed and served over the originals (which stay untouched) until the session ends.
 //
-//   /sites/Test/Shared Documents/Forms/AllItems.aspx[?id=<folder>]  list view (client-side app)
-//   /sites/Test/Shared Documents/<path>                             file (GET / HEAD, byte ranges)
-//   /sites/Test/SitePages/Home.aspx                                 page outside any library
-//   /sites/Test/Shared Documents/previewer/<file>                   3D files of the release (if built),
-//                                                                   listed as folder "previewer" in the library
-//   /sites/Test/Shared Documents/_api/upload?folder=<f>&name=<n>    upload (POST, body: the file; simulated)
-//   /sites/Test/Shared Documents/_api/tree                          folders and files (JSON; list refresh)
+//   /sites/Test/<library>/Forms/AllItems.aspx[?id=<folder>][&q=<term>]   list view (client-side app); q: search
+//   /sites/Test/<library>/<path>                                         file (GET / HEAD, byte ranges)
+//   /sites/Test/SitePages/Home.aspx                                      page outside any library
+//   /sites/Test/Mock Data/previewer/<file>                               3D files of the release (if built),
+//                                                                        listed as folder "previewer" in "Mock Data"
+//   /sites/Test/<library>/_api/upload?folder=<f>&name=<n>                upload (POST, body: the file; simulated)
+//   /sites/Test/<library>/_api/tree                                      folders and files (JSON; list refresh)
+//   /sites/Test/_api/web/GetList(@list)/items?$filter=FileLeafRef eq '<name>'&@list='<library>'
+//                                                                        files of that name in a library (as Sharepoint)
+//   /sites/Test/_api/search/query?querytext='(filename:"<name>" …) path:"<url of folder>"'
+//                                                                        search index (as Sharepoint; Parquet: a form as Path)
 //
 // The list view mimics only what the userscript reads: ARIA grid rows, name fields,
 // folder icons, the scroll card and Sharepoint's `display: contents` wrapper.
 // Navigation between folders happens in place (history API) and recycles row elements,
-// as Sharepoint does.
+// as Sharepoint does. Search (box in the command bar) lists files and folders below the folder open
+// whose names contain the term; file rows carry no path (as in Sharepoint), folder rows link to the folder.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,17 +30,24 @@ const ROOT = path.resolve(HERE, '../../..');
 
 export const ORIGIN = 'https://acme.sharepoint.com';
 export const SITE = '/sites/Test';
-export const LIBRARY = `${SITE}/Shared Documents`;
-export const LIST_PAGE = `${LIBRARY}/Forms/AllItems.aspx`;
+
+/** @param library server-relative @returns its list view */
+export const listPageOf = (library: string): string => `${library}/Forms/AllItems.aspx`;
+
+/** @param p server-relative path on the site @returns its library (first part after the site) */
+export const libraryOf = (p: string): string => p.split('/').slice(0, 4).join('/');
+
+// Library of the test fixtures (behavioural tests, demos)
+export const LIBRARY = `${SITE}/Mock Data`;
+export const LIST_PAGE = listPageOf(LIBRARY);
 export const PATH_FILES = path.join(HERE, 'library');
 
 export const VERSION = fs.readFileSync(path.join(ROOT, 'dist/VERSION'), 'utf8').trim();
 export const PATH_RELEASE = path.join(ROOT, 'dist', `v${VERSION}`);
-// 3D files of the release, as a folder of the library (as deployed); setting `viewer-3d-folder`: site-relative
+// 3D files of the release, as a folder of the test library (as deployed); setting `viewer-3d-folder`: site-relative
 export const RELEASE_FOLDER = `${LIBRARY}/previewer`;
 export const RELEASE_SETTING = RELEASE_FOLDER.slice(SITE.length + 1);
 const FILES_3D = ['ifc-lite-3d.js', 'ifc-lite_bg.wasm'];
-const API = `${LIBRARY}/_api`;
 // Simulated uploads, one folder per session (never synchronised: cf. /.gitignore; removed by `just clean`)
 export const PATH_UPLOADS = path.join(HERE, '__uploads__');
 
@@ -67,12 +79,22 @@ const TYPES: Record<string, string> = {
     '.xml': 'text/xml',
 };
 
+// Files the search index does not read: their Path is a form (DispForm.aspx?ID=…), as in Sharepoint
+const UNINDEXED = /\.parquet$/i;
+
 // Entry of a folder listing (uploaded: simulated upload)
 type Entry = { name: string; folder: boolean; size: number; uploaded?: boolean };
 // Answer to a request
 export type Reply = { status: number; headers: Record<string, string>; body: Buffer | string };
-// Library folder, or folders shown by name in the library root
-export type Files = string | Record<string, string>;
+// Libraries of the site: name (also its URL part) -> local folder
+export type Libraries = Record<string, string>;
+
+// Default: the test library alone
+export const LIBRARIES: Libraries = { 'Mock Data': PATH_FILES };
+
+// ----------------------------------------------------------------
+// Local paths
+// ----------------------------------------------------------------
 
 /** @returns local path, never outside root (no "..") */
 function within(root: string, rel: string): string | null {
@@ -80,19 +102,22 @@ function within(root: string, rel: string): string | null {
     return local === root || local.startsWith(root + path.sep) ? local : null;
 }
 
-/** @param folder server-relative @returns local path */
-function localPath(files: Files, folder: string): string | null {
-    if (folder !== LIBRARY && !folder.startsWith(`${LIBRARY}/`)) return null;
-    const rel = folder.slice(LIBRARY.length);
-    if (typeof files === 'string') return within(files, rel);
-    const [name = '', ...rest] = rel.split('/').slice(1);
-    return Object.hasOwn(files, name) ? within(files[name], rest.join('/')) : null;
+/** @returns name of the library of a server-relative path, if the site has it */
+function libraryName(libs: Libraries, p: string): string | null {
+    if (!p.startsWith(`${SITE}/`)) return null;
+    const name = libraryOf(p).slice(SITE.length + 1);
+    return Object.hasOwn(libs, name) ? name : null;
 }
 
-/** @param pathname server-relative @returns place among the uploads (null: outside the library) */
-function uploadPath(uploads: string, pathname: string): string | null {
-    if (pathname === LIBRARY) return uploads;
-    return pathname.startsWith(`${LIBRARY}/`) ? within(uploads, pathname.slice(LIBRARY.length + 1)) : null;
+/** @param p server-relative @returns local path */
+function localPath(libs: Libraries, p: string): string | null {
+    const name = libraryName(libs, p);
+    return name == null ? null : within(libs[name], p.slice(libraryOf(p).length));
+}
+
+/** @param p server-relative @returns place among the uploads (null: outside the site) */
+function uploadPath(uploads: string, p: string): string | null {
+    return p.startsWith(`${SITE}/`) ? within(uploads, p.slice(SITE.length + 1)) : null;
 }
 
 /** @returns folder for the uploads of a session, empty (left-overs of an earlier run removed) */
@@ -112,13 +137,16 @@ export function endUploads(dir: string): void {
 }
 
 /** @returns with absolute paths; folders not there left out */
-export function resolveFiles(files: Files): Files {
-    if (typeof files === 'string') return path.resolve(files);
-    const found = Object.entries(files)
+export function resolveLibraries(libs: Libraries): Libraries {
+    const found = Object.entries(libs)
         .map(([name, dir]) => [name, path.resolve(dir)] as const)
         .filter(([, dir]) => fs.existsSync(dir) && fs.statSync(dir).isDirectory());
     return Object.fromEntries(found);
 }
+
+// ----------------------------------------------------------------
+// Listings
+// ----------------------------------------------------------------
 
 /** @returns folders first, then files; hidden entries left out */
 function listing(dir: string): Entry[] {
@@ -138,21 +166,18 @@ export const has3dRelease = (): boolean => FILES_3D.every((name) => fs.existsSyn
 
 const byName = (a: Entry, b: Entry): number => Number(b.folder) - Number(a.folder) || a.name.localeCompare(b.name);
 
-/** @returns server-relative folder -> entries (uploads over the originals) */
-function tree(files: Files, uploads?: string): Record<string, Entry[]> {
+/** @param library server-relative @returns its folders (server-relative) -> entries (uploads over the originals) */
+function tree(libs: Libraries, library: string, uploads?: string): Record<string, Entry[]> {
     const out: Record<string, Entry[]> = {};
     const walk = (folder: string) => {
-        const local = localPath(files, folder);
-        const entries = local
-            ? listing(local)
-            : Object.keys(files) // library root of several folders
-                  .sort((a, b) => a.localeCompare(b))
-                  .map((name) => ({ name, folder: true, size: 0 }));
-        out[folder] = entries;
-        for (const e of entries) if (e.folder) walk(`${folder}/${e.name}`);
+        const local = localPath(libs, folder);
+        if (!local) return;
+        out[folder] = listing(local);
+        for (const e of out[folder]) if (e.folder) walk(`${folder}/${e.name}`);
     };
-    walk(LIBRARY);
-    if (has3dRelease() && !out[RELEASE_FOLDER]) {
+    walk(library);
+    if (!out[library]) return out;
+    if (library === LIBRARY && has3dRelease() && !out[RELEASE_FOLDER]) {
         out[LIBRARY].unshift({ name: 'previewer', folder: true, size: 0 });
         out[RELEASE_FOLDER] = listing(PATH_RELEASE).filter((e) => FILES_3D.includes(e.name));
     }
@@ -168,6 +193,17 @@ function tree(files: Files, uploads?: string): Record<string, Entry[]> {
     return out;
 }
 
+/** @returns server-relative paths of all files of a library */
+function filesOf(libs: Libraries, library: string, uploads?: string): string[] {
+    return Object.entries(tree(libs, library, uploads)).flatMap(([folder, entries]) =>
+        entries.filter((e) => !e.folder).map((e) => `${folder}/${e.name}`),
+    );
+}
+
+// ----------------------------------------------------------------
+// Replies
+// ----------------------------------------------------------------
+
 const html = (body: string): Reply => ({ status: 200, headers: { 'content-type': 'text/html; charset=utf-8' }, body });
 
 const json = (data: unknown): Reply => ({
@@ -182,12 +218,23 @@ const fail = (status: number): Reply => ({
     body: `Error ${status}`,
 });
 
-function listPage(files: Files, uploads?: string): Reply {
+/** @returns text for HTML */
+const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+
+/** @param library server-relative */
+function listPage(libs: Libraries, library: string, uploads?: string): Reply {
+    const name = library.slice(SITE.length + 1);
+    const nav = Object.keys(libs)
+        .map((lib) => {
+            const current = lib === name ? ' class="current"' : '';
+            return `<a href="${esc(encodeURI(listPageOf(`${SITE}/${lib}`)))}"${current}>${esc(lib)}</a>`;
+        })
+        .join('');
     return html(`<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Documents - ${TENANT}</title>
+<title>${esc(name)} - ${TENANT}</title>
 <link rel="icon" href="${ICON}">
 <style>
   * { box-sizing: border-box; }
@@ -195,9 +242,13 @@ function listPage(files: Files, uploads?: string): Reply {
   body { display: flex; flex-direction: column; overflow: hidden; }
   .suite-bar { flex: none; height: 48px; background: #0078d4; color: #fff; padding: 14px 16px; }
   .app { flex: 1; min-height: 0; display: flex; }
-  .nav { flex: none; width: 200px; padding: 12px; background: #faf9f8; }
+  .nav { flex: none; width: 200px; padding: 12px; background: #faf9f8; display: flex; flex-direction: column; gap: 6px; }
+  .nav a { color: inherit; text-decoration: none; padding-left: 8px; }
+  .nav a:hover { text-decoration: underline; }
+  .nav a.current { font-weight: 600; border-left: 3px solid #0078d4; padding-left: 5px; }
   .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-  .command-bar { flex: none; height: 44px; padding: 12px 16px; border-bottom: 1px solid #edebe9; }
+  .command-bar { flex: none; height: 44px; padding: 8px 16px; border-bottom: 1px solid #edebe9; display: flex; align-items: center; gap: 12px; }
+  .command-bar input[type="search"] { margin-left: auto; width: 240px; padding: 4px 8px; border: 1px solid #8a8886; border-radius: 4px; font: inherit; }
   .breadcrumb { flex: none; padding: 8px 16px; font-size: 18px; }
   .breadcrumb a { color: inherit; text-decoration: none; }
   .breadcrumb a:hover { text-decoration: underline; }
@@ -220,15 +271,20 @@ function listPage(files: Files, uploads?: string): Reply {
 <body>
   <div class="suite-bar">${TENANT}</div>
   <div class="app">
-    <div class="nav">Home<br>Documents</div>
+    <div class="nav">Home${nav}</div>
     <div class="main">
-      <div class="command-bar">+ New &nbsp; <label class="upload">Upload<input type="file" id="upload" multiple hidden></label> &nbsp; Sync</div>
+      <div class="command-bar">
+        <span>+ New</span>
+        <label class="upload">Upload<input type="file" id="upload" multiple hidden></label>
+        <span>Sync</span>
+        <input type="search" id="search" placeholder="Search this library" aria-label="Search this library">
+      </div>
       <div class="breadcrumb" id="breadcrumb"></div>
       <div class="list-host">
         <div role="" style="display: contents;">
           <div class="card">
             <div class="scroller">
-              <div role="grid" aria-label="Documents" id="grid">
+              <div role="grid" aria-label="${esc(name)}" id="grid">
                 <div role="row" class="header">
                   <div role="columnheader" class="c-icon" aria-label="File type"></div>
                   <div role="columnheader" class="c-name">Name</div>
@@ -242,24 +298,27 @@ function listPage(files: Files, uploads?: string): Reply {
     </div>
   </div>
 <script>
-  let TREE = ${JSON.stringify(tree(files, uploads))};
-  const LIBRARY = ${JSON.stringify(LIBRARY)};
-  const API = ${JSON.stringify(API)};
-  const LIST_PAGE = ${JSON.stringify(LIST_PAGE)};
+  let TREE = ${JSON.stringify(tree(libs, library, uploads))};
+  const LIBRARY = ${JSON.stringify(library)};
+  const NAME = ${JSON.stringify(name)};
+  const API = ${JSON.stringify(`${library}/_api`)};
+  const LIST_PAGE = ${JSON.stringify(listPageOf(library))};
   const grid = document.getElementById('grid');
+  const search = document.getElementById('search');
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const icon = (e) => e.folder ? '/_layouts/15/images/itemtypefolder.svg' : '/_layouts/15/images/itemtypegeneric.svg';
   const size = (e) => e.folder ? '' : e.size + ' bytes' + (e.uploaded ? ' <span class="uploaded">· uploaded</span>' : '');
   const folderLink = (folder, text) =>
-    '<a href="' + LIST_PAGE + '?id=' + encodeURIComponent(folder) + '" data-folder>' + text + '</a>';
+    '<a href="' + LIST_PAGE + '?id=' + encodeURIComponent(folder) + '" data-folder>' + esc(text) + '</a>';
 
   // Path from the library down: every part but the last leads back to its folder
   function breadcrumb(folder) {
     const parts = folder.slice(LIBRARY.length).split('/').filter(Boolean);
-    const names = ['Shared Documents', ...parts];
+    const names = [NAME, ...parts];
     return names
       .map((name, i) => {
         const path = [LIBRARY, ...parts.slice(0, i)].join('/');
-        return i < names.length - 1 ? folderLink(path, name) : '<span>' + name + '</span>';
+        return i < names.length - 1 ? folderLink(path, name) : '<span>' + esc(name) + '</span>';
       })
       .join(' › ');
   }
@@ -268,12 +327,33 @@ function listPage(files: Files, uploads?: string): Reply {
     const id = new URLSearchParams(location.search).get('id');
     return id ? id.replace(/\\/+$/, '') : LIBRARY;
   }
+  const termOfUrl = () => (new URLSearchParams(location.search).get('q') || '').trim();
+
+  // Search: files and folders below the folder whose names contain the term (any case), at any depth
+  function found(folder, term) {
+    const out = [];
+    const t = term.toLowerCase();
+    const walk = (f) => {
+      for (const e of TREE[f] || []) {
+        const path = f + '/' + e.name;
+        if (e.name.toLowerCase().includes(t)) out.push({ ...e, path });
+        if (e.folder) walk(path);
+      }
+    };
+    walk(folder);
+    return out;
+  }
 
   // Rows are reused across folders (as Sharepoint's virtualised list does)
   function render() {
     const folder = folderOfUrl();
-    const entries = TREE[folder] || [];
-    document.getElementById('breadcrumb').innerHTML = breadcrumb(folder);
+    const term = termOfUrl();
+    const entries = term ? found(folder, term) : (TREE[folder] || []).map((e) => ({ ...e, path: folder + '/' + e.name }));
+    const scope = folder === LIBRARY ? NAME : folder.split('/').pop();
+    document.getElementById('breadcrumb').innerHTML = term
+      ? 'Search results for "' + esc(term) + '" in ' + folderLink(folder, scope)
+      : breadcrumb(folder);
+    search.value = term;
     const rows = [...grid.querySelectorAll('[role="row"]:not(.header)')];
     while (rows.length < entries.length) {
       const row = document.createElement('div');
@@ -285,8 +365,8 @@ function listPage(files: Files, uploads?: string): Reply {
       const e = entries[i];
       row.hidden = !e;
       if (!e) return void (row.innerHTML = '');
-      // Same row element, new cells contents: like Sharepoint after navigation
-      const nameField = e.folder ? folderLink(folder + '/' + e.name, e.name) : '<button type="button">' + e.name + '</button>';
+      // Same row element, new cells contents: like Sharepoint after navigation; files: name only, no path
+      const nameField = e.folder ? folderLink(e.path, e.name) : '<button type="button">' + esc(e.name) + '</button>';
       row.innerHTML =
         '<div role="gridcell" class="c-icon"><img alt="" src="' + icon(e) + '"></div>' +
         '<div role="gridcell" class="c-name" data-automationid="field-LinkFilename">' + nameField + '</div>' +
@@ -302,6 +382,15 @@ function listPage(files: Files, uploads?: string): Reply {
     render();
   });
   window.addEventListener('popstate', render);
+
+  // Search: Enter shows the results below the folder open; empty: the folder again
+  search.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter') return;
+    const term = search.value.trim();
+    const query = '?id=' + encodeURIComponent(folderOfUrl()) + (term ? '&q=' + encodeURIComponent(term) : '');
+    history.pushState(null, '', LIST_PAGE + query);
+    render();
+  });
 
   // Uploads (simulated by the server, apart from the library): drop on the list, or "Upload"; then the list anew
   async function upload(files) {
@@ -331,6 +420,10 @@ function listPage(files: Files, uploads?: string): Reply {
 </body>
 </html>`);
 }
+
+// ----------------------------------------------------------------
+// Files, uploads, REST
+// ----------------------------------------------------------------
 
 /** @param file local path @param uploaded simulated upload: date and ETag change with each upload */
 function serveFile(file: string, method: string, range: string | undefined, uploaded = false): Reply {
@@ -367,9 +460,10 @@ function serveFile(file: string, method: string, range: string | undefined, uplo
     };
 }
 
-// Simulated upload: written to the session's uploads, at the library path of the folder
+// Simulated upload: written to the session's uploads, at the site path of the folder
 function upload(
-    files: Files,
+    libs: Libraries,
+    library: string,
     uploads: string | undefined,
     params: URLSearchParams,
     method: string,
@@ -379,31 +473,78 @@ function upload(
     const folder = (params.get('folder') ?? '').replace(/\/+$/, '');
     const name = params.get('name') ?? '';
     const dir = uploadPath(uploads, folder);
-    if (!dir || !name || /[\\/]/.test(name) || !(folder in tree(files, uploads))) return fail(400);
+    if (!dir || !name || /[\\/]/.test(name) || !(folder in tree(libs, library, uploads))) return fail(400);
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, name), body ?? Buffer.alloc(0));
     return json({ folder, name });
 }
 
+/** @returns OData string literal ('it''s') as text */
+const unquote = (s: string): string => s.replace(/^'|'$/g, '').replace(/''/g, "'");
+
+// Library items by file name (FileLeafRef, any case), as Sharepoint's list REST API
+function listItems(libs: Libraries, params: URLSearchParams, uploads?: string): Reply {
+    const list = unquote(params.get('@list') ?? '').replace(/\/+$/, '');
+    const m = /FileLeafRef eq ('(?:[^']|'')*')/.exec(params.get('$filter') ?? '');
+    if (!m || libraryName(libs, list) == null || libraryOf(list) !== list) return fail(400);
+    const name = unquote(m[1]).toLowerCase();
+    const paths = filesOf(libs, list, uploads).filter((p) => p.split('/').pop()?.toLowerCase() === name);
+    return json({ value: paths.map((p) => ({ FileRef: p })) });
+}
+
+// Search index: files of that name below the path given, over all libraries (as Sharepoint's search REST API);
+// files the index does not read have a form as Path (the file: ParentLink + Filename)
+function searchQuery(libs: Libraries, params: URLSearchParams, origin: string, uploads?: string): Reply {
+    const text = unquote(params.get('querytext') ?? '');
+    const name = (/filename:"([^"]*)"/.exec(text)?.[1] ?? '').toLowerCase();
+    let below = '';
+    try {
+        below = decodeURIComponent(new URL(/path:"([^"]*)"/.exec(text)?.[1] ?? '').pathname).replace(/\/+$/, '');
+    } catch {
+        return fail(400);
+    }
+    const paths = Object.keys(libs)
+        .flatMap((lib) => filesOf(libs, `${SITE}/${lib}`, uploads))
+        .filter((p) => p.split('/').pop()?.toLowerCase() === name)
+        .filter((p) => p.toLowerCase().startsWith(`${below.toLowerCase()}/`));
+    const rows = paths.map((p, i) => {
+        const parent = p.slice(0, p.lastIndexOf('/'));
+        const file = p.slice(parent.length + 1);
+        const form = `${libraryOf(p)}/Forms/DispForm.aspx?ID=${i + 1}`;
+        const cells = {
+            Path: origin + encodeURI(UNINDEXED.test(file) ? form : p),
+            ParentLink: origin + encodeURI(parent),
+            Filename: file,
+        };
+        return { Cells: Object.entries(cells).map(([Key, Value]) => ({ Key, Value })) };
+    });
+    return json({ PrimaryQueryResult: { RelevantResults: { Table: { Rows: rows } } } });
+}
+
 /**
  * Answers one request to the mock Sharepoint.
  *
- * @param opts library folder (default: ./library), or folders by name in the library root;
+ * @param opts libraries of the site (default: "Mock Data" from ./library);
  *   folder of the session's uploads (none: uploads refused)
  */
 export function handle(
     { url, method, headers, body }: { url: string; method: string; headers: Record<string, string>; body?: Buffer },
-    { files = PATH_FILES, uploads }: { files?: Files; uploads?: string } = {},
+    { libraries = LIBRARIES, uploads }: { libraries?: Libraries; uploads?: string } = {},
 ): Reply {
     const u = new URL(url);
     const pathname = decodeURIComponent(u.pathname);
-    const root = resolveFiles(files);
+    const libs = resolveLibraries(libraries);
+    const library = libraryName(libs, pathname) == null ? null : libraryOf(pathname);
 
-    if (pathname === LIST_PAGE) return listPage(root, uploads);
-    if (pathname === `${API}/tree`) return json(tree(root, uploads));
-    if (pathname === `${API}/upload`) return upload(root, uploads, u.searchParams, method, body);
+    if (pathname === `${SITE}/_api/web/GetList(@list)/items`) return listItems(libs, u.searchParams, uploads);
+    if (pathname === `${SITE}/_api/search/query`) return searchQuery(libs, u.searchParams, u.origin, uploads);
+    if (library && pathname === listPageOf(library)) return listPage(libs, library, uploads);
+    if (library && pathname === `${library}/_api/tree`) return json(tree(libs, library, uploads));
+    if (library && pathname === `${library}/_api/upload`) {
+        return upload(libs, library, uploads, u.searchParams, method, body);
+    }
     const uploaded = uploads ? uploadPath(uploads, pathname) : null;
-    if (uploaded && fs.existsSync(uploaded) && fs.statSync(uploaded).isFile()) {
+    if (library && uploaded && fs.existsSync(uploaded) && fs.statSync(uploaded).isFile()) {
         return serveFile(uploaded, method, headers.range, true);
     }
     if (pathname === `${SITE}/SitePages/Home.aspx`) {
@@ -423,7 +564,7 @@ export function handle(
         const file = path.join(PATH_RELEASE, path.basename(pathname));
         return fs.existsSync(file) ? serveFile(file, method, headers.range) : fail(404);
     }
-    const file = localPath(root, pathname);
+    const file = localPath(libs, pathname);
     if (!file || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return fail(404);
     return serveFile(file, method, headers.range);
 }

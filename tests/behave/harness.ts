@@ -103,7 +103,8 @@ export async function launch({ channel }: { channel?: string } = {}): Promise<{
 }
 
 /** @param folder server-relative @returns list view of that folder */
-export const folderUrl = (folder: string): string => `${LIST_PAGE}?id=${encodeURIComponent(folder)}`;
+export const folderUrl = (folder: string): string =>
+    `${sharepoint.listPageOf(sharepoint.libraryOf(folder))}?id=${encodeURIComponent(folder)}`;
 
 export const row = (page: Page, name: string): Locator =>
     page.locator('[role="grid"] [role="row"]').filter({

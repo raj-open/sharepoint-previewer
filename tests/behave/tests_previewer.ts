@@ -67,9 +67,9 @@ describe('list view', () => {
 
     it('follows in-place navigation into nested folders (recycled rows)', async () => {
         const page = await openFolder(h.LIBRARY);
-        await page.locator('a', { hasText: 'Data' }).click();
+        await page.locator('#grid a', { hasText: /^Data$/ }).click();
         await h.eye(page, 'prices.csv').waitFor();
-        await page.locator('a', { hasText: 'Reports' }).click();
+        await page.locator('#grid a', { hasText: /^Reports$/ }).click();
         await h.eye(page, '2025.csv').waitFor();
         assert.equal(await page.locator('.tp-preview').count(), 1);
     });
@@ -77,9 +77,9 @@ describe('list view', () => {
     it('goes back to parent folders by the breadcrumb', async () => {
         const page = await openFolder(`${h.LIBRARY}/Data/Reports`);
         await h.eye(page, '2025.csv').waitFor();
-        await page.locator('#breadcrumb a', { hasText: 'Data' }).click();
+        await page.locator('#breadcrumb a', { hasText: /^Data$/ }).click();
         await h.eye(page, 'prices.csv').waitFor();
-        await page.locator('#breadcrumb a', { hasText: 'Shared Documents' }).click();
+        await page.locator('#breadcrumb a', { hasText: 'Mock Data' }).click();
         await h.eye(page, 'notes.txt').waitFor();
     });
 
@@ -87,6 +87,63 @@ describe('list view', () => {
         const { page } = await browser.open(`${h.SITE}/SitePages/Home.aspx`);
         await page.waitForTimeout(300);
         assert.equal(await page.locator('.tp-cell, .tp-head').count(), 0);
+    });
+});
+
+describe('search results', () => {
+    /** Searches the library below the folder open (box in the command bar), waits for the results */
+    async function search(page: Page, term: string): Promise<void> {
+        await page.locator('#search').fill(term);
+        await page.locator('#search').press('Enter');
+        await page.locator('#breadcrumb', { hasText: 'Search results' }).waitFor();
+    }
+
+    it('file of a sub-folder (row without path): found by name, shown from where it is; link to there', async () => {
+        const { page, requests } = await browser.open(h.LIST_PAGE);
+        await search(page, '2025');
+        const v = await h.preview(page, '2025.csv');
+        await v.locator('.tp-content', { hasText: 'Alexander' }).waitFor();
+        assert.ok(requests.some((r) => r.url.includes('/_api/web/GetList')));
+        assert.equal(await link(v), `${h.ORIGIN}${h.LIBRARY}/Data/Reports/2025.csv`);
+        assert.match((await h.row(page, '2025.csv').getAttribute('class')) ?? '', /tp-row-shown/); // row found again
+    });
+
+    it('folder in the results: its eye opens that folder (link to it)', async () => {
+        const { page } = await browser.open(h.LIST_PAGE);
+        await search(page, 'report');
+        assert.equal(await h.eye(page, 'Reports').getAttribute('data-kind'), 'folder');
+        await h.eye(page, 'Reports').click();
+        assert.equal(await link(page.locator('.tp-viewer')), `${h.ORIGIN}${h.LIBRARY}/Data/Reports`);
+    });
+
+    it('library list refuses (large library): found by the search index; Parquet through its parent folder', async () => {
+        const { page, requests } = await browser.open(h.LIST_PAGE);
+        await page.route(/\/_api\/web\/GetList/, (route) => route.fulfill({ status: 500, body: '' }));
+        await search(page, 'people');
+        const v = await h.preview(page, 'people.parquet');
+        await v.locator('.tp-content', { hasText: 'Grace' }).waitFor();
+        assert.ok(requests.some((r) => r.url.includes('/_api/search/query')));
+        assert.equal(await link(v), `${h.ORIGIN}${h.LIBRARY}/Data/people.parquet`);
+    });
+
+    it('not found by either: says why, with how the lookup went', async () => {
+        const { page } = await browser.open(h.LIST_PAGE);
+        await page.route(/\/_api\/(web\/GetList|search\/query)/, (route) => route.fulfill({ status: 500, body: '' }));
+        await search(page, '2025');
+        const v = await h.preview(page, '2025.csv');
+        const content = await h.text(v.locator('.tp-content'));
+        assert.match(content, /cannot be viewed from search results/);
+        assert.match(content, /Looked up by name below \/sites\/Test\/Mock Data/);
+        assert.match(content, /library list: HTTP 500/);
+    });
+
+    it('search box empty again: the folder as before', async () => {
+        const { page } = await browser.open(h.LIST_PAGE);
+        await search(page, '2025');
+        await page.locator('#search').fill('');
+        await page.locator('#search').press('Enter');
+        await h.eye(page, 'notes.txt').waitFor();
+        assert.equal(await h.row(page, '2025.csv').count(), 0);
     });
 });
 
