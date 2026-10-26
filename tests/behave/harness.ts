@@ -1,7 +1,8 @@
 // Harness for behavioural tests: Chromium (Playwright) on the mock Sharepoint,
 // userscript from /dist/userscript.js injected per page load (as Tampermonkey does at document-idle).
 //
-// Browser once per machine: `npx playwright install chromium` (part of `just build-deps`).
+// Browser once per machine: `npx playwright install chromium` (part of `just build-deps`),
+// or a browser installed already: BROWSER_CHANNEL (e.g. `chrome`, as on GitHub's runners; nothing downloaded).
 
 import type { Locator } from 'playwright';
 import type { Page } from 'playwright';
@@ -56,10 +57,14 @@ function tampermonkey({ script, settings }: { script: string; settings: Record<s
 
 /**
  * Browser with the mock Sharepoint; one per test file.
- * Default: Chromium headless shell (fast);
+ * Default: BROWSER_CHANNEL if set (an installed browser, e.g. `chrome`), else Chromium headless shell (fast);
  * `channel: 'chromium'`: full Chromium in new headless mode (GPU compositing, e.g. WebGPU canvases in screenshots).
  */
-export async function launch({ channel }: { channel?: string } = {}): Promise<{
+export async function launch({
+    channel = process.env.BROWSER_CHANNEL || undefined,
+}: {
+    channel?: string;
+} = {}): Promise<{
     open: (url?: string, opts?: { settings?: Record<string, unknown> }) => Promise<Session>;
     close: () => Promise<void>;
 }> {

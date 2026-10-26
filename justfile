@@ -75,11 +75,18 @@ setup:
 [group("build")]
 build: build-deps build-dist
 
-# installs dependencies per lock; updates lock only if dependencies in manifest changed (version: cf. build-lock)
+# installs dependencies per lock; updates lock only if dependencies in manifest changed (version: cf. build-lock);
+# browser for the behavioural tests: Playwright's Chromium, unless BROWSER_CHANNEL names one installed (e.g. chrome)
 [group("build")]
 build-deps:
-    @npm ci --no-audit --no-fund || npm install --no-audit --no-fund
-    @npx playwright install chromium
+    #!/usr/bin/env bash
+    set -euo pipefail
+    npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+    if [[ -z "${BROWSER_CHANNEL:-}" ]]; then
+        npx playwright install chromium
+    else
+        echo "browser: ${BROWSER_CHANNEL} (installed; none downloaded)"
+    fi
 
 # writes /dist/VERSION (as semver, cf. TAG) into manifest + lock, then updates lock per manifest; installs nothing
 [group("build")]
