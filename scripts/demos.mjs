@@ -1,5 +1,6 @@
 // Screenshots for the demos (/demos/img/<case>.png): the userscript on the mock SharePoint,
-// in Chromium (Playwright), with the harness of the behavioural tests (/tests/behave/harness.mjs).
+// in full Chromium (Playwright, new headless mode),
+// with the harness of the behavioural tests (/tests/behave/harness.mjs).
 // Usage: node scripts/demos.mjs [case ...] (no case: all); cf. `just demos`.
 // NOTE: only fixtures of the mock SharePoint are shown (/tests/mocks/mock-sharepoint/library).
 
@@ -16,6 +17,13 @@ const PATH_IMG = 'demos/img';
 
 // pickers in the status bar: sheet or table (right of Table)
 const SHEET_PICKER = '.tp-views:not(.tp-format) > .tp-picker';
+
+// full Chromium (new headless mode): the headless shell leaves WebGPU canvases blank in screenshots
+const CHANNEL = 'chromium';
+
+// 3D view: status line once the model is loaded, then time for frames to be drawn
+const STATUS_3D = /\d+ objects · /;
+const WAIT_3D = 1000;
 
 // settings for the 3D view (as `just tests-explore` fills them in): release folder of the mock SharePoint
 const SETTINGS_3D = { 'viewer-3d-folder': RELEASE_SETTING };
@@ -83,7 +91,8 @@ const CASES = {
         skip: () => (h.has3dRelease() ? '' : 'no 3D files: run `just build` first'),
         steps: async (page, v) => {
             await view(v, '3D');
-            await page.waitForTimeout(5000); // model loaded and drawn
+            await v.getByText(STATUS_3D).waitFor({ timeout: 30000 });
+            await page.waitForTimeout(WAIT_3D);
         },
     },
 };
@@ -120,7 +129,7 @@ async function main() {
     if (unknown.length)
         throw new Error(`unknown case(s): ${unknown.join(', ')}; known: ${Object.keys(CASES).join(', ')}`);
     fs.mkdirSync(PATH_IMG, { recursive: true });
-    const browser = await h.launch();
+    const browser = await h.launch({ channel: CHANNEL });
     let failed = 0;
     try {
         for (const [name, c] of Object.entries(CASES)) {
