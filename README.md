@@ -37,8 +37,10 @@ see [NOTES.md](NOTES.md).
 
 ### What? ###
 
-This repository produces a [Tampermonkey](https://www.tampermonkey.net) userscript
+This repository produces a userscript
 to preview (text, table, 3D, spreadsheets) and edit files in Sharepoint libraries.
+It runs in the browser extension [Tampermonkey](https://www.tampermonkey.net)
+(cf. [Credits and licences](#credits-and-licences)).
 
 ### Why? ###
 
@@ -52,7 +54,8 @@ Our tool allows users to
 - edit plaintext files and save them back through Sharepoint's own upload
 
 > [!NOTE]
-> Our tool involves no API calls or 3rd party usage (beyond an optional IFC-lite viewer).
+> Our tool involves no API calls and no third-party code,
+> except the optional 3D view built on [ifc-lite](https://github.com/LTplus-AG/ifc-lite).
 
 ### For whom? ###
 
@@ -73,7 +76,7 @@ and IT teams who want all this without another app to roll out.
 - Write access to any Sharepoint library in your domain.
 
 > [!IMPORTANT]
-> Ensure you that **user scripts** are enabled on your Tampermonkey extension (see the instructions on <https://www.tampermonkey.net>).
+> Ensure that **user scripts** are enabled for your Tampermonkey extension (see the instructions on <https://www.tampermonkey.net>).
 
 ### Setup from releases ###
 
@@ -83,14 +86,15 @@ and IT teams who want all this without another app to roll out.
 
 3. Copy the minified `sharepoint-previewer.min.js` into your Tampermonkey extension.
 
-4. (Optional – for IFC-viewer usage) Place the viewer script/artefacts (`ifc-lite-3d.js`, `ifc-lite_bg.wasm`)
+4. (Optional – for the 3D view) Place the [ifc-lite](https://github.com/LTplus-AG/ifc-lite) artefacts
+   (`ifc-lite-3d.js`, `ifc-lite_bg.wasm`)
    in a designated Sharepoint library of your choice.
 
-5. Ensure the application `Sharepoint Viewer` is activated in the Tampermonkey extension and refresh your browser.
+5. Ensure the userscript `Sharepoint Previewer` is activated in the Tampermonkey extension and refresh your browser.
 
 6. Navigate to any sharepoint library:
 
-    1. (only needed onced) click on the `Sharepoint Viewer` application within the Tampermonkey extension menu,
+    1. (only needed once) click on the `Sharepoint Previewer` userscript within the Tampermonkey extension menu,
       select settings,
       accept the defaults or adjust as you see fit.
       In particular the (relative!) path to your ifc-lite artefacts should be set (if you wish to use the IFC-viewer),
@@ -117,9 +121,35 @@ and IT teams who want all this without another app to roll out.
 - See [TECHNICAL.md](./TECHNICAL.md) for basic technical notes about this repository.
 - See [NOTES.md](./NOTES.md) for notes on application logic and design.
 
-## Licence ##
+## Credits and licences ##
 
-[MPL-2.0](./LICENCE) (Mozilla Public License 2.0):
-use, change and pass on freely, also commercially;
-the copyright and licence notices stay,
-and changed files of this project stay under MPL-2.0 (their source available to whoever receives them).
+- **This script:**
+  written for this purpose, contains no third-party code;
+  licence: [MPL-2.0](./LICENCE) (Mozilla Public License 2.0):
+  use, change and pass on freely, also commercially;
+  the copyright and licence notices stay,
+  and changed files of this project stay under MPL-2.0 (their source available to whoever receives them).
+
+- **[Tampermonkey](https://www.tampermonkey.net)** by Jan Biniok:
+  the browser extension that runs the userscript.
+  Each user installs it separately;
+  it is neither part of nor distributed with this repository.
+
+- **[ifc-lite](https://github.com/LTplus-AG/ifc-lite)** by Louis True / LTplus AG
+  (<https://ifclite.dev>), **MPL-2.0**:
+  the engine of the optional 3D view.
+  - The release bundles `@ifc-lite/geometry` and `@ifc-lite/renderer` (with their dependencies) into `ifc-lite-3d.js`
+    and ships the engine binary of `@ifc-lite/wasm` unchanged as `ifc-lite_bg.wasm`;
+    versions pinned in [package.json](./package.json).
+  - Used unchanged; its source code is available in the repository above.
+    Modified ifc-lite source files would have to stay under MPL-2.0.
+
+- **Development only** (not part of the userscript):
+  [TypeScript](https://www.typescriptlang.org),
+  [Biome](https://biomejs.dev),
+  [esbuild](https://esbuild.github.io),
+  [Playwright](https://playwright.dev),
+  [just](https://just.systems).
+
+Microsoft, Sharepoint, Tampermonkey and other names are trademarks of their respective owners;
+this project is not affiliated with or endorsed by them.

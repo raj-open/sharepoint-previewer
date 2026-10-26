@@ -366,9 +366,10 @@ Changing them in the form resets that remembered choice.
    - The script contains the expected SHA-256 hashes;
      files that don't match are refused.
    - Source of the bundle:
-     `@ifc-lite/geometry` 7.8.1,
-     `@ifc-lite/renderer` 6.4.0,
-     `@ifc-lite/wasm` 10.4.0,
+     `@ifc-lite/geometry`,
+     `@ifc-lite/renderer`,
+     `@ifc-lite/wasm`
+     (versions pinned in `package.json` of the release),
      bundled with esbuild into one file
      that only exposes `globalThis.IfcLite`.
    - The `.wasm` file is the unchanged engine binary published in `@ifc-lite/wasm`.
@@ -411,13 +412,18 @@ That is outside the scope of this script.
 
 ---
 
-## 13. Licences ##
+## 13. Credits and licences ##
 
 - **The script:**
   written for this purpose and contains no third-party code;
   licence: MPL-2.0, see `LICENCE` in the repository
   (also named in the script's header: `@copyright`, `@license`).
+- **Tampermonkey** (<https://www.tampermonkey.net>, by Jan Biniok):
+  browser extension that runs the script;
+  installed separately, not distributed with the script.
 - **Optional 3D bundle:**
-  ifc-lite, **MPL-2.0** (<https://github.com/LTplus-AG/ifc-lite>).
-  Using it unchanged, as here, is permitted;
-  modified ifc-lite source files would have to stay under MPL-2.0.
+  ifc-lite by Louis True / LTplus AG, **MPL-2.0**
+  (<https://github.com/LTplus-AG/ifc-lite>, <https://ifclite.dev>).
+  Used unchanged, as permitted;
+  its source code is available in that repository.
+  Modified ifc-lite source files would have to stay under MPL-2.0.
