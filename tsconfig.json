@@ -13,5 +13,5 @@
         "skipLibCheck": true
     },
     "include": ["src/**/*.js", "src/**/*.d.ts"],
-    "exclude": ["src/main.js", "src/main.min.js", "src/@apis/**"]
+    "exclude": ["src/@apis/**"]
 }

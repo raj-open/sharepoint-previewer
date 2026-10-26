@@ -12,8 +12,6 @@
             "tsconfig.json",
             "src/**",
             "scripts/**",
-            "!src/main.js",
-            "!src/main.min.js",
             "tests/**",
             "!tests/mocks/mock-sharepoint/library"
         ]

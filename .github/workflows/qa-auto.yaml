@@ -48,7 +48,7 @@ jobs:
     timeout-minutes: 30
     steps:
       # --------------------------------
-      # setup
+      # Setup
       # --------------------------------
 
       - uses: actions/checkout@v7.0.1
@@ -74,16 +74,16 @@ jobs:
           just build
           npx playwright install-deps chromium
 
-      # NOTE: bundle in /src is committed: warn if it was not rebuilt before the commit
+      # --------------------------------
+      # Checks
+      # --------------------------------
+
+      # NOTE: bundle /dist/userscript.js is committed: warn if it was not rebuilt before the commit
       - name: Check build is up to date
         run: |-
-          if ! git diff --quiet -- src/main.js src/main.min.js; then
-            echo "::warning::src/main.js or src/main.min.js not rebuilt before commit (run \`just build-src\`)"
+          if ! git diff --quiet -- dist/userscript.js; then
+            echo "::warning::dist/userscript.js not rebuilt before commit (run \`just build-src\`)"
           fi
-
-      # --------------------------------
-      # checks
-      # --------------------------------
 
       - name: QA - Linting
         run: |-

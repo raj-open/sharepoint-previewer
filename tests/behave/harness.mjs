@@ -1,5 +1,5 @@
 // Harness for behavioural tests: Chromium (Playwright) on the mock SharePoint,
-// userscript from /src/main.js injected per page load (as Tampermonkey does at document-idle).
+// userscript from /dist/userscript.js injected per page load (as Tampermonkey does at document-idle).
 //
 // Browser once per machine: `npx playwright install chromium` (part of `just build-deps`).
 
@@ -42,12 +42,15 @@ function tampermonkey({ script, settings }) {
 
 /**
  * Browser with the mock SharePoint; one per test file.
+ * Default: Chromium headless shell (fast);
+ * `channel: 'chromium'`: full Chromium in new headless mode (GPU compositing, e.g. WebGPU canvases in screenshots).
+ * @param {{ channel?: string }} [opts]
  * @returns {Promise<{ open: (url?: string, opts?: { settings?: Object<string, *> }) => Promise<Session>, close: () => Promise<void> }>}
  *
  * @typedef {{ page: import('playwright').Page, requests: { url: string, method: string, range?: string }[] }} Session
  */
-export async function launch() {
-    const browser = await chromium.launch({ args: ['--enable-unsafe-webgpu', '--enable-features=Vulkan'] });
+export async function launch({ channel } = {}) {
+    const browser = await chromium.launch({ channel, args: ['--enable-unsafe-webgpu', '--enable-features=Vulkan'] });
     const script = userscript();
 
     /** @param {string} [url] @param {{ settings?: Object<string, *> }} [opts] @returns {Promise<Session>} */

@@ -23,12 +23,12 @@ set windows-shell := ["bash", "-euo", "pipefail", "-c"]
 NAME := env("NAME", "sharepoint-previewer")
 # local port of the explorative tests (mock SharePoint)
 HTTP_PORT := env("HTTP_PORT", "8080")
-# userscript: modules under /src (entry and header in /src/_core); bundled and minified by build-src into /src, both kept in the repo
+# userscript: modules under /src (entry /src/main.js, header in /src/_core);
+# bundled by build-src into /dist/userscript.js (kept in the repo, version and 3D hashes as dummies)
 PATH_MODULES := "src"
-PATH_SRC := "src/main.js"
-PATH_MIN := "src/main.min.js"
 PATH_SRC_3D := "src/@apis/ifc-lite/main.js"
 PATH_DIST := "dist"
+PATH_BUNDLE := PATH_DIST / "userscript.js"
 PATH_VERSION := "dist/VERSION"
 VERSION := trim(read(PATH_VERSION))
 # release tag: short pre-release forms in /dist/VERSION (1.1.0a1, 1.1.0b2, 1.1.0rc1), long in tags (v1.1.0-alpha.1, ...)
@@ -72,22 +72,26 @@ setup:
 [group("build")]
 build: build-deps build-dist
 
-# installs dependencies per lock; updates lock only if manifest changed
+# installs dependencies per lock; updates lock only if dependencies in manifest changed (version: cf. build-lock)
 [group("build")]
 build-deps:
     @npm ci --no-audit --no-fund || npm install --no-audit --no-fund
     @npx playwright install chromium
 
-# bundles the modules into the userscript (/src/main.js, readable) and minifies it (/src/main.min.js)
+# writes /dist/VERSION (as semver, cf. TAG) into manifest + lock, then updates lock per manifest; installs nothing
+[group("build")]
+build-lock:
+    @npm version "{{trim_start_match(TAG, "v")}}" --no-git-tag-version --allow-same-version > /dev/null
+    @npm install --package-lock-only --no-audit --no-fund
+
+# bundles the modules into the userscript (/dist/userscript.js, readable; version and 3D hashes as dummies)
 [group("build")]
 build-src:
-    @node scripts/bundle.mjs "{{PATH_MODULES}}/_core/main.js" "{{PATH_MODULES}}/_core/header.js" "{{PATH_MODULES}}/_core/types.js" "{{PATH_SRC}}"
-    @node --check "{{PATH_SRC}}"
-    @just _minify "{{PATH_SRC}}" "{{PATH_MIN}}"
-    @just _size "{{PATH_SRC}}" "{{MAX_KB_SRC}}"
-    @just _size "{{PATH_MIN}}" "{{MAX_KB_MIN}}"
+    @node scripts/bundle.mjs "{{PATH_MODULES}}/main.js" "{{PATH_MODULES}}/_core/header.js" "{{PATH_MODULES}}/_core/types.js" "{{PATH_BUNDLE}}"
+    @node --check "{{PATH_BUNDLE}}"
+    @just _size "{{PATH_BUNDLE}}" "{{MAX_KB_SRC}}"
 
-# writes release to /dist/v<VERSION>: both userscripts with @version (not the commit tagged with the release tag: <VERSION>-beta.<short commit>) and 3D hashes stamped, 3D files, notes
+# writes release to /dist/v<VERSION>: userscript with @version (not the commit tagged with the release tag: <VERSION>-beta.<short commit>) and 3D hashes stamped, minified, 3D files, notes
 [group("build")]
 build-dist: build-src build-3d
     #!/usr/bin/env bash
@@ -101,15 +105,16 @@ build-dist: build-src build-3d
     fi
     # quoted value: opening quote, then anything up to the closing quote
     quote='"'"'";
-    for pair in "{{PATH_SRC}}:{{NAME}}.js" "{{PATH_MIN}}:{{NAME}}.min.js"; do
-        path="{{PATH_RELEASE}}/${pair#*:}"
-        sed -E \
-            -e "s|^(// @version[[:space:]]+).*$|\1${version}|" \
-            -e "s|(VIEWER_3D_JS_SHA256[[:space:]]*=[[:space:]]*[${quote}])[^${quote}]*|\1${hash_js}|" \
-            -e "s|(VIEWER_3D_WASM_SHA256[[:space:]]*=[[:space:]]*[${quote}])[^${quote}]*|\1${hash_wasm}|" \
-            "${pair%%:*}" > "${path}"
-        node --check "${path}"
-    done
+    path="{{PATH_RELEASE}}/{{NAME}}.js"
+    sed -E \
+        -e "s|^(// @version[[:space:]]+).*$|\1${version}|" \
+        -e "s|(VIEWER_3D_JS_SHA256[[:space:]]*=[[:space:]]*[${quote}])[^${quote}]*|\1${hash_js}|" \
+        -e "s|(VIEWER_3D_WASM_SHA256[[:space:]]*=[[:space:]]*[${quote}])[^${quote}]*|\1${hash_wasm}|" \
+        -e "/^\/\/ Version and 3D checksums are dummies here/d" \
+        "{{PATH_BUNDLE}}" > "${path}"
+    node --check "${path}"
+    just _minify "${path}" "{{PATH_RELEASE}}/{{NAME}}.min.js"
+    just _size "{{PATH_RELEASE}}/{{NAME}}.min.js" "{{MAX_KB_MIN}}"
     cp NOTES.md "{{PATH_RELEASE}}/NOTES.md"
     built=$(sed -n 's|^// @version[[:space:]]*||p' "{{PATH_RELEASE}}/{{NAME}}.js")
     echo "built {{PATH_RELEASE}} (${built})"
@@ -175,7 +180,7 @@ tests-behave:
 tests-integration:
     @just _tests integration
 
-# explorative tests: mock SharePoint + userscript (/src/main.js) on http://localhost:${HTTP_PORT}; library: Mock Data + Data, or folder
+# explorative tests: mock SharePoint + userscript (/dist/userscript.js) on http://localhost:${HTTP_PORT}; library: Mock Data + Data, or folder
 [group("tests")]
 tests-explore folder="":
     @node tests/explore/server.mjs "{{HTTP_PORT}}" "{{folder}}"
