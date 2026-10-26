@@ -106,7 +106,7 @@ and IT teams who want all this without another app to roll out.
 
 1. Clone or fork this repository.
 
-2. Ensure you have the [Justfile]() tool.
+2. Ensure you have the [Justfile](https://just.systems) tool.
 
 3. Run `just build` to locally build the artefacts in the [/dist](./dist) subfolder.
 
