@@ -1,4 +1,5 @@
-// Movable windows (settings, popup): position kept in localStorage, inside screen
+// Movable windows (settings, popup): position kept in localStorage, inside screen;
+// resizable ones (popup): size kept too, once the user resized
 
 // ===========================================================================
 // IMPORTS
@@ -10,6 +11,10 @@ import { savePref } from '../_core/prefs.ts';
 // ===========================================================================
 // METHODS
 // ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Position
+// ---------------------------------------------------------------------------
 
 function loadOffset(key: string): { x: number; y: number } {
     try {
@@ -61,4 +66,38 @@ export function startMove(e: PointerEvent, target: HTMLElement, key: string): vo
     handle.addEventListener('pointermove', move);
     handle.addEventListener('pointerup', up);
     handle.addEventListener('pointercancel', up);
+}
+
+// ---------------------------------------------------------------------------
+// Size (CSS `resize`: the browser writes the size in px once the user resizes)
+// ---------------------------------------------------------------------------
+
+function loadSize(key: string): { w: number; h: number } | null {
+    try {
+        const s = JSON.parse(loadPref(key, 'null'));
+        if (s && Number.isFinite(s.w) && Number.isFinite(s.h)) return s;
+    } catch {}
+    return null;
+}
+
+// Apply remembered size to `target`, not larger than the screen (none remembered: its own CSS size)
+export function placeSized(target: HTMLElement, key: string): void {
+    const s = loadSize(key);
+    if (!s) return;
+    target.style.width = `${Math.round(Math.min(s.w, innerWidth))}px`;
+    target.style.height = `${Math.round(Math.min(s.h, innerHeight))}px`;
+}
+
+/** Keeps the size the user gives `target` while `active()` @returns observer (disconnect when done) */
+export function keepSize(target: HTMLElement, key: string, active: () => boolean): ResizeObserver {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const observer = new ResizeObserver(() => {
+        if (!active() || !target.style.width.endsWith('px')) return; // not resized by the user (yet)
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+            savePref(key, JSON.stringify({ w: target.offsetWidth, h: target.offsetHeight }));
+        }, 300);
+    });
+    observer.observe(target);
+    return observer;
 }

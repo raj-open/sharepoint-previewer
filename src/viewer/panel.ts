@@ -15,6 +15,7 @@ import { ZOOM_KEY } from '../_core/prefs.ts';
 import { ZOOM_RANGE } from '../_core/prefs.ts';
 import { openSettingsForm } from '../_core/settings-form.ts';
 import { POPUP_POS_KEY } from '../_core/settings-form.ts';
+import { POPUP_SIZE_KEY } from '../_core/settings-form.ts';
 import { LARGE_FILE_BYTES } from '../_core/settings.ts';
 import { LOGO } from '../_core/settings.ts';
 import { esc } from '../_core/util.ts';
@@ -41,6 +42,7 @@ import { UPLOAD_SVG } from '../ui/icons.ts';
 import { WRAP_SVG } from '../ui/icons.ts';
 import { WRITE_SVG } from '../ui/icons.ts';
 import { FORMAT_LISTS } from '../readers/formats.ts';
+import { keepSize } from '../ui/move.ts';
 import { startMove } from '../ui/move.ts';
 import { createPicker } from '../ui/picker.ts';
 import { QUOTE_MODES } from '../view/table.ts';
@@ -93,6 +95,12 @@ const VIEW_KEYS: Record<string, string> = {
     logTable: 'tp-preview-log-table',
     markdown: 'tp-preview-markdown',
 };
+
+// Header widths: below NARROW the file name moves to a second row (room for at least 200 px of it beside
+// the buttons: 232 px left, 256 px right); below TIGHT also the version and logo are left out (buttons only)
+const HEADER_TIGHT = 232 + 256;
+const HEADER_NARROW = HEADER_TIGHT + 200;
+const ROW2 = 36; // height the second row adds (title well and gap)
 
 const ZOOM_STEP = 0.1;
 const WHEEL_STEP = 40; // wheel distance per zoom step (mouse notch ~100, touchpad pinch: small steps)
@@ -367,15 +375,32 @@ export function createViewer(): Viewer {
         view.metaLines = Math.max(1, Math.min(6, n));
         savePref('tp-preview-meta-lines', String(view.metaLines));
         const h = view.props ? view.metaLines * 15 : -4; // hidden: header ends under buttons
+        const top = 44 + (header.classList.contains('tp-narrow') ? ROW2 : 0); // below the title well
         metaLine.style.display = view.props ? '' : 'none';
         metaGrip.style.display = view.props ? '' : 'none';
         propsBtn.setAttribute('aria-pressed', String(view.props));
+        metaLine.style.top = `${top}px`;
         metaLine.style.height = `${h}px`;
         metaLine.style.webkitLineClamp = String(view.metaLines);
-        header.style.setProperty('--tp-lint-top', `${44 + h + 4}px`); // not on lint: its style is observed
+        header.style.setProperty('--tp-lint-top', `${top + h + 4}px`); // not on lint: its style is observed
         const lintShown = lint.style.display !== 'none' && lint.style.display !== '';
-        header.style.height = `${44 + h + 6 + (lintShown ? 18 : 0)}px`; // room for check line only when shown
+        header.style.height = `${top + h + 6 + (lintShown ? 18 : 0)}px`; // room for check line only when shown
     };
+    // Narrow header: file name on a second row (full width); very narrow: no version and logo either
+    const fitHeader = () => {
+        const w = header.clientWidth;
+        if (!w) return; // not shown yet
+        const narrow = w < HEADER_NARROW;
+        brand.style.display = w < HEADER_TIGHT ? 'none' : 'flex';
+        if (narrow === header.classList.contains('tp-narrow')) return;
+        header.classList.toggle('tp-narrow', narrow);
+        title.style.top = narrow ? '44px' : '8px';
+        title.style.left = narrow ? '12px' : '232px';
+        title.style.right = narrow ? '12px' : '256px';
+        setMetaLines(view.metaLines);
+    };
+    const headerObserver = new ResizeObserver(fitHeader);
+    headerObserver.observe(header);
     metaGrip.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         const startY = e.clientY;
@@ -614,9 +639,13 @@ export function createViewer(): Viewer {
     };
     document.addEventListener('keydown', onEscape, true);
     window.addEventListener('resize', onResize);
+    // Popup resized by the user (corner bottom right): size kept for next time
+    const sizeObserver = keepSize(box, POPUP_SIZE_KEY, () => v.mode === 'popup');
     v.removeListeners = () => {
         document.removeEventListener('keydown', onEscape, true);
         window.removeEventListener('resize', onResize);
+        headerObserver.disconnect();
+        sizeObserver.disconnect();
     };
 
     backdrop.onclick = closeViewer;
