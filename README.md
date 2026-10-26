@@ -116,6 +116,11 @@ and IT teams who want all this without another app to roll out.
 
 4. Follow Instructions 3–6 [above](#setup-from-releases).
 
+## Notes ##
+
+- See [TECHNICAL.md](./TECHNICAL.md) for basic technical notes about this repository.
+- See [NOTES.md](./NOTES.md) for notes on application logic and design.
+
 ## Credits and licences ##
 
 - **This script:**
@@ -147,22 +152,3 @@ and IT teams who want all this without another app to roll out.
 
 Microsoft, Sharepoint, Tampermonkey and other names are trademarks of their respective owners;
 this project is not affiliated with or endorsed by them.
-
-## Notes ##
-
-- See [TECHNICAL.md](./TECHNICAL.md) for basic technical notes about this repository.
-- See [NOTES.md](./NOTES.md) for notes on application logic and design.
-
-## Licences ##
-
-- **The script:**
-  written for this purpose and contains no third-party code;
-  licence: [MPL-2.0](./LICENCE) (Mozilla Public License 2.0):
-  use, change and pass on freely, also commercially;
-  the copyright and licence notices stay,
-  and changed files of this project stay under MPL-2.0 (their source available to whoever receives them).
-
-- **Optional 3D bundle:**
-  ifc-lite, **MPL-2.0** (<https://github.com/LTplus-AG/ifc-lite>).
-  Using it unchanged, as here, is permitted;
-  modified ifc-lite source files would have to stay under MPL-2.0.
