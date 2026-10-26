@@ -1,0 +1,11 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "../tsconfig.json",
+    "compilerOptions": {
+        "types": ["node"],
+        // modules under test are loaded at run time (`load` in /tests/unit/helpers.ts): their exports are untyped,
+        // so are the callbacks passed to them
+        "noImplicitAny": false
+    },
+    "include": ["**/*.ts"]
+}

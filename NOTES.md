@@ -22,7 +22,7 @@ and where it stores data.
 
 | Topic | Behaviour |
 | :---- | :-------- |
-| Form | One JavaScript file (userscript, ~280 KB; minified ~200 KB), runs in the user's browser via Tampermonkey. Built from ES modules in the repository |
+| Form | One JavaScript file (userscript, ~280 KB; minified ~200 KB), runs in the user's browser via Tampermonkey. Built from TypeScript modules in the repository (types removed by the build) |
 | Scope | Only on `https://*.sharepoint.com/*/*/*`, and only inside a library's file list |
 | APIs | **No** Sharepoint REST / Graph API calls. It reads the page's HTML and fetches the file itself, like opening its URL |
 | Third parties | **None.** No CDN, no analytics, no external servers. All requests go to the same Sharepoint origin |

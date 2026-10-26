@@ -19,36 +19,7 @@
   // biome-ignore lint/suspicious/noRedundantUseStrict: userscripts run as classic scripts, not as modules
   'use strict';
 
-  // Types shared by the modules (JSDoc only)
-
-  /** @typedef {[string, string]} Token [CSS class without "tp-", text] */
-  /** @typedef {{ line: number, msg: string, severity: 'error'|'warning' }} Problem */
-  /** @typedef {{ problems: Problem[], info?: string }} LintResult */
-  /** @typedef {{ stop: () => void, show: (line: number) => void }} LineView */
-  /** @typedef {{ total: number, loaded: number, done: boolean, text: string, more: () => Promise<void>, loadAll: () => Promise<void> } & Object<string, *>} Source */
-  /** @typedef {Object<string, *>} Viewer the open preview panel: its elements and state */
-  /** @typedef {(from: number, to: number) => Promise<Uint8Array>} ByteReader bytes [from, to) of a file */
-  /** @typedef {{ size: number, head: Uint8Array, dates: Object, read: ByteReader, fetched: () => number, whole: () => boolean }} RangeFile */
-  /** @typedef {{ name: string, method: number, packed: number, size: number, offset: number, head: number }} ZipEntry */
-  /** @typedef {{ rows: string[][], cols: number, cut: boolean }} SheetData cells as text, rows without gaps */
-  /** @typedef {{ r0: number, c0: number, r1: number, c1: number }} CellRange corners of a cell range (0-based, inclusive) */
-  /** @typedef {{ name: string, range: CellRange, header: number, totals: number, columns: string[] }} TablePart table (list object) of a sheet: header and totals rows, column names (may be empty) */
-  /** @typedef {TablePart & { sheet: number }} Table table and the index of its sheet */
-  /** @typedef {{ label: string, items: { text: string, title?: string }[], empty: string, start: number }} PickerList list of a picker: entries, note if empty, entry marked first */
-  /** @typedef {{ button: HTMLButtonElement, menu: HTMLElement, set: (lists: PickerList[], choice: { list: number, item: number }, label: string, title: string) => void, close: () => void }} Picker drop-down with lists side by side */
-  /** @typedef {'sheets'|'tables'} SheetMode what a spreadsheet shows: its sheets or its tables */
-  /** @typedef {{ rows: string[][], header: string[], note: string, text: string }} SheetShown sheet or table shown: rows, column names, note if no rows, text view (CSV) */
-  /** @typedef {{ name: string, hidden: boolean, kind: string, size: number, path?: string, data?: SheetData|null, note?: string }} Sheet data: undefined = not read yet, null = no cells */
-  /** @typedef {{ paths: () => string[], entry: (path?: string) => ZipEntry|undefined, bytes: (path?: string) => Promise<Uint8Array|null>, text: (path?: string) => Promise<string|null> }} Package parts of a ZIP-based document by path */
-  /** @typedef {{ deferred: string, size: number, dates: Object<string, *> }} Deferred big file: shown only after "cache all" */
-  /** @typedef {{ sort: { col: number, dir: number }|null, filters: Map<number, { values: Set<string>|null, text: string }>, widths?: Map<number, number>, expanded?: Set<number>, allOpen?: boolean }} TableState sort, filters, column widths, rows expanded (detail shown; allOpen: last "expand all" opened) of a table view */
-  /** @typedef {{ header: string[], rows: string[][], kinds: string[] }} LogTable log as a table: columns line, fields (kinds: time, level, context, name), message */
-  /** @typedef {string[] & { raw?: string }} CsvRow cells of a CSV line; raw: its text as in the file (unedited rows are written back as they were) */
-  /** @typedef {Event & { target: HTMLElement }} TargetEvent event whose target is an element (handlers read e.target) */
-  /** @typedef {{ workbook: (bytes: Uint8Array) => { sheets: { name: string, id: string, hidden: boolean }[], active: number, date1904: boolean }, strings: (bytes: Uint8Array) => string[], styles: (bytes: Uint8Array) => string[], sheet: (bytes: Uint8Array, strings: string[], kinds: string[], date1904: boolean) => SheetData, table: (bytes: Uint8Array) => TablePart|null }} SheetParts readers of a workbook's parts (XML or binary) */
-  /** @typedef {{ format: string, sheets: Sheet[], active: number, date1904: boolean, load: (i: number) => Promise<SheetData|null>, tables?: Table[] }} Book tables: undefined if the format has none that are read */
-
-  // Module: _core/settings.js
+  // Module: _core/settings.ts
 
   // Settings: defaults below; own values in Tampermonkey's storage (menu → "Settings …"),
   // kept across updates. Values of wrong type are ignored.
@@ -140,9 +111,7 @@
   // METHODS
   // ===========================================================================
 
-  /** @returns {Object<string, *>} */
   function loadSettings() {
-      /** @type {Object<string, *>} */
       const out = {};
       for (const [key, fallback] of Object.entries(DEFAULTS)) {
           let value = GM_getValue(key);
@@ -150,9 +119,9 @@
               value = fallback;
               GM_setValue(key, value); // shown in Tampermonkey's storage
           }
-          out[key] = typeof value === typeof fallback ? value : fallback;
+          out[key] = typeof value === typeof fallback ? (value) : fallback;
       }
-      return out;
+      return out; // types checked above
   }
   const {
       'layout': DEFAULT_MODE,
@@ -177,7 +146,7 @@
       'logo': LOGO,
   } = loadSettings();
 
-  // Module: ui/icons.js
+  // Module: ui/icons.ts
 
   // Icons (inline SVG): eyes, modes, buttons
 
@@ -405,7 +374,7 @@
     </svg>
   `;
 
-  // Module: _core/util.js
+  // Module: _core/util.ts
 
   // Small shared helpers: HTML escaping, next frame, byte sizes, CSV cells
 
@@ -413,20 +382,17 @@
   // CONSTANTS
   // ===========================================================================
 
-  /** @type {Object<string, string>} */
   const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
-  /** @param {string} s @returns {string} HTML-escaped */
+  /** @returns HTML-escaped */
   const esc = (s) => s.replace(/[&<>"]/g, (c) => HTML_ESCAPES[c]);
 
-  /** @returns {Promise<void>} */
   const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
-  /** @param {number} n @returns {string} */
   const formatBytes = (n) => {
       if (n < 1024) return `${n} B`;
       if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`;
@@ -434,16 +400,12 @@
       return `${(n / 1024 ** 3).toFixed(2)} GB`;
   };
 
-  /** @param {string|null} s @returns {string} */
-  const csvCell = (s) => (s === null ? '' : /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+  const csvCell = (s) =>
+      s === null ? '' : /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 
-  // Module: view/lines.js
+  // Module: view/lines.ts
 
   // Render: tokens -> one <div> per line, with line numbers and problem marks
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -457,7 +419,6 @@
   // ===========================================================================
 
   // Whitespace markers (CSS only, copied text unchanged): · per space, → per tab
-  /** @param {string} html @returns {string} */
   function markWhitespace(html) {
       if (!SHOW_WHITESPACE) return html;
       return html.replace(/ +|\t/g, (ws) =>
@@ -466,11 +427,15 @@
   }
 
   // Fill blocks when they come near visible part of `root`, empties them when far away
-  /** @param {HTMLElement} root @param {HTMLElement[]} blocks @param {(b: HTMLElement) => void} fill @param {(b: HTMLElement) => void} empty @returns {IntersectionObserver} */
-  function watchBlocks(root, blocks, fill, empty) {
+  function watchBlocks(
+      root,
+      blocks,
+      fill,
+      empty,
+  ) {
       const io = new IntersectionObserver(
           (entries) => {
-              for (const e of entries) (e.isIntersecting ? fill : empty)(/** @type {HTMLElement} */ (e.target));
+              for (const e of entries) (e.isIntersecting ? fill : empty)(e.target);
           },
           { root, rootMargin: '1500px 0px' },
       );
@@ -478,14 +443,12 @@
       return io;
   }
 
-  /** @param {HTMLElement} content @param {string[]} lineHtml @returns {LineView} */
   function mountLines(content, lineHtml) {
       const holder = document.createElement('div');
       holder.className = 'tp-lines';
       content.replaceChildren(holder);
       const lineHeight = parseFloat(getComputedStyle(content).lineHeight) || 19;
 
-      /** @type {HTMLElement[]} */
       const chunks = [];
       for (let from = 0; from < lineHtml.length; from += CHUNK_LINES) {
           const box = document.createElement('div');
@@ -497,7 +460,6 @@
           chunks.push(box);
       }
 
-      /** @param {HTMLElement} box */
       const fill = (box) => {
           if (box.dataset.on) return;
           const from = Number(box.dataset.from);
@@ -506,7 +468,6 @@
           box.dataset.on = '1';
       };
 
-      /** @param {HTMLElement} box */
       const empty = (box) => {
           if (!box.dataset.on) return;
           box.style.height = `${box.getBoundingClientRect().height}px`; // keep its place
@@ -525,9 +486,12 @@
       };
   }
 
-  /** @param {Token[]} tokens @param {Map<number, Problem[]>} problemsByLine @param {Map<number, number>} [truncated] @returns {string[]} one HTML string per line */
-  function renderLines(tokens, problemsByLine, truncated = new Map()) {
-      /** @type {string[]} */
+  /** @returns one HTML string per line */
+  function renderLines(
+      tokens,
+      problemsByLine,
+      truncated = new Map(),
+  ) {
       const out = [];
       let n = 1;
       let cur = '';
@@ -559,20 +523,15 @@
       return out; // one HTML string per line
   }
 
-  // Module: view/table.js
+  // Module: view/table.ts
 
   // Table view: CSV parsing, rendering, sorting, filters, editing
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
   // ===========================================================================
 
   // Quote styles as in Python's csv module ('none' can break file)
-  /** @type {Object<string, string>} */
   const QUOTE_MODES = {
       minimal: 'Quotes: only when needed',
       all: 'Quotes: all cells',
@@ -587,16 +546,12 @@
   // ===========================================================================
 
   // CSV text -> rows of cells; row.raw keeps original text for unedited rows
-  /** @param {string} text @param {string} sep @returns {CsvRow[]} */
   function parseCsv(text, sep) {
-      /** @type {CsvRow[]} */
       const rows = [];
-      /** @type {CsvRow} */
       let row = [];
       let cell = '';
       let quoted = false;
       let start = 0;
-      /** @param {number} end */
       const endRow = (end) => {
           row.push(cell);
           row.raw = text.slice(start, end);
@@ -628,7 +583,6 @@
   }
 
   // One CSV cell, quoted as quote style says
-  /** @param {string} value @param {string} sep @param {string} [mode] @returns {string} */
   function csvQuote(value, sep, mode = 'minimal') {
       const quoted = `"${value.replace(/"/g, '""')}"`;
       if (mode === 'none') return value;
@@ -640,15 +594,17 @@
 
   // Table view: fixed header and row numbers, sort, ▾ filter; opts.editable for CSV write mode
   /**
-   * @param {HTMLElement} content @param {string[]} header @param {CsvRow[]} rows
-   * @param {{ state: TableState,
-   *   editable?: boolean, onEdit?: () => void, sep?: string, colour?: boolean, format?: { sep: string, quote: string }|null,
-   *   classOf?: (c: number, value: string) => string,
-   *   expand?: { can: (i: number) => boolean, html: (i: number) => string, title: string } }} opts
-   *   classOf: own colours per cell (with colour on); expand: rows that open a detail row below them (▸ in the row number)
-   * @returns {LineView & { csvText: () => string }}
+   * @param opts classOf: own colours per cell (with colour on);
+   *   expand: rows that open a detail row below them (▸ in the row number)
    */
-  function mountTable(content, header, rows, opts) {
+  function mountTable(
+      content,
+      header,
+      rows,
+      opts
+
+  ,
+  ) {
       const { state } = opts;
       for (const n of content.querySelectorAll(':scope > .tp-plus, :scope > .tp-col-widths')) n.remove(); // earlier table
       if (!state.widths) state.widths = new Map(); // column -> width in px (column edge drag)
@@ -670,7 +626,6 @@
       const table = document.createElement('table');
       table.className = opts.editable ? 'tp-table tp-editing' : 'tp-table';
       table.dataset.tid = tableId;
-      /** @type {IntersectionObserver|null} */
       let io = null;
 
       // Rows to show: filtered, then sorted (indexes into rows)
@@ -715,13 +670,11 @@
           return `<thead><tr>${cells}</tr></thead>`;
       };
 
-      /** @param {number} c @param {string} value */
       const colourOf = (c, value) => {
           if (!opts.colour) return '';
           const cls = opts.classOf ? opts.classOf(c, value) : CSV_COLOURS[c % CSV_COLOURS.length];
           return cls ? ` class="tp-${cls}"` : '';
       };
-      /** @param {number} i @param {number} pos */
       const rowHtml = (i, pos) => {
           const r = rows[i];
           const edit = opts.editable ? ' contenteditable="plaintext-only"' : '';
@@ -741,10 +694,8 @@
       };
 
       // Detail rows (expand): ▸ / ▾ in the row number, detail below the row; open ones kept in state
-      /** @param {number} i @param {boolean} open */
       const toggleHtml = (i, open) =>
           `<button class="tp-expand" data-x="${i}" title="${open ? 'Collapse' : esc(opts.expand?.title ?? '')}">${open ? '▾' : '▸'}</button>`;
-      /** @param {number} i */
       const detailHtml = (i) =>
           `<tr class="tp-detail"><td class="tp-rn"></td><td colspan="${cols}"><div class="tp-detail-box">` +
           `${opts.expand?.html(i) ?? ''}</div></td></tr>`;
@@ -756,10 +707,9 @@
           for (const i of shown) state.allOpen ? state.expanded.add(i) : state.expanded.delete(i);
           build();
       };
-      /** @param {HTMLElement} btn */
       const toggleDetail = (btn) => {
           const i = Number(btn.dataset.x);
-          const tr = /** @type {HTMLElement} */ (btn.closest('tr'));
+          const tr = btn.closest('tr');
           if (!state.expanded) state.expanded = new Set();
           const open = !state.expanded.has(i);
           if (open) {
@@ -773,12 +723,10 @@
       };
 
       // Structure edits use file's order (sort and filters off first)
-      /** @param {Array<*>} list @param {number} from @param {number} to */
       const moveItem = (list, from, to) => {
           const [item] = list.splice(from, 1);
           list.splice(to > from ? to - 1 : to, 0, item);
       };
-      /** @param {string} act @param {number} at @param {number} [to] */
       const structure = (act, at, to) => {
           state.sort = null;
           state.filters.clear();
@@ -787,7 +735,7 @@
               rows.splice(at, 0, new Array(cols).fill(''));
           } else if (act === 'row-move') {
               if (at === to || at + 1 === to) return;
-              moveItem(rows, at, /** @type {number} */ (to)); // moves come with their target
+              moveItem(rows, at, to); // moves come with their target
           } else if (act === 'col-insert') {
               const name = prompt('Name of the new column:', '');
               if (name === null) return;
@@ -806,7 +754,7 @@
               if (at === to || at + 1 === to) return;
               for (const r of [header, ...rows]) {
                   while (r.length < cols) r.push('');
-                  moveItem(r, at, /** @type {number} */ (to));
+                  moveItem(r, at, to);
               }
               allEdited = true;
           }
@@ -815,7 +763,6 @@
       };
 
       const ROW_HEIGHT = 23 * (Number(content.style?.getPropertyValue?.('--tp-zoom')) || 1); // text size (panel)
-      /** @param {number} h */
       const spacer = (h) => `<tr class="tp-spacer"><td colspan="${cols + 1}" style="height:${h}px"></td></tr>`;
 
       const build = () => {
@@ -831,7 +778,6 @@
               table.append(body);
               blocks.push(body);
           }
-          /** @param {HTMLElement} b */
           const fill = (b) => {
               if (b.dataset.on) return;
               b.innerHTML = view
@@ -840,7 +786,6 @@
                   .join('');
               b.dataset.on = '1';
           };
-          /** @param {HTMLElement} b */
           const empty = (b) => {
               if (!b.dataset.on || b.contains(document.activeElement)) return; // keep cell being edited
               b.innerHTML = spacer(b.getBoundingClientRect().height);
@@ -851,15 +796,15 @@
 
       // Sort: click column title
       table.addEventListener('click', (e) => {
-          if (/** @type {HTMLElement} */ (e.target).closest('.tp-resize')) return; // end of width change, not sort
-          const expand = /** @type {HTMLElement} */ (e.target).closest('.tp-expand');
-          if (expand) return void toggleDetail(/** @type {HTMLElement} */ (expand));
-          if (/** @type {HTMLElement} */ (e.target).closest('.tp-expand-all')) return void toggleAll();
-          const del = /** @type {HTMLElement} */ (e.target).closest('.tp-col-delete');
+          if ((e.target).closest('.tp-resize')) return; // end of width change, not sort
+          const expand = (e.target).closest('.tp-expand');
+          if (expand) return void toggleDetail(expand);
+          if ((e.target).closest('.tp-expand-all')) return void toggleAll();
+          const del = (e.target).closest('.tp-col-delete');
           if (del) return void structure('col-delete', Number(del.dataset.c));
-          const btn = /** @type {HTMLElement} */ (e.target).closest('.tp-filter');
+          const btn = (e.target).closest('.tp-filter');
           if (btn) return void openFilter(btn, Number(btn.dataset.c));
-          const th = /** @type {HTMLElement} */ (e.target).closest('th[data-c]');
+          const th = (e.target).closest('th[data-c]');
           if (!th) return;
           const col = Number(th.dataset.c);
           const s = state.sort;
@@ -868,23 +813,16 @@
       });
 
       // Filter panel: unique values with checkboxes, plus "contains" text field
-      /** @type {HTMLElement|null} */
       let panel = null;
       const closePanel = () => {
           panel?.remove();
           panel = null;
           document.removeEventListener('pointerdown', outside, true);
       };
-      /** @param {Event} e */
       const outside = (e) => {
-          if (
-              panel &&
-              !panel.contains(/** @type {Node} */ (e.target)) &&
-              !(/** @type {HTMLElement} */ (e.target).closest('.tp-filter'))
-          )
+          if (panel && !panel.contains(e.target) && !(e.target).closest('.tp-filter'))
               closePanel();
       };
-      /** @param {HTMLElement} btn @param {number} c */
       const openFilter = (btn, c) => {
           closePanel();
           const f = state.filters.get(c) || { values: null, text: '' };
@@ -914,12 +852,12 @@
           const box = content.getBoundingClientRect();
           panel.style.left = `${Math.max(0, Math.min(r.left - box.left, box.width - 240))}px`;
           panel.style.top = `${r.bottom - box.top + 2}px`;
-          /** @type {HTMLElement} */ (content.parentElement).append(panel); // content sits in the viewer
+          (content.parentElement).append(panel); // content sits in the viewer
           document.addEventListener('pointerdown', outside, true);
 
-          const boxes = /** @type {HTMLInputElement[]} */ ([...panel.querySelectorAll('[data-i]')]); // checkboxes
-          const all = /** @type {HTMLInputElement} */ (panel.querySelector('[data-all]')); // in the panel's HTML above
-          const input = /** @type {HTMLInputElement} */ (panel.querySelector('input[type="text"]'));
+          const boxes = [...panel.querySelectorAll('[data-i]')]; // checkboxes
+          const all = panel.querySelector('[data-all]'); // in the panel's HTML above
+          const input = panel.querySelector('input[type="text"]');
           all.checked = boxes.every((b) => b.checked);
           const apply = () => {
               const checked = boxes.filter((b) => b.checked).map((b) => values[Number(b.dataset.i)]);
@@ -933,16 +871,14 @@
               for (const b of boxes) b.checked = all.checked;
               apply();
           };
-          /** @type {HTMLElement} */ (panel.querySelector('.tp-filter-list')).onchange = () => {
+          (panel.querySelector('.tp-filter-list')).onchange = () => {
               all.checked = boxes.every((b) => b.checked);
               apply();
           };
           input.oninput = () => {
               const t = input.value.toLowerCase();
               for (const b of boxes) {
-                  /** @type {HTMLElement} */ (b.parentElement).style.display = values[Number(b.dataset.i)]
-                      .toLowerCase()
-                      .includes(t)
+                  (b.parentElement).style.display = values[Number(b.dataset.i)].toLowerCase().includes(t)
                       ? ''
                       : 'none';
               }
@@ -953,15 +889,13 @@
 
       // Write mode: drag row numbers / column titles to move; "+" at edges to insert
       if (opts.editable) {
-          /** @type {{ kind: 'row'|'col', from: number }|null} */
           let dragging = null; // { kind: 'row'|'col', from }
-          /** @param {DragEvent} e */
           const dropTarget = (e) => {
               if (!dragging) return null;
               const el =
                   dragging.kind === 'row'
-                      ? /** @type {HTMLElement} */ (e.target).closest('td.tp-rn[data-row]')
-                      : /** @type {HTMLElement} */ (e.target).closest('th[data-c]');
+                      ? (e.target).closest('td.tp-rn[data-row]')
+                      : (e.target).closest('th[data-c]');
               if (!el) return null;
               const r = el.getBoundingClientRect();
               const i = dragging.kind === 'row' ? Number(el.dataset.row) : Number(el.dataset.c);
@@ -974,15 +908,15 @@
               }
           };
           table.addEventListener('dragstart', (e) => {
-              const rn = /** @type {HTMLElement} */ (e.target).closest?.('td.tp-rn[data-row]');
-              const th = /** @type {HTMLElement} */ (e.target).closest?.('th[data-c]');
+              const rn = (e.target).closest?.('td.tp-rn[data-row]');
+              const th = (e.target).closest?.('th[data-c]');
               if (!rn && !th) return;
-              if (/** @type {HTMLElement} */ (e.target).closest?.('.tp-col-delete, .tp-filter, .tp-resize'))
+              if ((e.target).closest?.('.tp-col-delete, .tp-filter, .tp-resize'))
                   return void e.preventDefault();
               dragging = rn
                   ? { kind: 'row', from: Number(rn.dataset.row) }
-                  : { kind: 'col', from: Number(/** @type {HTMLElement} */ (th).dataset.c) };
-              const transfer = /** @type {DataTransfer} */ (e.dataTransfer); // always set on dragstart
+                  : { kind: 'col', from: Number((th).dataset.c) };
+              const transfer = e.dataTransfer; // always set on dragstart
               transfer.effectAllowed = 'move';
               transfer.setData('text/x-tp-move', '1');
               e.stopPropagation();
@@ -1001,7 +935,7 @@
               if (!t) return;
               e.preventDefault();
               e.stopPropagation();
-              const { kind, from } = /** @type {{ kind: 'row'|'col', from: number }} */ (dragging); // drop target found: dragging
+              const { kind, from } = dragging; // drop target found: dragging
               dragging = null;
               structure(kind === 'row' ? 'row-move' : 'col-move', from, t.to);
           });
@@ -1014,10 +948,8 @@
           plus.className = 'tp-plus';
           plus.textContent = '+';
           plus.hidden = true;
-          /** @type {{ kind: 'row'|'col', at: number }|null} */
           let plusAt = null;
           const EDGE = 6; // px from line that count as "on line"
-          /** @param {'row'|'col'} kind @param {number} at @param {number} x @param {number} y */
           const showPlus = (kind, at, x, y) => {
               const box = content.getBoundingClientRect();
               plus.style.left = `${x - box.left + content.scrollLeft - 8}px`;
@@ -1028,11 +960,11 @@
           };
           table.addEventListener('mousemove', (e) => {
               if (dragging) return;
-              const rn = /** @type {HTMLElement} */ (e.target).closest('td.tp-rn[data-row]');
-              const corner = /** @type {HTMLElement} */ (e.target).closest('th.tp-rn');
-              const th = /** @type {HTMLElement} */ (e.target).closest('th[data-c]');
+              const rn = (e.target).closest('td.tp-rn[data-row]');
+              const corner = (e.target).closest('th.tp-rn');
+              const th = (e.target).closest('th[data-c]');
               if (rn || corner) {
-                  const r = /** @type {HTMLElement} */ (rn || corner).getBoundingClientRect();
+                  const r = ((rn || corner)).getBoundingClientRect();
                   const i = rn ? Number(rn.dataset.row) : -1;
                   if (rn && e.clientY - r.top < EDGE) return showPlus('row', i, r.left, r.top);
                   if (r.bottom - e.clientY < EDGE) return showPlus('row', i + 1, r.left, r.bottom);
@@ -1056,7 +988,7 @@
       // Cell edits (CSV write mode)
       if (opts.editable) {
           table.addEventListener('input', (e) => {
-              const td = /** @type {HTMLElement} */ (e.target).closest('td[data-r]');
+              const td = (e.target).closest('td[data-r]');
               if (!td) return;
               const i = Number(td.dataset.r);
               while (rows[i].length < cols) rows[i].push('');
@@ -1065,9 +997,9 @@
               opts.onEdit?.();
           });
           table.addEventListener('keydown', (e) => {
-              if (e.key === 'Enter' && !e.shiftKey && /** @type {HTMLElement} */ (e.target).closest('td[data-r]')) {
+              if (e.key === 'Enter' && !e.shiftKey && (e.target).closest('td[data-r]')) {
                   e.preventDefault();
-                  /** @type {HTMLElement} */ (e.target).blur();
+                  (e.target).blur();
               }
           });
       }
@@ -1079,15 +1011,14 @@
 
       // Column widths: drag lower right edge of title (upper part has "+")
       table.addEventListener('pointerdown', (e) => {
-          const handle = /** @type {HTMLElement} */ (e.target).closest('.tp-resize');
+          const handle = (e.target).closest('.tp-resize');
           if (!handle) return;
           e.preventDefault();
           e.stopPropagation();
           const c = Number(handle.dataset.c);
           const startX = e.clientX;
-          const startW = /** @type {HTMLElement} */ (handle.parentElement).getBoundingClientRect().width;
+          const startW = (handle.parentElement).getBoundingClientRect().width;
           handle.setPointerCapture(e.pointerId);
-          /** @param {PointerEvent} ev */
           const move = (ev) => {
               widths.set(c, Math.max(40, Math.round(startW + ev.clientX - startX)));
               applyWidths();
@@ -1110,34 +1041,29 @@
           show: () => {},
           // As CSV: edited rows rewritten, others as before (all with chosen format)
           csvText: () => {
-              const sep = /** @type {string} */ (opts.format?.sep || opts.sep); // tables in write mode come with their delimiter
+              const sep = (opts.format?.sep || opts.sep); // tables in write mode come with their delimiter
               const quote = opts.format?.quote || 'minimal';
               const all = allEdited || !!opts.format?.sep || !!opts.format?.quote;
               return [header, ...rows]
                   .map((r) =>
-                      all || edited.has(r) || /** @type {CsvRow} */ (r).raw === undefined
+                      all || edited.has(r) || (r).raw === undefined
                           ? r.map((v) => csvQuote(v ?? '', sep, quote)).join(sep)
-                          : /** @type {string} */ (/** @type {CsvRow} */ (r).raw),
+                          : ((r).raw),
                   )
                   .join('\n');
           },
       };
   }
 
-  // Module: text/highlight/csv.js
+  // Module: text/highlight/csv.ts
 
   // CSV highlighting: delimiter detection, column colours
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
   // ===========================================================================
 
   // CSV: one colour per column (cycles); "quoted" fields may hold separators, "" and breaks
-  /** @type {Object<string, string>} */
   const SEPARATOR_NAMES = {
       ',': 'comma',
       ';': 'semicolon',
@@ -1154,7 +1080,7 @@
 
   // Delimiter: , ; or tab, one in every first line most often (ties: that order);
   // else widest run of spaces that splits all lines alike
-  /** @param {string} text @returns {string} ',' ';' tab, or a run of spaces */
+  /** @returns ',' ';' tab, or a run of spaces */
   function csvSeparator(text) {
       const lines = text
           .split('\n', 6)
@@ -1187,10 +1113,8 @@
       return best;
   }
 
-  /** @param {string} text @returns {Token[]} */
   function highlightCsv(text) {
       const sep = csvSeparator(text);
-      /** @type {Token[]} */
       const out = [];
       let col = 0;
       let field = '';
@@ -1228,13 +1152,9 @@
       return out;
   }
 
-  // Module: _core/prefs.js
+  // Module: _core/prefs.ts
 
   // Preferences kept in the browser (localStorage): theme, colours, wrap, CSV format, view choices (some per file)
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -1263,7 +1183,6 @@
   // ===========================================================================
 
   // Settings remembered in browser (localStorage): light / dark, colours, line wrap
-  /** @template {string|null} T @param {string} key @param {T} fallback @returns {string|T} */
   function loadPref(key, fallback) {
       try {
           return localStorage.getItem(key) ?? fallback;
@@ -1272,14 +1191,12 @@
       }
   }
 
-  /** @param {string} key @returns {void} */
   function removePref(key) {
       try {
           localStorage.removeItem(key);
       } catch {}
   }
 
-  /** @param {string} key @param {string} value @returns {void} */
   function savePref(key, value) {
       try {
           localStorage.setItem(key, value);
@@ -1287,7 +1204,6 @@
   }
 
   // Sheets or tables chosen for a spreadsheet (file path -> mode)
-  /** @returns {Object<string, SheetMode>} */
   function sheetModes() {
       try {
           const modes = JSON.parse(loadPref(SHEET_MODES_KEY, '{}'));
@@ -1298,13 +1214,11 @@
   }
 
   // View of a spreadsheet: last choice for this file, else the setting
-  /** @param {string} url @returns {SheetMode} */
   function sheetMode(url) {
       const mode = sheetModes()[url] ?? DEFAULT_SHEET_VIEW;
       return mode === 'tables' ? 'tables' : 'sheets';
   }
 
-  /** @param {string} url @param {SheetMode} mode @returns {void} */
   function rememberSheetMode(url, mode) {
       const modes = sheetModes();
       delete modes[url];
@@ -1333,9 +1247,9 @@
       metaLines: Math.max(1, Math.min(6, Number(loadPref('tp-preview-meta-lines', '1')) || 1)),
       props: loadPref('tp-preview-properties', '0') === '1',
       // Layout: popup / vertical / horizontal
-      mode: ['popup', 'vertical', 'horizontal'].includes(loadPref('tp-preview-mode', ''))
+      mode: (['popup', 'vertical', 'horizontal'].includes(loadPref('tp-preview-mode', ''))
           ? loadPref('tp-preview-mode', '')
-          : DEFAULT_MODE,
+          : DEFAULT_MODE),
       theme: ['light', 'dark'].includes(loadPref(THEME_KEY, '')) ? loadPref(THEME_KEY, '') : THEME,
       wrap: loadPref(WRAP_KEY, DEFAULT_WRAP ? '1' : '0') === '1',
       // 3D view chosen by user
@@ -1346,19 +1260,14 @@
       zoom: Math.max(ZOOM_RANGE[0], Math.min(ZOOM_RANGE[1], Number(loadPref(ZOOM_KEY, '1')) || 1)),
   };
 
-  // Module: ui/move.js
+  // Module: ui/move.ts
 
   // Movable windows (settings, popup): position kept in localStorage, inside screen
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
-  /** @param {string} key @returns {{ x: number, y: number }} */
   function loadOffset(key) {
       try {
           const o = JSON.parse(loadPref(key, 'null'));
@@ -1368,7 +1277,6 @@
   }
 
   // Offset clamped so top edge and 80 px of window stay on screen
-  /** @param {{ x: number, y: number }} o @param {DOMRect} base @returns {{ x: number, y: number }} */
   function clampOffset(o, base) {
       return {
           x: Math.round(Math.min(innerWidth - 80 - base.left, Math.max(80 - base.left - base.width, o.x))),
@@ -1377,7 +1285,6 @@
   }
 
   // Apply remembered offset to `target` (CSS translate)
-  /** @param {HTMLElement} target @param {string} key @returns {void} */
   function placeMoved(target, key) {
       target.style.translate = '0 0';
       if (!target.isConnected) return void requestAnimationFrame(() => target.isConnected && placeMoved(target, key));
@@ -1387,10 +1294,9 @@
   }
 
   // Drag `target` from pointerdown on its handle
-  /** @param {PointerEvent} e @param {HTMLElement} target @param {string} key @returns {void} */
   function startMove(e, target, key) {
       e.preventDefault();
-      const handle = /** @type {HTMLElement} */ (e.currentTarget); // the element the listener is on
+      const handle = e.currentTarget; // the element the listener is on
       handle.setPointerCapture(e.pointerId);
       const now = target.getBoundingClientRect();
       const o = loadOffset(key);
@@ -1399,7 +1305,6 @@
       const base = new DOMRect(now.left - tx, now.top - ty, now.width, now.height);
       const start = { x: e.clientX - tx, y: e.clientY - ty };
       let last = { x: tx, y: ty };
-      /** @param {PointerEvent} ev */
       const move = (ev) => {
           last = clampOffset({ x: ev.clientX - start.x, y: ev.clientY - start.y }, base);
           target.style.translate = `${last.x}px ${last.y}px`;
@@ -1415,20 +1320,15 @@
       handle.addEventListener('pointercancel', up);
   }
 
-  // Module: _core/settings-form.js
+  // Module: _core/settings-form.ts
 
   // Settings form (Tampermonkey menu): form and JSON views, validation, reset
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
   // ===========================================================================
 
   // Settings form, opened from Tampermonkey menu: [key, label, choices or unit]
-  /** @type {[string, string, (string[]|string)?][]} */
   const SETTING_FORM = [
       ['layout', 'Layout', ['horizontal', 'vertical', 'popup']],
       ['viewer-share', 'Viewer takes up % of screen'],
@@ -1451,15 +1351,12 @@
       ['viewer-3d-max-bytes', '3D view up to', 'MB'],
       ['logo', 'Logo (data:image/… URI, empty = no image)'],
   ];
-  /** @type {Object<string, number>} */
   const UNIT_BYTES = { KB: 1024, MB: 1024 * 1024 };
 
   // Defaults by key (any setting)
-  /** @type {Object<string, *>} */
   const defaults = DEFAULTS;
 
   // Start-value settings for viewer choices in browser storage
-  /** @type {Object<string, string>} */
   const REMEMBERED_BY = {
       'layout': 'tp-preview-mode',
       'viewer-share': 'tp-preview-split',
@@ -1478,7 +1375,6 @@
   // METHODS
   // ===========================================================================
 
-  /** @returns {void} */
   function openSettingsForm() {
       document.querySelector('.tp-settings')?.remove();
       const wrap = document.createElement('div');
@@ -1510,7 +1406,9 @@
       const form = document.createElement('form');
       form.style.cssText = `background:${c.bg}; color:${c.fg}; padding:20px 24px; border-radius:10px; width:min(620px, 92vw); max-height:86vh; overflow:auto; box-shadow:0 8px 32px rgba(0,0,0,.3); font:13px ${font}; color-scheme:${dark ? 'dark' : 'light'}; user-select:text;`;
       const field = `font:13px ${font}; color:${c.fg}; background:${c.field}; padding:4px 8px; border:1px solid ${c.border}; border-radius:6px; box-sizing:border-box;`;
-      const stored = Object.fromEntries(SETTING_FORM.map(([key]) => [key, GM_getValue(key, defaults[key])]));
+      const stored = Object.fromEntries(
+          SETTING_FORM.map(([key]) => [key, GM_getValue(key, defaults[key])]),
+      );
 
       const rows = SETTING_FORM.map(([key, label, extra]) => {
           if (key === 'logo') {
@@ -1545,7 +1443,6 @@
               `<div style="display:flex; align-items:center; min-width:0">${input}</div>`
           );
       });
-      /** @param {string} mode @param {string} text */
       const tab = (mode, text) =>
           `<button type="button" data-mode="${mode}" style="border:none; padding:4px 12px; font:12px ${font}; cursor:pointer">${text}</button>`;
       form.innerHTML = `<div data-drag title="Drag to move" style="display:flex; align-items:center; gap:12px; margin:0 0 14px; cursor:move">
@@ -1568,32 +1465,29 @@
         <button type="submit" data-act="save" style="${field} padding:5px 16px">Save</button>
       </div>`;
       // Parts of the form (all written in its HTML above)
-      /** @param {string} selector @returns {HTMLElement} */
-      const part = (selector) => /** @type {HTMLElement} */ (form.querySelector(selector));
-      /** @param {string} name @returns {HTMLInputElement} input or select of a setting */
-      const setting = (name) => /** @type {HTMLInputElement} */ (form.elements.namedItem(name));
-      const json = /** @type {HTMLTextAreaElement} */ (part('[data-json]'));
+      const part = (selector) => form.querySelector(selector);
+      /** @returns input or select of a setting */
+      const setting = (name) => form.elements.namedItem(name);
+      const json = part('[data-json]');
       const errorsEl = part('[data-errors]');
       const note = part('[data-note]');
-      const saveBtn = /** @type {HTMLButtonElement} */ (part('[data-act="save"]'));
+      const saveBtn = part('[data-act="save"]');
       const slider = setting('viewer-share');
       let mode = 'form';
 
       // Form inputs <-> stored values
-      /** @param {Object<string, *>} values */
       const setForm = (values) => {
           for (const [key, , extra] of SETTING_FORM) {
               const el = setting(key);
               const value = values[key];
               if (key === 'viewer-share') {
-                  el.value = String(Math.round(Math.min(0.8, Math.max(0.2, value)) * 100));
+                  el.value = String(Math.round(Math.min(0.8, Math.max(0.2, Number(value))) * 100));
                   part('[data-pct]').textContent = `${el.value} %`;
-              } else if (typeof defaults[key] === 'boolean') el.checked = value;
-              else if (typeof defaults[key] === 'number')
-                  el.value = String(
-                      +(extra && UNIT_BYTES[String(extra)] ? value / UNIT_BYTES[String(extra)] : value).toFixed(2),
-                  );
-              else el.value = value;
+              } else if (typeof defaults[key] === 'boolean') el.checked = Boolean(value);
+              else if (typeof defaults[key] === 'number') {
+                  const n = Number(value);
+                  el.value = String(+(extra && UNIT_BYTES[String(extra)] ? n / UNIT_BYTES[String(extra)] : n).toFixed(2));
+              } else el.value = String(value);
           }
       };
       const readForm = () =>
@@ -1614,7 +1508,6 @@
 
       // JSON text <-> stored values (LOGO last, as it is long); reasons when it is not valid
       // (missing settings = defaults, unknown ones ignored: Save writes the completed JSON back)
-      /** @param {Object<string, *>} values */
       const toJson = (values) =>
           JSON.stringify(
               Object.fromEntries([
@@ -1625,45 +1518,44 @@
               2,
           );
       const readJson = () => {
-          /** @type {Object<string, *>} */
           let data;
           try {
               data = JSON.parse(json.value);
           } catch (err) {
-              return { errors: [`Not valid JSON: ${/** @type {Error} */ (err).message}`] };
+              return { errors: [`Not valid JSON: ${(err).message}`] };
           }
           if (!data || typeof data !== 'object' || Array.isArray(data))
               return { errors: ['The settings must be one JSON object { … }'] };
           data = completeSettings(data);
-          /** @type {string[]} */
           const errors = [];
-          /** @type {Object<string, *>} */
           const values = {};
           for (const [key, , extra] of SETTING_FORM) {
-              const value = data[key];
               const type = typeof defaults[key];
               const expected = type === 'boolean' ? 'true or false' : `a ${type}`;
-              if (typeof value !== type) errors.push(`${key}: must be ${expected}`);
-              else if (Array.isArray(extra) && !extra.includes(value)) {
+              if (typeof data[key] !== type) {
+                  errors.push(`${key}: must be ${expected}`);
+                  continue;
+              }
+              const value = data[key]; // type checked above
+              if (Array.isArray(extra) && !extra.includes(String(value))) {
                   const allowed = extra.map((o) => `"${o}"`).join(', ');
                   errors.push(`${key}: must be one of ${allowed}`);
-              } else if (key === 'viewer-share' && (value < 0.2 || value > 0.8))
+              } else if (key === 'viewer-share' && (Number(value) < 0.2 || Number(value) > 0.8))
                   errors.push(`${key}: must be between 0.2 and 0.8`);
-              else if (type === 'number' && !(value > 0 && Number.isFinite(value)))
+              else if (typeof value === 'number' && !(value > 0 && Number.isFinite(value)))
                   errors.push(`${key}: must be greater than 0`);
               // trimmed; share rounded to whole % (as form shows it)
               values[key] =
                   typeof value === 'string'
                       ? value.trim()
                       : key === 'viewer-share'
-                        ? Math.round(value * 100) / 100
+                        ? Math.round(Number(value) * 100) / 100
                         : value;
           }
           return errors.length ? { errors } : { values };
       };
 
       // JSON text replaced (Save, reset); border flashes briefly if it changed
-      /** @param {string} text */
       const setJson = (text) => {
           if (text === json.value) return;
           json.value = text;
@@ -1703,7 +1595,6 @@
       };
 
       // Form / JSON switch: other view takes over values entered so far
-      /** @param {string} next */
       const setMode = (next) => {
           if (next === mode) return;
           if (next === 'form') {
@@ -1762,7 +1653,6 @@
       };
 
       // JSON entered: obsolete settings dropped and missing ones added on Save (warning below JSON)
-      /** @returns {string[]} */
       const completions = () => {
           const keys = Object.keys(JSON.parse(json.value));
           const dropped = keys.filter((key) => !(key in DEFAULTS));
@@ -1803,7 +1693,6 @@
           document.removeEventListener('keydown', onKey, true);
           wrap.remove();
       };
-      /** @param {KeyboardEvent} e */
       const onKey = (e) => {
           if (e.key !== 'Escape') return;
           e.stopPropagation();
@@ -1822,8 +1711,7 @@
       };
       // Drag title row (not its buttons) to move window
       part('[data-drag]').addEventListener('pointerdown', (e) => {
-          if (e.button === 0 && !(/** @type {HTMLElement} */ (e.target).closest('button')))
-              startMove(e, form, SETTINGS_POS_KEY);
+          if (e.button === 0 && !(e.target).closest('button')) startMove(e, form, SETTINGS_POS_KEY);
       });
 
       wrap.append(form);
@@ -1835,13 +1723,11 @@
   }
   /**
    * Settings as given, missing ones from defaults, unknown ones dropped (values not checked).
-   * @param {Object<string, *>} data
-   * @returns {Object<string, *>}
    */
   function completeSettings(data) {
       return Object.fromEntries(Object.keys(DEFAULTS).map((key) => [key, key in data ? data[key] : defaults[key]]));
   }
-  /** Tampermonkey menu: settings form, reset to defaults. @returns {void} */
+  /** Tampermonkey menu: settings form, reset to defaults. */
   function registerMenu() {
       GM_registerMenuCommand('Settings …', openSettingsForm);
 
@@ -1852,7 +1738,7 @@
       });
   }
 
-  // Module: text/lang.js
+  // Module: text/lang.ts
 
   // Languages: names, detection from file names, indentation
 
@@ -1861,7 +1747,6 @@
   // ===========================================================================
 
   // File types (by extension) that get colours and checks
-  /** @type {[string, RegExp][]} */
   const LANGS = [
       [
           'xml',
@@ -1882,7 +1767,6 @@
       ['log', /\.log$/i], // log files
   ];
 
-  /** @type {Object<string, string>} */
   const LANG_NAMES = {
       json: 'JSON',
       xml: 'XML',
@@ -1909,7 +1793,6 @@
   // ---------------------------------------------------------------------------
 
   // Indentation style of text: tabs, 2 / 4 / ... spaces, or mixed (from first 5,000 lines)
-  /** @param {string} text @returns {string|null} */
   function indentation(text) {
       let tabs = 0;
       let spaces = 0;
@@ -1944,10 +1827,9 @@
       return best ? `${best} spaces` : 'spaces';
   }
 
-  /** @param {string} name @returns {string|null} */
   const langOf = (name) => (LANGS.find(([, re]) => re.test(name)) || [null])[0];
 
-  // Module: ui/styles.js
+  // Module: ui/styles.ts
 
   // Styles for code view and syntax colours
 
@@ -2643,14 +2525,14 @@
   // METHODS
   // ===========================================================================
 
-  /** Adds the stylesheet (both themes) to the page. @returns {void} */
+  /** Adds the stylesheet (both themes) to the page. */
   function injectStyles() {
       const style = document.createElement('style');
       style.textContent = CSS;
       document.documentElement.append(style);
   }
 
-  // Module: readers/request.js
+  // Module: readers/request.ts
 
   // Requests for files: this SharePoint only (nothing is sent elsewhere); dates from the file's own response
 
@@ -2664,13 +2546,12 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {string} url relative or absolute @returns {boolean} on this SharePoint */
+  /** @param url relative or absolute @returns on this SharePoint */
   const sameOrigin = (url) => new URL(url, location.href).origin === location.origin;
 
   // Dates from file's own response headers
-  /** @param {Response} response @param {string} cd Content-Disposition @returns {{ modified: string|null, created: string|null }} */
+  /** @param cd Content-Disposition */
   function responseDates(response, cd) {
-      /** @param {string} [v] */
       const iso = (v) => {
           const d = v ? new Date(v.replace(/^"|"$/g, '')) : null;
           // "2026-10-24 08:35:13 UTC" (list dates are local time, so UTC is named)
@@ -2682,13 +2563,9 @@
       };
   }
 
-  // Module: readers/search.js
+  // Module: readers/search.ts
 
   // Files by name below the open folder: rows of search results in a library carry no path, only the name
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -2697,10 +2574,10 @@
   const SITE_RE = /^\/(?:sites|teams)\/[^/]+/i; // site of a server-relative path ('' = root site)
   const JSON_HEADERS = { Accept: 'application/json;odata=nometadata' };
 
-  /** @type {Map<string, string>} path guessed from folder and name -> path found */
+  /** path guessed from folder and name -> path found */
   const foundPaths = new Map();
 
-  /** @type {Map<string, string>} path guessed -> how the lookup went (shown when the file is not found) */
+  /** path guessed -> how the lookup went (shown when the file is not found) */
   const lookupNotes = new Map();
 
   // ===========================================================================
@@ -2710,14 +2587,13 @@
   // File `name` in `folder` or below: library's own list first (exact, any file type),
   // else search index (as the search results; large lists may refuse the filter)
   // NOTE: same name in several sub-folders: the one in `folder` itself, else the first found
-  /** @param {string} folder server-relative @param {string} name @returns {Promise<string|null>} server-relative path */
+  /** @param folder server-relative @returns server-relative path */
   async function findFile(folder, name) {
       const guess = `${folder}/${name}`;
       const known = foundPaths.get(guess);
       if (known) return known;
       const site = folder.match(SITE_RE)?.[0] ?? '';
       const below = `${folder.toLowerCase()}/`;
-      /** @param {string[]} paths */
       const pick = (paths) => {
           const inside = paths.filter((p) => p.split('/').pop() === name && p.toLowerCase().startsWith(below));
           return inside.find((p) => p.toLowerCase() === guess.toLowerCase()) ?? inside[0] ?? null;
@@ -2735,20 +2611,18 @@
       return path;
   }
 
-  /** @param {string[]} paths @returns {string} */
-  const summary = (paths) => (paths.length ? `${paths.length} found (${paths.slice(0, 3).join(', ')})` : 'none found');
+  const summary = (paths) =>
+      paths.length ? `${paths.length} found (${paths.slice(0, 3).join(', ')})` : 'none found';
 
   // Paths of files named `name` in the library of the open view (FileLeafRef = file name)
-  /** @param {string} site @param {string} name @returns {Promise<{ paths: string[], note: string }>} */
   async function listPaths(site, name) {
       const path = decodeURIComponent(location.pathname);
       const i = path.toLowerCase().indexOf('/forms/');
       if (i < 0) return { paths: [], note: 'not in a list view' };
-      const quote = (/** @type {string} */ s) => `'${s.replace(/'/g, "''")}'`;
+      const quote = (s) => `'${s.replace(/'/g, "''")}'`;
       const url =
           `${site}/_api/web/GetList(@list)/items?$select=FileRef&$top=50` +
           `&$filter=FileLeafRef eq ${encodeURIComponent(quote(name))}&@list=${encodeURIComponent(quote(path.slice(0, i)))}`;
-      /** @type {{ value?: { FileRef?: string }[] }|string} */
       const data = await getJson(url);
       if (typeof data === 'string') return { paths: [], note: data };
       const paths = (data?.value ?? []).flatMap((x) => (x.FileRef ? [x.FileRef] : []));
@@ -2757,17 +2631,16 @@
 
   // Paths of files named `name` below `folder` by the search index; Path may be a form (DispForm.aspx?ID=…)
   // for file types the index does not read, then the file is ParentLink + Filename
-  /** @param {string} site @param {string} folder @param {string} name @returns {Promise<{ paths: string[], note: string }>} */
   async function searchPaths(site, folder, name) {
       const query = `(filename:"${name}" OR "${name}") path:"${location.origin}${folder}"`.replace(/'/g, "''");
       const url =
           `${site}/_api/search/query?querytext='${encodeURIComponent(query)}'` +
           "&selectproperties='Path,ParentLink,Filename'&rowlimit=50&trimduplicates=false";
-      /** @type {{ PrimaryQueryResult?: { RelevantResults?: { Table?: { Rows?: { Cells: { Key: string, Value: string|null }[] }[] } } } }|string} */
-      const data = await getJson(url);
+      const data = await getJson
+
+  (url);
       if (typeof data === 'string') return { paths: [], note: data };
       const rows = data?.PrimaryQueryResult?.RelevantResults?.Table?.Rows ?? [];
-      /** @param {string|null|undefined} value @returns {string} */
       const pathOf = (value) => {
           try {
               return value ? decodeURIComponent(new URL(value, location.origin).pathname).replace(/\/+$/, '') : '';
@@ -2776,7 +2649,6 @@
           }
       };
       const paths = rows.flatMap((r) => {
-          /** @param {string} key */
           const cell = (key) => r.Cells.find((c) => c.Key === key)?.Value;
           const parent = pathOf(cell('ParentLink'));
           return [pathOf(cell('Path')), parent && cell('Filename') ? `${parent}/${cell('Filename')}` : ''];
@@ -2784,18 +2656,18 @@
       return { paths: paths.filter(Boolean), note: summary([...new Set(paths.filter(Boolean))]) };
   }
 
-  /** @param {string} url @returns {Promise<any>} parsed JSON, or why not (refused, HTTP status, failed) */
+  /** @returns parsed JSON (of the shape the caller expects), or why not (refused, HTTP status, failed) */
   async function getJson(url) {
       if (!sameOrigin(url)) return 'refused (other origin)';
       try {
           const res = await fetch(url, { credentials: 'same-origin', headers: JSON_HEADERS });
-          return res.ok ? await res.json() : `HTTP ${res.status}`;
+          return res.ok ? ((await res.json())) : `HTTP ${res.status}`;
       } catch (e) {
           return `failed (${e instanceof Error ? e.message : e})`;
       }
   }
 
-  // Module: readers/bytes.js
+  // Module: readers/bytes.ts
 
   // Bytes and texts of binary formats (shared by the readers)
 
@@ -2810,7 +2682,6 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {Uint8Array[]} parts @returns {Uint8Array} */
   function concatBytes(parts) {
       if (parts.length === 1) return parts[0];
       const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
@@ -2822,29 +2693,23 @@
       return out;
   }
 
-  /** @param {Uint8Array} b @returns {DataView} */
   const dataView = (b) => new DataView(b.buffer, b.byteOffset, b.byteLength);
 
   // Little-endian unsigned 32-bit number at `pos`
-  /** @param {Uint8Array} b @param {number} pos @returns {number} */
-  const u32 = (b, pos) => (b[pos] | (b[pos + 1] << 8) | (b[pos + 2] << 16) | (b[pos + 3] << 24)) >>> 0;
+  const u32 = (b, pos) =>
+      (b[pos] | (b[pos + 1] << 8) | (b[pos + 2] << 16) | (b[pos + 3] << 24)) >>> 0;
 
   // Characters stored with 1 byte each: Unicode code points up to U+00FF
-  /** @param {Uint8Array} b @returns {string} */
   function latin1(b) {
       let s = '';
       for (let i = 0; i < b.length; i += 8192)
-          s += String.fromCharCode.apply(null, /** @type {*} */ (b.subarray(i, i + 8192))); // typed array as argument list
+          s += String.fromCharCode.apply(null, b.subarray(i, i + 8192)); // typed array as argument list
       return s;
   }
 
-  // Module: readers/parquet/meta.js
+  // Module: readers/parquet/meta.ts
 
   // Parquet (read only, no library): footer and needed column parts by range, rows as CSV
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -2858,7 +2723,6 @@
   // ===========================================================================
 
   // Thrift compact protocol (Parquet metadata): structs keyed by field id
-  /** @param {Uint8Array} bytes @param {number} [start] @returns {{ struct: () => Object<number, *>, pos: () => number }} */
   function thriftReader(bytes, start = 0) {
       let pos = start;
 
@@ -2878,12 +2742,9 @@
           } while (b & 0x80);
           return r;
       };
-      /** @param {bigint} n */
       const zigzag = (n) => (n >> 1n) ^ -(n & 1n);
-      /** @param {bigint} n */
       const small = (n) => (n >= -(2n ** 53n) && n <= 2n ** 53n ? Number(n) : n);
 
-      /** @param {number} type @returns {*} */
       function value(type) {
           switch (type) {
               case 1:
@@ -2937,9 +2798,7 @@
           }
       }
 
-      /** @returns {Object<number, *>} */
       function struct() {
-          /** @type {Object<number, *>} */
           const out = {};
           let id = 0;
           for (;;) {
@@ -2954,15 +2813,13 @@
       return { struct, pos: () => pos };
   }
 
-  /** @param {Uint8Array} bytes @returns {{ createdBy: string, numRows: number, schema: Object<string, *>[], rowGroups: { numRows: number, columns: Object<string, *>[] }[] }} */
   function parseFooter(bytes) {
-      const m = thriftReader(bytes).struct();
-      /** @param {Uint8Array} [b] */
+      const m = thriftReader(bytes).struct(); // shape per the format
       const text = (b) => (b ? utf8.decode(b) : '');
       return {
           createdBy: m[6] ? text(m[6]) : '',
           numRows: Number(m[3] || 0),
-          schema: (m[2] || []).map((/** @type {Object<number, *>} */ e) => ({
+          schema: (m[2] || []).map((e) => ({
               type: e[1],
               typeLength: e[2],
               repetition: e[3],
@@ -2972,9 +2829,9 @@
               scale: e[7],
               logical: e[10],
           })),
-          rowGroups: (m[4] || []).map((/** @type {Object<number, *>} */ rg) => ({
+          rowGroups: (m[4] || []).map((rg) => ({
               numRows: Number(rg[3] || 0),
-              columns: (rg[1] || []).map((/** @type {Object<number, *>} */ c) => {
+              columns: (rg[1] || []).map((c) => {
                   const md = c[3] || {};
                   return {
                       codec: md[4] || 0,
@@ -2989,13 +2846,11 @@
   }
 
   // Leaf columns with their nesting depth (definition / repetition levels)
-  /** @param {Object<string, *>[]} schema @returns {Object<string, *>[]} leaf columns with path, maxDef, maxRep */
+  /** @returns leaf columns with path, maxDef, maxRep */
   function leafColumns(schema) {
-      /** @type {Object<string, *>[]} */
       const leaves = [];
       let i = 1;
 
-      /** @param {string[]} path @param {number} maxDef @param {number} maxRep @param {number} count */
       const walk = (path, maxDef, maxRep, count) => {
           for (let k = 0; k < count && i < schema.length; k++) {
               const e = schema[i++];
@@ -3010,19 +2865,14 @@
       return leaves;
   }
 
-  /** @param {number} max @returns {number} */
   const bitWidth = (max) => 32 - Math.clz32(max);
 
-  // Module: readers/sheets/cells.js
+  // Module: readers/sheets/cells.ts
 
   // Spreadsheets (read only, no library): Excel (.xlsx .xlsm .xltx .xltm, .xlsb, .xls .xlt)
   // and OpenDocument (.ods .ots). Cached sheet by sheet: workbook, shared strings and styles
   // first, then only the sheets shown, by range (ODS keeps all sheets in one part).
   // Formats: ECMA-376 (OOXML), [MS-XLSB], [MS-XLS] in [MS-CFB], OASIS OpenDocument 1.2.
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -3035,7 +2885,6 @@
   const MAX_SHEET_COLS = 16384;
   const MAX_SHEET_CELLS = 10000000;
 
-  /** @type {Object<number, string>} */
   const SHEET_ERRORS = {
       0: '#NULL!',
       7: '#DIV/0!',
@@ -3048,7 +2897,6 @@
   };
 
   // Built-in number formats other than plain numbers (ECMA-376 part 1, 18.8.30); only their kind counts
-  /** @type {Object<number, string>} */
   const BUILTIN_FORMATS = {
       9: '0%',
       10: '0.00%',
@@ -3073,7 +2921,6 @@
   // ===========================================================================
 
   // Format by file extension (shown before the file is read)
-  /** @param {string} name @returns {string|null} */
   function sheetFormat(name) {
       const ext = (name.match(SHEET_RE) || [])[1];
       if (!ext) return null;
@@ -3086,7 +2933,6 @@
   // ---------------------------------------------------------------------------
 
   // Number format code -> 'date' | 'time' | 'datetime' | 'elapsed' ([h]:mm) | 'percent' | '' (plain number)
-  /** @param {string} code @returns {string} */
   function formatKind(code) {
       if (!code) return '';
       const plain = code
@@ -3101,17 +2947,14 @@
       return plain.includes('%') ? 'percent' : '';
   }
 
-  /** @param {number} n @returns {string} */
   const generalText = (n) => String(Number(n.toPrecision(15)));
 
   // Serial number -> text; 1900 system counts the non-existent 1900-02-29 (as Lotus 1-2-3 did)
-  /** @param {number} n @param {string} kind @param {boolean} date1904 @returns {string} */
   function numberText(n, kind, date1904) {
       if (!Number.isFinite(n)) return String(n);
       if (kind === 'percent') return `${generalText(n * 100)}%`;
       if (kind === 'elapsed') {
           const secs = Math.round(Math.abs(n) * 86400);
-          /** @param {number} x */
           const pad = (x) => String(x).padStart(2, '0');
           return `${n < 0 ? '-' : ''}${Math.floor(secs / 3600)}:${pad(Math.floor(secs / 60) % 60)}:${pad(secs % 60)}`;
       }
@@ -3124,7 +2967,7 @@
   }
 
   // Column letters <-> index (0-based): A, …, Z, AA, …
-  /** @param {string} ref e.g. "AB12" @returns {number} */
+  /** @param ref e.g. "AB12" */
   function refCol(ref) {
       let c = 0;
       for (let i = 0; i < ref.length; i++) {
@@ -3135,7 +2978,6 @@
       return c - 1;
   }
 
-  /** @param {number} c @returns {string} */
   function colName(c) {
       let s = '';
       for (let n = c + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
@@ -3143,7 +2985,6 @@
   }
 
   // Cell range "A1:C4" or "A1" ("$" ignored) <-> corners (0-based); null if unreadable
-  /** @param {string} ref @returns {CellRange|null} */
   function cellRange(ref) {
       const m = /^\$?([A-Za-z]{1,3})\$?(\d{1,7})(?::\$?([A-Za-z]{1,3})\$?(\d{1,7}))?$/.exec(ref.trim());
       if (!m) return null;
@@ -3154,13 +2995,10 @@
       return { r0: Math.min(r0, r1), c0: Math.min(c0, c1), r1: Math.max(r0, r1), c1: Math.max(c0, c1) };
   }
 
-  /** @param {CellRange} range @returns {string} */
   const rangeText = ({ r0, c0, r1, c1 }) => `${colName(c0)}${r0 + 1}:${colName(c1)}${r1 + 1}`;
 
   // Cells of one sheet -> rows (no gaps between rows; missing cells are empty)
-  /** @returns {{ set: (r: number, c: number, text: string) => boolean, done: () => SheetData }} */
   function sheetGrid() {
-      /** @type {string[][]} */
       const rows = [];
       let cols = 0;
       let cells = 0;
@@ -3185,13 +3023,9 @@
       };
   }
 
-  // Module: readers/text.js
+  // Module: readers/text.ts
 
   // Text files: encoding sniffing and range reading
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -3220,10 +3054,13 @@
 
   // Open file in chunks of MAX_BYTES, same origin only (nothing is sent elsewhere).
   // Ranges if supported, else paused transfer. Returns { error } | { binary } | source.
-  /** @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload @param {(loaded: number, total: number) => void} onProgress @returns {Promise<Source|{ error: string }|{ binary: true, name?: string }>} */
-  async function openSource(url, getSignal, reload, onProgress) {
+  async function openSource(
+      url,
+      getSignal,
+      reload,
+      onProgress,
+  ) {
       if (!sameOrigin(url)) return { error: OUTSIDE };
-      /** @param {number} from */
       const request = (from) =>
           fetch(url, {
               credentials: 'same-origin',
@@ -3248,7 +3085,6 @@
       }
 
       const ranged = response.status === 206;
-      /** @type {Object<string, *>} */
       const src = {
           name,
           dates: responseDates(response, cd),
@@ -3258,14 +3094,13 @@
           loaded: 0,
           done: false,
           text: '',
+          more,
+          loadAll,
       };
-      /** @type {TextDecoder|null} */
       let decoder = null; // chosen from first bytes
-      /** @type {ReadableStreamDefaultReader<Uint8Array>|null} */
       let reader = null; // open transfer (when SharePoint ignores ranges)
 
       // Add bytes to text; false = binary data (only first bytes decide)
-      /** @param {Uint8Array} bytes */
       const feed = (bytes) => {
           if (!decoder) {
               const encoding = sniffText(bytes);
@@ -3286,10 +3121,13 @@
       };
 
       // Read `budget` bytes (after `skip`); 'more' | 'end' | 'binary'
-      /** @param {Response|{ body: { getReader: () => ReadableStreamDefaultReader<Uint8Array> }, arrayBuffer?: undefined }} res @param {number} budget @param {number} [skip] */
-      const read = async (res, budget, skip = 0) => {
+      const read = async (
+          res,
+          budget,
+          skip = 0,
+      ) => {
           if (!res.body) {
-              const all = new Uint8Array(await /** @type {Response} */ (res).arrayBuffer()).subarray(skip); // response without stream
+              const all = new Uint8Array(await (res).arrayBuffer()).subarray(skip); // response without stream
               return feed(all) ? 'end' : 'binary';
           }
           const r = res.body.getReader();
@@ -3317,16 +3155,16 @@
       const first = await read(response, MAX_BYTES);
       if (first === 'binary') return { binary: true, name };
       if (ranged) {
-          /** @type {ReadableStreamDefaultReader<Uint8Array>|null} */ (reader)?.cancel(); // read() may have set it
+          (reader)?.cancel(); // read() may have set it
           reader = null;
           if (src.total && src.loaded >= src.total) finish();
       } else if (first === 'end') {
           finish();
       }
 
-      src.more = async () => {
+      async function more() {
           if (src.done) return;
-          let state;
+          let state = null;
           if (reader) {
               // Resume paused transfer; if it was cut off, new request
               const r = reader;
@@ -3349,25 +3187,25 @@
               if (!res.ok) throw new Error(`Error ${res.status} on caching`);
               state = await read(res, MAX_BYTES, res.status === 206 ? 0 : src.loaded);
               if (res.status === 206) {
-                  /** @type {ReadableStreamDefaultReader<Uint8Array>|null} */ (reader)?.cancel(); // read() may have set it
+                  (reader)?.cancel(); // read() may have set it
                   reader = null;
               }
           }
           if (state === 'end' || (src.total && src.loaded >= src.total)) finish();
-      };
+      }
 
-      src.loadAll = async () => {
+      async function loadAll() {
           while (!src.done) {
               const before = src.loaded;
-              await src.more();
+              await more();
               if (!src.done && src.loaded === before) throw new Error('no progress from SharePoint');
           }
-      };
-      return /** @type {Source} */ (src);
+      }
+      return src;
   }
 
   // First bytes -> text encoding, or null for binary
-  /** @param {Uint8Array} bytes @returns {string|null} encoding, or null for binary data */
+  /** @returns encoding, or null for binary data */
   function sniffText(bytes) {
       if (bytes[0] === 0xff && bytes[1] === 0xfe) return 'utf-16le';
       if (bytes[0] === 0xfe && bytes[1] === 0xff) return 'utf-16be';
@@ -3377,13 +3215,9 @@
       return 'utf-8';
   }
 
-  // Module: readers/zip.js
+  // Module: readers/zip.ts
 
   // ZIP archives (.ifczip, spreadsheets): directory and single entries, read by range
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -3398,11 +3232,9 @@
   // ===========================================================================
 
   // Entries of ZIP archive from its central directory (at its end)
-  /** @param {ByteReader} read @param {number} size @returns {Promise<ZipEntry[]>} */
   async function zipEntries(read, size) {
       // End record: in last 22 bytes, unless archive has a comment (then up to 64 KB before)
       let base = 0;
-      /** @type {Uint8Array} */
       let tail = new Uint8Array(0);
       let end = -1;
       for (const span of [4096, 65557]) {
@@ -3446,7 +3278,6 @@
   }
 
   // Bytes of one entry: stored (0) or deflated (8)
-  /** @param {ByteReader} read @param {ZipEntry} entry @returns {Promise<Uint8Array>} */
   async function zipEntryBytes(read, entry) {
       const at = entry.offset;
       let bytes = await read(at, at + entry.head + entry.packed);
@@ -3459,14 +3290,19 @@
       const packed = bytes.subarray(start, start + entry.packed);
       if (entry.method === 0) return packed;
       if (entry.method !== 8) throw new Error(`ZIP compression ${entry.method} is not supported`);
-      const blob = new Blob([/** @type {BlobPart} */ (packed)]);
+      const blob = new Blob([packed]);
       return new Uint8Array(
           await new Response(blob.stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer(),
       );
   }
 
-  /** @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload @param {(loaded: number, total: number) => void} onProgress @param {boolean} [force] @returns {Promise<Source|Deferred|{ error: string }|{ binary: true }>} */
-  async function openZipSource(url, getSignal, reload, onProgress, force = false) {
+  async function openZipSource(
+      url,
+      getSignal,
+      reload,
+      onProgress,
+      force = false,
+  ) {
       if (!sameOrigin(url)) return { error: OUTSIDE };
       const res = await fetch(url, {
           credentials: 'same-origin',
@@ -3486,7 +3322,7 @@
       }
       const parts = [];
       let loaded = 0;
-      const reader = /** @type {ReadableStream<Uint8Array>} */ (res.body).getReader(); // ok response: has a body
+      const reader = (res.body).getReader(); // ok response: has a body
       for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -3495,13 +3331,12 @@
           onProgress(loaded, total);
       }
       const bytes = concatBytes(parts.length ? parts : [new Uint8Array(0)]);
-      /** @type {ByteReader} */
       const read = async (from, to) => bytes.subarray(from, to);
       let entries;
       try {
           entries = await zipEntries(read, bytes.length);
       } catch (err) {
-          return { error: `Not a valid .ifczip (${/** @type {Error} */ (err).message})` };
+          return { error: `Not a valid .ifczip (${(err).message})` };
       }
       const entry = entries.find((e) => /\.ifc$/i.test(e.name));
       if (!entry) return { error: 'No .ifc file inside this archive' };
@@ -3525,22 +3360,15 @@
       };
   }
 
-  // Module: readers/formats.js
+  // Module: readers/formats.ts
 
   // Formats: recognised from the file name or chosen by the user; reader and language of each
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
-
-  /** @typedef {'text'|'parquet'|'sheet'|'ifczip'} Reader */
 
   // ===========================================================================
   // CONSTANTS
   // ===========================================================================
 
   // Formats with a reader of their own (binary files); all others are text, coloured by language
-  /** @type {Object<string, string>} */
   const FILE_FORMATS = {
       parquet: 'Parquet',
       sheet: 'Spreadsheet',
@@ -3548,7 +3376,6 @@
   };
 
   // Lists of the format picker: text formats (plain text first, then by name), file formats
-  /** @type {[string, string[]][]} */
   const FORMAT_LISTS = [
       ['Text', ['text', ...Object.keys(LANG_NAMES).sort((a, b) => LANG_NAMES[a].localeCompare(LANG_NAMES[b]))]],
       ['Files', Object.keys(FILE_FORMATS)],
@@ -3559,7 +3386,6 @@
   // ===========================================================================
 
   // Format recognised from a file name ('text': plain text)
-  /** @param {string} name @returns {string} */
   function formatOf(name) {
       if (PARQUET_RE.test(name)) return 'parquet';
       if (SHEET_RE.test(name)) return 'sheet';
@@ -3567,20 +3393,17 @@
       return langOf(name) || 'text';
   }
 
-  /** @param {string} format @returns {Reader} */
-  const readerOf = (format) => /** @type {Reader} */ (format in FILE_FORMATS ? format : 'text');
+  const readerOf = (format) => (format in FILE_FORMATS ? format : 'text');
 
   // Language of a format, as in Viewer.lang (null: plain text)
-  /** @param {string} format @returns {string|null} */
   function langOfFormat(format) {
       if (format === 'ifczip') return 'ifc';
       return format === 'text' ? null : format;
   }
 
-  /** @param {string} format @returns {string} */
   const formatName = (format) => FILE_FORMATS[format] || LANG_NAMES[format] || 'Text';
 
-  // Module: readers/links.js
+  // Module: readers/links.ts
 
   // Links: .url shortcut files ("[InternetShortcut] URL=...") point to another file
 
@@ -3588,7 +3411,6 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {string} name @param {string} text @returns {{ display: string, name: string, fetchUrl: string }|null} */
   function linkTarget(name, text) {
       if (!/\.url$/i.test(name) && !/^\s*\[InternetShortcut\]/i.test(text)) return null;
       const m = text.match(/^\s*URL\s*=\s*(\S+)\s*$/im);
@@ -3630,31 +3452,25 @@
       return { display, name: last ?? '', fetchUrl: target.href };
   }
 
-  // Module: readers/ranges.js
+  // Module: readers/ranges.ts
 
   // Files by byte range (Parquet, spreadsheets): only the parts needed are fetched
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
   // Parts of file by range; whole file at once if SharePoint ignores ranges. Same origin only.
-  /**
-   * @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload
-   * @param {(loaded: number, total: number) => void} onProgress
-   * @returns {Promise<RangeFile|{ error: string }>}
-   */
-  async function openRanges(url, getSignal, reload, onProgress) {
+  async function openRanges(
+      url,
+      getSignal,
+      reload,
+      onProgress,
+  ) {
       if (!sameOrigin(url)) return { error: OUTSIDE };
-      /** @type {Uint8Array|null} */
       let whole = null; // whole file, if SharePoint ignores partial requests
       let size = 0;
       let fetched = 0;
-      /** @param {string} range */
       const request = (range) =>
           fetch(url, {
               credentials: 'same-origin',
@@ -3667,7 +3483,6 @@
       const res = await request('0-7');
       if (!res.ok) return { error: `Error ${res.status} on caching` };
       const dates = responseDates(res, res.headers.get('content-disposition') || '');
-      /** @type {Uint8Array} */
       let head = new Uint8Array(await res.arrayBuffer());
       fetched = head.length;
       if (res.status === 206) size = Number((res.headers.get('content-range') || '').split('/')[1]) || 0;
@@ -3679,7 +3494,6 @@
       onProgress(fetched, size);
 
       // Bytes [from, to) of file
-      /** @type {ByteReader} */
       const read = async (from, to) => {
           from = Math.max(0, from);
           to = Math.min(size, to);
@@ -3699,7 +3513,7 @@
       return { size, head, dates, read, fetched: () => fetched, whole: () => !!whole };
   }
 
-  // Module: readers/codecs/lz4.js
+  // Module: readers/codecs/lz4.ts
 
   // LZ4 decompression (raw blocks and frames, as in Parquet)
 
@@ -3707,7 +3521,6 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {Uint8Array} src @param {number} outLen @returns {Uint8Array} */
   function unlz4(src, outLen) {
       const out = new Uint8Array(outLen);
       let ip = 0;
@@ -3742,19 +3555,14 @@
       return out;
   }
 
-  // Module: readers/codecs/snappy.js
+  // Module: readers/codecs/snappy.ts
 
   // Decompression (Snappy, LZ4 raw and ZSTD are built in; GZIP uses browser)
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
-  /** @param {Uint8Array} src @returns {Uint8Array} */
   function unsnappy(src) {
       let pos = 0;
       let len = 0;
@@ -3802,20 +3610,15 @@
       return out;
   }
 
-  // Module: readers/codecs/zstd.js
+  // Module: readers/codecs/zstd.ts
 
   // Zstandard decompression (RFC 8878): frames with FSE and Huffman tables, no dictionaries (unused by Parquet)
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
   // ===========================================================================
 
   // Literal and match length codes: [baseline, extra bits]
-  /** @type {[number, number][]} */
   const LL_CODES = [];
   for (let c = 0; c < 16; c++) LL_CODES.push([c, 0]);
   LL_CODES.push(
@@ -3840,7 +3643,6 @@
       [32768, 15],
       [65536, 16],
   );
-  /** @type {[number, number][]} */
   const ML_CODES = [];
   for (let c = 0; c < 32; c++) ML_CODES.push([c + 3, 0]);
   ML_CODES.push(
@@ -3872,15 +3674,18 @@
   // ===========================================================================
 
   // Backward bitstream (ZSTD Huffman / FSE): from last set bit; past start = 0
-  /** @param {Uint8Array} bytes @param {number} start @param {number} end @returns {{ bit(p: number): number, read(n: number): number, peek(n: number): number, skip(n: number): void, overflow(): boolean, done(): boolean }} */
-  function backReader(bytes, start, end) {
+  function backReader(
+      bytes,
+      start,
+      end,
+  )
+
+  {
       const last = bytes[end - 1];
       if (!last) throw new Error('ZSTD: damaged bitstream');
       let pos = (end - start - 1) * 8 + (31 - Math.clz32(last)); // just below end marker
-      /** @param {number} p */
       const bit = (p) => (p < 0 ? 0 : (bytes[start + (p >> 3)] >> (p & 7)) & 1);
 
-      /** @param {number} p @param {number} n */
       const take = (p, n) => {
           let v = 0;
           for (let i = 0; i < n; ) {
@@ -3914,18 +3719,19 @@
   }
 
   // FSE table description (forward bits) -> normalised counts; returns them and position after
-  /** @param {Uint8Array} bytes @param {number} pos @param {number} maxSymbol @returns {{ counts: number[], log: number, pos: number }} */
-  function readFseCounts(bytes, pos, maxSymbol) {
+  function readFseCounts(
+      bytes,
+      pos,
+      maxSymbol,
+  ) {
       let bitPos = pos * 8;
 
-      /** @param {number} n */
       const read = (n) => {
           let v = 0;
           for (let i = 0; i < n; i++, bitPos++) v |= ((bytes[bitPos >> 3] >> (bitPos & 7)) & 1) << i;
           return v;
       };
 
-      /** @param {number} n */
       const peek = (n) => {
           const keep = bitPos;
           const v = read(n);
@@ -3969,12 +3775,9 @@
   }
 
   // Decode table from normalised counts: { symbol, nbBits, baseline }
-  /** @typedef {Array<{ symbol: number, nbBits: number, baseline: number }> & { log?: number }} FseTable */
-  /** @param {number[]} counts @param {number} log @returns {FseTable} */
   function buildFseTable(counts, log) {
       const size = 1 << log;
       const symbols = new Array(size);
-      /** @type {number[]} */
       const next = [];
       let high = size - 1;
       counts.forEach((c, s) => {
@@ -3994,15 +3797,13 @@
               while (pos > high);
           }
       });
-      /** @type {FseTable} */
-      const table = new Array(size);
+      const table = Object.assign(new Array(size), { log });
       for (let u = 0; u < size; u++) {
           const s = symbols[u];
           const state = next[s]++;
           const nbBits = log - (31 - Math.clz32(state));
           table[u] = { symbol: s, nbBits, baseline: (state << nbBits) - size };
       }
-      table.log = log;
       return table;
   }
 
@@ -4024,7 +3825,6 @@
   );
 
   // Huffman description -> decode table (index = next maxBits bits)
-  /** @param {Uint8Array} bytes @param {number} pos @returns {{ table: { symbol: Uint8Array, bits: Uint8Array, maxBits: number }, pos: number }} */
   function readHuffmanTable(bytes, pos) {
       const header = bytes[pos++];
       let weights;
@@ -4038,7 +3838,6 @@
           let s2 = r.read(log);
           weights = [];
 
-          /** @param {number} s */
           const step = (s) => {
               const e = table[s];
               weights.push(e.symbol);
@@ -4091,8 +3890,15 @@
       return { table: { symbol, bits, maxBits }, pos };
   }
 
-  /** @param {Uint8Array} bytes @param {number} start @param {number} end @param {{ symbol: Uint8Array, bits: Uint8Array, maxBits: number }} huf @param {Uint8Array} out @param {number} outPos @param {number} count @returns {void} */
-  function huffmanStream(bytes, start, end, huf, out, outPos, count) {
+  function huffmanStream(
+      bytes,
+      start,
+      end,
+      huf,
+      out,
+      outPos,
+      count,
+  ) {
       const r = backReader(bytes, start, end);
       const { symbol, bits, maxBits } = huf;
       for (let i = 0; i < count; i++) {
@@ -4104,7 +3910,7 @@
   }
 
   // One compressed block: literals, then sequences that copy literals and earlier output
-  /** @param {Uint8Array} src @param {number} pos @param {number} end @param {Uint8Array} out @param {number} op @param {Object<string, *>} st frame state @returns {number} new output position */
+  /** @param st frame state @returns new output position */
   function zstdBlock(src, pos, end, out, op, st) {
       // --- Literals section ---
       const b0 = src[pos];
@@ -4195,7 +4001,6 @@
       if (nbSeq) {
           const modes = src[pos++];
 
-          /** @param {number} mode @param {FseTable} def @param {number} maxSymbol @param {string} key */
           const table = (mode, def, maxSymbol, key) => {
               if (mode === 0) st[key] = def;
               else if (mode === 1) {
@@ -4205,8 +4010,10 @@
                   const { counts, log, pos: at } = readFseCounts(src, pos, maxSymbol);
                   st[key] = buildFseTable(counts, log);
                   pos = at;
-              } else if (!st[key]) throw new Error('ZSTD: missing sequence table');
-              return st[key];
+              }
+              const t = st[key];
+              if (!t) throw new Error('ZSTD: missing sequence table');
+              return t;
           };
           const llT = table(modes >> 6, LL_DEFAULT, 35, 'll');
           const ofT = table((modes >> 4) & 3, OF_DEFAULT, 31, 'of');
@@ -4260,7 +4067,6 @@
       return op + literals.length - lit;
   }
 
-  /** @param {Uint8Array} src @param {number} outLen @returns {Uint8Array} */
   function unzstd(src, outLen) {
       const out = new Uint8Array(outLen);
       let pos = 0;
@@ -4307,31 +4113,25 @@
       return op === out.length ? out : out.subarray(0, op);
   }
 
-  // Module: readers/parquet/pages.js
+  // Module: readers/parquet/pages.ts
 
   // Parquet pages: decompression, hybrid RLE / bit-packed levels, plain values
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
   // ===========================================================================
 
-  /** @type {Object<number, number>} */
   const TYPE_WIDTH = { 1: 4, 2: 8, 4: 4, 5: 8 };
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
-  /** @param {number} codec @param {Uint8Array} data @param {number} outLen @returns {Promise<Uint8Array>} */
   async function decompress(codec, data, outLen) {
       if (codec === 0) return data;
       if (codec === 1) return unsnappy(data);
       if (codec === 2) {
-          const stream = new Blob([/** @type {BlobPart} */ (data)]).stream().pipeThrough(new DecompressionStream('gzip'));
+          const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('gzip'));
           return new Uint8Array(await new Response(stream).arrayBuffer());
       }
       if (codec === 7) return unlz4(data, outLen);
@@ -4344,8 +4144,14 @@
   // ---------------------------------------------------------------------------
 
   // RLE / bit-packed hybrid (levels, dictionary indices, booleans)
-  /** @param {Uint8Array} bytes @param {number} pos @param {number} end @param {number} width @param {number} count @param {number[]} out @returns {number[]} */
-  function readHybrid(bytes, pos, end, width, count, out) {
+  function readHybrid(
+      bytes,
+      pos,
+      end,
+      width,
+      count,
+      out,
+  ) {
       const byteWidth = (width + 7) >> 3;
       let n = 0;
       while (n < count && pos < end) {
@@ -4381,7 +4187,6 @@
   }
 
   // DELTA_BINARY_PACKED; returns values and position after them
-  /** @param {Uint8Array} bytes @param {number} pos @param {boolean} big @returns {{ values: Array<number|bigint>, pos: number }} */
   function readDelta(bytes, pos, big) {
       const uvar = () => {
           let r = 0n;
@@ -4394,7 +4199,6 @@
           } while (b & 0x80);
           return r;
       };
-      /** @param {bigint} n */
       const zigzag = (n) => (n >> 1n) ^ -(n & 1n);
       const blockSize = Number(uvar());
       const minis = Number(uvar());
@@ -4431,15 +4235,20 @@
   }
 
   // INT96 (old timestamp format): nanoseconds of day + Julian day
-  /** @param {DataView} dv @param {number} pos @returns {Date} */
   function int96Date(dv, pos) {
       const nanos = dv.getBigInt64(pos, true);
       const day = dv.getInt32(pos + 8, true);
       return new Date((day - 2440588) * 86400000 + Number(nanos / 1000000n));
   }
 
-  /** @param {number} type @param {Uint8Array} bytes @param {number} pos @param {number} n @param {number} typeLength @returns {{ values: Array<*>, pos: number }} */
-  function readPlain(type, bytes, pos, n, typeLength) {
+  /** @param type physical type (missing: fixed length) @param typeLength length of fixed-length values */
+  function readPlain(
+      type,
+      bytes,
+      pos,
+      n,
+      typeLength,
+  ) {
       const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
       const out = new Array(n);
       for (let i = 0; i < n; i++) {
@@ -4473,26 +4282,35 @@
                   pos += 4 + len;
                   break;
               }
-              default:
-                  out[i] = bytes.subarray(pos, pos + typeLength);
-                  pos += typeLength;
+              default: {
+                  const len = Number(typeLength); // NaN if missing (damaged file)
+                  out[i] = bytes.subarray(pos, pos + len);
+                  pos += len;
+              }
           }
       }
       if (type === 0) pos += Math.ceil(n / 8);
       return { values: out, pos };
   }
 
-  /** @param {Object<string, *>} st column state @param {number} encoding @param {Uint8Array} data @param {number} pos @param {number} n @returns {Array<*>} */
-  function decodeValues(st, encoding, data, pos, n) {
+  /** @param st column state: column, dictionary (if read) */
+  function decodeValues(
+      st,
+      encoding,
+      data,
+      pos,
+      n,
+  ) {
       const { type, typeLength } = st.col;
       switch (encoding) {
           case 0:
               return readPlain(type, data, pos, n, typeLength).values;
           case 2:
           case 8: {
-              if (!st.dict) throw new Error('dictionary page missing');
+              const dict = st.dict;
+              if (!dict) throw new Error('dictionary page missing');
               const idx = readHybrid(data, pos + 1, data.length, data[pos], n, new Array(n));
-              return idx.map((i) => st.dict[i]);
+              return idx.map((i) => dict[i]);
           }
           case 3: {
               const len = u32(data, pos);
@@ -4527,7 +4345,7 @@
               });
           }
           case 9: {
-              const w = TYPE_WIDTH[type] || typeLength;
+              const w = Number(TYPE_WIDTH[type ?? -1] || typeLength); // NaN if unknown (damaged file)
               const joined = new Uint8Array(n * w);
               for (let i = 0; i < n; i++) for (let k = 0; k < w; k++) joined[i * w + k] = data[pos + k * n + i];
               return readPlain(type, joined, 0, n, typeLength).values;
@@ -4537,26 +4355,20 @@
       }
   }
 
-  // Module: readers/parquet/values.js
+  // Module: readers/parquet/values.ts
 
   // Parquet values: display text (dates, decimals, strings, ...)
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
-  /** @param {Uint8Array} b @returns {bigint} */
   const bytesToBigInt = (b) => {
       let v = 0n;
       for (const x of b) v = (v << 8n) | BigInt(x);
       return b.length && b[0] & 0x80 ? v - (1n << BigInt(b.length * 8)) : v;
   };
 
-  /** @param {bigint} v @param {number} scale @returns {string} */
   const decimalText = (v, scale) => {
       if (!scale) return v.toString();
       const neg = v < 0n;
@@ -4564,11 +4376,10 @@
       return `${neg ? '-' : ''}${digits.slice(0, -scale)}.${digits.slice(-scale)}`;
   };
 
-  /** @param {Uint8Array} b @returns {string} */
   const hexText = (b) =>
       [...b.subarray(0, 32)].map((x) => x.toString(16).padStart(2, '0')).join('') + (b.length > 32 ? '…' : '');
 
-  /** @param {number|bigint} v @param {number} unit 1 ms, 2 µs, 3 ns @param {boolean} withDate @returns {string} */
+  /** @param unit 1 ms, 2 µs, 3 ns */
   function timeText(v, unit, withDate) {
       const per = { 1: 1n, 2: 1000n, 3: 1000000n }[unit] || 1n;
       const big = BigInt(v);
@@ -4583,10 +4394,8 @@
       }
   }
 
-  /** @param {Object|undefined} u @returns {number} */
   const unitOf = (u) => (u ? Number(Object.keys(u)[0]) : 1);
 
-  /** @param {Object<string, *>} col @param {*} v @returns {string|null} */
   function valueText(col, v) {
       if (v === null || v === undefined) return null;
       if (Array.isArray(v)) return JSON.stringify(v.map((x) => valueText(col, x)));
@@ -4613,28 +4422,29 @@
           if (ct === 9 || ct === 10) return timeText(v, ct === 9 ? 1 : 2, true);
           if (lt[7]) return timeText(v, unitOf(lt[7][2]), false);
           if (ct === 7 || ct === 8) return timeText(v, ct === 7 ? 1 : 2, false);
-          if ((lt[10] && lt[10][2] === false) || (ct >= 11 && ct <= 14)) {
+          if ((lt[10] && lt[10][2] === false) || (ct !== undefined && ct >= 11 && ct <= 14)) {
               return typeof v === 'bigint' ? BigInt.asUintN(64, v).toString() : String(v >>> 0);
           }
       }
       return String(v);
   }
 
-  // Module: readers/parquet/source.js
+  // Module: readers/parquet/source.ts
 
   // Parquet source: rows as CSV, more rows on demand
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
   // Parquet source like openSource(): text = rows as CSV, more() = PARQUET_ROWS more
-  /** @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload @param {(loaded: number, total: number) => void} onProgress @param {boolean} [force] @returns {Promise<Source|Deferred|{ error: string }>} */
-  async function openParquetSource(url, getSignal, reload, onProgress, force = false) {
+  async function openParquetSource(
+      url,
+      getSignal,
+      reload,
+      onProgress,
+      force = false,
+  ) {
       const file = await openRanges(url, getSignal, reload, onProgress);
       if ('error' in file) return file;
       const { size, dates, read } = file;
@@ -4642,7 +4452,6 @@
       if (!file.whole() && size > MAX_BYTES && !force) return { deferred: 'Parquet', size, dates }; // asks first
 
       // Footer: last 64 KB usually hold all of it (asked for by exact position)
-      /** @type {Uint8Array|null} */
       let tail = await read(Math.max(0, size - 65536), size); // small file: all of it, no more requests
       if (utf8.decode(tail.subarray(tail.length - 4)) !== 'PAR1') return { error: 'Not a Parquet file' };
       const footerLen = u32(tail, tail.length - 8);
@@ -4659,11 +4468,9 @@
       const names = leaves.map((c) => c.path.join('.').replace(/\.(list\.(element|item)|array|bag)$/, ''));
 
       // Column chunk, cached piece by piece as its pages are read
-      /** @typedef {{ length: number, buf: Uint8Array, ensure: (n: number) => Promise<void> }} Chunk */
-      /** @param {number} start @param {number} stated @returns {Chunk} */
+
       const chunk = (start, stated) => {
           const length = Math.max(0, Math.min(stated, size - start)); // never past end of file
-          /** @type {Chunk} */
           const c = { length, buf: new Uint8Array(0), ensure: async () => {} };
           c.ensure = async (n) => {
               n = Math.min(n, length);
@@ -4676,19 +4483,37 @@
           return c;
       };
 
-      // Per column: rows decoded so far, and where read stopped
-      /** @typedef {Object<string, *>} ColumnState rows decoded so far and where reading stopped */
-      /** @type {ColumnState[]} */
-      const states = leaves.map((col, idx) => ({ col, idx, rg: 0, rows: [], cur: null, chunk: null, ended: false }));
+      // Per column: rows decoded so far (cur: list of the row being read), and where reading stopped
+      // (row group, chunk and position in it, values read of the chunk, dictionary)
 
-      /** @param {ColumnState} st */
+      const states = leaves.map((col, idx) => ({
+          col,
+          idx,
+          rg: 0,
+          rows: [],
+          cur: null,
+          curNull: false,
+          chunk: null,
+          ended: false,
+          codec: 0,
+          total: 0,
+          read: 0,
+          pos: 0,
+          dict: null,
+      }));
+
       const endRow = (st) => {
           if (st.cur) st.rows.push(st.cur.length || !st.curNull ? st.cur : null);
           st.cur = null;
       };
 
-      /** @param {ColumnState} st @param {number[]|null} reps @param {number[]|null} defs @param {Array<*>} values @param {number} n */
-      const addValues = (st, reps, defs, values, n) => {
+      const addValues = (
+          st,
+          reps,
+          defs,
+          values,
+          n,
+      ) => {
           const { maxDef, maxRep, repetition } = st.col;
           let vi = 0;
           for (let i = 0; i < n; i++) {
@@ -4703,21 +4528,20 @@
                   st.cur = [];
                   st.curNull = def === 0;
               }
+              if (!st.cur) throw new Error(`column "${st.col.name}": list goes on before it began (damaged file?)`);
               if (def === maxDef) st.cur.push(v);
               else if (def === maxDef - 1 && repetition === 1) st.cur.push(null);
           }
       };
 
-      /** @param {ColumnState} st */
-      const readPage = async (st) => {
-          const c = st.chunk;
+      const readPage = async (st, c) => {
           let header;
           let at;
           for (let want = 2048; ; want *= 4) {
               await c.ensure(st.pos + want);
               try {
                   const t = thriftReader(c.buf, st.pos);
-                  header = t.struct();
+                  header = t.struct(); // shape per the format
                   at = t.pos();
                   break;
               } catch (err) {
@@ -4736,13 +4560,16 @@
 
           if (header[1] === 2) {
               const data = await decompress(st.codec, raw, header[2]);
-              st.dict = readPlain(col.type, data, 0, header[7][1], col.typeLength).values;
+              const dictHeader = header[7];
+              if (!dictHeader) throw new Error(`column "${col.name}": dictionary page without header (damaged file?)`);
+              st.dict = readPlain(col.type, data, 0, dictHeader[1], col.typeLength).values;
               return;
           }
           if (header[1] !== 0 && header[1] !== 3) return; // index pages: nothing to show
 
           const v2 = header[1] === 3;
           const h = v2 ? header[8] : header[5];
+          if (!h) throw new Error(`column "${col.name}": data page without header (damaged file?)`);
           const n = h[1];
           let reps = null;
           let defs = null;
@@ -4775,7 +4602,6 @@
       };
 
       // Read pages of one column until it has `target` rows (or file ends)
-      /** @param {ColumnState} st @param {number} target */
       const fillColumn = async (st, target) => {
           while (st.rows.length < target && !st.ended) {
               if (!st.chunk) {
@@ -4786,7 +4612,8 @@
                       break;
                   }
                   const cc = rg.columns[st.idx];
-                  const start = cc.dictOffset > 0 && cc.dictOffset < cc.dataOffset ? cc.dictOffset : cc.dataOffset;
+                  const dict = cc.dictOffset;
+                  const start = dict !== null && dict > 0 && dict < cc.dataOffset ? dict : cc.dataOffset;
                   st.chunk = chunk(start, cc.size);
                   st.codec = cc.codec;
                   st.total = cc.numValues;
@@ -4801,19 +4628,12 @@
                   continue;
               }
               const before = st.pos;
-              await readPage(st);
+              await readPage(st, st.chunk);
               if (st.pos <= before) throw new Error(`column "${st.col.name}" could not be read (damaged file?)`);
           }
       };
 
-      const codecs = [
-          ...new Set(
-              meta.rowGroups.flatMap((rg) =>
-                  rg.columns.map((/** @type {Object<string, *>} */ c) => CODEC_NAMES[c.codec] || c.codec),
-              ),
-          ),
-      ];
-      /** @type {Object<string, *>} */
+      const codecs = [...new Set(meta.rowGroups.flatMap((rg) => rg.columns.map((c) => CODEC_NAMES[c.codec] || c.codec)))];
       const src = {
           total: size,
           loaded: file.fetched(),
@@ -4830,11 +4650,15 @@
           ],
           text: '',
           rows: 0,
+          label: () =>
+              `${(src.rows ?? 0).toLocaleString()} of ${meta.numRows.toLocaleString()} rows · ${leaves.length} columns`,
+          nextLabel: `Show next ${PARQUET_ROWS} rows`,
+          more: () => fill(target + PARQUET_ROWS),
+          loadAll: () => fill(meta.numRows),
       };
       const lines = [names.map(csvCell).join(',')];
       let target = 0;
 
-      /** @param {number} n */
       const fill = async (n) => {
           target = Math.min(n, meta.numRows);
           await Promise.all(states.map((st) => fillColumn(st, target)));
@@ -4848,18 +4672,12 @@
           src.done = count >= meta.numRows || states.every((st) => st.ended);
       };
 
-      src.label = () =>
-          `${src.rows.toLocaleString()} of ${meta.numRows.toLocaleString()} rows · ${leaves.length} columns`;
-      src.nextLabel = `Show next ${PARQUET_ROWS} rows`;
-      src.more = () => fill(target + PARQUET_ROWS);
-      src.loadAll = () => fill(meta.numRows);
-
       if (!leaves.length) return { error: 'Parquet file without columns' };
       await fill(PARQUET_ROWS);
-      return /** @type {Source} */ (src);
+      return src;
   }
 
-  // Module: readers/sheets/xml.js
+  // Module: readers/sheets/xml.ts
 
   // XML without DOM (also for huge sheets; DOMParser builds the whole tree)
 
@@ -4867,7 +4685,6 @@
   // CONSTANTS
   // ===========================================================================
 
-  /** @type {Object<string, string>} */
   const XML_ENTITIES = { lt: '<', gt: '>', amp: '&', quot: '"', apos: "'" };
 
   const SHEET_ATTR_RE = /([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
@@ -4877,10 +4694,8 @@
   // ===========================================================================
 
   // Line ends as XML reads them (\r\n -> \n), entities decoded
-  /** @param {string} s @returns {string} */
   const xmlText = (s) => xmlEntities(s.includes('\r') ? s.replace(/\r\n?/g, '\n') : s);
 
-  /** @param {string} s @returns {string} */
   const xmlEntities = (s) =>
       s.includes('&')
           ? s.replace(/&(#x[\da-f]+|#\d+|\w+);/gi, (m, e) => {
@@ -4891,14 +4706,11 @@
           : s;
 
   // OOXML escapes characters XML cannot hold: _x000D_ = carriage return
-  /** @param {string} s @returns {string} */
   const ooxmlText = (s) =>
       s.includes('_x') ? s.replace(/_x([\da-fA-F]{4})_/g, (_, h) => String.fromCharCode(parseInt(h, 16))) : s;
 
   // Attributes, names without namespace prefix
-  /** @param {string} s @returns {Object<string, string>} */
   function xmlAttrs(s) {
-      /** @type {Object<string, string>} */
       const out = {};
       for (const m of s.matchAll(SHEET_ATTR_RE)) out[m[1].slice(m[1].indexOf(':') + 1)] = xmlText(m[2] ?? m[3]);
       return out;
@@ -4906,10 +4718,14 @@
 
   // Tags (names without prefix) and raw text between them; empty tags open and close at once
   /**
-   * @param {string} xml @param {(name: string, attrs: string) => void} open
-   * @param {(name: string) => void} close @param {(raw: string) => void} [text] raw (entities not decoded)
+   * @param text raw (entities not decoded)
    */
-  function scanXml(xml, open, close, text) {
+  function scanXml(
+      xml,
+      open,
+      close,
+      text,
+  ) {
       const re = /<(\/?)([^\s/>!?]+)([^>]*?)(\/?)>|<!\[CDATA\[([\s\S]*?)\]\]>|<!--[\s\S]*?-->|<[!?][^>]*>/g;
       let last = 0;
       for (let m = re.exec(xml); m; m = re.exec(xml)) {
@@ -4929,20 +4745,15 @@
       }
   }
 
-  /** @param {Uint8Array} b @returns {string} */
   function xmlString(b) {
       const bom = b[0] === 0xff && b[1] === 0xfe ? 'utf-16le' : b[0] === 0xfe && b[1] === 0xff ? 'utf-16be' : 'utf-8';
       return new TextDecoder(bom).decode(b);
   }
 
-  // Module: readers/sheets/ods.js
+  // Module: readers/sheets/ods.ts
 
   // OpenDocument spreadsheet: all sheets in content.xml, cells with their display text;
   // named database ranges as tables
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -4959,26 +4770,19 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {string} xml @returns {{ sheets: { name: string, data: SheetData }[], ranges: Object<string, string>[] }} */
   function odsSheets(xml) {
-      /** @type {{ name: string, data: SheetData }[]} */
       const sheets = [];
-      /** @type {Object<string, string>[]} */
       const ranges = []; // attributes of database ranges
-      /** @type {ReturnType<typeof sheetGrid>|null} */
       let grid = null;
       let name = '';
       let depth = 0; // tables inside cells (rare) are part of their cell
       let r = 0;
       let c = 0;
-      /** @type {string[]|null} */
       let row = null; // texts of current row
       let rowRepeat = 1;
-      /** @type {{ repeat: number, text: string|null, value: string|null }|null} */
       let cell = null; // { repeat, text, value } (value: typed, else text shown)
       let para = 0;
       let note = 0; // annotations (comments): not part of cell text
-      /** @param {string} s */
       const add = (s) => {
           if (cell && para && !note) cell.text += s;
       };
@@ -5015,7 +4819,7 @@
           (n) => {
               if (n === 'table') {
                   if (--depth) return;
-                  sheets.push({ name, data: /** @type {ReturnType<typeof sheetGrid>} */ (grid).done() }); // opened with the table
+                  sheets.push({ name, data: (grid).done() }); // opened with the table
                   grid = null;
               }
               if (depth !== 1) return;
@@ -5030,12 +4834,7 @@
                   // repeated rows: often a million empty ones at the end, kept only while they hold text
                   if (row.length) {
                       for (let k = 0; k < rowRepeat && r + k < MAX_SHEET_ROWS; k++) {
-                          if (
-                              !row.every((t, col) =>
-                                  /** @type {ReturnType<typeof sheetGrid>} */ (grid).set(r + k, col, t),
-                              )
-                          )
-                              break;
+                          if (!row.every((t, col) => (grid).set(r + k, col, t))) break;
                       }
                   }
                   r += rowRepeat;
@@ -5049,9 +4848,8 @@
 
   // Named database ranges -> tables (header row unless contains-header="false", totals row if
   // contains-footer="true" (LibreOffice extension); no column names)
-  /** @param {Object<string, string>[]} ranges @param {string[]} names sheet names @returns {Table[]} */
+  /** @param names sheet names */
   function odsTables(ranges, names) {
-      /** @type {Table[]} */
       const tables = [];
       for (const at of ranges) {
           const m = ODS_RANGE_RE.exec(at['target-range-address'] || '');
@@ -5067,7 +4865,6 @@
   }
 
   // Typed value as the Excel formats show it (ISO dates, plain numbers); null = use cell text
-  /** @param {Object<string, string>} at @returns {string|null} */
   function odsValue(at) {
       const type = at['value-type'];
       const n = Number(at.value);
@@ -5080,12 +4877,11 @@
       return null;
   }
 
-  /** @param {Object<string, *>} pkg @returns {Promise<Book>} */
   async function readOds(pkg) {
       if ((await pkg.text('META-INF/manifest.xml'))?.includes('encryption-data')) {
           throw new Error('the file is password-protected');
       }
-      const found = odsSheets(xmlString(await pkg.bytes('content.xml')));
+      const found = odsSheets(xmlString((await pkg.bytes('content.xml')))); // entry checked by the caller
       // all sheets come with content.xml: cached at once
       const sheets = found.sheets.map((s) => ({ name: s.name, hidden: false, kind: 'sheet', size: 0, data: s.data }));
       return {
@@ -5101,30 +4897,22 @@
       };
   }
 
-  // Module: readers/sheets/package.js
+  // Module: readers/sheets/package.ts
 
   // Packages (ZIP): parts by path, relationships between them
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
-  /** @param {ByteReader} read @param {number} size @returns {Promise<Package>} */
   async function zipPackage(read, size) {
       const entries = await zipEntries(read, size);
       const byName = new Map(entries.map((e) => [e.name.replace(/\\/g, '/').toLowerCase(), e])); // some writers use \
-      /** @param {string} [path] */
       const entry = (path) => (path ? byName.get(path.replace(/^\//, '').toLowerCase()) : undefined);
-      /** @param {string} [path] */
       const bytes = async (path) => {
           const e = entry(path);
           return e ? zipEntryBytes(read, e) : null;
       };
-      /** @param {string} [path] */
       const text = async (path) => {
           const b = await bytes(path);
           return b ? xmlString(b) : null;
@@ -5134,7 +4922,6 @@
   }
 
   // Path of target, relative to folder of `base` (or from root with leading "/")
-  /** @param {string} base @param {string} target @returns {string} */
   function partPath(base, target) {
       if (target.startsWith('/')) return target.slice(1);
       const parts = base.split('/').slice(0, -1);
@@ -5145,11 +4932,10 @@
       return parts.join('/');
   }
 
-  /** @param {string} part @returns {string} "xl/workbook.xml" -> "xl/_rels/workbook.xml.rels" */
+  /** @returns "xl/workbook.xml" -> "xl/_rels/workbook.xml.rels" */
   const relsPath = (part) => part.replace(/[^/]*$/, (n) => `_rels/${n}.rels`);
 
   // Relationships of a part: id -> { path, type }
-  /** @param {Package} pkg @param {string} part @returns {Promise<Map<string, { path: string, type: string }>>} */
   async function partRels(pkg, part) {
       const out = new Map();
       const xml = await pkg.text(relsPath(part));
@@ -5168,13 +4954,9 @@
       return out;
   }
 
-  // Module: readers/sheets/xlsb.js
+  // Module: readers/sheets/xlsb.ts
 
   // Excel binary workbook (.xlsb): same parts as OOXML, as BIFF12 records
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -5188,7 +4970,6 @@
   // ===========================================================================
 
   // Records: type and size as 7-bit varints, then data
-  /** @param {Uint8Array} b @param {(type: number, data: Uint8Array) => void} on @returns {void} */
   function biff12Records(b, on) {
       let p = 0;
       while (p < b.length) {
@@ -5206,7 +4987,6 @@
   }
 
   // XLWideString: character count (4 bytes), then UTF-16; count 0xFFFFFFFF = none
-  /** @param {Uint8Array} d @param {number} at @returns {{ text: string, end: number }} */
   function wideString(d, at) {
       if (at + 4 > d.length) return { text: '', end: d.length };
       const n = dataView(d).getUint32(at, true);
@@ -5215,7 +4995,6 @@
       return { text: utf16le.decode(d.subarray(at + 4, end)), end };
   }
 
-  /** @param {number} rk @returns {number} */
   function rkNumber(rk) {
       let n;
       if (rk & 2) n = rk >> 2;
@@ -5227,10 +5006,8 @@
       return rk & 1 ? n / 100 : n;
   }
 
-  /** @type {SheetParts} */
   const XLSB_PARTS = {
       workbook(bytes) {
-          /** @type {{ name: string, id: string, hidden: boolean }[]} */
           const sheets = [];
           let active = 0;
           let date1904 = false;
@@ -5249,7 +5026,6 @@
       },
 
       strings(bytes) {
-          /** @type {string[]} */
           const out = [];
           biff12Records(bytes, (type, d) => {
               if (type === 19) out.push(wideString(d, 1).text); // BrtSSTItem: flags, text
@@ -5259,7 +5035,6 @@
 
       styles(bytes) {
           const codes = new Map();
-          /** @type {number[]} */
           const xfs = [];
           let inXfs = false;
           biff12Records(bytes, (type, d) => {
@@ -5284,7 +5059,6 @@
               if (!((type >= 2 && type <= 11) || type === 62) || d.length < 9) return; // cells only
               const dv = dataView(d);
               const c = dv.getUint32(0, true);
-              /** @param {number} n */
               const num = (n) => numberText(n, kinds[dv.getUint32(4, true) & 0xffffff] || '', date1904);
               let text = '';
               if (type === 2) text = num(rkNumber(dv.getUint32(8, true)));
@@ -5301,9 +5075,7 @@
 
       // Table: BrtBeginList (range, header and totals rows, names), BrtBeginListCol (column names)
       table(bytes) {
-          /** @type {TablePart|null} */
           let out = null;
-          /** @type {string[]} */
           const columns = [];
           biff12Records(bytes, (type, d) => {
               const dv = dataView(d);
@@ -5333,23 +5105,16 @@
       },
   };
 
-  // Module: readers/sheets/xlsx.js
+  // Module: readers/sheets/xlsx.ts
 
   // Excel 2007+ (OOXML): workbook, shared strings, styles and sheets as XML
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
-  /** @type {SheetParts} */
   const XLSX_PARTS = {
-      /** @param {Uint8Array} bytes */
       workbook(bytes) {
-          /** @type {{ name: string, id: string, hidden: boolean }[]} */
           const sheets = [];
           let active = 0;
           let date1904 = false;
@@ -5375,11 +5140,8 @@
           return { sheets, active, date1904 };
       },
 
-      /** @param {Uint8Array} bytes @returns {string[]} */
       strings(bytes) {
-          /** @type {string[]} */
           const out = [];
-          /** @type {string|null} */
           let cur = null;
           let inText = false;
           let phonetic = 0; // <rPh>: reading aid, not part of the text
@@ -5405,10 +5167,8 @@
       },
 
       // Number format code per cell style (index = style "s" of cells)
-      /** @param {Uint8Array} bytes @returns {string[]} */
       styles(bytes) {
           const codes = new Map();
-          /** @type {number[]} */
           const xfs = [];
           let where = ''; // 'numFmts' | 'cellXfs'
           scanXml(
@@ -5427,12 +5187,10 @@
           return xfs.map((id) => codes.get(id) ?? BUILTIN_FORMATS[id] ?? '');
       },
 
-      /** @param {Uint8Array} bytes @param {string[]} strings @param {string[]} kinds @param {boolean} date1904 @returns {SheetData} */
       sheet(bytes, strings, kinds, date1904) {
           const grid = sheetGrid();
           let r = -1;
           let c = -1;
-          /** @type {{ t: string, s: number, v: string, is: string }|null} */
           let cell = null; // { t, s, v, is }
           let field = ''; // 'v' value, 't' inline text
           let phonetic = 0;
@@ -5468,7 +5226,6 @@
           );
           return grid.done();
 
-          /** @param {{ t: string, s: number, v: string, is: string }} cell @returns {string} */
           function cellText({ t, s, v, is }) {
               if (t === 's') return strings[Number(v)] ?? '';
               if (t === 'inlineStr') return ooxmlText(is);
@@ -5481,11 +5238,8 @@
       },
 
       // Table (ECMA-376 part 1, 18.5): name shown in Excel, range, header and totals rows, column names
-      /** @param {Uint8Array} bytes @returns {TablePart|null} */
       table(bytes) {
-          /** @type {TablePart|null} */
           let out = null;
-          /** @type {string[]} */
           const columns = [];
           scanXml(
               xmlString(bytes),
@@ -5509,15 +5263,9 @@
       },
   };
 
-  // Module: readers/sheets/ooxml.js
+  // Module: readers/sheets/ooxml.ts
 
   // OOXML workbooks (.xlsx, .xlsm, .xlsb): parts read from the ZIP by range; tables of the sheets
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
-
-  /** @typedef {{ path: string, kind: string }} SheetPath */
 
   // ===========================================================================
   // CONSTANTS
@@ -5531,7 +5279,6 @@
   // ===========================================================================
 
   // Excel 2007+ package: workbook part from package relationships (.xlsx: XML, .xlsb: binary)
-  /** @param {Package} pkg @returns {Promise<Book>} */
   async function readOoxml(pkg) {
       const main = [...(await partRels(pkg, '')).values()].find((r) => r.type.endsWith('/officeDocument'))?.path;
       const wbPath = [main, 'xl/workbook.xml', 'xl/workbook.bin'].find((p) => pkg.entry(p));
@@ -5539,17 +5286,14 @@
       const binary = /\.bin$/i.test(wbPath);
       const parts = binary ? XLSB_PARTS : XLSX_PARTS;
       const rels = await partRels(pkg, wbPath);
-      /** @param {string} type */
       const relOf = (type) => [...rels.values()].find((r) => r.type.endsWith(`/${type}`))?.path;
-      const wb = parts.workbook(/** @type {Uint8Array} */ (await pkg.bytes(wbPath))); // found above
+      const wb = parts.workbook((await pkg.bytes(wbPath))); // found above
 
       const stringsPath = relOf('sharedStrings');
       const stylesPath = relOf('styles');
-      const strings = pkg.entry(stringsPath)
-          ? parts.strings(/** @type {Uint8Array} */ (await pkg.bytes(stringsPath)))
-          : [];
+      const strings = pkg.entry(stringsPath) ? parts.strings((await pkg.bytes(stringsPath))) : [];
       const kinds = pkg.entry(stylesPath)
-          ? parts.styles(/** @type {Uint8Array} */ (await pkg.bytes(stylesPath))).map(formatKind)
+          ? parts.styles((await pkg.bytes(stylesPath))).map(formatKind)
           : [];
 
       const sheets = wb.sheets.map((s, i) => {
@@ -5572,45 +5316,35 @@
           load: async (i) => {
               const s = sheets[i];
               if (s.kind !== 'sheet' || !pkg.entry(s.path)) return null;
-              return parts.sheet(/** @type {Uint8Array} */ (await pkg.bytes(s.path)), strings, kinds, wb.date1904); // entry checked above
+              return parts.sheet((await pkg.bytes(s.path)), strings, kinds, wb.date1904); // entry checked above
           },
       };
   }
 
   // Tables of all sheets, from the sheets' relationships (only looked for if the package has table parts)
-  /** @param {Package} pkg @param {SheetPath[]} sheets @param {SheetParts} parts @returns {Promise<Table[]>} */
   async function readTables(pkg, sheets, parts) {
-      /** @type {Table[]} */
       const tables = [];
       if (!pkg.paths().some((p) => TABLE_PART_RE.test(p))) return tables;
       for (const [i, s] of sheets.entries()) {
           if (s.kind !== 'sheet') continue;
           for (const rel of (await partRels(pkg, s.path)).values()) {
               if (!rel.type.endsWith('/table') || !pkg.entry(rel.path)) continue;
-              const t = parts.table(/** @type {Uint8Array} */ (await pkg.bytes(rel.path))); // entry checked above
+              const t = parts.table((await pkg.bytes(rel.path))); // entry checked above
               if (t && t.range.r0 <= t.range.r1 && t.range.c0 <= t.range.c1) tables.push({ ...t, sheet: i });
           }
       }
       return tables;
   }
 
-  // Module: readers/sheets/cfb.js
+  // Module: readers/sheets/cfb.ts
 
   // Compound File Binary (CFB, [MS-CFB]): directory and streams, read sector by sector
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
   // Compound file: directory at once; streams read sector by sector, only where needed
-  /** @typedef {{ name: string, type: number, start: number, size: number }} CfbEntry directory entry (type 1 storage, 2 stream, 5 root) */
-  /** @typedef {{ size: number, bytes: ByteReader }} CfbStream */
-  /** @typedef {{ find: (name: string) => CfbEntry|undefined, stream: (e: CfbEntry) => Promise<CfbStream> }} CompoundFile */
-  /** @param {ByteReader} read @param {number} size @returns {Promise<CompoundFile>} */
   async function compoundFile(read, size) {
       const h = await read(0, 512);
       const dv = dataView(h);
@@ -5621,11 +5355,9 @@
       const mss = 2 ** dv.getUint16(32, true); // mini sector size: 64
       const cutoff = dv.getUint32(56, true); // smaller streams live in the mini stream
       const SPECIAL = 0xfffffffa; // ids from here on: end of chain, free, …
-      /** @param {number} s */
       const off = (s) => (s + 1) * ss; // header takes the first sector's place
 
       // Sectors -> bytes (consecutive ones in one request)
-      /** @param {number[]} ids */
       const readSectors = async (ids) => {
           const parts = [];
           for (let i = 0; i < ids.length; ) {
@@ -5636,7 +5368,6 @@
           }
           return concatBytes(parts.length ? parts : [new Uint8Array(0)]);
       };
-      /** @param {Uint8Array} b */
       const u32s = (b) => {
           const d = dataView(b);
           return Uint32Array.from({ length: b.length >> 2 }, (_, i) => d.getUint32(4 * i, true));
@@ -5652,7 +5383,6 @@
           s = d.getUint32(ss - 4, true);
       }
       const fat = u32s(await readSectors(fatIds));
-      /** @param {number} start @param {Uint32Array} [table] */
       const chain = (start, table = fat) => {
           const ids = [];
           for (let s = start; s < SPECIAL && s < table.length && ids.length < table.length; s = table[s]) ids.push(s);
@@ -5662,7 +5392,6 @@
       // Directory: 128 bytes per entry (name, type, first sector, size)
       const dir = await readSectors(chain(dv.getUint32(48, true)));
       const dd = dataView(dir);
-      /** @type {CfbEntry[]} */
       const entries = [];
       for (let at = 0; at + 128 <= dir.length; at += 128) {
           const type = dir[at + 66];
@@ -5678,7 +5407,6 @@
       const root = entries.find((e) => e.type === 5);
 
       // Big stream: sectors fetched when a range of it is asked for, kept for later
-      /** @param {number} start @param {number} length @returns {CfbStream} */
       const bigStream = (start, length) => {
           const ids = chain(start);
           const buf = new Uint8Array(Math.min(length, ids.length * ss));
@@ -5705,9 +5433,7 @@
       };
 
       // Small stream: in the mini stream (root's stream), read whole
-      /** @type {{ table: Uint32Array, data: Uint8Array }|null} */
       let mini = null;
-      /** @param {number} start @param {number} length @returns {Promise<CfbStream>} */
       const smallStream = async (start, length) => {
           if (!mini) {
               const table = u32s(await readSectors(chain(dv.getUint32(60, true))));
@@ -5730,20 +5456,15 @@
       };
   }
 
-  // Module: readers/sheets/xls.js
+  // Module: readers/sheets/xls.ts
 
   // Excel 97-2003 (.xls): BIFF8 / BIFF5 records in a compound file
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
   // ===========================================================================
 
   // Code pages of BIFF5 texts (BIFF8 texts are Unicode)
-  /** @type {Object<number, string>} */
   const CODEPAGES = {
       367: 'windows-1252',
       932: 'shift_jis',
@@ -5756,14 +5477,12 @@
   };
 
   const BIFF_BOF = new Set([0x0009, 0x0209, 0x0409, 0x0809]);
-  /** @type {Object<number, string>} */
   const XLS_KINDS = { 0: 'sheet', 1: 'sheet', 2: 'chart', 6: 'module' }; // macro sheets have cells too
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
-  /** @param {number} cp @returns {TextDecoder} */
   function codepageDecoder(cp) {
       try {
           return new TextDecoder(CODEPAGES[cp] || `windows-${cp}`);
@@ -5773,7 +5492,6 @@
   }
 
   // BIFF8 XLUnicodeString: count (2 bytes, or 1 for short ones), flags, [runs, extension sizes], characters
-  /** @param {Uint8Array} d @param {number} at @param {boolean} [short] @returns {string} */
   function biffString(d, at, short = false) {
       const n = short ? d[at] : d[at] | (d[at + 1] << 8);
       let p = at + (short ? 1 : 2);
@@ -5784,7 +5502,6 @@
   }
 
   // Shared strings: SST record and its CONTINUE records; text crossing them gets a new flag byte
-  /** @param {Uint8Array[]} parts @returns {string[]} */
   function biffStrings(parts) {
       const out = [];
       let k = 0;
@@ -5799,7 +5516,6 @@
       };
       const u8 = () => (next() ? d[p++] : 0);
       const u16 = () => u8() | (u8() << 8);
-      /** @param {number} n */
       const skip = (n) => {
           while (n > 0 && next()) {
               const step = Math.min(n, d.length - p);
@@ -5837,7 +5553,6 @@
       return out;
   }
 
-  /** @param {ByteReader} read @param {number} size @returns {Promise<Book>} */
   async function readXls(read, size) {
       const cfb = await compoundFile(read, size);
       if (cfb.find('EncryptedPackage')) throw new Error('the file is password-protected');
@@ -5846,10 +5561,8 @@
       const stream = await cfb.stream(entry);
 
       // Records from `from` to the end of their substream (BOF … EOF); nested ones (charts) skipped
-      /** @param {number} from @param {number} to @param {(type: number, data: Uint8Array) => void} on */
       const records = async (from, to, on) => {
           let buf = await stream.bytes(from, Math.min(to, from + 65536));
-          /** @param {number} need */
           const grow = async (need) => {
               if (need > buf.length && from + buf.length < to) {
                   buf = await stream.bytes(from, Math.min(to, from + Math.max(need, 2 * buf.length)));
@@ -5873,12 +5586,9 @@
       // Workbook globals: sheets, formats, cell styles, shared strings, date system
       let biff8 = true;
       let text8 = new TextDecoder('windows-1252');
-      /** @type {(Sheet & { pos: number })[]} */
       const sheets = [];
       const codes = new Map();
-      /** @type {number[]} */
       const xfs = [];
-      /** @type {Uint8Array[]|null} */
       let sst = null;
       let last = 0;
       let date1904 = false;
@@ -5916,17 +5626,13 @@
       const starts = [...sheets.map((s) => s.pos), stream.size].sort((a, b) => a - b);
       for (const s of sheets) s.size = Math.max(0, (starts.find((x) => x > s.pos) ?? s.pos) - s.pos);
 
-      /** @param {number} i */
       const load = async (i) => {
           const s = sheets[i];
           if (s.kind !== 'sheet' || s.pos >= stream.size) return null;
           const grid = sheetGrid();
-          /** @param {number} xf @param {number} n */
           const num = (xf, n) => numberText(n, kinds[xf] || '', date1904);
-          /** @param {Uint8Array} d @param {number} at */
           const label = (d, at) =>
               biff8 ? biffString(d, at) : text8.decode(d.subarray(at + 2, at + 2 + (d[at] | (d[at + 1] << 8))));
-          /** @type {[number, number]|null} */
           let pending = null; // formula with text result: text follows in STRING record
           await records(s.pos, s.pos + s.size, (type, d) => {
               if (type === 0x0207 && pending) {
@@ -5974,19 +5680,14 @@
       };
   }
 
-  // Module: readers/sheets/index.js
+  // Module: readers/sheets/index.ts
 
   // Workbook of any of these formats, by its signature
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
-  /** @param {ByteReader} read @param {number} size @param {Uint8Array} head @returns {Promise<Book>} */
   async function readBook(read, size, head) {
       if (head[0] === 0xd0 && head[1] === 0xcf) return readXls(read, size);
       if (head[0] !== 0x50 || head[1] !== 0x4b) {
@@ -6000,10 +5701,8 @@
   // Sheets are the unit cached; a table is shown once its sheet is.
   // Large files (over SHEET_AUTOLOAD_BYTES) cache no sheet until one (or a table) is chosen.
   /**
-   * @param {string} url @param {() => AbortSignal} getSignal @param {boolean} reload
-   * @param {(loaded: number, total: number) => void} onProgress @param {SheetMode} [mode] start view (sheets if there are no tables)
-   * @param {number} [autoload] largest file whose first sheet or table is shown at once
-   * @returns {Promise<Source|{ error: string }>}
+   * @param mode start view (sheets if there are no tables)
+   * @param autoload largest file whose first sheet or table is shown at once
    */
   async function openSheetSource(
       url,
@@ -6015,17 +5714,15 @@
   ) {
       const file = await openRanges(url, getSignal, reload, onProgress);
       if ('error' in file) return file;
-      /** @type {Book} */
       let book;
       try {
           book = await readBook(file.read, file.size, file.head);
       } catch (err) {
-          if (/** @type {Error} */ (err).name === 'AbortError') throw err;
-          return { error: `Not shown: ${/** @type {Error} */ (err).message}` };
+          if ((err).name === 'AbortError') throw err;
+          return { error: `Not shown: ${(err).message}` };
       }
       const { sheets } = book;
       // tables in reading order: by sheet, then top to bottom, left to right
-      /** @type {Table[]} */
       const tables = [...(book.tables || [])].sort(
           (a, b) => a.sheet - b.sheet || a.range.r0 - b.range.r0 || a.range.c0 - b.range.c0,
       );
@@ -6033,7 +5730,6 @@
       const cached = () => sheets.filter((s) => s.data !== undefined).length;
 
       // Sheet read once: data = { rows, cols } or null (no cells: chart, module, unreadable)
-      /** @param {number} i @returns {Promise<void>} */
       const loadSheet = async (i) => {
           const s = sheets[i];
           if (s.data === undefined) {
@@ -6041,9 +5737,9 @@
                   s.data = await book.load(i);
                   if (!s.data) s.note = s.kind === 'chart' ? 'Chart sheet: no cells to show.' : 'No cells to show.';
               } catch (err) {
-                  if (/** @type {Error} */ (err).name === 'AbortError') throw err;
+                  if ((err).name === 'AbortError') throw err;
                   s.data = null;
-                  s.note = `This sheet could not be read: ${/** @type {Error} */ (err).message}`;
+                  s.note = `This sheet could not be read: ${(err).message}`;
               }
           }
           // all content shown is here once every sheet is: then the whole file counts as cached
@@ -6052,7 +5748,6 @@
       };
 
       // First sheet: active when saved (else first visible worksheet)
-      /** @param {number} i */
       const usable = (i) => sheets[i] && sheets[i].kind === 'sheet' && !sheets[i].hidden;
       const firstSheet = usable(book.active)
           ? book.active
@@ -6061,7 +5756,6 @@
                 sheets.findIndex((_, i) => usable(i)),
             );
       // Entry a view starts with: the sheet shown, or the first table on it (else the first table)
-      /** @param {SheetMode} m @returns {number} */
       const startOf = (m) => {
           const at = src.sheetOf(src.current);
           return m === 'sheets'
@@ -6072,7 +5766,6 @@
                 );
       };
 
-      /** @type {Source} */
       const src = {
           total: file.size,
           loaded: 0,
@@ -6084,10 +5777,9 @@
           sheets,
           tables,
           tablesRead: !!book.tables, // false: format without tables read (.xls)
-          mode: /** @type {SheetMode} */ ('sheets'),
+          mode: 'sheets',
           current: firstSheet,
           waiting: false, // nothing shown yet: a sheet or table is to be chosen first
-          /** @type {SheetShown} */
           shown: { rows: [], header: [], note: '', text: '' },
           text: '',
           label: () => `${cached().toLocaleString()} of ${sheets.length.toLocaleString()} sheets cached`,
@@ -6114,10 +5806,8 @@
           loadSheet,
           startOf,
           // Sheet behind entry i of a view (its table's sheet for tables)
-          /** @param {number} i @param {SheetMode} [m] @returns {number} */
           sheetOf: (i, m = src.mode) => (m === 'tables' ? tables[i].sheet : i),
           // Shows entry i of a view (its sheet cached before)
-          /** @param {number} i @param {SheetMode} [m] @returns {void} */
           select: (i, m = src.mode) => {
               src.waiting = false;
               src.mode = m === 'tables' && tables[i] ? 'tables' : 'sheets';
@@ -6160,7 +5850,6 @@
   }
 
   // Sheet shown: rows as they are, columns A, B, …; its text with column letters and row numbers (as in Excel)
-  /** @param {Sheet} s @returns {SheetShown} */
   function sheetShown(s) {
       const d = s.data;
       if (!d?.rows.length) return { rows: [], header: [], note: s.note || 'Empty sheet: no cells.', text: '' };
@@ -6169,7 +5858,6 @@
   }
 
   // Table shown: its rows below the header row, without totals rows; column names as header
-  /** @param {Table} t @param {Sheet} s @returns {SheetShown} */
   function tableShown(t, s) {
       const d = s.data;
       if (!d) return { rows: [], header: [], note: s.note || 'No cells to show.', text: '' };
@@ -6178,7 +5866,6 @@
       const c1 = Math.min(t.range.c1, Math.max(d.cols, c0 + t.columns.length) - 1);
       const r1 = Math.min(t.range.r1 - t.totals, d.rows.length - 1);
       const width = Math.max(0, c1 - c0 + 1);
-      /** @param {number} r @returns {string[]} */
       const cells = (r) => Array.from({ length: width }, (_, k) => d.rows[r]?.[c0 + k] ?? '');
       const names = t.header ? cells(r0) : [];
       const header = Array.from({ length: width }, (_, k) => t.columns[k] || names[k] || colName(c0 + k));
@@ -6189,7 +5876,6 @@
   }
 
   // Rows as CSV, padded to all columns; numbered: row numbers first (none for the header row)
-  /** @param {string[][]} rows @param {number} cols @param {boolean} [numbered] @returns {string} */
   function csvRows(rows, cols, numbered = false) {
       const out = new Array(rows.length);
       for (let i = 0; i < rows.length; i++) {
@@ -6201,21 +5887,20 @@
       return out.join('\n');
   }
 
-  // Module: text/highlight/tokenise.js
+  // Module: text/highlight/tokenise.ts
 
   // Highlighters: text -> [[cssClass, text], ...]
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
-  /** @param {string} text @param {RegExp} re @param {(m: RegExpMatchArray, out: Token[]) => void} onMatch @param {(s: string, out: Token[]) => void} [onGap] @returns {Token[]} */
-  function tokenise(text, re, onMatch, onGap = (s, out) => out.push(['', s])) {
-      /** @type {Token[]} */
+  function tokenise(
+      text,
+      re,
+      onMatch,
+      onGap = (s, out) => out.push(['', s]),
+  ) {
       const out = [];
       let last = 0;
       for (const m of text.matchAll(re)) {
@@ -6228,13 +5913,9 @@
       return out;
   }
 
-  // Module: text/highlight/ifc.js
+  // Module: text/highlight/ifc.ts
 
   // IFC (STEP) highlighting
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -6261,20 +5942,15 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {string} text @returns {Token[]} */
   const highlightIfc = (text) =>
       tokenise(text, IFC_RE, (m, out) => {
           const i = m.findIndex((g, idx) => idx > 0 && g !== undefined);
           out.push([IFC_CLASSES[i], m[0]]);
       });
 
-  // Module: text/highlight/js.js
+  // Module: text/highlight/js.ts
 
   // JavaScript highlighting
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -6308,20 +5984,15 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {string} text @returns {Token[]} */
   const highlightJs = (text) =>
       tokenise(text, JS_RE, (m, out) => {
           const i = m.findIndex((g, idx) => idx > 0 && g !== undefined);
           out.push([JS_CLASSES[i], m[0]]);
       });
 
-  // Module: text/highlight/json.js
+  // Module: text/highlight/json.ts
 
   // JSON highlighting
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -6334,7 +6005,6 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {string} text @returns {Token[]} */
   const highlightJson = (text) =>
       tokenise(text, JSON_RE, (m, out) => {
           if (m[1] && m[2]) out.push(['key', m[1]], ['punct', m[2]]);
@@ -6344,13 +6014,9 @@
           else out.push(['punct', m[5]]);
       });
 
-  // Module: text/highlight/log.js
+  // Module: text/highlight/log.ts
 
   // Log files: levels (error red, warning yellow, info blue, debug grey), dates, exceptions, stack frames
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -6393,7 +6059,7 @@
               .concat(')'), // 3 date / time
           /\b([A-Za-z_$][\w.$]*(?:Exception|Error))\b/.source, // 4 exception
           ...LOG_LEVEL_CLASSES.map((cls) => {
-              const words = LOG_LEVELS[/** @type {keyof typeof LOG_LEVELS} */ (cls)];
+              const words = LOG_LEVELS[cls];
               const forms = words.flatMap((w) => [w, w[0] + w.slice(1).toLowerCase(), w.toLowerCase()]);
               return `\\b(${forms.join('|')})\\b`;
           }), // 5-8 levels
@@ -6410,7 +6076,6 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {string} text @returns {Token[]} */
   const highlightLog = (text) =>
       tokenise(text, LOG_RE, (m, out) => {
           if (m[1]) out.push(['log-frame', m[1]]);
@@ -6427,13 +6092,9 @@
           else out.push(['lit', m[12]]);
       });
 
-  // Module: text/highlight/m.js
+  // Module: text/highlight/m.ts
 
   // Power Query M highlighting
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -6466,20 +6127,15 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {string} text @returns {Token[]} */
   const highlightM = (text) =>
       tokenise(text, M_RE, (m, out) => {
           const i = m.findIndex((g, idx) => idx > 0 && g !== undefined);
           out.push([M_CLASSES[i], m[0]]);
       });
 
-  // Module: text/highlight/md.js
+  // Module: text/highlight/md.ts
 
   // Markdown highlighting
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -6502,7 +6158,6 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {string} text @param {Token[]} out @returns {void} */
   function mdInline(text, out) {
       out.push(
           ...tokenise(text, MD_INLINE_RE, (m, o) => {
@@ -6516,11 +6171,8 @@
       );
   }
 
-  /** @param {string} text @returns {Token[]} */
   function highlightMd(text) {
-      /** @type {Token[]} */
       const out = [];
-      /** @type {string|null} */
       let fence = null; // end marker of open ``` / ~~~ block
       text.split('\n').forEach((line, i) => {
           if (i) out.push(['', '\n']);
@@ -6547,9 +6199,7 @@
               out.push(['punct', line]); // horizontal rule
               return;
           }
-          const lead = /** @type {RegExpMatchArray} */ (
-              line.match(/^(\s*(?:>\s?)*)((?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?)?/)
-          ); // all parts optional: always matches
+          const lead = line.match(/^(\s*(?:>\s?)*)((?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?)?/); // all parts optional: always matches
           if (lead[1]) out.push(['punct', lead[1]]);
           if (lead[2]) out.push(['punct', lead[2]]);
           const rest = line.slice(lead[0].length);
@@ -6566,13 +6216,9 @@
       return out;
   }
 
-  // Module: text/highlight/py.js
+  // Module: text/highlight/py.ts
 
   // Python highlighting
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -6603,20 +6249,15 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {string} text @returns {Token[]} */
   const highlightPy = (text) =>
       tokenise(text, PY_RE, (m, out) => {
           const i = m.findIndex((g, idx) => idx > 0 && g !== undefined);
           out.push([PY_CLASSES[i], m[0]]);
       });
 
-  // Module: text/highlight/rst.js
+  // Module: text/highlight/rst.ts
 
   // reStructuredText highlighting
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -6643,7 +6284,6 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {string} text @param {Token[]} out @returns {void} */
   function rstInline(text, out) {
       out.push(
           ...tokenise(text, RST_INLINE_RE, (m, o) => {
@@ -6659,12 +6299,9 @@
       );
   }
 
-  /** @param {string} text @returns {Token[]} */
   function highlightRst(text) {
-      /** @type {Token[]} */
       const out = [];
       const lines = text.split('\n');
-      /** @type {number|null} */
       let literal = null; // indent of paragraph that ended in "::"
       let literalStarted = false;
       lines.forEach((line, i) => {
@@ -6713,8 +6350,8 @@
               return;
           }
 
-          const lead = /** @type {RegExpMatchArray} */ (
-              line.match(/^(\s*)((?:[-*+•]|\d+[.)]|#\.|\(?[a-zA-Z0-9]\))\s+)?(:[^:\s][^:]*:(?=\s|$))?/)
+          const lead = line.match(
+              /^(\s*)((?:[-*+•]|\d+[.)]|#\.|\(?[a-zA-Z0-9]\))\s+)?(:[^:\s][^:]*:(?=\s|$))?/,
           ); // all parts optional: always matches
           if (lead[1]) out.push(['', lead[1]]);
           if (lead[2]) out.push(['punct', lead[2]]);
@@ -6729,13 +6366,9 @@
       return out;
   }
 
-  // Module: text/highlight/sql.js
+  // Module: text/highlight/sql.ts
 
   // SQL highlighting
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -6879,20 +6512,15 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {string} text @returns {Token[]} */
   const highlightSql = (text) =>
       tokenise(text, SQL_RE, (m, out) => {
           const i = m.findIndex((g, idx) => idx > 0 && g !== undefined);
           out.push([SQL_CLASSES[i], m[0]]);
       });
 
-  // Module: text/highlight/toml.js
+  // Module: text/highlight/toml.ts
 
   // TOML highlighting
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -6920,7 +6548,6 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {string} text @returns {Token[]} */
   const highlightToml = (text) =>
       tokenise(text, TOML_RE, (m, out) => {
           if (m[2]) {
@@ -6936,13 +6563,9 @@
           else out.push(['punct', m[11]]);
       });
 
-  // Module: text/highlight/xlf.js
+  // Module: text/highlight/xlf.ts
 
   // Excel formulas (.xlf) highlighting
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -6961,7 +6584,6 @@
 
   // Excel formulas (.xlf), any UI language: functions by their "(", errors by "#".
   // Argument separator , or ; from text (with ; decimal separator is ,).
-  /** @param {string} text @returns {',' | ';'} */
   function xlfSeparator(text) {
       let commas = 0;
       let semis = 0;
@@ -6986,7 +6608,6 @@
       return semis > commas ? ';' : ',';
   }
 
-  /** @param {string} text @returns {Token[]} */
   function highlightXlf(text) {
       const decimal = xlfSeparator(text) === ';' ? ',' : '\\.';
       const re = new RegExp(
@@ -7016,13 +6637,9 @@
       });
   }
 
-  // Module: text/highlight/xml.js
+  // Module: text/highlight/xml.ts
 
   // XML highlighting
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -7047,7 +6664,6 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {string} text @returns {Token[]} */
   const highlightXml = (text) =>
       tokenise(text, XML_RE, (m, out) => {
           if (m[1]) out.push(['com', m[1]]);
@@ -7068,19 +6684,15 @@
           } else out.push(['ent', m[7]]);
       });
 
-  // Module: text/lint/core.js
+  // Module: text/lint/core.ts
 
   // Linters: text -> { problems: [{ line, msg, severity }], info? }
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
-  /** @param {string} text @param {number} index @returns {number} 1-based line */
+  /** @returns 1-based line */
   const lineAt = (text, index) => {
       let n = 1;
       for (let i = text.indexOf('\n'); i !== -1 && i < index; i = text.indexOf('\n', i + 1)) n++;
@@ -7088,31 +6700,25 @@
   };
 
   // Collect problems (at most MAX_PROBLEMS)
-  /** @returns {{ problems: Problem[], add: (line: number, msg: string, severity?: 'error'|'warning') => void }} */
-  function collector() {
-      /** @type {Problem[]} */
+  function collector()
+
+  {
       const problems = [];
-      /** @param {number} line @param {string} msg @param {'error'|'warning'} [severity] */
       const add = (line, msg, severity = 'error') => {
           if (problems.length < MAX_PROBLEMS) problems.push({ line, msg, severity });
       };
       return { problems, add };
   }
 
-  // Module: text/lint/yaml.js
+  // Module: text/lint/yaml.ts
 
   // YAML checks
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
   // Remove "# comment" at end of line, if it is outside quotes
-  /** @param {string} line @returns {string} */
   function stripYamlComment(line) {
       let quote = null;
       for (let i = 0; i < line.length; i++) {
@@ -7130,12 +6736,10 @@
   }
 
   // Lightweight structural checks (no full YAML parser available without libraries)
-  /** @param {string} text @returns {LintResult} */
   function lintYaml(text) {
       const { problems, add } = collector();
       const stack = [{ indent: -1, keys: new Set(), lastValue: false }];
       const top = () => stack[stack.length - 1];
-      /** @type {number|null} */
       let blockIndent = null; // inside a | or > block scalar
 
       text.split(/\r?\n/).forEach((raw, idx) => {
@@ -7157,7 +6761,7 @@
               return;
           }
 
-          const lead = /** @type {RegExpMatchArray} */ (line.match(/^( *)((?:- +|-$)*)/)); // all optional: always matches
+          const lead = line.match(/^( *)((?:- +|-$)*)/); // all optional: always matches
           const rest = line.slice(lead[0].length);
           const col = lead[0].length;
           const key = rest.match(YAML_KEY_RE);
@@ -7204,13 +6808,9 @@
       return { problems, info: 'basic checks' };
   }
 
-  // Module: text/highlight/yaml.js
+  // Module: text/highlight/yaml.ts
 
   // YAML highlighting
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -7234,7 +6834,6 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {string} s @param {Token[]} out @returns {void} */
   function yamlValue(s, out) {
       out.push(
           ...tokenise(
@@ -7262,11 +6861,8 @@
       );
   }
 
-  /** @param {string} text @returns {Token[]} */
   function highlightYaml(text) {
-      /** @type {Token[]} */
       const out = [];
-      /** @type {number|null} */
       let blockIndent = null; // inside a | or > block scalar: lines are plain string content
       text.split('\n').forEach((line, i) => {
           if (i) out.push(['', '\n']);
@@ -7291,7 +6887,7 @@
               out.push(['com', line]);
               return;
           }
-          const lead = /** @type {RegExpMatchArray} */ (line.match(/^(\s*)((?:-(?:\s+|$))*)/)); // all parts optional: always matches
+          const lead = line.match(/^(\s*)((?:-(?:\s+|$))*)/); // all parts optional: always matches
           if (lead[1]) out.push(['', lead[1]]);
           if (lead[2]) out.push(['punct', lead[2]]);
           let rest = line.slice(lead[0].length);
@@ -7305,19 +6901,14 @@
       return out;
   }
 
-  // Module: text/highlight/index.js
+  // Module: text/highlight/index.ts
 
   // Syntax highlighters by language
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
   // ===========================================================================
 
-  /** @type {Object<string, (text: string) => Token[]>} */
   const HIGHLIGHTERS = {
       sql: highlightSql,
       py: highlightPy,
@@ -7335,20 +6926,15 @@
       log: highlightLog,
   };
 
-  // Module: text/lint/ifc.js
+  // Module: text/lint/ifc.ts
 
   // IFC (STEP) checks
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
   // IFC = ISO 10303-21 (STEP physical file)
-  /** @param {string} text @returns {LintResult} */
   function lintIfc(text) {
       const { problems, add } = collector();
 
@@ -7398,7 +6984,6 @@
 
       // Structure: ISO-10303-21; HEADER; ... ENDSEC; DATA; ... ENDSEC; END-ISO-10303-21;
       const ids = new Map(); // id -> line
-      /** @type {[string, number][]} */
       const refs = []; // [id, line]
       const headerSeen = new Set();
       let section = 'start';
@@ -7472,26 +7057,21 @@
       return { problems, info: `${entities.toLocaleString()} entities` };
   }
 
-  // Module: text/lint/json.js
+  // Module: text/lint/json.ts
 
   // JSON checks
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
-  /** @param {string} text @returns {LintResult} */
   function lintJson(text) {
       try {
           const value = JSON.parse(text.replace(/^\uFEFF/, ''));
           const kind = Array.isArray(value) ? `array, ${value.length.toLocaleString()} items` : typeof value;
           return { problems: [], info: kind };
       } catch (e) {
-          const msg = /** @type {Error} */ (e).message.replace(/^JSON\.parse:\s*/, '');
+          const msg = (e).message.replace(/^JSON\.parse:\s*/, '');
           const byLine = msg.match(/line (\d+)/i);
           const byPos = msg.match(/position (\d+)/i);
           const line = byLine ? +byLine[1] : byPos ? lineAt(text, +byPos[1]) : 1;
@@ -7499,26 +7079,19 @@
       }
   }
 
-  // Module: text/lint/m.js
+  // Module: text/lint/m.ts
 
   // Power Query M checks
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
   // Power Query M: brackets, strings, comments and let / in pairs
-  /** @param {string} text @returns {LintResult} */
   function lintM(text) {
       const { problems, add } = collector();
       const PAIRS = { ')': '(', ']': '[', '}': '{' };
-      /** @type {[string, number][]} */
       const stack = []; // [char, line]
-      /** @type {number[]} */
       const lets = []; // lines of "let" that still need their "in"
       let line = 1;
 
@@ -7579,19 +7152,14 @@
       return { problems };
   }
 
-  // Module: text/lint/xml.js
+  // Module: text/lint/xml.ts
 
   // XML checks
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
-  /** @param {string} text @returns {LintResult} */
   function lintXml(text) {
       const doc = new DOMParser().parseFromString(text.replace(/^\uFEFF/, ''), 'application/xml');
       const err = doc.getElementsByTagName('parsererror')[0];
@@ -7606,34 +7174,30 @@
       return { problems: [{ line, msg: msg.trim(), severity: 'error' }] };
   }
 
-  // Module: text/lint/index.js
+  // Module: text/lint/index.ts
 
   // Linters by language
 
   // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
-
-  // ===========================================================================
   // CONSTANTS
   // ===========================================================================
 
-  /** @type {Object<string, (text: string) => LintResult>} */
-  const LINTERS = { json: lintJson, xml: lintXml, yaml: lintYaml, ifc: lintIfc, m: lintM };
+  const LINTERS = {
+      json: lintJson,
+      xml: lintXml,
+      yaml: lintYaml,
+      ifc: lintIfc,
+      m: lintM,
+  };
 
-  // Module: text/lint/worker.js
+  // Module: text/lint/worker.ts
 
   // Checks in Web Worker (XML on page: needs DOMParser); fallback: page
 
   // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
-
-  // ===========================================================================
   // CONSTANTS
   // ===========================================================================
 
-  /** @type {string|null} */
   let lintWorkerUrl = null;
   let workersBlocked = false;
 
@@ -7641,7 +7205,6 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {Viewer} v @param {string} lang @param {string} text @returns {Promise<LintResult>|null} */
   function startLintWorker(v, lang, text) {
       if (workersBlocked || !['json', 'yaml', 'ifc', 'm'].includes(lang)) return null;
       try {
@@ -7689,19 +7252,15 @@
       }
   }
 
-  /** @param {Viewer} v @param {string} lang @param {string} text @returns {Promise<LintResult>} */
   async function lintFile(v, lang, text) {
       const linter = LINTERS[lang];
 
-      /** @returns {LintResult} */
       const onPage = () => {
           try {
               return linter(text);
           } catch (err) {
               return {
-                  problems: [
-                      { line: 1, msg: `Check failed: ${/** @type {Error} */ (err).message}`, severity: 'warning' },
-                  ],
+                  problems: [{ line: 1, msg: `Check failed: ${(err).message}`, severity: 'warning' }],
               };
           }
       };
@@ -7713,14 +7272,14 @@
       try {
           return await job;
       } catch (err) {
-          if (/** @type {Error & { fallback?: boolean }} */ (err).fallback) return onPage();
+          if ((err).fallback) return onPage();
           return {
-              problems: [{ line: 1, msg: `Check failed: ${/** @type {Error} */ (err).message}`, severity: 'warning' }],
+              problems: [{ line: 1, msg: `Check failed: ${(err).message}`, severity: 'warning' }],
           };
       }
   }
 
-  // Module: text/segments.js
+  // Module: text/segments.ts
 
   // Message segments: text, JSON and Python-like literals (dicts, lists, tuples) found in a message
 
@@ -7736,16 +7295,12 @@
   // JSON tokens for indenting: strings, punctuation, other
   const JSON_TOKEN_RE = /"(?:\\.|[^"\\])*"|[{}[\],:]|[^\s"{}[\],:]+|\s+/gy;
 
-  /** @typedef {{ kind: 'text'|'json'|'python', text: string }} Segment text; json: as in the message; python: converted to JSON */
-
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
   // Message -> segments in order; objects and lists start at { or [ (not after a letter, e.g. sshd[123])
-  /** @param {string} text @returns {Segment[]} */
   function segments(text) {
-      /** @type {Segment[]} */
       const out = [];
       if (text.length > MAX_CHARS) return [{ kind: 'text', text }];
       let from = 0; // start of pending text
@@ -7766,7 +7321,6 @@
   }
 
   // JSON indented by 2 spaces; values (numbers, strings) kept as written
-  /** @param {string} json @returns {string} */
   function indentJson(json) {
       const tokens = [...json.matchAll(JSON_TOKEN_RE)].map((m) => m[0]).filter((t) => t.trim());
       let out = '';
@@ -7799,7 +7353,6 @@
   // ===========================================================================
 
   // End (exclusive) of the bracket opened at i, quotes respected; -1 if not closed
-  /** @param {string} text @param {number} i @returns {number} */
   function closing(text, i) {
       const stack = [];
       for (let k = i; k < text.length; k++) {
@@ -7820,7 +7373,6 @@
   }
 
   // Object or list as JSON (as is) or as Python literal (converted); null: neither
-  /** @param {string} part @returns {Segment|null} */
   function asJson(part) {
       try {
           JSON.parse(part);
@@ -7831,9 +7383,7 @@
   }
 
   // Python literal -> JSON: quotes, True / False / None, tuples as lists, trailing commas; null if not valid
-  /** @param {string} part @returns {string|null} */
   function fromPython(part) {
-      /** @type {string[]} */
       const out = [];
       PY_TOKEN_RE.lastIndex = 0;
       let m = PY_TOKEN_RE.exec(part);
@@ -7856,15 +7406,9 @@
       }
   }
 
-  // Module: view/log.js
+  // Module: view/log.ts
 
   // Log table (experimental): entries and fields guessed from the log's lines; rows expand into text, JSON and lists
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
-
-  /** @typedef {import('../text/segments.js').Segment} Segment */
 
   // ===========================================================================
   // CONSTANTS
@@ -7879,7 +7423,6 @@
   const LEVEL_WORDS = Object.values(LOG_LEVELS).flat().join('|');
 
   // Fields at the start of an entry (sticky); groups: the value
-  /** @type {[string, RegExp][]} */
   const FIELDS = [
       [
           'time',
@@ -7902,7 +7445,6 @@
   const SEP_RE = /[ \t]*(?:[-|][ \t]+|:[ \t]*)?[ \t]*/y; // between fields: spaces, " - ", " | ", ":"
   const WORD_RE = /[^\s[\]()]+(?=[ \t])/y; // source (e.g. host, worker): a word, counted only if a field follows
   const EXPAND_TITLE = 'Expand: message split into text, JSON and lists';
-  /** @type {Object<string, string>} */
   const SEGMENT_LABELS = { json: 'JSON', python: 'Python' };
 
   // ===========================================================================
@@ -7910,13 +7452,11 @@
   // ===========================================================================
 
   // Log text -> table: line of the entry, fields, message (continuation lines joined); null: no fields found
-  /** @param {string} text @returns {LogTable|null} */
   function parseLog(text) {
       const lines = text.split(/\r?\n/);
       const kinds = template(lines.slice(0, SAMPLE_LINES));
       if (!kinds) return null;
       const header = ['line', ...names(kinds), 'message'];
-      /** @type {string[][]} */
       const rows = [];
       lines.forEach((line, i) => {
           const head = /^\s/.test(line) ? null : readHead(line);
@@ -7942,11 +7482,9 @@
   }
 
   // Fields found in the first lines (whether the table view is offered)
-  /** @param {string[]} lines @returns {boolean} */
   const hasFields = (lines) => !!template(lines.slice(0, SAMPLE_LINES));
 
   // Level class of a value ('lv-err', ...), as in the highlighter; '' if none
-  /** @param {string} value @returns {string} */
   function levelClass(value) {
       const word = value.toUpperCase();
       const entry = Object.entries(LOG_LEVELS).find(([, words]) => words.includes(word));
@@ -7954,17 +7492,16 @@
   }
 
   // Expand of a log table's rows: messages with objects, lists or several lines; segments worked out once per row
-  /** @param {string[][]} rows @param {boolean} colour @returns {{ can: (i: number) => boolean, html: (i: number) => string, title: string }} */
-  function logExpand(rows, colour) {
-      /** @type {Map<number, Segment[]>} */
+  function logExpand(
+      rows,
+      colour,
+  ) {
       const cache = new Map();
-      /** @param {number} i */
       const message = (i) => rows[i][rows[i].length - 1];
-      /** @param {number} i @returns {Segment[]} */
       const parts = (i) => {
           if (!cache.has(i))
               cache.set(i, /[{[]/.test(message(i)) ? segments(message(i)) : [{ kind: 'text', text: message(i) }]);
-          return /** @type {Segment[]} */ (cache.get(i)); // set just above
+          return cache.get(i); // set just above
       };
       return {
           title: EXPAND_TITLE,
@@ -7981,7 +7518,6 @@
   // ===========================================================================
 
   // One segment: text as is (blank lines at its ends dropped), objects and lists labelled and indented
-  /** @param {Segment} s @param {boolean} colour @returns {string} */
   function segmentHtml(s, colour) {
       if (s.kind === 'text') return `<div class="tp-seg"><pre>${esc(s.text.replace(/^\s*\n|\s+$/g, ''))}</pre></div>`;
       const json = indentJson(s.text);
@@ -7995,13 +7531,9 @@
   }
 
   // Fields at the start of a line: kinds, values, end of the head
-  /** @param {string} line @returns {{ kinds: string[], values: string[], ends: number[] }|null} */
   function readHead(line) {
-      /** @type {string[]} */
       const kinds = [];
-      /** @type {string[]} */
       const values = [];
-      /** @type {number[]} */
       const ends = []; // after each field and its separator
       let at = 0;
       while (kinds.length < MAX_FIELDS) {
@@ -8027,7 +7559,6 @@
   }
 
   // Field at a position (kinds already found are not looked for again, brackets may repeat)
-  /** @param {string} line @param {number} at @param {string[]} found @returns {{ kind: string, value: string, end: number }|null} */
   function field(line, at, found) {
       for (const [kind, re] of FIELDS) {
           if (kind !== 'context' && found.includes(kind)) continue;
@@ -8039,20 +7570,17 @@
   }
 
   // Fields shared by the entries: first field starts enough lines, then the longest run most entries share
-  /** @param {string[]} lines @returns {string[]|null} */
   function template(lines) {
       const filled = lines.filter((l) => l.trim());
       const heads = filled.filter((l) => !/^\s/.test(l)).map(readHead);
-      /** @type {Map<string, number>} */
       const firsts = new Map();
       for (const h of heads) if (h) firsts.set(h.kinds[0], (firsts.get(h.kinds[0]) || 0) + 1);
       const [first, count] = [...firsts].sort((a, b) => b[1] - a[1])[0] || ['', 0];
       const strong = first === 'time' || first === 'level'; // printed output in between may outweigh the entries
       if (count < 2 || (!strong && count < filled.length * MIN_STARTS)) return null;
-      const entries = /** @type {{ kinds: string[] }[]} */ (heads.filter((h) => h?.kinds[0] === first));
+      const entries = heads.filter((h) => h?.kinds[0] === first);
       const kinds = [first];
       while (kinds.length < MAX_FIELDS) {
-          /** @type {Map<string, number>} */
           const next = new Map();
           for (const e of entries) {
               const same = kinds.every((k, i) => e.kinds[i] === k);
@@ -8067,9 +7595,7 @@
   }
 
   // Column names of the fields: context, context 2, ...
-  /** @param {string[]} kinds @returns {string[]} */
   function names(kinds) {
-      /** @type {Map<string, number>} */
       const seen = new Map();
       return kinds.map((k) => {
           const n = (seen.get(k) || 0) + 1;
@@ -8078,22 +7604,15 @@
       });
   }
 
-  // Module: view/markdown.js
+  // Module: view/markdown.ts
 
   // Render: Markdown -> HTML (CommonMark core + GFM tables, task lists, strikethrough); raw HTML shown as text
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
-
-  /** @typedef {{ colour?: boolean, base?: string }} MarkdownOptions */
 
   // ===========================================================================
   // CONSTANTS
   // ===========================================================================
 
   // Info strings of fenced code -> highlighter
-  /** @type {Object<string, string>} */
   const CODE_LANGS = {
       python: 'py',
       javascript: 'js',
@@ -8123,7 +7642,6 @@
   // ---------------------------------------------------------------------------
 
   // Link target against the file's folder; null: not followed (scripts, data)
-  /** @param {string} url @param {string} base @returns {string|null} */
   function resolveUrl(url, base) {
       if (UNSAFE_URL_RE.test(url)) return null;
       if (url.startsWith('#')) return url;
@@ -8135,10 +7653,8 @@
   }
 
   // Same site: images from the library are shown, others only linked (nothing fetched from elsewhere)
-  /** @param {string} href @returns {boolean} */
   const sameSite = (href) => href.startsWith(`${location.origin}/`);
 
-  /** @param {string} text @returns {string} */
   const slug = (text) =>
       text
           .toLowerCase()
@@ -8147,9 +7663,8 @@
           .trim()
           .replace(/\s+/g, '-');
 
-  /** @param {string} text @param {MarkdownOptions} [opts] @param {string[]} [kept] finished HTML, out of reach of later rules @returns {string} */
+  /** @param kept finished HTML, out of reach of later rules */
   function inlineHtml(text, opts = {}, kept = []) {
-      /** @param {string} html */
       const keep = (html) => `\uE000${kept.push(html) - 1}\uE000`;
       const base = opts.base || '';
 
@@ -8196,7 +7711,6 @@
   // Blocks: headings, paragraphs, lists, quotes, code, tables, rules
   // ---------------------------------------------------------------------------
 
-  /** @param {string} line @returns {string[]} */
   const tableCells = (line) =>
       line
           .trim()
@@ -8204,7 +7718,6 @@
           .split(/(?<!\\)\|/)
           .map((c) => c.trim());
 
-  /** @param {string} code @param {string} info @param {MarkdownOptions} opts @returns {string} */
   function codeHtml(code, info, opts) {
       const lang = CODE_LANGS[info.toLowerCase()] || info.toLowerCase();
       const highlight = opts.colour ? HIGHLIGHTERS[lang] : null;
@@ -8215,13 +7728,10 @@
   }
 
   // Starts a block other than a paragraph (ends a paragraph before it)
-  /** @param {string} line @returns {boolean} */
   const opensBlock = (line) =>
       FENCE_RE.test(line) || HEADING_RE.test(line) || RULE_RE.test(line) || QUOTE_RE.test(line) || ITEM_RE.test(line);
 
-  /** @param {string[]} lines @param {MarkdownOptions} opts @returns {string} */
   function blocksHtml(lines, opts) {
-      /** @type {string[]} */
       const out = [];
       let i = 0;
       while (i < lines.length) {
@@ -8256,7 +7766,6 @@
               const align = tableCells(lines[i + 1]).map((c) =>
                   c.endsWith(':') ? (c.startsWith(':') ? 'center' : 'right') : c.startsWith(':') ? 'left' : '',
               );
-              /** @param {string[]} cells @param {string} tag */
               const row = (cells, tag) =>
                   cells
                       .map((c, j) => {
@@ -8292,12 +7801,10 @@
   }
 
   // List from line `start`: items of one kind, their lines dedented to the item's text; returns next line
-  /** @param {string[]} lines @param {number} start @param {MarkdownOptions} opts @param {string[]} out @returns {number} */
   function listHtml(lines, start, opts, out) {
-      const first = /** @type {RegExpExecArray} */ (ITEM_RE.exec(lines[start]));
+      const first = ITEM_RE.exec(lines[start]);
       const ordered = /\d/.test(first[2]);
       const marker = ordered ? first[2].slice(-1) : first[2];
-      /** @type {string[][]} */
       const items = [];
       let loose = false;
       let i = start;
@@ -8335,7 +7842,6 @@
       return i;
   }
 
-  /** @param {string} text @param {MarkdownOptions} [opts] @returns {string} */
   function markdownHtml(text, opts = {}) {
       return blocksHtml(text.replace(/\r\n?/g, '\n').replace(/\t/g, '    ').split('\n'), opts);
   }
@@ -8345,13 +7851,12 @@
   // ---------------------------------------------------------------------------
 
   // Whole document at once (Markdown files are small); links to headings scroll within the view
-  /** @param {HTMLElement} content @param {string} text @param {MarkdownOptions} [opts] @returns {LineView} */
   function mountMarkdown(content, text, opts = {}) {
       const doc = document.createElement('div');
       doc.className = 'tp-md';
       doc.innerHTML = markdownHtml(text, opts);
       doc.addEventListener('click', (e) => {
-          const a = /** @type {HTMLElement} */ (e.target).closest('a[href^="#"]');
+          const a = (e.target).closest('a[href^="#"]');
           if (!a) return;
           e.preventDefault();
           const name = decodeURIComponent((a.getAttribute('href') || '').slice(1)).toLowerCase();
@@ -8361,19 +7866,14 @@
       return { stop: () => {}, show: () => {} };
   }
 
-  // Module: viewer/messages.js
+  // Module: viewer/messages.ts
 
   // Messages in the viewer: plain notices, lint results
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
-  /** @param {Viewer} v @param {string} message @returns {void} */
   function showPlain(v, message) {
       v.lint.style.display = 'none';
       v.loadMoreBtn.style.display = 'none';
@@ -8383,14 +7883,12 @@
       v.content.innerHTML = `<div class="tp-lines tp-notice">${renderLines([['', message]], new Map()).join('')}</div>`;
   }
 
-  /** @param {Viewer} v @param {string} lang @returns {void} */
   function showLintWait(v, lang) {
       v.lint.style.display = 'block';
       v.lint.className = 'tp-lint tp-lint-wait';
       v.lint.innerHTML = `<div class="tp-lint-summary">… ${lang.toUpperCase()}: check in progress</div>`;
   }
 
-  /** @param {Viewer} v @param {string} lang @param {LintResult} result @param {(line: number) => void} goToLine @returns {void} */
   function renderLint(v, lang, result, goToLine) {
       const { problems, info } = result;
       const label = lang.toUpperCase();
@@ -8426,31 +7924,27 @@
         ${items}
       </div>
     `;
-      const list = lint.querySelector('.tp-lint-list');
-      lint.querySelector('.tp-lint-summary').onclick = () => {
+      const list = lint.querySelector('.tp-lint-list'); // written just above
+      (lint.querySelector('.tp-lint-summary')).onclick = () => {
           list.style.display = list.style.display === 'none' ? 'block' : 'none';
       };
-      list.onclick = (/** @type {TargetEvent} */ e) => {
-          const item = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest('.tp-lint-item'));
+      list.onclick = (e) => {
+          const item = (e.target).closest('.tp-lint-item');
           if (item) goToLine(Number(item.dataset.line));
       };
   }
 
-  // Module: ui/picker.js
+  // Module: ui/picker.ts
 
   // Drop-down with several lists side by side (e.g. sheets and tables of a workbook):
   // ← → (or the tabs) switch the list shown, ↑ ↓ move, Enter picks, Esc closes
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
   // Button (shows the entry chosen) and its menu; the menu opens above the button, inside `host`
-  /** @param {HTMLElement} host positioned element the menu is placed in @param {(list: number, item: number) => void} onPick @returns {Picker} */
+  /** @param host positioned element the menu is placed in */
   function createPicker(host, onPick) {
       const button = document.createElement('button');
       button.type = 'button';
@@ -8463,13 +7957,11 @@
       menu.tabIndex = -1;
       host.append(menu);
 
-      /** @type {PickerList[]} */
       let lists = [];
       let chosen = { list: 0, item: 0 };
       let shown = 0; // list shown in the menu
       let active = 0; // entry marked for the keyboard
 
-      /** @param {number} list */
       const show = (list) => {
           shown = (list + lists.length) % lists.length;
           active = shown === chosen.list && chosen.item >= 0 ? chosen.item : lists[shown].start;
@@ -8501,9 +7993,8 @@
           button.setAttribute('aria-expanded', 'false');
           document.removeEventListener('pointerdown', outside, true);
       };
-      /** @param {Event} e */
       const outside = (e) => {
-          const t = /** @type {Node} */ (e.target);
+          const t = e.target;
           if (!menu.contains(t) && !button.contains(t)) close();
       };
       const open = () => {
@@ -8520,7 +8011,6 @@
           menu.focus();
           document.addEventListener('pointerdown', outside, true);
       };
-      /** @param {number} list @param {number} item */
       const pick = (list, item) => {
           close();
           button.focus();
@@ -8529,7 +8019,7 @@
 
       button.onclick = () => (menu.hidden ? open() : close());
       menu.onclick = (e) => {
-          const t = /** @type {HTMLElement} */ (e.target).closest('[data-list], [data-step], [data-item]');
+          const t = (e.target).closest('[data-list], [data-step], [data-item]');
           if (!(t instanceof HTMLElement)) return;
           if (t.dataset.list) show(Number(t.dataset.list));
           else if (t.dataset.step) show(shown + Number(t.dataset.step));
@@ -8576,20 +8066,15 @@
       };
   }
 
-  // Module: viewer/status.js
+  // Module: viewer/status.ts
 
   // Status: busy state, progress, cache bar
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
   // Busy (cache in progress): drives stop button
-  /** @param {Viewer} v @param {boolean} on @returns {void} */
   function setBusy(v, on) {
       v.busy = on;
       v.stopBtn.disabled = !on && !v.writeMode;
@@ -8598,7 +8083,6 @@
 
   // Cache progress (bottom left): bar and "42% (1.2 MB of 2.9 MB)
   // Idle: how much of the open file is cached; greyed without file
-  /** @param {Viewer} v @returns {void} */
   function showCached(v) {
       const src = v.source;
       if (!src) {
@@ -8621,11 +8105,10 @@
               'beforeend',
               ` · Click <span class="tp-inline-icon tp-click" title="Cache the whole file">${icon}</span> to fully cache file`,
           );
-          v.progressText.querySelector('.tp-click').onclick = () => v.loadAllBtn.click();
+          (v.progressText.querySelector('.tp-click')).onclick = () => v.loadAllBtn.click(); // written above
       }
   }
 
-  /** @param {Viewer} v @param {number} loaded @param {number} total @returns {void} */
   function showProgress(v, loaded, total) {
       const share = total ? Math.min(1, loaded / total) : 0;
       v.progress.classList.remove('tp-off', 'tp-full', 'tp-idle');
@@ -8636,20 +8119,15 @@
           : `Caching … ${formatBytes(loaded)}`;
   }
 
-  // Module: viewer/views.js
+  // Module: viewer/views.ts
 
   // Views: text, table, sheet choice and colours
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
   // ===========================================================================
 
   // Preview (view switch, right of Text): one per file type; its look follows the file shown
-  /** @type {Object<PreviewKind, { svg: string, label: string, title: string }>} */
   const PREVIEWS = {
       table: { svg: TABLE_SVG, label: 'Table', title: 'Table view (CSV, Parquet, spreadsheets)' },
       '3d': { svg: CUBE_SVG, label: '3D', title: '3D view (IFC, IFCZIP)' },
@@ -8661,10 +8139,7 @@
   // METHODS
   // ===========================================================================
 
-  /** @typedef {'table'|'3d'|'md'} PreviewKind */
-
   // Preview of a language (as in Viewer.lang); null: text only
-  /** @param {string|null|undefined} lang @returns {PreviewKind|null} */
   function previewOf(lang) {
       if (lang === 'csv' || lang === 'parquet' || lang === 'sheet' || lang === 'log') return 'table';
       if (lang === 'ifc') return '3d';
@@ -8673,22 +8148,19 @@
   }
 
   // Logs: own choice, read only, only while fields were found (preview enabled)
-  /** @param {Viewer} v @returns {boolean} */
   const tableView = (v) =>
       v.lang === 'log'
           ? view.logTable && !v.writeMode && !v.previewBtn.disabled
           : previewOf(v.lang) === 'table' && view.table;
 
   // View choice (prefs key in `view`) behind the Preview of a file type
-  /** @param {Viewer} v @param {'table'|'markdown'} key @returns {'table'|'logTable'|'markdown'} */
-  const viewKey = (v, key) => (key === 'table' && v.lang === 'log' ? 'logTable' : key);
+  const viewKey = (v, key) =>
+      key === 'table' && v.lang === 'log' ? 'logTable' : key;
 
   // Markdown shown rendered (not while edited: the editor shows its text)
-  /** @param {Viewer} v @returns {boolean} */
   const markdownView = (v) => v.lang === 'md' && view.markdown && !v.writeMode;
 
   // Preview button for a file type: icon, label, tooltip; `reason` (or no preview): disabled
-  /** @param {Viewer} v @param {PreviewKind|null} kind @param {string} [reason] @returns {void} */
   function setPreview(v, kind, reason = '') {
       const p = kind ? PREVIEWS[kind] : null;
       const label = p ? p.label : 'Preview';
@@ -8699,14 +8171,12 @@
   }
 
   // Colour choice of view shown: text, table (CSV / Parquet), sheet or log (spreadsheets, logs: own choice)
-  /** @param {Viewer} v @returns {'text'|'table'|'sheet'|'log'} */
   function colourKey(v) {
       if (!tableView(v)) return 'text';
       return v.lang === 'sheet' || v.lang === 'log' ? v.lang : 'table';
   }
 
   // View switch state (pressed = current view: Text or Preview) and idle cache bar
-  /** @param {Viewer} v @returns {void} */
   function updateViews(v) {
       const preview = !!v.view3d || tableView(v) || markdownView(v);
       const shown = !!v.source && !v.source.deferred; // content on screen
@@ -8717,17 +8187,18 @@
   }
 
   // Colours on in view now shown
-  /** @param {Viewer} v @returns {boolean} */
   function colourOn(v) {
       return colourPrefs[colourKey(v)];
   }
 
   // Format (status bar, left of the text size): recognised from the file name or chosen by the user;
   // its menu lists text formats and file formats side by side (null: no file, hidden)
-  /** @param {Viewer} v @param {string|null} format @param {string} [recognised] @returns {void} */
   function showFormat(v, format, recognised = format ?? '') {
       v.formatPicker.button.hidden = !format;
-      if (!format) return v.formatPicker.close();
+      if (!format) {
+          v.formatPicker.close();
+          return;
+      }
       const lists = FORMAT_LISTS.map(([label, keys]) => ({
           label,
           items: keys.map((k) => ({ text: k === recognised ? `${formatName(k)} (recognised)` : formatName(k) })),
@@ -8748,12 +8219,14 @@
 
   // Sheet or table choice (spreadsheets only): picker next to table button, name in title.
   // Its menu lists sheets and tables side by side (● cached, ○ not cached yet).
-  /** @param {Viewer} v @param {Source|null} src @returns {void} */
   function showSheets(v, src) {
       const lists = src?.isSheet ? sheetLists(src) : null;
       v.sheetPicker.button.hidden = !lists;
       v.titleSheet.hidden = !lists;
-      if (!lists || !src) return v.sheetPicker.close();
+      if (!lists || !src?.isSheet) {
+          v.sheetPicker.close();
+          return;
+      }
       const tables = src.mode === 'tables';
       const list = lists[tables ? 1 : 0];
       const kind = tables ? 'Table' : 'Sheet';
@@ -8763,7 +8236,8 @@
           // large file: nothing shown until chosen
           v.titleSheet.hidden = true;
           const choice = { list: tables ? 1 : 0, item: -1 };
-          return v.sheetPicker.set(lists, choice, 'Select sheet or table', `${counts}; ${keys}`);
+          v.sheetPicker.set(lists, choice, 'Select sheet or table', `${counts}; ${keys}`);
+          return;
       }
       const name = tables ? src.tables[src.current].name : src.sheets[src.current].name;
       const title = `${kind} ${src.current + 1} of ${list.items.length} (${counts}; ${keys})`;
@@ -8772,13 +8246,8 @@
   }
 
   // Lists of the picker: sheets (hidden and chart sheets marked), tables (with their sheet)
-  /** @param {Source} src @returns {PickerList[]} */
   function sheetLists(src) {
-      /** @type {Sheet[]} */
-      const sheets = src.sheets;
-      /** @type {Table[]} */
-      const tables = src.tables;
-      /** @param {Sheet} s */
+      const { sheets, tables } = src;
       const mark = (s) => (s.data === undefined ? '○' : '●');
       return [
           {
@@ -8800,41 +8269,33 @@
       ];
   }
 
-  // Module: viewer/view3d.js
+  // Module: viewer/view3d.ts
 
   // 3D view (IFC / IFCZIP), ifc-lite from VIEWER_3D_FOLDER on first use, SHA-256 checked.
   // Model stays in browser.
 
   // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
-
-  // ===========================================================================
   // CONSTANTS
   // ===========================================================================
 
-  let ifcLibrary = null; // Promise<{ lib, wasm }> once started
+  let ifcLibrary = null; // once started
   let ifcLibraryReady = false; // loaded (then IFC files open in 3D again if it was chosen)
-  /** @type {Map<string, Pose>} */
-  /** @type {Map<string, Pose>} */
   const view3dPoses = new Map(); // file url -> camera of its last 3D view (while this page is open)
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
-  /** @param {ArrayBuffer} buf @returns {Promise<string>} */
   async function sha256(buf) {
       const d = new Uint8Array(await crypto.subtle.digest('SHA-256', buf));
       return [...d].map((b) => b.toString(16).padStart(2, '0')).join('');
   }
 
   // Library (once per page)
-  /** @param {(s: string) => void} onStatus @returns {Promise<{ lib: { init: Function, GeometryProcessor: *, Renderer: * }, wasm: Uint8Array }>} */
   function loadIfcLibrary(onStatus) {
-      ifcLibrary ||= (async () => {
+      if (ifcLibrary) return ifcLibrary;
+      const loading = (async () => {
           if (!VIEWER_3D_FOLDER) throw new Error('the 3D viewer folder is not set (settings: "3D viewer folder")');
-          /** @param {string} name @param {string} hash */
           const file = async (name, hash) => {
               if (!/^[0-9a-f]{64}$/.test(hash))
                   throw new Error('no 3D checksums in this build: use a release userscript');
@@ -8859,16 +8320,22 @@
           ifcLibraryReady = true;
           return { lib, wasm: new Uint8Array(wasm) };
       })();
-      ifcLibrary.catch(() => {
+      loading.catch(() => {
           ifcLibrary = null; // later click tries again
       });
-      return ifcLibrary;
+      ifcLibrary = loading;
+      return loading;
   }
 
   // IFC bytes in canvas; returns { pose(), dispose() }
-  /** @typedef {{ position: Object<string, number>, target: Object<string, number>, up: Object<string, number> }} Pose camera of a 3D view */
-  /** @param {*} lib @param {Uint8Array} wasm @param {HTMLCanvasElement} canvas @param {Uint8Array} ifcBytes @param {(s: string) => void} onStatus @param {Pose} [pose] @returns {Promise<{ pose: () => Pose, dispose: () => void }>} */
-  async function open3dModel(lib, wasm, canvas, ifcBytes, onStatus, pose) {
+  async function open3dModel(
+      lib,
+      wasm,
+      canvas,
+      ifcBytes,
+      onStatus,
+      pose,
+  ) {
       onStatus('3D engine start …');
       lib.ready ||= lib.init({ module_or_path: wasm }); // once per page
       await lib.ready;
@@ -8921,14 +8388,11 @@
       }
       onStatus(`${result.meshes.length.toLocaleString()} objects · ${result.totalTriangles.toLocaleString()} triangles`);
 
-      /** @type {{ x: number, y: number, pan: boolean }|null} */
       let drag = null;
-      /** @param {PointerEvent} e */
       const down = (e) => {
           drag = { x: e.clientX, y: e.clientY, pan: e.button !== 0 || e.shiftKey };
           canvas.setPointerCapture(e.pointerId);
       };
-      /** @param {PointerEvent} e */
       const move = (e) => {
           if (!drag) return;
           const dx = e.clientX - drag.x;
@@ -8942,14 +8406,12 @@
       const up = () => {
           drag = null;
       };
-      /** @param {WheelEvent} e */
       const wheel = (e) => {
           e.preventDefault();
           const r = canvas.getBoundingClientRect();
           camera.zoom(e.deltaY, false, e.clientX - r.left, e.clientY - r.top, canvas.width, canvas.height);
           renderer.requestRender();
       };
-      /** @param {Event} e */
       const noMenu = (e) => e.preventDefault();
       const resize = new ResizeObserver(() => {
           renderer.resize(...size());
@@ -8960,7 +8422,6 @@
       // Draw loop: renders when asked to, and while camera still moves (inertia)
       let last = performance.now();
       let frame = 0;
-      /** @param {number} now */
       const loop = (now) => {
           const moving = camera.update(now - last);
           last = now;
@@ -8969,18 +8430,23 @@
       };
       frame = requestAnimationFrame(loop);
 
-      /** @type {[string, (e: *) => void][]} */
-      const events = [
-          ['pointerdown', down],
-          ['pointermove', move],
-          ['pointerup', up],
-          ['pointercancel', up],
-          ['wheel', wheel],
-          ['dblclick', fit],
-          ['contextmenu', noMenu],
-      ];
-      for (const [type, fn] of events)
-          canvas.addEventListener(type, fn, type === 'wheel' ? { passive: false } : undefined);
+      // Listeners on the canvas (removed again on dispose)
+      const offs = [];
+      const on = (
+          type,
+          fn,
+          opts,
+      ) => {
+          canvas.addEventListener(type, fn, opts);
+          offs.push(() => canvas.removeEventListener(type, fn));
+      };
+      on('pointerdown', down);
+      on('pointermove', move);
+      on('pointerup', up);
+      on('pointercancel', up);
+      on('wheel', wheel, { passive: false });
+      on('dblclick', fit);
+      on('contextmenu', noMenu);
       return {
           pose: () => ({
               position: { ...camera.getPosition() },
@@ -8990,19 +8456,18 @@
           dispose() {
               cancelAnimationFrame(frame);
               resize.disconnect();
-              for (const [type, fn] of events) canvas.removeEventListener(type, fn);
+              for (const off of offs) off();
               renderer.destroy();
           },
       };
   }
 
   // Switch 3D view on / off for open IFC file
-  /** @param {Viewer} v @returns {Promise<void>} */
   async function toggle3d(v) {
       if (v.view3d) return close3d(v);
       const src = v.source;
       if (!src || v.previewBtn.disabled) return;
-      if (!(/** @type {Navigator & { gpu?: unknown }} */ (navigator).gpu)) {
+      if (!(navigator).gpu) {
           alert('3D view needs WebGPU (current Chrome or Edge).');
           return;
       }
@@ -9010,22 +8475,24 @@
           alert('Please save your changes first, then switch the view.');
           return void flash(v.saveBtn);
       }
-      if (!src.done && !(await v.loadAll())) return; // 3D view needs whole file
+      if (!src.done && !(await v.loadAll?.())) return; // 3D view needs whole file
       if (!src.done) return;
       if ((src.ifcBytes ? src.ifcBytes.length : src.text.length) > MAX_3D_BYTES) {
           alert(`3D view: only for IFC files up to ${formatBytes(MAX_3D_BYTES)}.`);
           return;
       }
       const file = v.file;
-      /** @type {{ disposed: boolean, handle: { pose: () => Pose, dispose: () => void }|null }} */
-      const state = { disposed: false, handle: null };
+      if (!file) return;
+      const state = {
+          disposed: false,
+          handle: null,
+      };
       v.view3d = state;
       updateViews(v);
       v.content.style.display = 'none';
       v.editorWrap.style.display = 'none';
       v.loadMoreBtn.style.display = 'none';
       v.stage3d.style.display = 'block';
-      /** @param {string} s */
       const status = (s) => {
           v.status3d.textContent = s;
       };
@@ -9037,11 +8504,10 @@
           if (state.disposed) handle.dispose();
           else state.handle = handle;
       } catch (err) {
-          if (!state.disposed) status(`3D view failed: ${/** @type {Error} */ (err).message}`);
+          if (!state.disposed) status(`3D view failed: ${(err).message}`);
       }
   }
 
-  /** @param {Viewer} v @returns {void} */
   function close3d(v) {
       const state = v.view3d;
       if (!state) return;
@@ -9057,21 +8523,20 @@
       v.rerender?.();
   }
 
-  // Module: viewer/panel.js
+  // Module: viewer/panel.ts
 
   // Viewer panel: elements, buttons, editor and gutter
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
   // ===========================================================================
 
   // Preferences of the views switched by Text / Preview
-  /** @type {Object<string, string>} */
-  const VIEW_KEYS = { table: 'tp-preview-table', logTable: 'tp-preview-log-table', markdown: 'tp-preview-markdown' };
+  const VIEW_KEYS = {
+      table: 'tp-preview-table',
+      logTable: 'tp-preview-log-table',
+      markdown: 'tp-preview-markdown',
+  };
 
   const ZOOM_STEP = 0.1;
   const WHEEL_STEP = 40; // wheel distance per zoom step (mouse notch ~100, touchpad pinch: small steps)
@@ -9094,7 +8559,6 @@
   // METHODS
   // ===========================================================================
 
-  /** @returns {Viewer} */
   function createViewer() {
       // Dark backdrop (popup mode only)
       const backdrop = document.createElement('div');
@@ -9120,8 +8584,13 @@
 
       // Header buttons
       const ROW1 = 8;
-      /** @param {string} svg @param {string} title @param {number} left @param {number} [top] @param {{ disabled?: boolean, pressed?: boolean }} [opts] */
-      const button = (svg, title, left, top = ROW1, { disabled = false, pressed } = {}) => {
+      const button = (
+          svg,
+          title,
+          left,
+          top = ROW1,
+          { disabled = false, pressed } = {},
+      ) => {
           const btn = document.createElement('button');
           btn.className = 'tp-mode-btn';
           btn.innerHTML = svg;
@@ -9141,7 +8610,6 @@
       });
       const uploadBtn = button(UPLOAD_SVG, 'Upload the saved changes to SharePoint', 190, ROW1, { disabled: true });
       // View switch (status bar, bottom right): Text | Preview (Table, 3D or Markdown, by file type)
-      /** @param {string} svg @param {string} label @param {string} title */
       const viewBtn = (svg, label, title) => {
           const b = document.createElement('button');
           b.type = 'button';
@@ -9159,7 +8627,6 @@
       moreBtn.style.right = '86px';
 
       // Menu entries (icon + label); toggles show check mark when on
-      /** @param {string} svg @param {string} label @param {{ disabled?: boolean, pressed?: boolean }} [opts] */
       const item = (svg, label, opts) => {
           const b = button(svg, label, 0, 0, opts);
           b.className = 'tp-menu-item';
@@ -9179,7 +8646,6 @@
       const settingsBtn = item(SETTINGS_SVG, 'Full settings …');
 
       // Small drop-down under its button; closes on any click outside or on entry
-      /** @param {HTMLElement} anchor @param {HTMLElement[]} entries @param {boolean} [alignRight] */
       const menu = (anchor, entries, alignRight = false) => {
           const m = document.createElement('div');
           m.className = 'tp-menu';
@@ -9189,9 +8655,8 @@
               m.hidden = true;
               document.removeEventListener('pointerdown', outside, true);
           };
-          /** @param {Event} e */
           const outside = (e) => {
-              const t = /** @type {Node} */ (e.target);
+              const t = e.target;
               if (!m.contains(t) && !anchor.contains(t)) close();
           };
           anchor.onclick = () => {
@@ -9203,7 +8668,7 @@
               document.addEventListener('pointerdown', outside, true);
           };
           m.addEventListener('click', (e) => {
-              if (/** @type {HTMLElement} */ (e.target).closest('.tp-menu-item')) close();
+              if ((e.target).closest('.tp-menu-item')) close();
           });
           return m;
       };
@@ -9255,7 +8720,7 @@
       header.title =
           'Note: this viewer is primarily for text files. Parquet files and spreadsheets may also be viewed (read only). ' +
           'Write mode is only partially supported.';
-      const titleName = title.querySelector('.tp-title-name');
+      const titleName = title.querySelector('.tp-title-name'); // in the title's HTML
       const titleSheet = title.querySelector('.tp-title-sheet');
 
       // Metadata (second line, full width): dates, size, format, table shape, ...
@@ -9325,7 +8790,6 @@
       const metaGrip = document.createElement('div');
       metaGrip.className = 'tp-meta-grip';
       metaGrip.title = 'Drag to show more or fewer lines';
-      /** @param {number} n */
       const setMetaLines = (n) => {
           view.metaLines = Math.max(1, Math.min(6, n));
           savePref('tp-preview-meta-lines', String(view.metaLines));
@@ -9345,7 +8809,6 @@
           const start = view.metaLines;
           metaGrip.setPointerCapture(e.pointerId);
           metaGrip.classList.add('tp-drag');
-          /** @param {PointerEvent} ev */
           const move = (ev) => setMetaLines(start + Math.round((ev.clientY - startY) / 15));
           const up = () => {
               metaGrip.classList.remove('tp-drag');
@@ -9471,9 +8934,9 @@
       progress.className = 'tp-progress';
       progress.innerHTML = '<div class="tp-progress-bar"><div class="tp-progress-fill"></div></div><span></span>';
       // (children written just above)
-      const progressBar = /** @type {HTMLElement} */ (progress.firstElementChild);
-      const progressFill = /** @type {HTMLElement} */ (progressBar.firstElementChild);
-      const progressText = /** @type {HTMLElement} */ (progress.lastElementChild);
+      const progressBar = progress.firstElementChild;
+      const progressFill = progressBar.firstElementChild;
+      const progressText = progress.lastElementChild;
       // Status bar (fixed height): cache state left, view switch right
       const statusBar = document.createElement('div');
       statusBar.className = 'tp-statusbar';
@@ -9494,7 +8957,7 @@
       <button type="button" class="tp-view-btn" title="Smaller text (Ctrl −, Ctrl + wheel)">−</button>
       <button type="button" class="tp-view-btn tp-zoom-value" title="Text size: back to 100 % (Ctrl 0)"></button>
       <button type="button" class="tp-view-btn" title="Larger text (Ctrl +, Ctrl + wheel)">+</button>`;
-      const [zoomOut, zoomValue, zoomIn] = /** @type {HTMLButtonElement[]} */ ([...zoomBar.children]);
+      const [zoomOut, zoomValue, zoomIn] = [...zoomBar.children];
       statusBar.append(progress, formatBar, zoomBar, views);
       box.append(header, csvBar, content, stage3d, editorWrap, loadMoreBtn, statusBar, splitter);
 
@@ -9503,7 +8966,6 @@
           box.addEventListener(type, (e) => e.stopPropagation());
       }
 
-      /** @type {Viewer} */
       const v = {
           backdrop,
           box,
@@ -9555,17 +9017,12 @@
       // Popup: drag header (not its buttons, menus or properties grip) to move window
       header.addEventListener('pointerdown', (e) => {
           if (v.mode !== 'popup' || e.button !== 0) return;
-          if (
-              /** @type {HTMLElement} */ (e.target).closest(
-                  'button, select, input, textarea, a, .tp-menu, .tp-meta-grip, .tp-lint',
-              )
-          )
+          if ((e.target).closest('button, select, input, textarea, a, .tp-menu, .tp-meta-grip, .tp-lint'))
               return;
-          if (metaLine.contains(/** @type {Node} */ (e.target))) return; // properties stay selectable
+          if (metaLine.contains(e.target)) return; // properties stay selectable
           startMove(e, box, POPUP_POS_KEY);
       });
 
-      /** @param {KeyboardEvent} e */
       const onEscape = (e) => {
           if (e.key === 'Escape' && viewer === v) {
               e.stopPropagation();
@@ -9615,7 +9072,6 @@
       settingsBtn.onclick = () => openSettingsForm();
       writeBtn.onclick = () => (v.writeMode ? leaveWrite() : enterWrite(v));
       // 3D choice remembered for next IFC files (also across reloads)
-      /** @param {boolean} on */
       const set3d = (on) => {
           view.show3d = on;
           savePref('tp-preview-3d', on ? '1' : '0');
@@ -9640,7 +9096,6 @@
           updateViews(v);
       };
       // Table or Markdown view on / off (remembered for files of its type)
-      /** @param {'table'|'markdown'} key @param {boolean} on */
       const showView = (key, on) => {
           if (v.writeMode && v.dirty) {
               alert('Please save your changes first, then switch the view.');
@@ -9667,12 +9122,13 @@
       };
       // Save stages edits; upload hands saved state to SharePoint
       saveBtn.onclick = () => {
-          if (!v.writeMode || !v.dirty) return;
-          v.staged = editedText(v);
           const src = v.source;
+          if (!v.writeMode || !v.dirty || !src) return;
+          const staged = editedText(v);
+          v.staged = staged;
           if (src.originalText == null) src.originalText = src.text; // for cancel / discard
-          src.text = v.staged;
-          v.text = v.staged;
+          src.text = staged;
+          v.text = staged;
           src.lintResult = null;
           // Saved text is checked again: now if colours are on, else once they are switched on
           src.needsLint = true;
@@ -9704,7 +9160,7 @@
           const big = src.total > LARGE_FILE_BYTES;
           if (big && !confirm(`This file is large (${formatBytes(src.total)}). Cache all of it?`)) return;
           if (!makeRoom(v, src.total - src.loaded)) return;
-          v.loadAll();
+          v.loadAll?.();
       };
       const applyColour = () => colourBtn.setAttribute('aria-pressed', String(colourOn(v)));
       v.applyColour = applyColour;
@@ -9737,7 +9193,6 @@
 
       // Text size (content area and editor): CSS variable; text and table views are laid out anew
       // (their unfilled blocks keep heights measured at the old size), keeping the position in the file
-      /** @param {number} z */
       const applyZoom = (z) => {
           for (const el of [content, editorWrap]) el.style.setProperty('--tp-zoom', String(z));
           zoomValue.textContent = `${Math.round(z * 100)} %`;
@@ -9747,7 +9202,6 @@
       applyZoom(view.zoom);
       let relayout = 0;
       let scrollShare = 0;
-      /** @param {number} z */
       const setZoom = (z) => {
           z = Math.round(Math.max(ZOOM_RANGE[0], Math.min(ZOOM_RANGE[1], z)) * 100) / 100;
           if (z === view.zoom) return;
@@ -9764,7 +9218,6 @@
               content.scrollTop = scrollShare * content.scrollHeight;
           }, 150);
       };
-      /** @param {number} steps */
       const zoomBy = (steps) => setZoom(view.zoom + steps * ZOOM_STEP);
       zoomOut.onclick = () => zoomBy(-1);
       zoomIn.onclick = () => zoomBy(1);
@@ -9773,7 +9226,7 @@
       box.addEventListener(
           'wheel',
           (e) => {
-              const t = /** @type {Node} */ (e.target);
+              const t = e.target;
               if (!(e.ctrlKey || e.metaKey) || !(content.contains(t) || editorWrap.contains(t))) return;
               e.preventDefault(); // not the page's zoom
               wheel += e.deltaY;
@@ -9804,7 +9257,7 @@
 
       // Keys in the content area (once clicked into) or editor: Ctrl / ⌘ with + − 0 (text size), A (select all)
       box.addEventListener('keydown', (e) => {
-          const t = /** @type {Node} */ (e.target);
+          const t = e.target;
           if (!(e.ctrlKey || e.metaKey) || e.altKey || !(content.contains(t) || t === editor)) return;
           if (e.key === '+' || e.key === '=') zoomBy(1);
           else if (e.key === '-') zoomBy(-1);
@@ -9821,12 +9274,12 @@
                   if (big && !confirm('This text file is large are you sure you want to load it all into the previewer?'))
                       return;
                   copyBtn.disabled = true;
-                  const ok = await v.loadAll();
+                  const ok = await v.loadAll?.();
                   copyBtn.disabled = false;
                   if (!ok) throw new Error('caching failed');
               }
               await navigator.clipboard.writeText(
-                  v.tableEditing ? v.lineView.csvText() : v.writeMode ? v.editor.value : v.text,
+                  v.tableEditing ? (v.lineView?.csvText?.() ?? '') : v.writeMode ? v.editor.value : v.text,
               );
               copyBtn.innerHTML = CHECK_SVG;
               copyBtn.title = 'Copied!';
@@ -9848,19 +9301,14 @@
       return v;
   }
 
-  // Module: viewer/open.js
+  // Module: viewer/open.ts
 
   // Opening files: viewer state, previews, properties line
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
   // ===========================================================================
 
-  /** @type {Viewer|null} */
   let viewer = null; // single open viewer, if any
 
   const pendingOpens = new Map(); // url -> first fetch still running { promise, relay, ctl }
@@ -9872,7 +9320,6 @@
   // METHODS
   // ===========================================================================
 
-  /** @returns {void} */
   function closeViewer() {
       if (!viewer) return;
       setTimeout(refreshEyes); // row highlight off, once viewer is gone
@@ -9883,7 +9330,7 @@
       close3d(viewer);
       if (viewer.mode !== 'popup') layoutPage(viewer, 'popup');
       restorePage(viewer);
-      viewer.removeListeners();
+      viewer.removeListeners?.();
       viewer.backdrop.remove();
       viewer.box.remove();
       viewer = null;
@@ -9891,12 +9338,19 @@
 
   // Opens a file (following .url links): { src } or { message }, plus final name and hops
   /**
-   * @param {string} fetchUrl @param {string} fileName @param {string[]} hops @param {() => AbortSignal} getSignal @param {boolean} reload
-   * @param {(loaded: number, total: number) => void} onProgress @param {(message: string) => void} onLink @param {boolean} force
-   * @param {string|null} format chosen by the user for the file as listed (its links are then not followed)
-   * @returns {Promise<{ src: Source|null, deferred?: Deferred, message: string|null, fileName: string, hops: string[] }>}
+   * @param format chosen by the user for the file as listed (its links are then not followed)
    */
-  async function openFile(fetchUrl, fileName, hops, getSignal, reload, onProgress, onLink, force, format) {
+  async function openFile(
+      fetchUrl,
+      fileName,
+      hops,
+      getSignal,
+      reload,
+      onProgress,
+      onLink,
+      force,
+      format,
+  ) {
       hops = [...hops];
       for (let hop = 0; ; hop++) {
           const chosen = hop === 0 ? format : null;
@@ -9909,8 +9363,7 @@
                     : reader === 'ifczip'
                       ? await openZipSource(fetchUrl, getSignal, reload, onProgress, force)
                       : await openSource(fetchUrl, getSignal, reload, onProgress);
-          if ('deferred' in result)
-              return { src: null, deferred: /** @type {Deferred} */ (result), message: null, fileName, hops };
+          if ('deferred' in result) return { src: null, deferred: result, message: null, fileName, hops };
           if ('error' in result) {
               // file from search results, not found by name: say so first, details below
               const note = lookupNotes.get(hops[0]);
@@ -9943,7 +9396,6 @@
 
   // Open file viewed as another format (a wrong one too: that format's reader tries);
   // the recognised format drops the choice
-  /** @param {string} format @returns {void} */
   function chooseFormat(format) {
       const v = viewer;
       if (!v?.file || !confirmDiscard(v)) return;
@@ -9954,9 +9406,7 @@
   }
 
   // Same file, any encoding / case of path
-  /** @param {string} a @param {string} b @returns {boolean} */
   function sameFile(a, b) {
-      /** @param {string} x */
       const norm = (x) => {
           try {
               x = decodeURIComponent(x);
@@ -9968,7 +9418,6 @@
 
   // Header eye: viewer without file (look around, settings, ...). Same toggle as row eyes:
   // again on the empty viewer = close; with a file open = switch to empty.
-  /** @returns {void} */
   function openEmptyViewer() {
       if (viewer && !viewer.file) return void closeViewer();
       if (!viewer) {
@@ -9979,7 +9428,6 @@
   }
 
   // Viewer back to no file; false if user keeps pending changes
-  /** @param {Viewer} v @returns {boolean} */
   function showEmpty(v) {
       if (!confirmDiscard(v)) return false;
       close3d(v);
@@ -10006,7 +9454,6 @@
       return true;
   }
 
-  /** @param {HTMLElement|null} row @returns {Promise<void>} */
   async function openPreview(row) {
       const name = row && rowName(row);
       if (!name) {
@@ -10026,7 +9473,6 @@
   }
 
   // Load file into viewer; `reload` skips browser's cache (refresh button)
-  /** @param {string} name @param {string} url @param {boolean} reload @returns {Promise<void>} */
   async function showFile(name, url, reload) {
       const encodedUrl = url.split('/').map(encodeURIComponent).join('/');
 
@@ -10056,7 +9502,6 @@
       const reader = readerOf(early); // cached copies of another reader are read anew
       const earlyLang = langOfFormat(early);
       const earlyFormat = (!chosen && sheetFormat(name)) || formatName(early);
-      /** @param {number} total */
       const earlyMeta = (total) => {
           const parts = [
               total ? `size: ${formatBytes(total)} (${total.toLocaleString()} bytes)` : '',
@@ -10090,8 +9535,10 @@
       const hops = [url];
       v.abort = new AbortController();
       // relay: progress and signal of this file's source, also once another file is shown
-      /** @type {{ fn: ((loaded: number, total: number) => void)|null, controller: AbortController|null }} */
-      const relay = { fn: null, controller: null };
+      const relay = {
+          fn: null,
+          controller: null,
+      };
       const getSignal = () => {
           if (relay.controller) return relay.controller.signal;
           v.abort ||= new AbortController();
@@ -10100,7 +9547,6 @@
       let rendered = false; // once text is shown, progress goes to "Cache next" bar
 
       let metaSize = 0;
-      /** @param {number} loaded @param {number} total */
       const progress = (loaded, total) => {
           if (!current()) return;
           if (total) loaded = Math.min(loaded, total); // overlapping reads may count twice
@@ -10113,7 +9559,6 @@
           if (total && loaded >= total) v.progressText.textContent += ' · preparing view …';
       };
       relay.fn = progress; // the showFile that shows this source now
-      /** @param {number} loaded @param {number} total */
       const relayed = (loaded, total) => relay.fn?.(loaded, total);
       if (reload && memoryCache.delete(url)) refreshEyes(); // refresh: fetch anew
       if (memoryCache.get(url)?.reader !== reader && memoryCache.delete(url)) refreshEyes(); // other format chosen
@@ -10156,7 +9601,7 @@
                           getSignal,
                           reload,
                           relayed,
-                          (/** @type {string} */ m) => current() && showPlain(v, m),
+                          (m) => current() && showPlain(v, m),
                           forcedUrls.has(url),
                           chosen,
                       ),
@@ -10166,7 +9611,7 @@
                   refreshEyes(); // half open while it caches
                   pending.promise
                       .then(
-                          (/** @type {Awaited<ReturnType<typeof openFile>>} */ r) => {
+                          (r) => {
                               if (r.src) {
                                   r.src.relay = relay;
                                   keepInMemory(url, { src: r.src, fileName: r.fileName, hops: [...r.hops], reader });
@@ -10189,11 +9634,11 @@
               fileName = r.fileName;
               hops.splice(0, hops.length, ...r.hops);
           } catch (err) {
-              if (/** @type {Error} */ (err).name === 'AbortError') {
+              if ((err).name === 'AbortError') {
                   if (current() && v.userStopped) showPlain(v, 'Caching stopped. Use refresh to cache this file again.');
                   return;
               }
-              message = `Caching failed: ${/** @type {Error} */ (err).message}\n${hops.join('\n→ ')}`;
+              message = `Caching failed: ${(err).message}\n${hops.join('\n→ ')}`;
           }
       if (current()) v.opening = false;
       if (current()) setBusy(v, false);
@@ -10207,7 +9652,16 @@
 
       if (deferred) {
           // Big Parquet / IFCZIP: only on request (whole file); "cache all" opens it in full
-          v.source = { total: deferred.size, loaded: 0, done: false, dates: deferred.dates, deferred: true };
+          v.source = {
+              total: deferred.size,
+              loaded: 0,
+              done: false,
+              dates: deferred.dates,
+              deferred: true,
+              text: '',
+              more: async () => {},
+              loadAll: async () => {}, // the viewer's loadAll opens the file in full
+          };
           knownSizes.set(url, deferred.size);
           v.text = '';
           v.copyBtn.disabled = true;
@@ -10266,13 +9720,10 @@
       v.text = src.text;
 
       const lang = ['parquet', 'sheet'].includes(v.lang ?? '') ? 'csv' : (v.lang ?? ''); // their rows come as CSV; '' plain text
-      /** @param {string} t @returns {Token[]} */
       const plain = (t) => [['', t]];
       const highlight = HIGHLIGHTERS[lang] || plain;
       let problemsByLine = new Map();
-      /** @type {string[]} */
       let lines = [];
-      /** @type {LogTable|null} */
       let logShown = null; // log as a table (while shown)
 
       // Cached lines; unfinished last line waits (unless there is no break at all)
@@ -10283,14 +9734,12 @@
       };
 
       // Table view: sort and filters stay while this file is open (also across "Cache next"); per sheet or table
-      /** @type {TableState} */
       const tableState = { sort: null, filters: new Map() };
-      /** @type {Map<string, TableState>} */
       const sheetStates = new Map();
-      /** @param {string} i e.g. "sheets 0" */
+      /** @param i e.g. "sheets 0" */
       const sheetState = (i) => {
           if (!sheetStates.has(i)) sheetStates.set(i, { sort: null, filters: new Map() });
-          return /** @type {TableState} */ (sheetStates.get(i)); // set just above
+          return sheetStates.get(i); // set just above
       };
 
       // Metadata line: dates, size, format and, for tables, their shape
@@ -10357,12 +9806,11 @@
               updateViews(v);
           }
           logShown = v.lang === 'log' && tableView(v) ? parseLog(lines.join('\n')) : null;
-          /** @type {SheetShown|null} */
           const shown = src.isSheet ? src.shown : null;
           if (shown && !shown.rows.length) {
               // chart sheet, empty or unreadable sheet, empty table: a note instead
               v.lineView = mountLines(v.content, renderLines([['', shown.note]], new Map()));
-              v.content.firstElementChild.classList.add('tp-notice');
+              v.content.firstElementChild?.classList.add('tp-notice');
           } else if (shown && view.table) {
               v.lineView = mountTable(v.content, shown.header, shown.rows, {
                   state: sheetState(`${src.mode} ${src.current}`),
@@ -10411,7 +9859,6 @@
                 `Cache next ${formatBytes(MAX_BYTES)}`;
       };
 
-      /** @param {number} n */
       const goToLine = (n) => {
           n = Math.max(1, Math.min(n, lines.length));
           v.lineView?.show(n);
@@ -10445,7 +9892,6 @@
       };
 
       // Load more (one chunk, or everything; or `job`, e.g. one sheet), then shows it
-      /** @param {boolean} all @param {() => Promise<void>} [job] @param {number} [need] */
       const load = async (all, job = src.more, need = MAX_BYTES) => {
           if (src.done) return true;
           if (!all && !src.fullJob && !makeRoom(v, need)) return false;
@@ -10473,14 +9919,14 @@
               if (!current()) return false;
               setBusy(v, false);
               v.abort = null;
-              if (/** @type {Error} */ (err).name === 'AbortError') {
+              if ((err).name === 'AbortError') {
                   v.text = src.text;
                   render(); // stopped: show what is cached so far, "Cache next" works again
                   return false;
               }
               v.loadMoreBtn.disabled = false;
               v.loadAllBtn.disabled = false;
-              v.loadMoreBtn.textContent = `Caching failed: ${/** @type {Error} */ (err).message} · Refresh to try again`;
+              v.loadMoreBtn.textContent = `Caching failed: ${(err).message} · Refresh to try again`;
               return false;
           }
           trimMemory();
@@ -10508,7 +9954,6 @@
 
       // Other sheet or table: its sheet cached on first choice (stop keeps what was shown before);
       // sheets or tables: remembered for this file
-      /** @param {number} i @param {SheetMode} [mode] */
       v.selectSheet = async (i, mode = src.mode) => {
           if (!src.isSheet || !(mode === 'tables' ? src.tables : src.sheets)[i]) return;
           if (mode === src.mode && i === src.current && !src.waiting) return;
@@ -10552,13 +9997,9 @@
       if (view.show3d && ifcLibraryReady && kind === '3d' && !v.previewBtn.disabled) toggle3d(v);
   }
 
-  // Module: viewer/layout.js
+  // Module: viewer/layout.ts
 
   // Page layout: viewer beside or below the list, size, drag
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -10604,14 +10045,13 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {HTMLElement} el @param {string|null} original @returns {void} */
   const restoreStyle = (el, original) => {
-      if (original === null) el.removeAttribute('style');
+      if (original == null) el.removeAttribute('style');
       else el.setAttribute('style', original);
   };
 
   // List's card: scroll area plus its frame and scrollbars, no command bar
-  /** @returns {{ card: HTMLElement, scroller: HTMLElement }|null} card around the list, and the element that scrolls it */
+  /** @returns card around the list, and the element that scrolls it */
   function listRegion() {
       const grid = document.querySelector('[role="grid"], [role="treegrid"]');
       let scroller = grid;
@@ -10642,7 +10082,6 @@
   }
 
   // Visible right / bottom edge of list, incl. scrollbars drawn just outside it
-  /** @param {HTMLElement} card @param {HTMLElement} scroller @returns {{ right: number, bottom: number }} */
   function listEdges(card, scroller) {
       const c = scroller.getBoundingClientRect();
       const REACH = 30;
@@ -10653,7 +10092,7 @@
           acceptNode: (n) => (n === scroller ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
       });
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-          const n = /** @type {HTMLElement} */ (node); // elements only (SHOW_ELEMENT)
+          const n = node; // elements only (SHOW_ELEMENT)
           if (n.contains(scroller) || n.closest('.tp-cell, .tp-head')) continue; // frames around list don't count
           const r = n.getBoundingClientRect();
           if (!r.width || !r.height) continue;
@@ -10665,7 +10104,6 @@
       return { right, bottom };
   }
 
-  /** @param {Viewer} v @returns {void} */
   function restorePage(v) {
       v.regionObserver?.disconnect();
       v.regionObserver = null;
@@ -10692,7 +10130,6 @@
 
   // List share of space (splitter); remembered, setting is start value
   const splitFraction = (() => {
-      /** @type {Object<string, number>} */
       const start = { vertical: 1 - DEFAULT_PREVIEW_SIZE, horizontal: 1 - DEFAULT_PREVIEW_SIZE };
       try {
           const kept = JSON.parse(loadPref('tp-preview-split', 'null'));
@@ -10702,7 +10139,6 @@
   })();
 
   // Element that really scrolls list vertically (prefers one that overflows)
-  /** @param {Element} grid @returns {HTMLElement|null} */
   function verticalScroller(grid) {
       let bounded = null;
       for (let el = grid.parentElement; el && el !== document.body; el = el.parentElement) {
@@ -10716,7 +10152,6 @@
   }
 
   // SharePoint's wrapper around file list: <div role="" style="display: contents;">
-  /** @param {Element} grid @returns {HTMLElement|null} */
   function listWrapper(grid) {
       for (let el = grid.parentElement; el && el !== document.body; el = el.parentElement) {
           if (el.getAttribute('role') === '' && el.style.display === 'contents') return el;
@@ -10724,10 +10159,8 @@
       return null;
   }
 
-  // Space for horizontal split: scroller's visible area before it was shrunk
-  /** @param {Viewer} v @returns {{ top: number, bottom: number, left: number, right: number }} */
-  function dockArea(v) {
-      const d = v.dockBase;
+  // Space for horizontal split: scroller's visible area before it was shrunk (d: its bounds then)
+  function dockArea(d) {
       return {
           top: Math.max(0, d.top),
           bottom: Math.min(window.innerHeight, d.bottom),
@@ -10736,22 +10169,20 @@
       };
   }
 
-  /** @param {number} n @returns {string} */
   const px = (n) => `${Math.max(0, Math.round(n))}px`;
 
   // Keep split panel next to (vertical) or below (horizontal) shrunk list
-  /** @returns {void} */
   function syncPanel() {
       const v = viewer;
       if (!v || v.mode === 'popup') return;
       const s = v.box.style;
+      const { anchor, anchorParent: p, region, scroller, base, dock, dockBase, grid } = v;
 
-      if (v.mode === 'horizontal' && v.anchor) {
+      if (v.mode === 'horizontal' && anchor && p && region && scroller && v.anchorSpace !== undefined) {
           // In page after list wrapper, below shortened list
-          if (v.box.previousElementSibling !== v.anchor) v.anchor.after(v.box);
-          const sr = v.scroller.getBoundingClientRect();
-          const edge = listEdges(v.region, v.scroller);
-          const p = v.anchorParent;
+          if (v.box.previousElementSibling !== anchor) anchor.after(v.box);
+          const sr = scroller.getBoundingClientRect();
+          const edge = listEdges(region, scroller);
           const pr = p.getBoundingClientRect();
           s.left = `${Math.round(sr.left - pr.left - p.clientLeft + p.scrollLeft)}px`;
           s.top = `${Math.round(edge.bottom + SPLIT_GAP - pr.top - p.clientTop + p.scrollTop)}px`;
@@ -10760,12 +10191,12 @@
           return;
       }
 
-      if (v.mode === 'horizontal' && v.dock) {
+      if (v.mode === 'horizontal' && dock && dockBase && grid) {
           // Fill space below shrunk scroller
-          const area = dockArea(v);
-          const d = v.dock.getBoundingClientRect();
-          const g = v.grid.getBoundingClientRect();
-          const edge = listEdges(v.dock, v.dock);
+          const area = dockArea(dockBase);
+          const d = dock.getBoundingClientRect();
+          const g = grid.getBoundingClientRect();
+          const edge = listEdges(dock, dock);
           s.left = px(Math.max(g.left, d.left));
           s.right = px(window.innerWidth - Math.min(g.right, edge.right, d.right));
           s.top = px(d.bottom + SPLIT_GAP);
@@ -10773,25 +10204,24 @@
           return;
       }
 
-      if (v.mode === 'vertical' && v.region) {
+      if (v.mode === 'vertical' && region && scroller && base) {
           // Align with visible list (scroll area + its scrollbars), not card frame around it
-          const sr = v.scroller.getBoundingClientRect();
-          const edge = listEdges(v.region, v.scroller);
+          const sr = scroller.getBoundingClientRect();
+          const edge = listEdges(region, scroller);
 
-          if (v.anchor) {
+          if (anchor && p) {
               // In page after list wrapper: moves with list
-              if (v.box.previousElementSibling !== v.anchor) v.anchor.after(v.box);
-              const p = v.anchorParent;
+              if (v.box.previousElementSibling !== anchor) anchor.after(v.box);
               const pr = p.getBoundingClientRect();
               s.left = `${Math.round(edge.right + SPLIT_GAP - pr.left - p.clientLeft + p.scrollLeft)}px`;
               s.top = `${Math.round(sr.top - pr.top - p.clientTop + p.scrollTop)}px`;
-              s.width = px(v.base.right - edge.right - SPLIT_GAP);
+              s.width = px(base.right - edge.right - SPLIT_GAP);
               s.height = px(edge.bottom - sr.top);
               return;
           }
 
           s.left = px(edge.right + SPLIT_GAP);
-          s.right = px(window.innerWidth - v.base.right);
+          s.right = px(window.innerWidth - base.right);
           s.top = px(sr.top);
           s.bottom = px(window.innerHeight - edge.bottom);
           return;
@@ -10805,29 +10235,29 @@
       s.bottom = `${SPLIT_GAP}px`;
   }
 
-  /** @param {Viewer} v @returns {void} */
   function applySplit(v) {
       const f = splitFraction[v.mode];
       const vertical = v.mode === 'vertical';
-      if (vertical && v.region) {
-          const size = `${Math.round(v.base.width * f)}px`;
-          const st = v.region.style;
+      const { region, base, anchorSpace, dock, dockBase } = v;
+      if (vertical && region && base) {
+          const size = `${Math.round(base.width * f)}px`;
+          const st = region.style;
           st.width = size;
           st.maxWidth = size;
           st.minWidth = '0';
           st.flex = 'none';
-      } else if (v.mode === 'horizontal' && v.anchor) {
+      } else if (v.mode === 'horizontal' && v.anchor && region && anchorSpace !== undefined) {
           // List (card) gets shorter; panel goes into freed space below it
-          const height = `${Math.round(v.anchorSpace * f)}px`;
-          const st = v.region.style;
+          const height = `${Math.round(anchorSpace * f)}px`;
+          const st = region.style;
           st.height = height;
           st.maxHeight = height;
           st.minHeight = '0';
           st.flex = 'none';
-      } else if (v.mode === 'horizontal' && v.dock) {
-          const area = dockArea(v);
+      } else if (v.mode === 'horizontal' && dock && dockBase) {
+          const area = dockArea(dockBase);
           const height = `${Math.round((area.bottom - area.top) * f)}px`;
-          const st = v.dock.style;
+          const st = dock.style;
           st.height = height;
           st.maxHeight = height;
           st.minHeight = '0';
@@ -10847,7 +10277,6 @@
   }
 
   // Let SharePoint re-measure its lists (ignored by our own resize handler)
-  /** @param {Viewer} v @returns {void} */
   function notifyResize(v) {
       v.selfResize = true;
       window.dispatchEvent(new Event('resize'));
@@ -10858,7 +10287,6 @@
   }
 
   // Make room for split panel (top bar, command bar, navigation untouched)
-  /** @param {Viewer} v @param {'popup'|'horizontal'|'vertical'} mode @returns {void} */
   function layoutPage(v, mode) {
       restorePage(v);
 
@@ -10879,7 +10307,7 @@
               // Preferred: after list wrapper (<div role="" style="display: contents;">)
               const anchor = v.grid && listWrapper(v.grid);
               if (anchor) {
-                  const parent = /** @type {HTMLElement} */ (anchor.parentElement); // wrapper inside the page
+                  const parent = anchor.parentElement; // wrapper inside the page
                   v.anchor = anchor;
                   v.anchorParent = parent;
                   v.anchorParentStyle = parent.getAttribute('style');
@@ -10904,7 +10332,7 @@
                   v.regionObserver = new ResizeObserver(syncPanel);
                   v.regionObserver.observe(region);
 
-                  const parent = /** @type {HTMLElement} */ (anchor.parentElement); // wrapper inside the page
+                  const parent = anchor.parentElement; // wrapper inside the page
                   v.anchor = anchor;
                   v.anchorParent = parent;
                   v.anchorParentStyle = parent.getAttribute('style');
@@ -10929,7 +10357,6 @@
   }
 
   // SharePoint's side panels change width without window resize: lay out anew
-  /** @param {Viewer} v @returns {void} */
   function watchContainer(v) {
       const el = v.anchorParent || v.region?.parentElement || v.dock?.parentElement;
       if (!el) return;
@@ -10949,27 +10376,26 @@
   }
 
   // Splitter drag (left edge in vertical mode, top edge in horizontal mode)
-  /** @param {PointerEvent} e @returns {void} */
   function startDrag(e) {
       const v = viewer;
       if (!v || v.mode === 'popup') return;
       e.preventDefault();
-      const handle = /** @type {HTMLElement} */ (e.currentTarget); // the splitter
+      const handle = e.currentTarget; // the splitter
       handle.setPointerCapture(e.pointerId);
       handle.classList.add('tp-drag');
       const vertical = v.mode === 'vertical';
 
       let queued = false;
 
-      /** @param {PointerEvent} ev */
       const onMove = (ev) => {
           let f;
-          if (vertical && v.region) {
-              f = (ev.clientX - v.region.getBoundingClientRect().left) / v.base.width;
-          } else if (!vertical && v.anchor) {
-              f = (ev.clientY - v.region.getBoundingClientRect().top) / v.anchorSpace;
-          } else if (!vertical && v.dock) {
-              const area = dockArea(v);
+          const { region, base, anchorSpace, dockBase } = v;
+          if (vertical && region && base) {
+              f = (ev.clientX - region.getBoundingClientRect().left) / base.width;
+          } else if (!vertical && v.anchor && region && anchorSpace !== undefined) {
+              f = (ev.clientY - region.getBoundingClientRect().top) / anchorSpace;
+          } else if (!vertical && v.dock && dockBase) {
+              const area = dockArea(dockBase);
               f = (ev.clientY - area.top) / (area.bottom - area.top);
           } else {
               f = vertical ? ev.clientX / window.innerWidth : ev.clientY / window.innerHeight;
@@ -10997,7 +10423,6 @@
       handle.addEventListener('pointercancel', onUp);
   }
 
-  /** @param {'popup'|'horizontal'|'vertical'} mode @returns {void} */
   function setMode(mode) {
       const v = viewer;
       if (!v) return;
@@ -11032,25 +10457,20 @@
       layoutPage(v, mode);
   }
 
-  // Module: viewer/edit.js
+  // Module: viewer/edit.ts
 
   // Read / write mode
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // METHODS
   // ===========================================================================
 
-  /** @param {Viewer} v @returns {boolean} */
-  const canWrite = (v) => !!(v.source && !v.source.isParquet && !v.source.isZip && !v.source.isSheet); // read only
+  const canWrite = (v) =>
+      !!(v.source && !v.source.isParquet && !v.source.isZip && !v.source.isSheet); // read only
 
-  /** @param {Viewer} v @returns {Promise<void>} */
   async function enterWrite(v) {
       const src = v.source;
-      if (v.writeMode || !canWrite(v)) return;
+      if (!src || v.writeMode || !canWrite(v)) return;
       if (src.total > LARGE_FILE_BYTES) {
           alert(
               'This file is too large to edit in the previewer.\n' +
@@ -11060,7 +10480,7 @@
       }
       if (!src.done) {
           if (!confirm('To edit, the whole file has to be cached first. Cache it now?')) return;
-          if (!(await v.loadAll()) || !src.done) return;
+          if (!(await v.loadAll?.()) || !src.done) return;
       }
       close3d(v); // edits happen in text
       v.writeMode = true;
@@ -11099,7 +10519,6 @@
   // ---------------------------------------------------------------------------
 
   // Ask before pending changes lost; false = user keeps them
-  /** @param {Viewer} v @returns {boolean} */
   function confirmDiscard(v) {
       if (!v.dirty && v.staged == null) return true;
       const btn = v.dirty ? v.saveBtn : v.uploadBtn;
@@ -11116,7 +10535,6 @@
   }
 
   // Drop pending changes; show file as cached
-  /** @param {Viewer} v @returns {void} */
   function discardEdits(v) {
       const src = v.source;
       if (src && src.originalText != null) {
@@ -11132,7 +10550,6 @@
   }
 
   // Back to read view (keeps saved changes, drops unsaved edits)
-  /** @param {Viewer} v @returns {void} */
   function exitWriteView(v) {
       v.writeMode = false;
       v.dirty = false;
@@ -11150,13 +10567,12 @@
   }
 
   // Text being edited: text box, or CSV table
-  /** @param {Viewer} v @returns {string} */
   function editedText(v) {
-      return v.tableEditing ? v.lineView.csvText() + (v.source.trailingNewline ? '\n' : '') : v.editor.value;
+      if (!v.tableEditing) return v.editor.value;
+      return (v.lineView?.csvText?.() ?? '') + (v.source?.trailingNewline ? '\n' : '');
   }
 
   // Edited: save (again) before upload
-  /** @param {Viewer} v @returns {void} */
   function markEdited(v) {
       v.dirty = true;
       v.saveBtn.disabled = false;
@@ -11164,7 +10580,6 @@
   }
 
   // Draw attention to button: blue glow that fades out over 3 seconds
-  /** @param {HTMLElement} btn @returns {void} */
   function flash(btn) {
       btn.classList.remove('tp-attn');
       void btn.offsetWidth; // restart animation
@@ -11174,9 +10589,10 @@
 
   // Upload as user would (drop, or SharePoint's upload dialogue); no API. HEAD request
   // confirms change; otherwise user can save file locally.
-  /** @param {Viewer} v @param {string} edited @returns {Promise<boolean>} true once SharePoint has the new file */
+  /** @returns true once SharePoint has the new file */
   async function uploadEdits(v, edited) {
       const src = v.source;
+      if (!src || !v.file) return false;
       const url = v.file.url;
       const folder = currentFolder();
       const dir = url.slice(0, url.lastIndexOf('/'));
@@ -11198,7 +10614,7 @@
 
       let text = edited;
       if (src.crlf) text = text.replace(/\r?\n/g, '\r\n');
-      const file = new File([src.bom ? `﻿${text}` : text], v.fileName, {
+      const file = new File([src.bom ? `﻿${text}` : text], v.fileName ?? v.file.name, {
           type: 'text/plain',
           lastModified: Date.now(),
       });
@@ -11219,7 +10635,6 @@
       };
       const before = await stamp();
       // Watch for SharePoint to change file (it may first ask "replace?"): up to `ms`
-      /** @param {number} ms */
       const changed = async (ms) => {
           for (const end = Date.now() + ms; Date.now() < end; ) {
               await new Promise((r) => setTimeout(r, 1500));
@@ -11250,7 +10665,7 @@
       if (!done) {
           const input = [...document.querySelectorAll('input[type="file"]')].find((i) => !i.closest('.tp-viewer'));
           if (input) {
-              /** @type {HTMLInputElement} */ (input).files = transfer.files;
+              (input).files = transfer.files;
               input.dispatchEvent(new Event('input', { bubbles: true }));
               input.dispatchEvent(new Event('change', { bubbles: true }));
               done = await changed(20000);
@@ -11270,7 +10685,7 @@
           ) {
               const a = document.createElement('a');
               a.href = URL.createObjectURL(file);
-              a.download = v.fileName;
+              a.download = file.name;
               a.click();
               setTimeout(() => URL.revokeObjectURL(a.href), 10000);
           }
@@ -11285,7 +10700,7 @@
       return true;
   }
 
-  /** Page-wide edit guards: Ctrl+S / Cmd+S saves, unsaved changes ask before leaving. @returns {void} */
+  /** Page-wide edit guards: Ctrl+S / Cmd+S saves, unsaved changes ask before leaving. */
   function guardEdits() {
       // Ctrl+S / Cmd+S: save (not upload)
       document.addEventListener(
@@ -11305,9 +10720,8 @@
   }
 
   // Fill and wires delimiter / quote selects; `fileSep` is file's own delimiter
-  /** @param {Viewer} v @param {string} fileSep @returns {void} */
   function setupCsvBar(v, fileSep) {
-      const sepSel = v.csvBar.querySelector('.tp-csv-sep');
+      const sepSel = v.csvBar.querySelector('.tp-csv-sep'); // in the bar's HTML
       const quoteSel = v.csvBar.querySelector('.tp-csv-quote');
       const fill = () => {
           sepSel.innerHTML =
@@ -11336,13 +10750,9 @@
       };
   }
 
-  // Module: viewer/cache.js
+  // Module: viewer/cache.ts
 
   // Cache of opened files: memory limits, clearing, cancelled loads
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -11358,11 +10768,10 @@
   // METHODS
   // ===========================================================================
 
-  /** @param {{ src: Source }} entry @returns {number} bytes */
+  /** @returns bytes */
   const keptSize = (entry) => entry.src.loaded || 0; // bytes of the file cached
 
   // Room for `need` more bytes in the cache; else asks to clear the other files first
-  /** @param {Viewer} v @param {number} need @returns {boolean} */
   function makeRoom(v, need) {
       let used = 0;
       for (const entry of memoryCache.values()) used += keptSize(entry);
@@ -11390,7 +10799,6 @@
       return true;
   }
 
-  /** @returns {void} */
   function trimMemory() {
       let total = 0;
       for (const entry of memoryCache.values()) total += keptSize(entry);
@@ -11403,15 +10811,16 @@
       refreshEyes();
   }
 
-  /** @param {string} url @param {{ src: Source, fileName: string, hops: string[], reader: string }} entry @returns {void} */
-  function keepInMemory(url, entry) {
+  function keepInMemory(
+      url,
+      entry,
+  ) {
       memoryCache.delete(url);
       memoryCache.set(url, entry);
       trimMemory();
   }
 
   // Clear every file this previewer cached (its own memory only; nothing else is touched)
-  /** @returns {void} */
   function clearAllCached() {
       if (viewer?.file && memoryCache.has(viewer.file.url)) {
           clearCached(viewer);
@@ -11422,14 +10831,15 @@
       refreshEyes();
   }
 
-  /** @param {Viewer} v @returns {void} */
   function clearCached(v) {
+      const file = v.file;
+      if (!file) return;
       close3d(v);
-      if (v.file) forcedUrls.delete(v.file.url); // asks again next time
+      forcedUrls.delete(file.url); // asks again next time
       cancelLoad(v, true);
       setBusy(v, false);
-      clearedUrls.add(v.file.url);
-      memoryCache.delete(v.file.url);
+      clearedUrls.add(file.url);
+      memoryCache.delete(file.url);
       refreshEyes();
       if (!confirmDiscard(v)) return;
       if (v.writeMode) exitWriteView(v);
@@ -11447,9 +10857,7 @@
       showPlain(v, 'Cache cleared for this file. Use refresh, or open the file again, to cache it anew.');
   }
 
-  /** @param {Viewer} v @returns {void} */
   // Cancel the fetch; a running "cache all" goes on in the background (unless `stop`)
-  /** @param {Viewer} v @param {boolean} [stop] @returns {void} */
   function cancelLoad(v, stop = false) {
       if (stop || !(v.source?.fullJob || v.opening)) v.abort?.abort();
       v.opening = false;
@@ -11458,13 +10866,9 @@
       v.lintWorker = null;
   }
 
-  // Module: _core/list.js
+  // Module: _core/list.ts
 
   // SharePoint list: eye per file row and in the header, current folder, clicks
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // CONSTANTS
@@ -11511,12 +10915,12 @@
   //  .../Shared Documents/Forms/AllItems.aspx -> library root
   // ---------------------------------------------------------------------------
 
-  /** @returns {boolean} page is a library's list view (.../Forms/<view>.aspx): eyes only there */
+  /** @returns page is a library's list view (.../Forms/<view>.aspx): eyes only there */
   function inLibrary() {
       return /\/forms\/[^/]+\.aspx$/i.test(decodeURIComponent(location.pathname));
   }
 
-  /** @returns {string|null} server-relative folder of the open view, or null outside a library */
+  /** @returns server-relative folder of the open view, or null outside a library */
   function currentFolder() {
       const params = new URLSearchParams(location.search);
       // "parent" is set while SharePoint shows its own file preview
@@ -11532,7 +10936,6 @@
   // Row inspection (purely from list view's HTML)
   // ---------------------------------------------------------------------------
 
-  /** @param {HTMLElement} row @returns {string|null} */
   function rowName(row) {
       // 1. Known SharePoint name-field selectors
       const el = row.querySelector(NAME_SELECTORS);
@@ -11557,7 +10960,6 @@
       return null;
   }
 
-  /** @param {HTMLElement} row @returns {boolean} */
   function isFolder(row) {
       const name = rowName(row);
       for (const el of row.querySelectorAll('*')) {
@@ -11573,7 +10975,6 @@
   }
 
   // Only rows that show file name (skips folders and totals/footer row)
-  /** @param {HTMLElement} row @returns {boolean} */
   function isFileRow(row) {
       return !!rowName(row) && !isFolder(row);
   }
@@ -11583,7 +10984,6 @@
   // ---------------------------------------------------------------------------
 
   // Header eye: overlaid at x position of row eyes (other cell layout)
-  /** @param {HTMLElement} row @returns {void} */
   function processHeader(row) {
       const rowEye = document.querySelector('.tp-cell');
       const ref = row.querySelector('[role="columnheader"]');
@@ -11601,7 +11001,7 @@
       const y = refRect.top + refRect.height / 2;
 
       // Host = box under that point in header (or one that contains it)
-      let host = /** @type {HTMLElement|null} */ (document.elementFromPoint(x, y));
+      let host = document.elementFromPoint(x, y);
       if (!host || !(row.contains(host) || host.contains(row))) host = ref;
       if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
 
@@ -11630,7 +11030,7 @@
   }
 
   // Return true if row was (re)worked on
-  /** @param {HTMLElement} row @returns {boolean} true if the row was (re)worked on */
+  /** @returns true if the row was (re)worked on */
   function processRow(row) {
       if (row.querySelector('[role="columnheader"]')) return false; // header: see processHeader
 
@@ -11673,7 +11073,6 @@
       }
 
       // Align with row's own icon (at top in tall rows)
-      /** @type {Element[]} */
       const icons = [...row.querySelectorAll('img, svg, i[data-icon-name]')]; // SVG too: Element methods only
       const icon = icons.find((el) => !el.closest('.tp-cell') && el.getBoundingClientRect().height);
       if (icon) {
@@ -11698,7 +11097,7 @@
       }
       if (state === 'file') {
           // Which file this row is now (rows are reused), for eye's cache state
-          const eye = /** @type {HTMLElement} */ (cell.querySelector('.tp-preview')); // written just above
+          const eye = cell.querySelector('.tp-preview'); // written just above
           const name = rowName(row);
           const folder = currentFolder();
           const guess = folder && `${folder}/${name}`;
@@ -11709,7 +11108,6 @@
   }
 
   // Eye per file: closed = not cached, half open = partly cached (previewed), open = fully cached
-  /** @param {string} [url] @returns {'closed'|'half'|'open'} */
   function eyeState(url) {
       if (url && pendingOpens.has(url)) return 'half'; // first fetch under way (e.g. Parquet)
       const src = url && memoryCache.get(url)?.src;
@@ -11717,7 +11115,6 @@
       return src.done || (src.total > 0 && src.loaded >= src.total) ? 'open' : 'half'; // all bytes here
   }
 
-  /** @param {HTMLElement} eye @returns {void} */
   function setEye(eye) {
       // Row of file shown in viewer: highlighted like row under mouse
       const shown = !!(viewer?.file && eye.dataset.url && sameFile(viewer.file.url, eye.dataset.url));
@@ -11730,7 +11127,6 @@
   }
 
   // Called whenever cache changes
-  /** @returns {void} */
   function refreshEyes() {
       document.querySelectorAll('.tp-preview').forEach(setEye);
       // Header eye: closed = no viewer, half = viewer with file, open = viewer without file
@@ -11768,10 +11164,10 @@
       if (header) processHeader(header);
   }
 
-  /** Watches the list: rescans on DOM changes and resize, plus a first scan. @returns {void} */
+  /** Watches the list: rescans on DOM changes and resize, plus a first scan. */
   function watchList() {
       new MutationObserver((changes) => {
-          if (changes.every((c) => /** @type {Element} */ (c.target).closest?.(OWN))) return; // text nodes: no closest()
+          if (changes.every((c) => (c.target).closest?.(OWN))) return; // text nodes: no closest()
           if (!scheduled) {
               scheduled = true;
               requestAnimationFrame(scan);
@@ -11788,12 +11184,11 @@
   // Clicks (capture phase, so SharePoint doesn't select/open row)
   // ---------------------------------------------------------------------------
 
-  /** @param {Event} e @returns {HTMLElement|null} */
-  const findPreview = (e) => /** @type {HTMLElement|null} */ (e.target)?.closest?.('.tp-preview') ?? null;
-  /** @param {Event} e @returns {HTMLElement|null} */
-  const findHead = (e) => /** @type {HTMLElement|null} */ (e.target)?.closest?.('.tp-head') ?? null;
+  const findPreview = (e) =>
+      (e.target)?.closest?.('.tp-preview') ?? null;
+  const findHead = (e) => (e.target)?.closest?.('.tp-head') ?? null;
 
-  /** Eye clicks and keys (capture phase): preview a row, or open the empty viewer. @returns {void} */
+  /** Eye clicks and keys (capture phase): preview a row, or open the empty viewer. */
   function handleEyes() {
       for (const type of ['pointerdown', 'mousedown', 'dblclick']) {
           document.addEventListener(
@@ -11853,11 +11248,9 @@
   }
 
   // File's path from row's links (search results mix folders)
-  /** @param {HTMLElement} row @param {string} name @returns {string|null} */
   function rowFilePath(row, name) {
       const host = location.hostname;
 
-      /** @param {string} value */
       const toPath = (value) => {
           let u;
           try {
@@ -11882,13 +11275,9 @@
       return null;
   }
 
-  // Module: main.js
+  // Module: main.ts
 
   // Entry of the userscript: modules in load order (they only define), then start-up in one place
-
-  // ===========================================================================
-  // IMPORTS
-  // ===========================================================================
 
   // ===========================================================================
   // EXECUTION

@@ -23,10 +23,12 @@ set windows-shell := ["bash", "-euo", "pipefail", "-c"]
 NAME := env("NAME", "sharepoint-previewer")
 # local port of the explorative tests (mock SharePoint)
 HTTP_PORT := env("HTTP_PORT", "8080")
-# userscript: modules under /src (entry /src/main.js, header in /src/_core);
+# userscript: TypeScript modules under /src (entry, header);
 # bundled by build-src into /dist/userscript.js (kept in the repo, version and 3D hashes as dummies)
 PATH_MODULES := "src"
-PATH_SRC_3D := "src/@apis/ifc-lite/main.js"
+PATH_ENTRY := PATH_MODULES / "main.ts"
+PATH_HEADER := PATH_MODULES / "_core/header.ts"
+PATH_SRC_3D := "src/@apis/ifc-lite/main.ts"
 PATH_DIST := "dist"
 PATH_BUNDLE := PATH_DIST / "userscript.js"
 PATH_VERSION := "dist/VERSION"
@@ -84,12 +86,14 @@ build-lock:
     @npm version "{{trim_start_match(TAG, "v")}}" --no-git-tag-version --allow-same-version > /dev/null
     @npm install --package-lock-only --no-audit --no-fund
 
-# bundles the modules into the userscript (/dist/userscript.js, readable; version and 3D hashes as dummies)
+# bundles the modules into the userscript (/dist/userscript.js, readable; types removed; version and 3D hashes as dummies)
 [group("build")]
 build-src:
-    @node scripts/bundle.mjs "{{PATH_MODULES}}/main.js" "{{PATH_MODULES}}/_core/header.js" "{{PATH_MODULES}}/_core/types.js" "{{PATH_BUNDLE}}"
-    @node --check "{{PATH_BUNDLE}}"
-    @just _size "{{PATH_BUNDLE}}" "{{MAX_KB_SRC}}"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    node --disable-warning=ExperimentalWarning scripts/bundle.ts "{{PATH_ENTRY}}" "{{PATH_HEADER}}" "{{PATH_BUNDLE}}"
+    node --check "{{PATH_BUNDLE}}"
+    just _size "{{PATH_BUNDLE}}" "{{MAX_KB_SRC}}"
 
 # writes release to /dist/v<VERSION>: userscript with @version (not the commit tagged with the release tag: <VERSION>-beta.<short commit>) and 3D hashes stamped, minified, 3D files, notes
 [group("build")]
@@ -183,17 +187,17 @@ tests-integration:
 # explorative tests: mock SharePoint + userscript (/dist/userscript.js) on http://localhost:${HTTP_PORT}; library: Mock Data + Data, or folder
 [group("tests")]
 tests-explore folder="":
-    @node tests/explore/server.mjs "{{HTTP_PORT}}" "{{folder}}"
+    @node tests/explore/server.ts "{{HTTP_PORT}}" "{{folder}}"
 
-# screenshots for /demos (/demos/img/<case>.png) on the mock SharePoint; no case: all (cf. /scripts/demos.mjs)
+# screenshots for /demos (/demos/img/<case>.png) on the mock SharePoint; no case: all (cf. /scripts/demos.ts)
 [group("tests")]
 demos *cases:
-    @node scripts/demos.mjs "$@"
+    @node scripts/demos.ts "$@"
 
 _tests kind:
     #!/usr/bin/env bash
     set -euo pipefail
-    files="$(find "tests/{{kind}}" -type f -name 'tests_*.mjs' | sort)"
+    files="$(find "tests/{{kind}}" -type f -name 'tests_*.ts' | sort)"
     if [[ -z "${files}" ]]; then
         echo "no {{kind}} tests"
     else
@@ -225,10 +229,12 @@ lint-check:
     cd "${tmp}"
     "${root}/{{BIOME}}" check --write --vcs-enabled=false {{LINT_PATHS}}
 
-# type check of the modules (strict; cf. /tsconfig.json), as the editor shows it
+# type check (strict) of the modules, tests and scripts (cf. /tsconfig.json, /tests/tsconfig.json, /scripts/tsconfig.json)
 [group("quality")]
 type-check:
     @"{{TSC}}" -p tsconfig.json
+    @"{{TSC}}" -p tests/tsconfig.json
+    @"{{TSC}}" -p scripts/tsconfig.json
 
 # ----------------------------------------------------------------
 # TARGETS - clean
