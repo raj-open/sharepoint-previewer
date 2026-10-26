@@ -71,6 +71,7 @@ import { setMode } from './layout.ts';
 import { renderLint } from './messages.ts';
 import { askName } from './names.ts';
 import { showName } from './names.ts';
+import { target } from './names.ts';
 import { showLintWait } from './messages.ts';
 import { showPlain } from './messages.ts';
 import { createViewer } from './panel.ts';
@@ -236,8 +237,12 @@ export function shownFolder(): string | null {
     return viewer.place ?? currentFolder();
 }
 
-/** @returns clean URL of what the viewer shows: the file (a link file: where it leads), else the folder */
+/**
+ * @returns clean URL of what the viewer shows: the file (a link file: where it leads; renamed: the new name),
+ * else the folder
+ */
 export function shownUrl(v: Viewer): string {
+    if (v.file && v.newName) return cleanUrl(target(v).url); // links are never renamed
     const place = v.file ? (v.place ?? v.file.url) : (v.place ?? currentFolder());
     return cleanUrl(place ?? location.pathname);
 }

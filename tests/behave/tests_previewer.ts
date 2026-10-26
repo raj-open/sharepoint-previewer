@@ -397,7 +397,7 @@ describe('editing', () => {
         assert.equal(await v.count(), 0);
     });
 
-    it('name: click in write mode, checked, marked as a new file; Esc in the box keeps the old one', async () => {
+    it('name: click in write mode, checked, marked as a new file (link too); Esc in the box keeps the old one', async () => {
         const page = await openFolder(h.LIBRARY);
         const v = await h.preview(page, 'notes.txt');
         await edit(v);
@@ -412,6 +412,7 @@ describe('editing', () => {
         await name.filter({ hasText: 'README.md' }).waitFor(); // after the look-up
         assert.match((await dialogues(page)).confirms.join('\n'), /"README\.md" already exists/);
         assert.match((await name.getAttribute('class')) ?? '', /tp-new-name/);
+        assert.equal(await link(v), `${h.ORIGIN}${h.LIBRARY}/README.md`); // where the upload goes
         assert.equal(await v.locator('.tp-mode-btn[title^="Save"]').isDisabled(), false); // saved with the text
 
         await name.click();
