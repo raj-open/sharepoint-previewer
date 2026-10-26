@@ -19,7 +19,13 @@ export type Session = { page: Page; requests: { url: string; method: string; ran
 // Runs in page before its own scripts: Tampermonkey API, then the userscript at DOMContentLoaded
 function tampermonkey({ script, settings }: { script: string; settings: Record<string, unknown> }): void {
     const store: Record<string, unknown> = { ...settings };
-    const gm = { menu: {} as Record<string, () => void>, alerts: [] as string[], confirms: [] as string[] };
+    const gm = {
+        menu: {} as Record<string, () => void>,
+        alerts: [] as string[],
+        confirms: [] as string[],
+        prompts: [] as string[],
+        answers: [] as string[], // for prompts, in turn (none left: cancelled)
+    };
     Object.assign(window, {
         __gm: gm,
         GM_getValue: (key: string, fallback?: unknown) => (key in store ? store[key] : fallback),
@@ -30,11 +36,15 @@ function tampermonkey({ script, settings }: { script: string; settings: Record<s
             gm.menu[label] = fn;
         },
         GM_info: { script: { version: 'test' } },
-        // dialogues would block the page: recorded instead (confirm answers "yes")
+        // dialogues would block the page: recorded instead (confirm answers "yes", prompt the next of `answers`)
         alert: (msg: unknown) => void gm.alerts.push(String(msg)),
         confirm: (msg: unknown) => {
             gm.confirms.push(String(msg));
             return true;
+        },
+        prompt: (msg: unknown) => {
+            gm.prompts.push(String(msg));
+            return gm.answers.shift() ?? null;
         },
     });
     document.addEventListener('DOMContentLoaded', () => {

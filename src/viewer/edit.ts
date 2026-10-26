@@ -11,9 +11,14 @@ import { csvFormat } from '../_core/prefs.ts';
 import { savePref } from '../_core/prefs.ts';
 import { view } from '../_core/prefs.ts';
 import { LARGE_FILE_BYTES } from '../_core/settings.ts';
+import { fileStamp } from '../readers/request.ts';
 import { csvSeparator } from '../text/highlight/csv.ts';
 import { SEPARATOR_NAMES } from '../text/highlight/csv.ts';
 import { listRegion } from './layout.ts';
+import { showName } from './names.ts';
+import { target } from './names.ts';
+import { uploadQuestion } from './names.ts';
+import { showEmpty } from './open.ts';
 import { viewer } from './open.ts';
 import { close3d } from './view3d.ts';
 
@@ -43,9 +48,10 @@ export async function enterWrite(v: Viewer): Promise<void> {
     close3d(v); // edits happen in text
     v.writeMode = true;
     v.dirty = false;
+    showName(v); // name can be changed now
     v.uploadBtn.disabled = v.staged == null; // saved changes stay uploadable
-    if (v.lang === 'csv' && view.table) {
-        // CSV in table view: edit cells directly
+    if (v.lang === 'csv' && view.table && src.text) {
+        // CSV in table view: edit cells directly (empty: in the text box)
         src.crlf = src.text.includes('\r\n');
         src.trailingNewline = /\n$/.test(src.text);
         v.tableEditing = true;
@@ -55,7 +61,7 @@ export async function enterWrite(v: Viewer): Promise<void> {
         v.saveBtn.disabled = true;
         if (csvFormat.sep || csvFormat.quote) markEdited(v); // remembered format: file changes when saved
         v.stopBtn.disabled = false;
-        v.stopBtn.title = 'Cancel changes';
+        v.stopBtn.title = 'Cancel changes (Esc)';
         v.writeBtn.setAttribute('aria-pressed', 'true');
         return;
     }
@@ -67,7 +73,7 @@ export async function enterWrite(v: Viewer): Promise<void> {
     v.loadMoreBtn.style.display = 'none';
     v.saveBtn.disabled = true;
     v.stopBtn.disabled = false;
-    v.stopBtn.title = 'Cancel changes';
+    v.stopBtn.title = 'Cancel changes (Esc)';
     v.writeBtn.setAttribute('aria-pressed', 'true');
     v.editor.focus();
 }
@@ -92,6 +98,15 @@ export function confirmDiscard(v: Viewer): boolean {
     return true;
 }
 
+// Cancel (button, Esc): drop all changes (unsaved and saved) after asking, back to read view
+// (new file: to the empty viewer); false = user keeps them
+export function cancelEdits(v: Viewer): boolean {
+    if (!v.writeMode || !confirmDiscard(v)) return false;
+    if (v.source?.fresh) return showEmpty(v);
+    exitWriteView(v);
+    return true;
+}
+
 // Drop pending changes; show file as cached
 export function discardEdits(v: Viewer): void {
     const src = v.source;
@@ -103,14 +118,19 @@ export function discardEdits(v: Viewer): void {
     }
     v.dirty = false;
     v.staged = null;
+    v.newName = null;
+    v.stagedName = null;
     v.saveBtn.disabled = true;
     v.uploadBtn.disabled = true;
+    showName(v);
 }
 
 // Back to read view (keeps saved changes, drops unsaved edits)
 export function exitWriteView(v: Viewer): void {
     v.writeMode = false;
     v.dirty = false;
+    v.newName = v.stagedName ?? null; // unsaved name dropped too
+    showName(v);
     v.tableEditing = false;
     v.csvBar.style.display = 'none'; // metadata is redrawn by rerender below
     v.editorWrap.style.display = 'none';
@@ -146,12 +166,13 @@ export function flash(btn: HTMLElement): void {
 }
 
 // Upload as user would (drop, or SharePoint's upload dialogue); no API. HEAD request
-// confirms change; otherwise user can save file locally.
+// confirms change; otherwise user can save file locally. Under another name: a new file, the original stays.
 /** @returns true once SharePoint has the new file */
 export async function uploadEdits(v: Viewer, edited: string): Promise<boolean> {
     const src = v.source;
     if (!src || !v.file) return false;
     const url = v.file.url;
+    const to = target(v, v.stagedName);
     const folder = currentFolder();
     const dir = url.slice(0, url.lastIndexOf('/'));
     if (v.linked || !folder || dir.toLowerCase() !== folder.toLowerCase()) {
@@ -169,28 +190,19 @@ export async function uploadEdits(v: Viewer, edited: string): Promise<boolean> {
     ) {
         return false;
     }
+    if (to.isNew && !confirm(uploadQuestion(v, to, (await fileStamp(to.url)) != null))) return false;
 
     let text = edited;
     if (src.crlf) text = text.replace(/\r?\n/g, '\r\n');
-    const file = new File([src.bom ? `﻿${text}` : text], v.fileName ?? v.file.name, {
+    const file = new File([src.bom ? `﻿${text}` : text], to.isNew ? to.name : (v.fileName ?? v.file.name), {
         type: 'text/plain',
         lastModified: Date.now(),
     });
     const transfer = new DataTransfer();
     transfer.items.add(file);
 
-    // How file looks on SharePoint right now; upload changes this
-    const fetchUrl = url.split('/').map(encodeURIComponent).join('/');
-    const stamp = async () => {
-        try {
-            const r = await fetch(fetchUrl, { method: 'HEAD', credentials: 'same-origin', cache: 'reload' });
-            return r.ok
-                ? `${r.headers.get('etag')}|${r.headers.get('last-modified')}|${r.headers.get('content-length')}`
-                : null;
-        } catch {
-            return null;
-        }
-    };
+    // How file looks on SharePoint right now (none: new file); upload changes this
+    const stamp = () => fileStamp(to.url);
     const before = await stamp();
     // Watch for SharePoint to change file (it may first ask "replace?"): up to `ms`
     const changed = async (ms: number) => {
@@ -207,14 +219,12 @@ export async function uploadEdits(v: Viewer, edited: string): Promise<boolean> {
     let done = false;
 
     // 1. Like drop into file list
-    const target = listRegion()?.card || document.querySelector('[role="grid"], [role="treegrid"]');
-    if (target) {
-        const r = target.getBoundingClientRect();
+    const list = listRegion()?.card || document.querySelector('[role="grid"], [role="treegrid"]');
+    if (list) {
+        const r = list.getBoundingClientRect();
         const at = { clientX: r.left + r.width / 2, clientY: r.top + Math.min(r.height / 2, 200) };
         for (const type of ['dragenter', 'dragover', 'drop']) {
-            target.dispatchEvent(
-                new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer, ...at }),
-            );
+            list.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer, ...at }));
         }
         done = await changed(20000);
     }
@@ -250,6 +260,7 @@ export async function uploadEdits(v: Viewer, edited: string): Promise<boolean> {
         return false;
     }
 
+    if (to.isNew) return true; // original unchanged: the caller opens the new file
     // Confirmed: uploaded text is file from now on
     src.text = text;
     src.originalText = null;

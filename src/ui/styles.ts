@@ -123,6 +123,35 @@ const CSS = `
     background: var(--tp-well-bg);
     box-shadow: var(--tp-well-shadow);
   }
+  /* Name in write mode: click to save under another name (box in its place); new file: marked */
+  .tp-title-name.tp-renamable { cursor: text; border-bottom: 1px dashed currentColor; }
+  .tp-title-name.tp-new-name::after { content: ' (new file)'; font-style: italic; opacity: .7; }
+  .tp-name-input {
+    width: 28ch;
+    max-width: 60%;
+    padding: 0 4px;
+    font: inherit;
+    color: var(--tp-fg);
+    background: var(--tp-bg);
+    border: 1px solid var(--tp-accent);
+    border-radius: 3px;
+    outline: none;
+  }
+  .tp-new-file {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border: none;
+    border-radius: 4px;
+    background: var(--tp-accent);
+    color: #fff;
+    font: 12px sans-serif;
+    cursor: pointer;
+  }
+  .tp-new-file[hidden] { display: none; }
+  .tp-new-file svg { width: 14px; height: 14px; }
   .tp-mode-btn { background: var(--tp-btn-bg); color: var(--tp-btn-fg); }
   .tp-mode-btn[aria-pressed="true"] { background: var(--tp-accent); color: #fff; }
   .tp-mode-btn:disabled { opacity: .4; cursor: default; }

@@ -25,6 +25,7 @@ import { COLOUR_SVG } from '../ui/icons.ts';
 import { COPY_SVG } from '../ui/icons.ts';
 import { LOAD_ALL_SVG } from '../ui/icons.ts';
 import { MORE_SVG } from '../ui/icons.ts';
+import { NEW_FILE_SVG } from '../ui/icons.ts';
 import { POPUP_SVG } from '../ui/icons.ts';
 import { PROPS_SVG } from '../ui/icons.ts';
 import { REFRESH_SVG } from '../ui/icons.ts';
@@ -47,6 +48,7 @@ import { clearAllCached } from './cache.ts';
 import { clearCached } from './cache.ts';
 import { makeRoom } from './cache.ts';
 import { memoryCache } from './cache.ts';
+import { cancelEdits } from './edit.ts';
 import { discardEdits } from './edit.ts';
 import { editedText } from './edit.ts';
 import { enterWrite } from './edit.ts';
@@ -57,8 +59,11 @@ import { uploadEdits } from './edit.ts';
 import { layoutPage } from './layout.ts';
 import { setMode } from './layout.ts';
 import { startDrag } from './layout.ts';
+import { startRename } from './names.ts';
+import { target } from './names.ts';
 import { chooseFormat } from './open.ts';
 import { closeViewer } from './open.ts';
+import { newFile } from './open.ts';
 import { showFile } from './open.ts';
 import { viewer } from './open.ts';
 import { setBusy } from './status.ts';
@@ -192,6 +197,7 @@ export function createViewer(): Viewer {
     const clearBtn = item(CLEAR_SVG, 'Clear this file from the cache', { disabled: true });
     const clearAllBtn = item(CLEAR_SVG, 'Clear all files from the cache', { disabled: memoryCache.size === 0 });
     const settingsBtn = item(SETTINGS_SVG, 'Full settings …');
+    const newItem = item(NEW_FILE_SVG, 'New file …');
 
     // Small drop-down under its button; closes on any click outside or on entry
     const menu = (anchor: HTMLElement, entries: HTMLElement[], alignRight = false) => {
@@ -223,7 +229,7 @@ export function createViewer(): Viewer {
     const layoutMenu = menu(layoutBtn, [hBtn, vBtn, pBtn]);
     const moreMenu = menu(
         moreBtn,
-        [settingsBtn, themeBtn, colourBtn, wrapBtn, refreshBtn, clearBtn, clearAllBtn],
+        [newItem, settingsBtn, themeBtn, colourBtn, wrapBtn, refreshBtn, clearBtn, clearAllBtn],
         true,
     );
 
@@ -264,11 +270,20 @@ export function createViewer(): Viewer {
     cursor: pointer;
   `;
     title.prepend(propsBtn);
+    // New file: in the title well while no file is open (also in the ⋯ menu)
+    const newBtn = document.createElement('button');
+    newBtn.type = 'button';
+    newBtn.className = 'tp-new-file';
+    newBtn.innerHTML = `${NEW_FILE_SVG}<span>New file</span>`;
+    newBtn.title = 'Create a new file in the folder open in SharePoint';
+    newBtn.hidden = true;
+    title.append(newBtn);
     // Note: tooltip on header
     header.title =
         'Note: this viewer is primarily for text files. Parquet files and spreadsheets may also be viewed (read only). ' +
         'Text files can be edited.';
     const titleName = title.querySelector('.tp-title-name') as HTMLElement; // in the title's HTML
+    titleName.onclick = () => startRename(v); // write mode only
     const titleSheet = title.querySelector('.tp-title-sheet') as HTMLElement;
 
     // Metadata (second line, full width): dates, size, format, table shape, ...
@@ -530,6 +545,7 @@ export function createViewer(): Viewer {
         saveBtn,
         uploadBtn,
         writeBtn,
+        newBtn,
         textBtn,
         previewBtn,
         sheetPicker,
@@ -571,12 +587,14 @@ export function createViewer(): Viewer {
         startMove(e, box, POPUP_POS_KEY);
     });
 
+    // Esc: open drop-down first, then edit (same as cancel), then viewer; settings form: its own
     const onEscape = (e: KeyboardEvent) => {
-        if (e.key === 'Escape' && viewer === v) {
-            e.stopPropagation();
-            for (const p of [sheetPicker, formatPicker]) if (!p.menu.hidden) return void p.close(); // open drop-down first
-            closeViewer();
-        }
+        if (e.key !== 'Escape' || viewer !== v || document.querySelector('.tp-settings')) return;
+        if ((e.target as HTMLElement).classList?.contains('tp-name-input')) return; // name box: its own Esc
+        e.stopPropagation();
+        for (const p of [sheetPicker, formatPicker]) if (!p.menu.hidden) return void p.close();
+        if (v.writeMode) return void cancelEdits(v);
+        closeViewer();
     };
 
     // Window resized -> recompute horizontal split (it uses pixel positions)
@@ -604,12 +622,7 @@ export function createViewer(): Viewer {
     pBtn.onclick = () => v.mode !== 'popup' && setMode('popup');
     refreshBtn.onclick = () => v.file && showFile(v.file.name, v.file.url, true);
     stopBtn.onclick = () => {
-        if (v.writeMode) {
-            // in write mode: cancel all changes (unsaved and saved)
-            discardEdits(v);
-            exitWriteView(v);
-            return;
-        }
+        if (v.writeMode) return void cancelEdits(v); // in write mode: cancel all changes (asks first)
         if (!v.busy) return;
         v.userStopped = true;
         cancelLoad(v, true);
@@ -618,6 +631,8 @@ export function createViewer(): Viewer {
     clearBtn.onclick = () => v.file && clearCached(v);
     clearAllBtn.onclick = () => clearAllCached();
     settingsBtn.onclick = () => openSettingsForm();
+    newBtn.onclick = () => newFile();
+    newItem.onclick = () => newFile();
     writeBtn.onclick = () => (v.writeMode ? leaveWrite() : enterWrite(v));
     // 3D choice remembered for next IFC files (also across reloads)
     const set3d = (on: boolean) => {
@@ -661,6 +676,7 @@ export function createViewer(): Viewer {
     // Back to read mode (edit button again): unsaved edits only after asking
     const leaveWrite = () => {
         if (!v.writeMode) return;
+        if (v.source?.fresh) return void cancelEdits(v); // new file: no read view yet
         if (v.dirty) {
             // only unsaved edits are at stake here; saved changes stay
             flash(saveBtn);
@@ -674,6 +690,7 @@ export function createViewer(): Viewer {
         if (!v.writeMode || !v.dirty || !src) return;
         const staged = editedText(v);
         v.staged = staged;
+        v.stagedName = v.newName ?? null;
         if (src.originalText == null) src.originalText = src.text; // for cancel / discard
         src.text = staged;
         v.text = staged;
@@ -693,9 +710,14 @@ export function createViewer(): Viewer {
         }
         if (v.staged == null) return;
         const file = v.file;
+        const to = target(v, v.stagedName);
         uploadEdits(v, v.staged).then((ok) => {
             if (viewer !== v || v.file !== file) return; // viewer closed / other file meanwhile
             if (!ok) return void flash(uploadBtn);
+            if (to.isNew) {
+                discardEdits(v); // the original stays as it was
+                return void showFile(to.name, to.url, true);
+            }
             v.staged = null;
             uploadBtn.disabled = true;
             v.rerender?.();
@@ -806,6 +828,10 @@ export function createViewer(): Viewer {
     // Keys in the content area (once clicked into) or editor: Ctrl / ⌘ with + − 0 (text size), A (select all)
     box.addEventListener('keydown', (e) => {
         const t = e.target as Node;
+        if (e.key === 'F2' && v.writeMode) {
+            e.preventDefault();
+            return void startRename(v); // save under another name
+        }
         if (!(e.ctrlKey || e.metaKey) || e.altKey || !(content.contains(t) || t === editor)) return;
         if (e.key === '+' || e.key === '=') zoomBy(1);
         else if (e.key === '-') zoomBy(-1);
