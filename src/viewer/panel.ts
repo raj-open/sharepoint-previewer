@@ -59,6 +59,7 @@ import { uploadEdits } from './edit.ts';
 import { layoutPage } from './layout.ts';
 import { setMode } from './layout.ts';
 import { startDrag } from './layout.ts';
+import { renamable } from './names.ts';
 import { startRename } from './names.ts';
 import { target } from './names.ts';
 import { chooseFormat } from './open.ts';
@@ -283,7 +284,7 @@ export function createViewer(): Viewer {
         'Note: this viewer is primarily for text files. Parquet files and spreadsheets may also be viewed (read only). ' +
         'Text files can be edited.';
     const titleName = title.querySelector('.tp-title-name') as HTMLElement; // in the title's HTML
-    titleName.onclick = () => startRename(v); // write mode only
+    titleName.onclick = () => startRename(v); // text: write mode only; read-only files: a copy
     const titleSheet = title.querySelector('.tp-title-sheet') as HTMLElement;
 
     // Metadata (second line, full width): dates, size, format, table shape, ...
@@ -676,7 +677,6 @@ export function createViewer(): Viewer {
     // Back to read mode (edit button again): unsaved edits only after asking
     const leaveWrite = () => {
         if (!v.writeMode) return;
-        if (v.source?.fresh) return void cancelEdits(v); // new file: no read view yet
         if (v.dirty) {
             // only unsaved edits are at stake here; saved changes stay
             flash(saveBtn);
@@ -828,9 +828,9 @@ export function createViewer(): Viewer {
     // Keys in the content area (once clicked into) or editor: Ctrl / ⌘ with + − 0 (text size), A (select all)
     box.addEventListener('keydown', (e) => {
         const t = e.target as Node;
-        if (e.key === 'F2' && v.writeMode) {
+        if (e.key === 'F2' && renamable(v)) {
             e.preventDefault();
-            return void startRename(v); // save under another name
+            return void startRename(v); // another name (edited text, or a copy of a read-only file)
         }
         if (!(e.ctrlKey || e.metaKey) || e.altKey || !(content.contains(t) || t === editor)) return;
         if (e.key === '+' || e.key === '=') zoomBy(1);

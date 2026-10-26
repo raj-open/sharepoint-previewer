@@ -14,6 +14,7 @@ import { LARGE_FILE_BYTES } from '../_core/settings.ts';
 import { fileStamp } from '../readers/request.ts';
 import { csvSeparator } from '../text/highlight/csv.ts';
 import { SEPARATOR_NAMES } from '../text/highlight/csv.ts';
+import { memoryCache } from './cache.ts';
 import { listRegion } from './layout.ts';
 import { showName } from './names.ts';
 import { target } from './names.ts';
@@ -24,6 +25,7 @@ import { showCached } from './status.ts';
 import { showStatus } from './status.ts';
 import { close3d } from './view3d.ts';
 
+import type { Target } from '../_core/types.ts';
 import type { Viewer } from '../_core/types.ts';
 
 // ===========================================================================
@@ -118,6 +120,7 @@ export function discardEdits(v: Viewer): void {
         src.lintResult = null;
         v.text = src.text;
     }
+    if (src?.fresh && v.file) memoryCache.delete(v.file.url); // new file, never uploaded: nothing to keep
     v.dirty = false;
     v.staged = null;
     v.newName = null;
@@ -167,24 +170,29 @@ export function flash(btn: HTMLElement): void {
     setTimeout(() => btn.classList.remove('tp-attn'), 3000);
 }
 
-// Upload as user would (drop, or SharePoint's upload dialogue); no API. HEAD request
-// confirms change; otherwise user can save file locally. Under another name: a new file, the original stays.
+// ---------------------------------------------------------------------------
+// Upload: as a user would (drop, or SharePoint's upload dialogue); no API
+// ---------------------------------------------------------------------------
+
+/** @returns file shown is in the folder open in SharePoint (only there can it be uploaded); else says so */
+export function uploadable(v: Viewer): boolean {
+    const url = v.file?.url ?? '';
+    const folder = currentFolder();
+    if (!v.linked && folder && url.slice(0, url.lastIndexOf('/')).toLowerCase() === folder.toLowerCase()) return true;
+    alert(
+        'Uploading only works for a file in the folder that is open in SharePoint\n' +
+            '(not for search results or files reached through a link).\n' +
+            "Open the file's folder and upload from there.",
+    );
+    return false;
+}
+
+// Saved text to SharePoint: the file itself, or under another name a new file (the original stays)
 /** @returns true once SharePoint has the new file */
 export async function uploadEdits(v: Viewer, edited: string): Promise<boolean> {
     const src = v.source;
-    if (!src || !v.file) return false;
-    const url = v.file.url;
+    if (!src || !v.file || !uploadable(v)) return false;
     const to = target(v, v.stagedName);
-    const folder = currentFolder();
-    const dir = url.slice(0, url.lastIndexOf('/'));
-    if (v.linked || !folder || dir.toLowerCase() !== folder.toLowerCase()) {
-        alert(
-            'Uploading only works for a file in the folder that is open in SharePoint\n' +
-                '(not for search results or files reached through a link).\n' +
-                "Open the file's folder and upload from there.",
-        );
-        return false;
-    }
     if (
         src.encoding &&
         src.encoding !== 'UTF-8' &&
@@ -196,10 +204,23 @@ export async function uploadEdits(v: Viewer, edited: string): Promise<boolean> {
 
     let text = edited;
     if (src.crlf) text = text.replace(/\r?\n/g, '\r\n');
-    const file = new File([src.bom ? `﻿${text}` : text], to.isNew ? to.name : (v.fileName ?? v.file.name), {
-        type: 'text/plain',
-        lastModified: Date.now(),
-    });
+    const name = to.isNew ? to.name : (v.fileName ?? v.file.name);
+    const file = new File([src.bom ? `\uFEFF${text}` : text], name, { type: 'text/plain', lastModified: Date.now() });
+    if (!(await uploadFile(v, file, to))) return false;
+
+    if (to.isNew) return true; // original unchanged: the caller opens the new file
+    // Confirmed: uploaded text is file from now on
+    src.text = text;
+    src.originalText = null;
+    v.text = text;
+    src.lintResult = null;
+    return true;
+}
+
+// Hands a file to SharePoint (drop, else its upload dialogue); a HEAD request confirms the change,
+// otherwise the user can save the file and upload it by hand
+/** @returns true once SharePoint has the file */
+export async function uploadFile(v: Viewer, file: File, to: Target): Promise<boolean> {
     const transfer = new DataTransfer();
     transfer.items.add(file);
 
@@ -218,6 +239,7 @@ export async function uploadEdits(v: Viewer, edited: string): Promise<boolean> {
         return false;
     };
 
+    const ready = !v.uploadBtn.disabled; // upload button as before (copies: not involved)
     v.uploadBtn.disabled = true;
     v.uploadBtn.title = 'Upload in progress …';
     let done = false;
@@ -246,32 +268,23 @@ export async function uploadEdits(v: Viewer, edited: string): Promise<boolean> {
 
     showCached(v);
     v.uploadBtn.title = 'Upload the saved changes to SharePoint';
-    if (!done) {
-        v.uploadBtn.disabled = false;
-        // 3. user does it: edited file is saved locally, ready to drag into folder
-        if (
-            confirm(
-                'SharePoint did not take the file automatically.\n\n' +
-                    'Download the edited file now, so you can drag it into the folder yourself?\n' +
-                    '(Your saved changes stay in the viewer until an upload is confirmed.)',
-            )
-        ) {
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(file);
-            a.download = file.name;
-            a.click();
-            setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-        }
-        return false;
+    if (done) return true;
+    v.uploadBtn.disabled = !ready;
+    // 3. user does it: file is saved locally, ready to drag into folder
+    if (
+        confirm(
+            'SharePoint did not take the file automatically.\n\n' +
+                'Download the file now, so you can drag it into the folder yourself?\n' +
+                '(Saved changes stay in the viewer until an upload is confirmed.)',
+        )
+    ) {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(file);
+        a.download = file.name;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 10000);
     }
-
-    if (to.isNew) return true; // original unchanged: the caller opens the new file
-    // Confirmed: uploaded text is file from now on
-    src.text = text;
-    src.originalText = null;
-    v.text = text;
-    src.lintResult = null;
-    return true;
+    return false;
 }
 
 /** Page-wide edit guards: Ctrl+S / Cmd+S saves, unsaved changes ask before leaving. */
