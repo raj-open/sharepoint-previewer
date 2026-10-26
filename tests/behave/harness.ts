@@ -65,6 +65,8 @@ export async function launch({ channel }: { channel?: string } = {}): Promise<{
 }> {
     const browser = await chromium.launch({ channel, args: ['--enable-unsafe-webgpu', '--enable-features=Vulkan'] });
     const script = userscript();
+    // Simulated uploads of this browser (one per test file), removed on close
+    const uploads = sharepoint.startUploads(`behave-${process.pid}`);
 
     const open = async (
         url = LIST_PAGE,
@@ -80,7 +82,8 @@ export async function launch({ channel }: { channel?: string } = {}): Promise<{
             }
             const headers = req.headers();
             requests.push({ url: req.url(), method: req.method(), range: headers.range });
-            const reply = sharepoint.handle({ url: req.url(), method: req.method(), headers });
+            const body = req.postDataBuffer() ?? undefined;
+            const reply = sharepoint.handle({ url: req.url(), method: req.method(), headers, body }, { uploads });
             await route.fulfill({ status: reply.status, headers: reply.headers, body: reply.body });
         });
         await context.addInitScript(tampermonkey, { script, settings });
@@ -92,7 +95,11 @@ export async function launch({ channel }: { channel?: string } = {}): Promise<{
         return { page, requests };
     };
 
-    return { open, close: () => browser.close() };
+    const close = async () => {
+        await browser.close();
+        sharepoint.endUploads(uploads);
+    };
+    return { open, close };
 }
 
 /** @param folder server-relative @returns list view of that folder */

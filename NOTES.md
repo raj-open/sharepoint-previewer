@@ -28,7 +28,7 @@ and where it stores data.
 | Third parties | **None.** No CDN, no analytics, no external servers. All requests go to the same Sharepoint origin |
 | External libraries | None in the script itself. Optional 3D view: two files (ifc-lite, MPL-2.0) that **you** host in your own Sharepoint |
 | Permissions | Those of the signed-in user, through the browser's normal session. No extra rights, no tokens |
-| Data leaving the browser | Only when the user explicitly uploads an edited file, through Sharepoint's own upload (as if done by hand) |
+| Data leaving the browser | Only when the user explicitly uploads a file (edited, new, or a renamed copy), through Sharepoint's own upload (as if done by hand) |
 | Storage | Settings in Tampermonkey's script storage. View choices and window positions in the browser's `localStorage` for the Sharepoint origin. File contents only in memory, gone on reload |
 | Cookies | Not used |
 | Tampermonkey grants | `GM_getValue`, `GM_setValue`, `GM_registerMenuCommand` (settings only) |
@@ -250,20 +250,24 @@ are detected from their first bytes and not shown.
   - CSV can be edited in the table:
     cells, rows and columns can be inserted, moved and deleted,
     and delimiter and quote style can be changed.
-- **Save under another name:**
-  in write mode, click the file name (or press F2) and enter a new one.
-  - The name is checked against Sharepoint's rules;
-    if a file of that name exists, the user is asked.
-  - The upload then creates a new file (or replaces the one of that name, after asking again);
+- **Another name** (click the file name, or F2):
+  - Text files: in write mode; the name is saved with the text.
+    The upload then creates a new file (or replaces the one of that name, after asking again).
+  - Read-only files (spreadsheets, Parquet, other binary files): any time;
+    the file is uploaded unchanged as a copy under the new name (after asking).
+  - Either way the name is checked against Sharepoint's rules
+    (if a file of that name exists, the user is asked),
     the original file stays unchanged,
     and the viewer opens the new file.
 - **New file:**
   button in the title of the empty viewer (eye in the column header), or ⋯ menu.
-  - The name is asked for and checked as above
+  - Plain text only: names of spreadsheets, Parquet and other binary types are refused;
+    the name is checked as above
     (a new file goes into the folder open in Sharepoint).
-  - The empty text opens in write mode;
-    it may be saved and uploaded empty.
-  - Cancel (or Esc) goes back to the empty viewer.
+  - It is shown as any file of its format (by extension, or chosen in the format picker):
+    colours, checks, Text / Preview.
+  - The empty text counts as saved: it may be uploaded as it is.
+  - Cancel (or Esc in write mode) goes back to the empty viewer.
 - **Save** keeps the edits in the browser (staged).
   **Upload** is a separate step.
 - **Upload uses no API.**

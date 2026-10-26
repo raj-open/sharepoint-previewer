@@ -7989,7 +7989,7 @@
 
   // Module: viewer/names.ts
 
-  // File names: checks, where an edit goes, saving under another name (write mode)
+  // File names: checks, where an edit goes, another name (edited text: saved so; read only: a copy)
 
   // ===========================================================================
   // CONSTANTS
@@ -7998,6 +7998,9 @@
   // SharePoint's rules for names (cf. https://support.microsoft.com/office/64883a5d-228e-48f5-b3d2-eb39e07630fa)
   const BAD_CHARS = /["*:<>?/\\|]/;
   const RESERVED = /^(?:\.lock|con|prn|aux|nul|com\d|lpt\d|desktop\.ini)$/i;
+  // Common binary types without a reader of their own (no text: never a new or edited file under such a name)
+  const BINARY_RE =
+      /\.(?:png|jpe?g|gif|bmp|tiff?|webp|ico|heic|pdf|docx?|docm|pptx?|odt|odp|zip|7z|rar|gz|tgz|bz2|xz|tar|exe|dll|msi|bin|iso|dmg|mp[34]|m4a|wav|avi|mov|mkv|webm|woff2?|ttf|otf|sqlite|db|mdb|accdb|pbix)$/i;
 
   // ===========================================================================
   // METHODS
@@ -8016,6 +8019,13 @@
       if (RESERVED.test(name) || name.startsWith('~$') || /_vti_/i.test(name))
           return `SharePoint does not allow the name "${name}".`;
       return '';
+  }
+
+  /** @returns why the name does not suit a text (new file, edited text); '' if it does */
+  function textNameProblem(name) {
+      if (readerOf(formatOf(name)) === 'text' && !BINARY_RE.test(name)) return '';
+      const ext = name.slice(name.lastIndexOf('.'));
+      return `A ${ext} file is not plain text: please choose a text format (e.g. .txt, .csv, .json, .md).`;
   }
 
   /** @returns same name for SharePoint (it ignores case) */
@@ -8037,7 +8047,7 @@
           const given = prompt(`Name of the new file (in "${folder.split('/').pop()}"):`, name);
           if (given == null) return null;
           name = given.trim();
-          const problem = nameProblem(name);
+          const problem = nameProblem(name) || textNameProblem(name);
           if (problem) alert(problem);
           else if (await nameFree({ name, url: `${folder}/${name}`, isNew: true })) return name;
       }
@@ -8054,11 +8064,11 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Title: name shown, renaming (write mode, click or F2)
+  // Title: name shown, renaming (click or F2: text files in write mode, read-only files any time)
   // ---------------------------------------------------------------------------
 
-  /** @returns name can be changed (write mode, file in its own folder) */
-  const renamable = (v) => !!(v.writeMode && v.file && !v.linked);
+  /** @returns name can be changed: file in its own folder; text in write mode, read-only files (copy) any time */
+  const renamable = (v) => !!(v.file && !v.linked && !v.busy && (v.writeMode || !canWrite(v)));
 
   /** Title shows the name the edit goes to (files reached through a link keep their path) */
   function showName(v) {
@@ -8075,7 +8085,11 @@
               : v.source?.fresh
                 ? 'New file: in SharePoint once uploaded.'
                 : `New file: "${v.file.name}" stays unchanged.`,
-          on ? 'Click (or F2) to save under another name.' : '',
+          !on
+              ? ''
+              : v.writeMode
+                ? 'Click (or F2) to save under another name.'
+                : 'Click (or F2) to upload a copy under another name.',
       ];
       v.titleName.title = notes.filter(Boolean).join('\n');
   }
@@ -8105,7 +8119,7 @@
           if (closed || checking) return;
           const name = input.value.trim();
           if (sameName(name, target(v).name)) return close(); // unchanged
-          const problem = nameProblem(name);
+          const problem = nameProblem(name) || (v.writeMode ? textNameProblem(name) : '');
           if (problem) {
               alert(problem);
               return void input.focus();
@@ -8119,6 +8133,7 @@
           input.disabled = false;
           if (!free) return void input.focus();
           close();
+          if (!v.writeMode) return void (t.isNew && copyAs(v, t)); // read only: a copy, right away
           v.newName = t.isNew ? name : null; // back to the own name (any case): the file itself
           markEdited(v); // saved with the text
           showName(v);
@@ -8132,11 +8147,27 @@
       input.addEventListener('blur', () => take());
   }
 
+  // Read-only file (spreadsheet, Parquet, binary) under another name: uploaded unchanged as a copy, then shown
+  async function copyAs(v, t) {
+      const file = v.file;
+      if (!file || !uploadable(v) || !confirm(uploadQuestion(v, t, (await fileStamp(t.url)) != null))) return;
+      let blob;
+      try {
+          const r = await fetch(encodePath(file.url), { credentials: 'same-origin', cache: 'reload' });
+          if (!r.ok) throw new Error(`error ${r.status}`);
+          blob = await r.blob();
+      } catch (err) {
+          return void alert(`The file could not be read: ${(err).message}`);
+      }
+      const copy = new File([blob], t.name, { type: blob.type, lastModified: Date.now() });
+      if ((await uploadFile(v, copy, t)) && v.file === file) showFile(t.name, t.url, true);
+  }
+
   /** @returns text for the question before an upload under another name */
   function uploadQuestion(v, t, exists) {
       const what = exists
-          ? `"${t.name}" already exists in this folder and will be replaced by your text.`
-          : `Your text will be uploaded as a new file "${t.name}".`;
+          ? `"${t.name}" already exists in this folder and will be replaced.`
+          : `A new file "${t.name}" will be uploaded.`;
       const original = v.source?.fresh ? '' : `\nThe original "${v.file?.name}" stays unchanged.`;
       return `${what}${original}\n\nUpload now?`;
   }
@@ -8944,7 +8975,7 @@
           'Note: this viewer is primarily for text files. Parquet files and spreadsheets may also be viewed (read only). ' +
           'Text files can be edited.';
       const titleName = title.querySelector('.tp-title-name'); // in the title's HTML
-      titleName.onclick = () => startRename(v); // write mode only
+      titleName.onclick = () => startRename(v); // text: write mode only; read-only files: a copy
       const titleSheet = title.querySelector('.tp-title-sheet');
 
       // Metadata (second line, full width): dates, size, format, table shape, ...
@@ -9337,7 +9368,6 @@
       // Back to read mode (edit button again): unsaved edits only after asking
       const leaveWrite = () => {
           if (!v.writeMode) return;
-          if (v.source?.fresh) return void cancelEdits(v); // new file: no read view yet
           if (v.dirty) {
               // only unsaved edits are at stake here; saved changes stay
               flash(saveBtn);
@@ -9489,9 +9519,9 @@
       // Keys in the content area (once clicked into) or editor: Ctrl / ⌘ with + − 0 (text size), A (select all)
       box.addEventListener('keydown', (e) => {
           const t = e.target;
-          if (e.key === 'F2' && v.writeMode) {
+          if (e.key === 'F2' && renamable(v)) {
               e.preventDefault();
-              return void startRename(v); // save under another name
+              return void startRename(v); // another name (edited text, or a copy of a read-only file)
           }
           if (!(e.ctrlKey || e.metaKey) || e.altKey || !(content.contains(t) || t === editor)) return;
           if (e.key === '+' || e.key === '=') zoomBy(1);
@@ -9633,11 +9663,19 @@
   // the recognised format drops the choice
   function chooseFormat(format) {
       const v = viewer;
-      if (!v?.file || !confirmDiscard(v)) return;
+      if (!v?.file) return;
+      const fresh = !!v.source?.fresh; // new file: its text stays (only in memory), shown as the format chosen
+      if (fresh && readerOf(format) !== 'text')
+          return void alert('A new file is plain text: please choose a text format.');
+      if (fresh && v.dirty) {
+          alert('Please save your changes first, then choose the format.');
+          return void flash(v.saveBtn);
+      }
+      if (!fresh && !confirmDiscard(v)) return;
       const { name, url } = v.file;
       if (format === formatOf(name)) formatChoices.delete(url);
       else formatChoices.set(url, format);
-      showFile(name, url, false);
+      showFile(name, url, false, fresh);
   }
 
   // Same file, any encoding / case of path
@@ -9662,8 +9700,8 @@
       showEmpty(viewer);
   }
 
-  // New file in the folder open in SharePoint: name asked (checked), then an empty text in write mode
-  // (empty may be uploaded too)
+  // New file in the folder open in SharePoint (plain text): name asked (checked), then shown as any file
+  // (colours, checks, views by its format) and edited; the empty text counts as saved (may be uploaded as it is)
   async function newFile() {
       const folder = currentFolder();
       if (!inLibrary() || !folder) {
@@ -9673,32 +9711,17 @@
       if (viewer && !confirmDiscard(viewer)) return; // pending in the open file: stay
       const name = await askName(folder);
       if (!name) return;
-      if (!viewer) {
-          viewer = createViewer();
-          setMode(view.mode);
-      }
+      const url = `${folder}/${name}`;
+      const src = { total: 0, loaded: 0, done: true, text: '', more: async () => {}, loadAll: async () => {} };
+      src.fresh = true;
+      formatChoices.delete(url);
+      keepInMemory(url, { src, fileName: name, hops: [url], reader: 'text' }); // shown from memory, never fetched
+      await showFile(name, url, false);
       const v = viewer;
-      if (!showEmpty(v)) return;
-      const format = formatOf(name);
-      v.file = { name, url: `${folder}/${name}` };
-      v.fileName = name;
-      v.linked = false;
-      v.lang = langOfFormat(format);
-      v.source = {
-          total: 0,
-          loaded: 0,
-          done: true,
-          text: '',
-          more: async () => {},
-          loadAll: async () => {},
-          fresh: true,
-      };
-      v.newBtn.hidden = true;
-      v.metaLine.innerHTML = `<strong>Properties:</strong> new file · format: ${esc(formatName(format))}`;
-      showPlain(v, '');
-      refreshEyes();
+      if (v?.source !== src) return;
       await enterWrite(v); // shows the name (click: another name)
-      markEdited(v); // ready to save as it is
+      v.staged = ''; // saved as it is: may be uploaded empty
+      v.uploadBtn.disabled = false;
   }
 
   // Viewer back to no file; false if user keeps pending changes
@@ -9752,7 +9775,8 @@
   }
 
   // Load file into viewer; `reload` skips browser's cache (refresh button)
-  async function showFile(name, url, reload) {
+  /** @param keep pending changes stay (new file shown as another format) */
+  async function showFile(name, url, reload, keep = false) {
       const encodedUrl = encodePath(url);
 
       // Reuse open viewer (e.g. in split mode, click through files one after another)
@@ -9761,7 +9785,7 @@
           setMode(view.mode);
       }
       const v = viewer;
-      if (!confirmDiscard(v)) return; // pending in open file: stay
+      if (!keep && !confirmDiscard(v)) return; // pending in open file: stay
       close3d(v);
       if (v.writeMode) exitWriteView(v);
       cancelLoad(v); // previous file may still be on its way
@@ -9930,6 +9954,7 @@
       v.abort = null;
 
       if (!current()) return;
+      v.linked = hops.length > 1; // reached through a link: not renamed, not uploaded
 
       if (deferred) {
           // Big Parquet / IFCZIP: only on request (whole file); "cache all" opens it in full
@@ -9965,6 +9990,7 @@
           line2.innerHTML = line2.innerHTML.replace('⟦icon⟧', `<span class="tp-inline-icon">${icon}</span>`);
           v.metaLine.innerHTML = `<strong>Properties:</strong> size: ${formatBytes(deferred.size)} · format: ${deferred.deferred}`;
           updateViews(v);
+          showName(v); // read only: a copy under another name
           return;
       }
       v.copyBtn.disabled = false;
@@ -9979,6 +10005,7 @@
           setPreview(v, null);
           showPlain(v, message);
           showCached(v); // nothing cached (not the last file's state)
+          showName(v); // binary: a copy under another name
           return;
       }
 
@@ -9987,7 +10014,7 @@
       v.fileName = fileName;
       const format = chosen || formatOf(fileName);
       v.lang = langOfFormat(format);
-      v.linked = hops.length > 1;
+      showName(v); // name an edit goes to (another name, new file)
       v.writeBtn.disabled = !canWrite(v);
       v.writeBtn.title = src.isSheet ? 'Edit: not available for spreadsheets (read only)' : 'Edit (text files only)';
       const kind = previewOf(v.lang);
@@ -10832,6 +10859,7 @@
           src.lintResult = null;
           v.text = src.text;
       }
+      if (src?.fresh && v.file) memoryCache.delete(v.file.url); // new file, never uploaded: nothing to keep
       v.dirty = false;
       v.staged = null;
       v.newName = null;
@@ -10881,24 +10909,29 @@
       setTimeout(() => btn.classList.remove('tp-attn'), 3000);
   }
 
-  // Upload as user would (drop, or SharePoint's upload dialogue); no API. HEAD request
-  // confirms change; otherwise user can save file locally. Under another name: a new file, the original stays.
+  // ---------------------------------------------------------------------------
+  // Upload: as a user would (drop, or SharePoint's upload dialogue); no API
+  // ---------------------------------------------------------------------------
+
+  /** @returns file shown is in the folder open in SharePoint (only there can it be uploaded); else says so */
+  function uploadable(v) {
+      const url = v.file?.url ?? '';
+      const folder = currentFolder();
+      if (!v.linked && folder && url.slice(0, url.lastIndexOf('/')).toLowerCase() === folder.toLowerCase()) return true;
+      alert(
+          'Uploading only works for a file in the folder that is open in SharePoint\n' +
+              '(not for search results or files reached through a link).\n' +
+              "Open the file's folder and upload from there.",
+      );
+      return false;
+  }
+
+  // Saved text to SharePoint: the file itself, or under another name a new file (the original stays)
   /** @returns true once SharePoint has the new file */
   async function uploadEdits(v, edited) {
       const src = v.source;
-      if (!src || !v.file) return false;
-      const url = v.file.url;
+      if (!src || !v.file || !uploadable(v)) return false;
       const to = target(v, v.stagedName);
-      const folder = currentFolder();
-      const dir = url.slice(0, url.lastIndexOf('/'));
-      if (v.linked || !folder || dir.toLowerCase() !== folder.toLowerCase()) {
-          alert(
-              'Uploading only works for a file in the folder that is open in SharePoint\n' +
-                  '(not for search results or files reached through a link).\n' +
-                  "Open the file's folder and upload from there.",
-          );
-          return false;
-      }
       if (
           src.encoding &&
           src.encoding !== 'UTF-8' &&
@@ -10910,10 +10943,23 @@
 
       let text = edited;
       if (src.crlf) text = text.replace(/\r?\n/g, '\r\n');
-      const file = new File([src.bom ? `﻿${text}` : text], to.isNew ? to.name : (v.fileName ?? v.file.name), {
-          type: 'text/plain',
-          lastModified: Date.now(),
-      });
+      const name = to.isNew ? to.name : (v.fileName ?? v.file.name);
+      const file = new File([src.bom ? `\uFEFF${text}` : text], name, { type: 'text/plain', lastModified: Date.now() });
+      if (!(await uploadFile(v, file, to))) return false;
+
+      if (to.isNew) return true; // original unchanged: the caller opens the new file
+      // Confirmed: uploaded text is file from now on
+      src.text = text;
+      src.originalText = null;
+      v.text = text;
+      src.lintResult = null;
+      return true;
+  }
+
+  // Hands a file to SharePoint (drop, else its upload dialogue); a HEAD request confirms the change,
+  // otherwise the user can save the file and upload it by hand
+  /** @returns true once SharePoint has the file */
+  async function uploadFile(v, file, to) {
       const transfer = new DataTransfer();
       transfer.items.add(file);
 
@@ -10932,6 +10978,7 @@
           return false;
       };
 
+      const ready = !v.uploadBtn.disabled; // upload button as before (copies: not involved)
       v.uploadBtn.disabled = true;
       v.uploadBtn.title = 'Upload in progress …';
       let done = false;
@@ -10960,32 +11007,23 @@
 
       showCached(v);
       v.uploadBtn.title = 'Upload the saved changes to SharePoint';
-      if (!done) {
-          v.uploadBtn.disabled = false;
-          // 3. user does it: edited file is saved locally, ready to drag into folder
-          if (
-              confirm(
-                  'SharePoint did not take the file automatically.\n\n' +
-                      'Download the edited file now, so you can drag it into the folder yourself?\n' +
-                      '(Your saved changes stay in the viewer until an upload is confirmed.)',
-              )
-          ) {
-              const a = document.createElement('a');
-              a.href = URL.createObjectURL(file);
-              a.download = file.name;
-              a.click();
-              setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-          }
-          return false;
+      if (done) return true;
+      v.uploadBtn.disabled = !ready;
+      // 3. user does it: file is saved locally, ready to drag into folder
+      if (
+          confirm(
+              'SharePoint did not take the file automatically.\n\n' +
+                  'Download the file now, so you can drag it into the folder yourself?\n' +
+                  '(Saved changes stay in the viewer until an upload is confirmed.)',
+          )
+      ) {
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(file);
+          a.download = file.name;
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(a.href), 10000);
       }
-
-      if (to.isNew) return true; // original unchanged: the caller opens the new file
-      // Confirmed: uploaded text is file from now on
-      src.text = text;
-      src.originalText = null;
-      v.text = text;
-      src.lintResult = null;
-      return true;
+      return false;
   }
 
   /** Page-wide edit guards: Ctrl+S / Cmd+S saves, unsaved changes ask before leaving. */

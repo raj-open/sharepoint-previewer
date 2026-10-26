@@ -57,6 +57,7 @@
 
 **/node_modules
 **/__archive__*
+**/__uploads__
 **/.DS_Store
 **/Thumbs.db
 

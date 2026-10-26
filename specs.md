@@ -62,6 +62,9 @@
   the userscript injected per page load with a Tampermonkey stand-in (`/tests/explore`);
   the library shows folders `Mock Data` (`/tests/mocks/mock-sharepoint/library`) and `Data` (`/data`, local only),
   or only `folder` if given; files are read from disk per request (read only);
+  uploads are simulated: kept apart in `/tests/mocks/mock-sharepoint/__uploads__/<session>` (library paths mirrored),
+  listed and served over the originals, removed when the server stops (behavioural tests: when their browser closes)
+  and by `just clean`; never synchronised;
   the 3D files of the release (`just build`) appear in the library as folder `previewer`,
   empty settings `viewer-3d-folder` (pointing there) and `logo` (a test logo) are filled in on each page load;
   not part of `just qa`.

@@ -1,11 +1,18 @@
-// File names: checks, where an edit goes, saving under another name (write mode)
+// File names: checks, where an edit goes, another name (edited text: saved so; read only: a copy)
 
 // ===========================================================================
 // IMPORTS
 // ===========================================================================
 
+import { formatOf } from '../readers/formats.ts';
+import { readerOf } from '../readers/formats.ts';
+import { encodePath } from '../readers/request.ts';
 import { fileStamp } from '../readers/request.ts';
+import { canWrite } from './edit.ts';
 import { markEdited } from './edit.ts';
+import { uploadable } from './edit.ts';
+import { uploadFile } from './edit.ts';
+import { showFile } from './open.ts';
 
 import type { Target } from '../_core/types.ts';
 import type { Viewer } from '../_core/types.ts';
@@ -17,6 +24,9 @@ import type { Viewer } from '../_core/types.ts';
 // SharePoint's rules for names (cf. https://support.microsoft.com/office/64883a5d-228e-48f5-b3d2-eb39e07630fa)
 const BAD_CHARS = /["*:<>?/\\|]/;
 const RESERVED = /^(?:\.lock|con|prn|aux|nul|com\d|lpt\d|desktop\.ini)$/i;
+// Common binary types without a reader of their own (no text: never a new or edited file under such a name)
+const BINARY_RE =
+    /\.(?:png|jpe?g|gif|bmp|tiff?|webp|ico|heic|pdf|docx?|docm|pptx?|odt|odp|zip|7z|rar|gz|tgz|bz2|xz|tar|exe|dll|msi|bin|iso|dmg|mp[34]|m4a|wav|avi|mov|mkv|webm|woff2?|ttf|otf|sqlite|db|mdb|accdb|pbix)$/i;
 
 // ===========================================================================
 // METHODS
@@ -35,6 +45,13 @@ export function nameProblem(name: string): string {
     if (RESERVED.test(name) || name.startsWith('~$') || /_vti_/i.test(name))
         return `SharePoint does not allow the name "${name}".`;
     return '';
+}
+
+/** @returns why the name does not suit a text (new file, edited text); '' if it does */
+export function textNameProblem(name: string): string {
+    if (readerOf(formatOf(name)) === 'text' && !BINARY_RE.test(name)) return '';
+    const ext = name.slice(name.lastIndexOf('.'));
+    return `A ${ext} file is not plain text: please choose a text format (e.g. .txt, .csv, .json, .md).`;
 }
 
 /** @returns same name for SharePoint (it ignores case) */
@@ -56,7 +73,7 @@ export async function askName(folder: string): Promise<string | null> {
         const given = prompt(`Name of the new file (in "${folder.split('/').pop()}"):`, name);
         if (given == null) return null;
         name = given.trim();
-        const problem = nameProblem(name);
+        const problem = nameProblem(name) || textNameProblem(name);
         if (problem) alert(problem);
         else if (await nameFree({ name, url: `${folder}/${name}`, isNew: true })) return name;
     }
@@ -73,11 +90,11 @@ export async function nameFree(t: Target): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------------------
-// Title: name shown, renaming (write mode, click or F2)
+// Title: name shown, renaming (click or F2: text files in write mode, read-only files any time)
 // ---------------------------------------------------------------------------
 
-/** @returns name can be changed (write mode, file in its own folder) */
-export const renamable = (v: Viewer): boolean => !!(v.writeMode && v.file && !v.linked);
+/** @returns name can be changed: file in its own folder; text in write mode, read-only files (copy) any time */
+export const renamable = (v: Viewer): boolean => !!(v.file && !v.linked && !v.busy && (v.writeMode || !canWrite(v)));
 
 /** Title shows the name the edit goes to (files reached through a link keep their path) */
 export function showName(v: Viewer): void {
@@ -94,7 +111,11 @@ export function showName(v: Viewer): void {
             : v.source?.fresh
               ? 'New file: in SharePoint once uploaded.'
               : `New file: "${v.file.name}" stays unchanged.`,
-        on ? 'Click (or F2) to save under another name.' : '',
+        !on
+            ? ''
+            : v.writeMode
+              ? 'Click (or F2) to save under another name.'
+              : 'Click (or F2) to upload a copy under another name.',
     ];
     v.titleName.title = notes.filter(Boolean).join('\n');
 }
@@ -124,7 +145,7 @@ export function startRename(v: Viewer): void {
         if (closed || checking) return;
         const name = input.value.trim();
         if (sameName(name, target(v).name)) return close(); // unchanged
-        const problem = nameProblem(name);
+        const problem = nameProblem(name) || (v.writeMode ? textNameProblem(name) : '');
         if (problem) {
             alert(problem);
             return void input.focus();
@@ -138,6 +159,7 @@ export function startRename(v: Viewer): void {
         input.disabled = false;
         if (!free) return void input.focus();
         close();
+        if (!v.writeMode) return void (t.isNew && copyAs(v, t)); // read only: a copy, right away
         v.newName = t.isNew ? name : null; // back to the own name (any case): the file itself
         markEdited(v); // saved with the text
         showName(v);
@@ -151,11 +173,27 @@ export function startRename(v: Viewer): void {
     input.addEventListener('blur', () => take());
 }
 
+// Read-only file (spreadsheet, Parquet, binary) under another name: uploaded unchanged as a copy, then shown
+async function copyAs(v: Viewer, t: Target): Promise<void> {
+    const file = v.file;
+    if (!file || !uploadable(v) || !confirm(uploadQuestion(v, t, (await fileStamp(t.url)) != null))) return;
+    let blob: Blob;
+    try {
+        const r = await fetch(encodePath(file.url), { credentials: 'same-origin', cache: 'reload' });
+        if (!r.ok) throw new Error(`error ${r.status}`);
+        blob = await r.blob();
+    } catch (err) {
+        return void alert(`The file could not be read: ${(err as Error).message}`);
+    }
+    const copy = new File([blob], t.name, { type: blob.type, lastModified: Date.now() });
+    if ((await uploadFile(v, copy, t)) && v.file === file) showFile(t.name, t.url, true);
+}
+
 /** @returns text for the question before an upload under another name */
 export function uploadQuestion(v: Viewer, t: Target, exists: boolean): string {
     const what = exists
-        ? `"${t.name}" already exists in this folder and will be replaced by your text.`
-        : `Your text will be uploaded as a new file "${t.name}".`;
+        ? `"${t.name}" already exists in this folder and will be replaced.`
+        : `A new file "${t.name}" will be uploaded.`;
     const original = v.source?.fresh ? '' : `\nThe original "${v.file?.name}" stays unchanged.`;
     return `${what}${original}\n\nUpload now?`;
 }

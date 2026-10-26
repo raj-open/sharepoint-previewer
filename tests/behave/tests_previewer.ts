@@ -385,24 +385,96 @@ describe('editing', () => {
         assert.equal(await v.locator('.tp-editor').isVisible(), true);
     });
 
-    it('new file: from the empty viewer, name asked and checked, empty text in write mode', async () => {
+    it('new file: plain text only; shown as its format (colours, checks), empty may be uploaded', async () => {
         const page = await openFolder(h.LIBRARY);
         // header eye (mock: overlaid, not hit-testable by Playwright)
         await page.locator('.tp-head').dispatchEvent('click');
         const v = page.locator('.tp-viewer');
         await page.evaluate(() => {
-            (window as unknown as { __gm: { answers: string[] } }).__gm.answers.push('a:b.md', 'todo.md');
+            (window as unknown as { __gm: { answers: string[] } }).__gm.answers.push(
+                'a:b.md',
+                'data.xlsx',
+                'todo.json',
+            );
         });
         await v.locator('.tp-new-file').click();
         await v.locator('.tp-editor').waitFor();
-        assert.equal(await h.text(v.locator('.tp-title-name')), 'todo.md');
-        assert.match((await dialogues(page)).alerts.join('\n'), /may not contain/); // first answer refused
+        assert.equal(await h.text(v.locator('.tp-title-name')), 'todo.json');
+        const { alerts } = await dialogues(page);
+        assert.match(alerts.join('\n'), /may not contain/);
+        assert.match(alerts.join('\n'), /\.xlsx file is not plain text/);
         assert.equal(await v.locator('.tp-new-file').isVisible(), false);
-        assert.equal(await v.locator('.tp-mode-btn[title^="Save"]').isDisabled(), false); // empty may be saved
+        assert.equal(await v.locator('.tp-mode-btn[title^="Upload"]').isDisabled(), false); // empty: ready
+        assert.match(await h.text(v.locator(FORMAT_PICKER)), /JSON/);
 
-        await page.keyboard.press('Escape'); // cancel: asks, then back to the empty viewer
-        assert.match((await dialogues(page)).confirms.join('\n'), /unsaved changes/);
-        await v.locator('.tp-new-file').waitFor();
-        assert.equal(await h.text(v.locator('.tp-title-name')), '–');
+        await v.locator('.tp-editor').fill('{"a": 1}');
+        await v.locator('.tp-mode-btn[title^="Save"]').click();
+        await v.locator('.tp-mode-btn[title^="Edit"]').click(); // read view: as any JSON file
+        await v.locator('.tp-lint-summary', { hasText: 'no problems' }).waitFor();
+        await v.locator('.tp-content', { hasText: '"a": 1' }).waitFor(); // lines are drawn a frame later
+
+        await page.keyboard.press('Escape'); // close: asks (not uploaded)
+        assert.match((await dialogues(page)).confirms.join('\n'), /not been uploaded/);
+        assert.equal(await v.count(), 0);
+    });
+
+    it('name: read-only files (spreadsheets) can be renamed (a copy) without edit mode; text files only in it', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Data`);
+        let v = await h.preview(page, 'orders.xlsx');
+        assert.match((await v.locator('.tp-title-name').getAttribute('class')) ?? '', /tp-renamable/);
+        v = await h.preview(page, 'prices.csv');
+        assert.doesNotMatch((await v.locator('.tp-title-name').getAttribute('class')) ?? '', /tp-renamable/);
+    });
+
+    it('upload (simulated): new file into the folder, then shown from SharePoint', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Data`);
+        await page.locator('.tp-head').dispatchEvent('click');
+        const v = page.locator('.tp-viewer');
+        await page.evaluate(() => {
+            (window as unknown as { __gm: { answers: string[] } }).__gm.answers.push('todo.json');
+        });
+        await v.locator('.tp-new-file').click();
+        await v.locator('.tp-editor').fill('{"a": 1}');
+        await v.locator('.tp-mode-btn[title^="Save"]').click();
+        await v.locator('.tp-mode-btn[title^="Upload"]').click();
+        await h.row(page, 'todo.json').waitFor({ timeout: 10000 }); // the list shows it
+        await v.locator('.tp-title-name:not(.tp-new-name)', { hasText: 'todo.json' }).waitFor({ timeout: 10000 });
+        await v.locator('.tp-content', { hasText: '"a": 1' }).waitFor(); // fetched from SharePoint now
+        assert.match((await dialogues(page)).confirms.join('\n'), /new file "todo\.json" will be uploaded/);
+    });
+
+    it('upload (simulated): text under another name is a new file; the original stays', async () => {
+        const page = await openFolder(h.LIBRARY);
+        const v = await h.preview(page, 'notes.txt');
+        const original = await h.text(v.locator('.tp-content'));
+        await edit(v);
+        await v.locator('.tp-title-name').click();
+        await v.locator('.tp-name-input').fill('notes-2.txt');
+        await v.locator('.tp-name-input').press('Enter');
+        await v.locator('.tp-title-name', { hasText: 'notes-2.txt' }).waitFor();
+        await v.locator('.tp-editor').press('End');
+        await page.keyboard.type(' (copy)');
+        await v.locator('.tp-mode-btn[title^="Save"]').click();
+        await v.locator('.tp-mode-btn[title^="Upload"]').click();
+        await v.locator('.tp-title-name:not(.tp-new-name)', { hasText: 'notes-2.txt' }).waitFor({ timeout: 10000 });
+        await v.locator('.tp-content', { hasText: '(copy)' }).waitFor();
+        await h.preview(page, 'notes.txt');
+        assert.equal(await h.text(v.locator('.tp-content')), original);
+    });
+
+    it('upload (simulated): read-only file renamed is uploaded as an unchanged copy', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Data`);
+        const v = await h.preview(page, 'orders.xlsx');
+        await v.locator('.tp-title-name').click();
+        await v.locator('.tp-name-input').fill('orders-2.xlsx');
+        await v.locator('.tp-name-input').press('Enter');
+        await h.row(page, 'orders-2.xlsx').waitFor({ timeout: 10000 });
+        await v.locator('.tp-title-name', { hasText: 'orders-2.xlsx' }).waitFor({ timeout: 10000 });
+        await v.locator('.tp-title-sheet').waitFor(); // read as a spreadsheet again
+        const sizes = await page.evaluate(async (folder) => {
+            const size = async (n: string) => (await (await fetch(`${folder}/${n}`)).arrayBuffer()).byteLength;
+            return [await size('orders.xlsx'), await size('orders-2.xlsx')];
+        }, `${h.LIBRARY}/Data`);
+        assert.equal(sizes[0], sizes[1]);
     });
 });
