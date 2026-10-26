@@ -6,7 +6,8 @@ This document contains information for developers.
 
 | Path | Contents |
 | :--- | :------- |
-| `/src/_core` | entry (`main.js`), Tampermonkey header (`header.js`), settings, preferences, list view, shared types |
+| `/src/main.js` | entry: imports the modules, then starts up |
+| `/src/_core` | Tampermonkey header (`header.js`), settings, preferences, list view, shared types |
 | `/src/{readers,text,ui,view,viewer}` | the other modules (ES modules) |
 | `/src/@apis/ifc-lite/main.js` | entry of the ifc-lite bundle for the optional 3D view |
 | `/scripts` | build and demo scripts (`bundle.mjs`, `demos.mjs`) |

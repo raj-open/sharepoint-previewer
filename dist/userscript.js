@@ -11816,7 +11816,7 @@
       return null;
   }
 
-  // Module: _core/main.js
+  // Module: main.js
 
   // Entry of the userscript: modules in load order (they only define), then start-up in one place
 
@@ -11825,7 +11825,7 @@
   // ===========================================================================
 
   // ===========================================================================
-  // START-UP
+  // EXECUTION
   // ===========================================================================
 
   registerMenu();

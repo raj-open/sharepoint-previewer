@@ -23,7 +23,7 @@ set windows-shell := ["bash", "-euo", "pipefail", "-c"]
 NAME := env("NAME", "sharepoint-previewer")
 # local port of the explorative tests (mock SharePoint)
 HTTP_PORT := env("HTTP_PORT", "8080")
-# userscript: modules under /src (entry and header in /src/_core);
+# userscript: modules under /src (entry /src/main.js, header in /src/_core);
 # bundled by build-src into /dist/userscript.js (kept in the repo)
 PATH_MODULES := "src"
 PATH_SRC_3D := "src/@apis/ifc-lite/main.js"
@@ -81,7 +81,7 @@ build-deps:
 # bundles the modules into the userscript (/dist/userscript.js, readable)
 [group("build")]
 build-src:
-    @node scripts/bundle.mjs "{{PATH_MODULES}}/_core/main.js" "{{PATH_MODULES}}/_core/header.js" "{{PATH_MODULES}}/_core/types.js" "{{PATH_BUNDLE}}"
+    @node scripts/bundle.mjs "{{PATH_MODULES}}/main.js" "{{PATH_MODULES}}/_core/header.js" "{{PATH_MODULES}}/_core/types.js" "{{PATH_BUNDLE}}"
     @node --check "{{PATH_BUNDLE}}"
     @just _size "{{PATH_BUNDLE}}" "{{MAX_KB_SRC}}"
 

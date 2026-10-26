@@ -16,7 +16,7 @@ const modules = fs
         (f) =>
             f.endsWith('.js') &&
             !f.startsWith('@apis/') &&
-            !['_core/header.js', '_core/main.js', '_core/types.js'].includes(f),
+            !['main.js', '_core/header.js', '_core/types.js'].includes(f),
     )
     .sort();
 
@@ -31,7 +31,7 @@ describe('modules', () => {
 
     it('entry: starts up (modules alone register no menu)', async () => {
         assert.deepEqual(Object.keys(gm.menu), []);
-        await load('_core/main.js');
+        await load('main.js');
         assert.deepEqual(Object.keys(gm.menu).sort(), ['Reset settings to defaults', 'Settings …']);
     });
 

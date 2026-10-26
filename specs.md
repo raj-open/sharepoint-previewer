@@ -14,7 +14,7 @@
 
 ## Conventions ##
 
-- Source: ES modules under `/src` (entry `/src/_core/main.js`, Tampermonkey header `/src/_core/header.js`);
+- Source: ES modules under `/src` (entry `/src/main.js`, Tampermonkey header `/src/_core/header.js`);
   third-party code under `/src/@apis`.
 - Userscript: `/dist/userscript.js` (bundle), written by `just build-src`
   and committed (to follow how the whole script changes between versions); never edited by hand.
@@ -30,7 +30,7 @@
 - Template literals: never nested (no backticks inside `${…}`); build inner parts in variables first
   (editors mismatch the brackets around nested backticks).
 - Start-up: modules only define (no listeners, observers, menu or DOM changes on load);
-  the entry `/src/_core/main.js` starts everything explicitly, in order, at the end of the bundle.
+  the entry `/src/main.js` starts everything explicitly, in order, at the end of the bundle.
 - Version: `/dist/VERSION` is the single source;
   the build writes it into the userscript's `@version`,
   except on the commit tagged `v<VERSION>` as `<VERSION>-beta.<short commit>` (release files only, not `/dist/userscript.js`).

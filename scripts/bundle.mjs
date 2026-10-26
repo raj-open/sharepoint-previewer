@@ -86,7 +86,7 @@ function checkNames(files) {
 // ----------------------------------------------------------------
 
 const [entry, header, types, out] = process.argv.slice(2);
-const root = path.dirname(path.dirname(path.resolve(entry))); // /src: module labels relative to it
+const root = path.dirname(path.resolve(entry)); // /src: module labels relative to it
 const files = loadOrder(entry);
 checkNames(files);
 const typedefs = fs
