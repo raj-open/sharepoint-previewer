@@ -47,7 +47,7 @@ import { clearAllCached } from './cache.ts';
 import { clearCached } from './cache.ts';
 import { makeRoom } from './cache.ts';
 import { memoryCache } from './cache.ts';
-import { discardEdits } from './edit.ts';
+import { cancelEdits } from './edit.ts';
 import { editedText } from './edit.ts';
 import { enterWrite } from './edit.ts';
 import { exitWriteView } from './edit.ts';
@@ -571,12 +571,13 @@ export function createViewer(): Viewer {
         startMove(e, box, POPUP_POS_KEY);
     });
 
+    // Esc: open drop-down first, then edit (same as cancel), then viewer; settings form: its own
     const onEscape = (e: KeyboardEvent) => {
-        if (e.key === 'Escape' && viewer === v) {
-            e.stopPropagation();
-            for (const p of [sheetPicker, formatPicker]) if (!p.menu.hidden) return void p.close(); // open drop-down first
-            closeViewer();
-        }
+        if (e.key !== 'Escape' || viewer !== v || document.querySelector('.tp-settings')) return;
+        e.stopPropagation();
+        for (const p of [sheetPicker, formatPicker]) if (!p.menu.hidden) return void p.close();
+        if (v.writeMode) return void cancelEdits(v);
+        closeViewer();
     };
 
     // Window resized -> recompute horizontal split (it uses pixel positions)
@@ -604,12 +605,7 @@ export function createViewer(): Viewer {
     pBtn.onclick = () => v.mode !== 'popup' && setMode('popup');
     refreshBtn.onclick = () => v.file && showFile(v.file.name, v.file.url, true);
     stopBtn.onclick = () => {
-        if (v.writeMode) {
-            // in write mode: cancel all changes (unsaved and saved)
-            discardEdits(v);
-            exitWriteView(v);
-            return;
-        }
+        if (v.writeMode) return void cancelEdits(v); // in write mode: cancel all changes (asks first)
         if (!v.busy) return;
         v.userStopped = true;
         cancelLoad(v, true);

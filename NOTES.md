@@ -262,8 +262,12 @@ are detected from their first bytes and not shown.
   A `HEAD` request then confirms the change.
 - **If Sharepoint does not accept it,**
   the user is offered a local save of the edited file to upload by hand.
+- **Cancel** (button or Esc) ends write mode
+  and drops all changes (unsaved and saved, not yet uploaded),
+  after asking if there are any.
 - **Unsaved or not-yet-uploaded changes** trigger warnings:
-  when switching files,
+  when cancelling,
+  switching files,
   closing the viewer
   or leaving the page.
 

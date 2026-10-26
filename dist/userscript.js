@@ -9023,12 +9023,13 @@
           startMove(e, box, POPUP_POS_KEY);
       });
 
+      // Esc: open drop-down first, then edit (same as cancel), then viewer; settings form: its own
       const onEscape = (e) => {
-          if (e.key === 'Escape' && viewer === v) {
-              e.stopPropagation();
-              for (const p of [sheetPicker, formatPicker]) if (!p.menu.hidden) return void p.close(); // open drop-down first
-              closeViewer();
-          }
+          if (e.key !== 'Escape' || viewer !== v || document.querySelector('.tp-settings')) return;
+          e.stopPropagation();
+          for (const p of [sheetPicker, formatPicker]) if (!p.menu.hidden) return void p.close();
+          if (v.writeMode) return void cancelEdits(v);
+          closeViewer();
       };
 
       // Window resized -> recompute horizontal split (it uses pixel positions)
@@ -9056,12 +9057,7 @@
       pBtn.onclick = () => v.mode !== 'popup' && setMode('popup');
       refreshBtn.onclick = () => v.file && showFile(v.file.name, v.file.url, true);
       stopBtn.onclick = () => {
-          if (v.writeMode) {
-              // in write mode: cancel all changes (unsaved and saved)
-              discardEdits(v);
-              exitWriteView(v);
-              return;
-          }
+          if (v.writeMode) return void cancelEdits(v); // in write mode: cancel all changes (asks first)
           if (!v.busy) return;
           v.userStopped = true;
           cancelLoad(v, true);
@@ -10497,7 +10493,7 @@
           v.saveBtn.disabled = true;
           if (csvFormat.sep || csvFormat.quote) markEdited(v); // remembered format: file changes when saved
           v.stopBtn.disabled = false;
-          v.stopBtn.title = 'Cancel changes';
+          v.stopBtn.title = 'Cancel changes (Esc)';
           v.writeBtn.setAttribute('aria-pressed', 'true');
           return;
       }
@@ -10509,7 +10505,7 @@
       v.loadMoreBtn.style.display = 'none';
       v.saveBtn.disabled = true;
       v.stopBtn.disabled = false;
-      v.stopBtn.title = 'Cancel changes';
+      v.stopBtn.title = 'Cancel changes (Esc)';
       v.writeBtn.setAttribute('aria-pressed', 'true');
       v.editor.focus();
   }
@@ -10531,6 +10527,14 @@
           return false;
       }
       discardEdits(v);
+      return true;
+  }
+
+  // Cancel (button, Esc): drop all changes (unsaved and saved) after asking, back to read view;
+  // false = user keeps them
+  function cancelEdits(v) {
+      if (!v.writeMode || !confirmDiscard(v)) return false;
+      exitWriteView(v);
       return true;
   }
 

@@ -5,7 +5,7 @@ import { it } from 'node:test';
 import { fakeViewer } from '../helpers.ts';
 import { load } from '../helpers.ts';
 
-const { canWrite, markEdited, discardEdits, editedText } = await load('viewer/edit.ts');
+const { canWrite, markEdited, discardEdits, editedText, cancelEdits } = await load('viewer/edit.ts');
 
 describe('viewer/edit', () => {
     it('only plain text files are editable', () => {
@@ -27,6 +27,19 @@ describe('viewer/edit', () => {
         assert.equal(v.text, 'cached');
         assert.equal(v.source.originalText, null);
         assert.equal(v.staged, null);
+    });
+    it('cancel: nothing pending ends write mode without asking', () => {
+        const v = fakeViewer({ writeMode: true, source: { text: 'a' } });
+        globalThis.confirm = () => assert.fail('asked');
+        assert.equal(cancelEdits(v), true);
+        assert.equal(v.writeMode, false);
+    });
+    it('cancel: pending changes kept when the user says no', () => {
+        const v = fakeViewer({ writeMode: true, dirty: true, source: { text: 'a' } });
+        globalThis.confirm = () => false;
+        assert.equal(cancelEdits(v), false);
+        assert.equal(v.writeMode, true);
+        assert.equal(v.dirty, true);
     });
     it('text being edited: from the text box', () => {
         const v = fakeViewer();

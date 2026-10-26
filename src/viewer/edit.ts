@@ -55,7 +55,7 @@ export async function enterWrite(v: Viewer): Promise<void> {
         v.saveBtn.disabled = true;
         if (csvFormat.sep || csvFormat.quote) markEdited(v); // remembered format: file changes when saved
         v.stopBtn.disabled = false;
-        v.stopBtn.title = 'Cancel changes';
+        v.stopBtn.title = 'Cancel changes (Esc)';
         v.writeBtn.setAttribute('aria-pressed', 'true');
         return;
     }
@@ -67,7 +67,7 @@ export async function enterWrite(v: Viewer): Promise<void> {
     v.loadMoreBtn.style.display = 'none';
     v.saveBtn.disabled = true;
     v.stopBtn.disabled = false;
-    v.stopBtn.title = 'Cancel changes';
+    v.stopBtn.title = 'Cancel changes (Esc)';
     v.writeBtn.setAttribute('aria-pressed', 'true');
     v.editor.focus();
 }
@@ -89,6 +89,14 @@ export function confirmDiscard(v: Viewer): boolean {
         return false;
     }
     discardEdits(v);
+    return true;
+}
+
+// Cancel (button, Esc): drop all changes (unsaved and saved) after asking, back to read view;
+// false = user keeps them
+export function cancelEdits(v: Viewer): boolean {
+    if (!v.writeMode || !confirmDiscard(v)) return false;
+    exitWriteView(v);
     return true;
 }
 
