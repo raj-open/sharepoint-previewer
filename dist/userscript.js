@@ -1597,6 +1597,7 @@
           );
 
       // JSON text <-> stored values (LOGO last, as it is long); reasons when it is not valid
+      // (missing settings = defaults, unknown ones ignored: Save writes the completed JSON back)
       /** @param {Object<string, *>} values */
       const toJson = (values) =>
           JSON.stringify(
@@ -1619,11 +1620,10 @@
               return { errors: ['The settings must be one JSON object { … }'] };
           /** @type {string[]} */
           const errors = [];
-          for (const key of Object.keys(data)) if (!(key in DEFAULTS)) errors.push(`Unknown setting "${key}"`);
           /** @type {Object<string, *>} */
           const values = {};
           for (const [key, , extra] of SETTING_FORM) {
-              const value = key in data ? data[key] : stored[key];
+              const value = key in data ? data[key] : defaults[key];
               const type = typeof defaults[key];
               const expected = type === 'boolean' ? 'true or false' : `a ${type}`;
               if (typeof value !== type) errors.push(`${key}: must be ${expected}`);
@@ -1639,6 +1639,17 @@
           return errors.length ? { errors } : { values };
       };
 
+      // JSON text replaced; border flashes briefly if it changed
+      /** @param {string} text */
+      const setJson = (text) => {
+          if (text === json.value) return;
+          json.value = text;
+          json.animate?.([{ borderColor: '#0078d4', boxShadow: '0 0 0 3px #0078d4' }, {}], {
+              duration: 900,
+              easing: 'ease-out',
+          });
+      };
+
       // Pasted JSON object: completed at once (missing settings = defaults, unknown ones dropped)
       json.addEventListener('input', (e) => {
           if (/** @type {InputEvent} */ (e).inputType !== 'insertFromPaste') return;
@@ -1649,7 +1660,7 @@
               return;
           }
           if (!data || typeof data !== 'object' || Array.isArray(data)) return;
-          json.value = toJson(completeSettings(data));
+          setJson(toJson(completeSettings(data)));
           note.textContent = 'Missing settings filled in with defaults, unknown ones removed.';
       });
 
@@ -1670,7 +1681,7 @@
               json.style.boxShadow = errors ? `0 0 0 1px ${c.bad}` : 'none';
           }
           const now = current();
-          const on = now !== null && JSON.stringify(now) !== saved;
+          const on = now !== null && (JSON.stringify(now) !== saved || (mode === 'json' && json.value !== toJson(now)));
           saveBtn.disabled = !on;
           saveBtn.style.background = on ? '#0078d4' : 'transparent';
           saveBtn.style.borderColor = on ? '#0078d4' : c.border;
@@ -1712,7 +1723,7 @@
       });
       part('[data-act="reset"]').onclick = () => {
           setForm(DEFAULTS);
-          if (mode === 'json') json.value = toJson(readForm());
+          if (mode === 'json') setJson(toJson(readForm()));
           update();
           note.textContent = 'Defaults filled in: Save to keep them.';
       };
@@ -1743,17 +1754,20 @@
       form.onsubmit = (e) => {
           e.preventDefault();
           const values = current();
-          if (!values || JSON.stringify(values) === saved) return;
-          for (const [key, value] of Object.entries(values)) {
-              // changed start value replaces choice remembered from viewer
-              if (value !== stored[key] && REMEMBERED_BY[key]) removePref(REMEMBERED_BY[key]);
-              GM_setValue(key, value);
+          if (!values) return;
+          const fresh = JSON.stringify(values) !== saved;
+          if (fresh) {
+              for (const [key, value] of Object.entries(values)) {
+                  // changed start value replaces choice remembered from viewer
+                  if (value !== stored[key] && REMEMBERED_BY[key]) removePref(REMEMBERED_BY[key]);
+                  GM_setValue(key, value);
+              }
+              Object.assign(stored, values);
+              saved = JSON.stringify(values);
           }
-          Object.assign(stored, values);
-          saved = JSON.stringify(values);
-          if (mode === 'json') json.value = toJson(values);
+          if (mode === 'json') setJson(toJson(values));
           update();
-          note.textContent = 'Saved. Reload the page to apply.';
+          note.textContent = fresh ? 'Saved. Reload the page to apply.' : 'JSON completed: nothing new to save.';
       };
 
       // Close (✕, Cancel, Esc, click beside): asks first if unsaved
