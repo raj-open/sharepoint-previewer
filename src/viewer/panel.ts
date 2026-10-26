@@ -23,6 +23,7 @@ import { CHECK_SVG } from '../ui/icons.ts';
 import { CLEAR_SVG } from '../ui/icons.ts';
 import { COLOUR_SVG } from '../ui/icons.ts';
 import { COPY_SVG } from '../ui/icons.ts';
+import { LINK_SVG } from '../ui/icons.ts';
 import { LOAD_ALL_SVG } from '../ui/icons.ts';
 import { MORE_SVG } from '../ui/icons.ts';
 import { NEW_FILE_SVG } from '../ui/icons.ts';
@@ -66,6 +67,7 @@ import { chooseFormat } from './open.ts';
 import { closeViewer } from './open.ts';
 import { newFile } from './open.ts';
 import { showFile } from './open.ts';
+import { shownUrl } from './open.ts';
 import { viewer } from './open.ts';
 import { setBusy } from './status.ts';
 import { close3d } from './view3d.ts';
@@ -255,13 +257,13 @@ export function createViewer(): Viewer {
       <strong>File:</strong> <span class="tp-title-name"></span><span class="tp-title-sheet" hidden></span>
     </div>
   `;
-    // Properties on/off: small (i) button in the title well, left of "File:"
-    const propsBtn = button(PROPS_SVG, 'Display file metadata and properties', 0, 0, { pressed: view.props });
-    propsBtn.style.cssText = `
+    // Small buttons in the title well, left of "File:": properties on/off (i), link (copied on click)
+    const wellBtn = (btn: HTMLButtonElement, margin: number) => {
+        btn.style.cssText = `
     flex: none;
     width: 24px;
     height: 24px;
-    margin-left: -6px;
+    margin-left: ${margin}px;
     padding: 0;
     display: flex;
     align-items: center;
@@ -270,7 +272,14 @@ export function createViewer(): Viewer {
     border-radius: 4px;
     cursor: pointer;
   `;
-    title.prepend(propsBtn);
+        return btn;
+    };
+    const propsBtn = wellBtn(
+        button(PROPS_SVG, 'Display file metadata and properties', 0, 0, { pressed: view.props }),
+        -6,
+    );
+    const linkBtn = wellBtn(button(LINK_SVG, 'Copy the link', 0, 0), -6);
+    title.prepend(propsBtn, linkBtn);
     // New file: in the title well while no file is open (also in the ⋯ menu)
     const newBtn = document.createElement('button');
     newBtn.type = 'button';
@@ -547,6 +556,7 @@ export function createViewer(): Viewer {
         uploadBtn,
         writeBtn,
         newBtn,
+        linkBtn,
         textBtn,
         previewBtn,
         sheetPicker,
@@ -588,13 +598,13 @@ export function createViewer(): Viewer {
         startMove(e, box, POPUP_POS_KEY);
     });
 
-    // Esc: open drop-down first, then edit (same as cancel), then viewer; settings form: its own
+    // Esc: open drop-down first, then write mode (back to reading, as the edit button), then viewer; settings form: its own
     const onEscape = (e: KeyboardEvent) => {
         if (e.key !== 'Escape' || viewer !== v || document.querySelector('.tp-settings')) return;
         if ((e.target as HTMLElement).classList?.contains('tp-name-input')) return; // name box: its own Esc
         e.stopPropagation();
         for (const p of [sheetPicker, formatPicker]) if (!p.menu.hidden) return void p.close();
-        if (v.writeMode) return void cancelEdits(v);
+        if (v.writeMode) return void leaveWrite(); // only back to reading: Esc again closes
         closeViewer();
     };
 
@@ -748,6 +758,23 @@ export function createViewer(): Viewer {
     const applyWrap = () => {
         content.classList.toggle('tp-wrap', view.wrap);
         wrapBtn.setAttribute('aria-pressed', String(view.wrap));
+    };
+    // Link: clean URL of the file shown (a link file: where it leads), else of the folder
+    linkBtn.onmouseenter = linkBtn.onfocus = () => {
+        linkBtn.title = `Copy the link:\n${shownUrl(v)}`;
+    };
+    linkBtn.onclick = async () => {
+        const url = shownUrl(v);
+        try {
+            await navigator.clipboard.writeText(url);
+            linkBtn.innerHTML = CHECK_SVG;
+            linkBtn.title = `Copied:\n${url}`;
+        } catch (_err) {
+            linkBtn.title = `Copy failed:\n${url}`;
+        }
+        setTimeout(() => {
+            linkBtn.innerHTML = LINK_SVG;
+        }, 2000);
     };
     propsBtn.onclick = () => {
         view.props = !view.props;

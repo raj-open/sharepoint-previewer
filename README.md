@@ -100,7 +100,7 @@ and IT teams who want all this without another app to roll out.
       In particular the (relative!) path to your ifc-lite artefacts should be set (if you wish to use the IFC-viewer),
       and an optional company or private logo can be entered as base64 encoding of an image.
 
-    2. You should see an "eye" logo to the left of all files (but not folders). Click on these to preview any plaintext file
+    2. You should see an "eye" logo to the left of all files and folders. Click on these to preview any plaintext file
         (as well as a small selection of binaries like `*.xlsx` and `*.parquet` files).
 
 > [!IMPORTANT]

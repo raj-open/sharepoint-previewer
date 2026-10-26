@@ -37,19 +37,23 @@ and where it stores data.
 
 ## 2. What the user sees ##
 
-- **Eye column** at the far left of every file row in a document library:
+- **Eye column** at the far left of every file and folder row in a document library:
   - closed eye = not cached
   - half-open eye = partly cached
   - open eye = fully cached
   - the eye in the column header opens the viewer without a file,
     e.g. to change settings
+  - the eye of a folder does the same for that folder (open eye = folder shown)
 - **Viewer** in three layouts:
   - below the list
   - right of the list
   - as a movable pop-up
 - **Header:**
   - layout, edit, cache whole file, stop / cancel, save, upload
-  - file name
+  - file name, with (i) for the properties and a chain icon:
+    a click copies the clean link (not encoded, no query) of the file shown
+    (a link file or search result: where it leads),
+    or of the folder in the viewer without a file
   - ⋯ menu: new file, full settings, dark mode, syntax colours, line wrap, properties, reload, clear cache
 - **Properties line:**
   modified date (from the file's own HTTP response),
@@ -94,7 +98,7 @@ and it does not depend on the UI language.
 ```text
 Sharepoint page (DOM)
  └─ userscript (Tampermonkey, @grant GM_getValue/GM_setValue/GM_registerMenuCommand)
-     ├─ MutationObserver: finds file rows → adds eye cells (HTML only)
+     ├─ MutationObserver: finds file and folder rows → adds eye cells (HTML only)
      ├─ Viewer (own DOM elements, own CSS, prefix "tp-")
      │   ├─ text view: syntax colours, whitespace markers, virtualised rendering
      │   ├─ table view: CSV / Parquet / spreadsheets / logs, sort, filter, column widths, CSV editing
@@ -267,7 +271,7 @@ are detected from their first bytes and not shown.
   - It is shown as any file of its format (by extension, or chosen in the format picker):
     colours, checks, Text / Preview.
   - The empty text counts as saved: it may be uploaded as it is.
-  - Cancel (or Esc in write mode) goes back to the empty viewer.
+  - Cancel goes back to the empty viewer.
 - **Save** keeps the edits in the browser (staged).
   **Upload** is a separate step.
 - **Upload uses no API.**
@@ -281,9 +285,12 @@ are detected from their first bytes and not shown.
   (the status bar shows the wait: up to 20 s per way).
 - **If Sharepoint does not accept it,**
   the user is offered a local save of the edited file to upload by hand.
-- **Cancel** (button or Esc) ends write mode
+- **Cancel** (button) ends write mode
   and drops all changes (unsaved and saved, not yet uploaded),
   after asking if there are any.
+- **Esc** only ends write mode, as the edit button does
+  (saved changes stay; asks if there are unsaved ones);
+  Esc again closes the viewer.
 - **Unsaved or not-yet-uploaded changes** trigger warnings:
   when cancelling,
   switching files,
