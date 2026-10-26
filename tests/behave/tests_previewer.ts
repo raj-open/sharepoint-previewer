@@ -384,4 +384,25 @@ describe('editing', () => {
         assert.equal(await h.text(name), 'README.md');
         assert.equal(await v.locator('.tp-editor').isVisible(), true);
     });
+
+    it('new file: from the empty viewer, name asked and checked, empty text in write mode', async () => {
+        const page = await openFolder(h.LIBRARY);
+        // header eye (mock: overlaid, not hit-testable by Playwright)
+        await page.locator('.tp-head').dispatchEvent('click');
+        const v = page.locator('.tp-viewer');
+        await page.evaluate(() => {
+            (window as unknown as { __gm: { answers: string[] } }).__gm.answers.push('a:b.md', 'todo.md');
+        });
+        await v.locator('.tp-new-file').click();
+        await v.locator('.tp-editor').waitFor();
+        assert.equal(await h.text(v.locator('.tp-title-name')), 'todo.md');
+        assert.match((await dialogues(page)).alerts.join('\n'), /may not contain/); // first answer refused
+        assert.equal(await v.locator('.tp-new-file').isVisible(), false);
+        assert.equal(await v.locator('.tp-mode-btn[title^="Save"]').isDisabled(), false); // empty may be saved
+
+        await page.keyboard.press('Escape'); // cancel: asks, then back to the empty viewer
+        assert.match((await dialogues(page)).confirms.join('\n'), /unsaved changes/);
+        await v.locator('.tp-new-file').waitFor();
+        assert.equal(await h.text(v.locator('.tp-title-name')), '–');
+    });
 });

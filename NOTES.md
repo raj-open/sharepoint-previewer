@@ -50,7 +50,7 @@ and where it stores data.
 - **Header:**
   - layout, edit, cache whole file, stop / cancel, save, upload
   - file name
-  - ⋯ menu: full settings, dark mode, syntax colours, line wrap, properties, reload, clear cache
+  - ⋯ menu: new file, full settings, dark mode, syntax colours, line wrap, properties, reload, clear cache
 - **Properties line:**
   modified date (from the file's own HTTP response),
   size, format, encoding, indentation,
@@ -257,6 +257,13 @@ are detected from their first bytes and not shown.
   - The upload then creates a new file (or replaces the one of that name, after asking again);
     the original file stays unchanged,
     and the viewer opens the new file.
+- **New file:**
+  button in the title of the empty viewer (eye in the column header), or ⋯ menu.
+  - The name is asked for and checked as above
+    (a new file goes into the folder open in Sharepoint).
+  - The empty text opens in write mode;
+    it may be saved and uploaded empty.
+  - Cancel (or Esc) goes back to the empty viewer.
 - **Save** keeps the edits in the browser (staged).
   **Upload** is a separate step.
 - **Upload uses no API.**

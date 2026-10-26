@@ -45,7 +45,21 @@ export function target(v: Viewer, name: string | null = v.newName ?? null): Targ
     const url = v.file?.url ?? '';
     const own = v.file?.name ?? '';
     const to = name ?? own;
-    return { name: to, url: `${url.slice(0, url.lastIndexOf('/'))}/${to}`, isNew: !sameName(to, own) };
+    const isNew = !!v.source?.fresh || !sameName(to, own);
+    return { name: to, url: `${url.slice(0, url.lastIndexOf('/'))}/${to}`, isNew };
+}
+
+/** Asks for the name of a new file in `folder` (checked; a name there already: asked) @returns name, or null */
+export async function askName(folder: string): Promise<string | null> {
+    let name = '';
+    for (;;) {
+        const given = prompt(`Name of the new file (in "${folder.split('/').pop()}"):`, name);
+        if (given == null) return null;
+        name = given.trim();
+        const problem = nameProblem(name);
+        if (problem) alert(problem);
+        else if (await nameFree({ name, url: `${folder}/${name}`, isNew: true })) return name;
+    }
 }
 
 /** New name: asks if a file of that name is there already (an upload replaces it); false = choose another */
@@ -75,7 +89,11 @@ export function showName(v: Viewer): void {
     v.titleName.classList.toggle('tp-renamable', on);
     const notes = [
         t.url,
-        t.isNew ? `New file: "${v.file.name}" stays unchanged.` : '',
+        !t.isNew
+            ? ''
+            : v.source?.fresh
+              ? 'New file: in SharePoint once uploaded.'
+              : `New file: "${v.file.name}" stays unchanged.`,
         on ? 'Click (or F2) to save under another name.' : '',
     ];
     v.titleName.title = notes.filter(Boolean).join('\n');
@@ -104,7 +122,7 @@ export function startRename(v: Viewer): void {
     };
     const take = async () => {
         if (closed || checking) return;
-        const name = input.value;
+        const name = input.value.trim();
         if (sameName(name, target(v).name)) return close(); // unchanged
         const problem = nameProblem(name);
         if (problem) {
@@ -138,5 +156,6 @@ export function uploadQuestion(v: Viewer, t: Target, exists: boolean): string {
     const what = exists
         ? `"${t.name}" already exists in this folder and will be replaced by your text.`
         : `Your text will be uploaded as a new file "${t.name}".`;
-    return `${what}\nThe original "${v.file?.name}" stays unchanged.\n\nUpload now?`;
+    const original = v.source?.fresh ? '' : `\nThe original "${v.file?.name}" stays unchanged.`;
+    return `${what}${original}\n\nUpload now?`;
 }

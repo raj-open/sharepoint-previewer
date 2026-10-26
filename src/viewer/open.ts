@@ -5,6 +5,7 @@
 // ===========================================================================
 
 import { currentFolder } from '../_core/list.ts';
+import { inLibrary } from '../_core/list.ts';
 import { refreshEyes } from '../_core/list.ts';
 import { rowFilePath } from '../_core/list.ts';
 import { rowName } from '../_core/list.ts';
@@ -59,12 +60,14 @@ import { memoryCache } from './cache.ts';
 import { trimMemory } from './cache.ts';
 import { canWrite } from './edit.ts';
 import { confirmDiscard } from './edit.ts';
+import { enterWrite } from './edit.ts';
 import { exitWriteView } from './edit.ts';
 import { markEdited } from './edit.ts';
 import { layoutPage } from './layout.ts';
 import { restorePage } from './layout.ts';
 import { setMode } from './layout.ts';
 import { renderLint } from './messages.ts';
+import { askName } from './names.ts';
 import { showLintWait } from './messages.ts';
 import { showPlain } from './messages.ts';
 import { createViewer } from './panel.ts';
@@ -214,8 +217,47 @@ export function openEmptyViewer(): void {
     showEmpty(viewer);
 }
 
+// New file in the folder open in SharePoint: name asked (checked), then an empty text in write mode
+// (empty may be uploaded too)
+export async function newFile(): Promise<void> {
+    const folder = currentFolder();
+    if (!inLibrary() || !folder) {
+        alert('New files go into the folder open in SharePoint: please open a folder of a library first.');
+        return;
+    }
+    if (viewer && !confirmDiscard(viewer)) return; // pending in the open file: stay
+    const name = await askName(folder);
+    if (!name) return;
+    if (!viewer) {
+        viewer = createViewer();
+        setMode(view.mode);
+    }
+    const v = viewer;
+    if (!showEmpty(v)) return;
+    const format = formatOf(name);
+    v.file = { name, url: `${folder}/${name}` };
+    v.fileName = name;
+    v.linked = false;
+    v.lang = langOfFormat(format);
+    v.source = {
+        total: 0,
+        loaded: 0,
+        done: true,
+        text: '',
+        more: async () => {},
+        loadAll: async () => {},
+        fresh: true,
+    };
+    v.newBtn.hidden = true;
+    v.metaLine.innerHTML = `<strong>Properties:</strong> new file · format: ${esc(formatName(format))}`;
+    showPlain(v, '');
+    refreshEyes();
+    await enterWrite(v); // shows the name (click: another name)
+    markEdited(v); // ready to save as it is
+}
+
 // Viewer back to no file; false if user keeps pending changes
-function showEmpty(v: Viewer): boolean {
+export function showEmpty(v: Viewer): boolean {
     if (!confirmDiscard(v)) return false;
     close3d(v);
     if (v.writeMode) exitWriteView(v);
@@ -234,9 +276,14 @@ function showEmpty(v: Viewer): boolean {
     updateViews(v);
     v.titleName.textContent = '–';
     v.titleName.title = '';
+    v.titleName.className = 'tp-title-name';
+    v.newBtn.hidden = false;
     v.metaLine.innerHTML = '';
     v.metaLine.title = '';
-    showPlain(v, 'No file opened. Click the eye-icon next to files to preview them.');
+    showPlain(
+        v,
+        'No file opened.\nClick the eye next to a file to preview it, or create a new file (button above, or ⋯ menu).',
+    );
     refreshEyes();
     return true;
 }
@@ -281,6 +328,8 @@ export async function showFile(name: string, url: string, reload: boolean): Prom
     if (clearedUrls.delete(url)) reload = true; // cleared before: skip stored copy once
     v.userStopped = false;
 
+    v.newBtn.hidden = true;
+    v.titleName.className = 'tp-title-name';
     v.titleName.textContent = name;
     v.titleName.title = url;
     // what is known before the content: format (recognised or chosen), then size (from the first response)
