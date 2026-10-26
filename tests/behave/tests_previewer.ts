@@ -1,4 +1,4 @@
-// Behavioural tests (preliminary): userscript on the mock SharePoint (cf. /tests/mocks/mock-sharepoint/server.ts)
+// Behavioural tests (preliminary): userscript on the mock Sharepoint (cf. /tests/mocks/mock-sharepoint/server.ts)
 
 import assert from 'node:assert/strict';
 import { after } from 'node:test';
@@ -344,7 +344,7 @@ describe('preview per file type', () => {
         assert.match(await h.text(v.locator('.tp-content')), /Not a plain text file/);
     });
 
-    it('fetches by byte range and only from SharePoint itself', async () => {
+    it('fetches by byte range and only from Sharepoint itself', async () => {
         const { page, requests } = await browser.open(h.LIST_PAGE);
         await page.locator('.tp-preview').first().waitFor();
         await h.preview(page, 'notes.txt');
@@ -462,7 +462,7 @@ describe('editing', () => {
         assert.doesNotMatch((await v.locator('.tp-title-name').getAttribute('class')) ?? '', /tp-renamable/);
     });
 
-    it('upload (simulated): new file into the folder, then shown from SharePoint', async () => {
+    it('upload (simulated): new file into the folder, then shown from Sharepoint', async () => {
         const page = await openFolder(`${h.LIBRARY}/Data`);
         await page.locator('.tp-head').dispatchEvent('click');
         const v = page.locator('.tp-viewer');
@@ -475,7 +475,7 @@ describe('editing', () => {
         await v.locator('.tp-mode-btn[title^="Upload"]').click();
         await h.row(page, 'todo.json').waitFor({ timeout: 10000 }); // the list shows it
         await v.locator('.tp-title-name:not(.tp-new-name)', { hasText: 'todo.json' }).waitFor({ timeout: 10000 });
-        await v.locator('.tp-content', { hasText: '"a": 1' }).waitFor(); // fetched from SharePoint now
+        await v.locator('.tp-content', { hasText: '"a": 1' }).waitFor(); // fetched from Sharepoint now
         assert.match((await dialogues(page)).confirms.join('\n'), /new file "todo\.json" will be uploaded/);
     });
 

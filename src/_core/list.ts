@@ -1,4 +1,4 @@
-// SharePoint list: eye per file and folder row and in the header, current folder, clicks
+// Sharepoint list: eye per file and folder row and in the header, current folder, clicks
 
 // ===========================================================================
 // IMPORTS
@@ -46,7 +46,7 @@ const FOLDER_TITLE = 'Open the previewer for this folder (no file)';
 
 let scheduled = false;
 
-// Containers of SharePoint's dialogues, panels and pop-ups (Fluent UI layers)
+// Containers of Sharepoint's dialogues, panels and pop-ups (Fluent UI layers)
 const OVERLAY =
     '.ms-Layer, .fui-Portal, [role="dialog"], [role="alertdialog"], [aria-modal="true"], .ms-Panel, .ms-Modal, .ms-Callout';
 
@@ -73,7 +73,7 @@ export function inLibrary(): boolean {
 /** @returns server-relative folder of the open view, or null outside a library */
 export function currentFolder(): string | null {
     const params = new URLSearchParams(location.search);
-    // "parent" is set while SharePoint shows its own file preview
+    // "parent" is set while Sharepoint shows its own file preview
     const id = params.get('parent') || params.get('id') || params.get('RootFolder');
     if (id) return id.replace(/\/+$/, '');
 
@@ -87,7 +87,7 @@ export function currentFolder(): string | null {
 // ---------------------------------------------------------------------------
 
 export function rowName(row: HTMLElement): string | null {
-    // 1. Known SharePoint name-field selectors
+    // 1. Known Sharepoint name-field selectors
     const el = row.querySelector(NAME_SELECTORS);
     const name = el?.textContent.trim();
     if (name) return name;
@@ -185,7 +185,7 @@ function processHeader(row: HTMLElement): void {
 function processRow(row: HTMLElement): boolean {
     if (row.querySelector('[role="columnheader"]')) return false; // header: see processHeader
 
-    // Fast path: same content as last time (SharePoint reuses rows)
+    // Fast path: same content as last time (Sharepoint reuses rows)
     const sig = row.textContent;
     if (row.dataset.tpSig === sig && row.querySelector('.tp-cell')) return false;
     row.dataset.tpSig = sig;
@@ -234,7 +234,7 @@ function processRow(row: HTMLElement): boolean {
         cell.style.height = '28px';
     }
 
-    // SharePoint recycles row elements -> re-check state on every pass
+    // Sharepoint recycles row elements -> re-check state on every pass
     const state = rowKind(row);
     if (cell.dataset.state !== state) {
         cell.dataset.state = state;
@@ -305,7 +305,7 @@ export function refreshEyes(): void {
 
 function scan() {
     scheduled = false;
-    // H-mode panel inside SharePoint's container: put it back if SharePoint re-rendered
+    // H-mode panel inside Sharepoint's container: put it back if Sharepoint re-rendered
     if (viewer?.anchor && !viewer.box.isConnected) syncPanel();
     if (!inLibrary()) {
         for (const el of document.querySelectorAll('.tp-cell, .tp-head')) el.remove(); // left from library page
@@ -343,7 +343,7 @@ export function watchList(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Clicks (capture phase, so SharePoint doesn't select/open row)
+// Clicks (capture phase, so Sharepoint doesn't select/open row)
 // ---------------------------------------------------------------------------
 
 const findPreview = (e: Event): HTMLElement | null =>

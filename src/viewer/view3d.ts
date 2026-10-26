@@ -65,7 +65,7 @@ function loadIfcLibrary(onStatus: (s: string) => void): Promise<{ lib: IfcLite; 
             const site = (location.pathname.match(/^\/(?:sites|teams|personal)\/[^/]+/i) || [''])[0]; // current site
             const folder = VIEWER_3D_FOLDER.startsWith('/') ? VIEWER_3D_FOLDER : `${site}/${VIEWER_3D_FOLDER}`;
             const url = encodePath(`${folder.replace(/\/$/, '')}/${name}`);
-            if (!sameOrigin(url)) throw new Error('the 3D viewer folder must be in this SharePoint');
+            if (!sameOrigin(url)) throw new Error('the 3D viewer folder must be in this Sharepoint');
             onStatus(`caching ${name} …`);
             const res = await fetch(url, { credentials: 'same-origin' });
             if (!res.ok) throw new Error(`${name}: error ${res.status}`);

@@ -122,7 +122,7 @@ export function createViewer(): Viewer {
     position: fixed;
     inset: 0;
     background: rgba(0,0,0,.5);
-    z-index: 2147483000; /* above SharePoint's own panels (settings, details, ...) */
+    z-index: 2147483000; /* above Sharepoint's own panels (settings, details, ...) */
   `;
 
     // Panel
@@ -164,7 +164,7 @@ export function createViewer(): Viewer {
     const saveBtn = button(SAVE_SVG, 'Save: keep the changes, ready for upload (Ctrl+S)', 154, ROW1, {
         disabled: true,
     });
-    const uploadBtn = button(UPLOAD_SVG, 'Upload the saved changes to SharePoint', 190, ROW1, { disabled: true });
+    const uploadBtn = button(UPLOAD_SVG, 'Upload the saved changes to Sharepoint', 190, ROW1, { disabled: true });
     // View switch (status bar, bottom right): Text | Preview (Table, 3D or Markdown, by file type)
     const viewBtn = (svg: string, label: string, title: string) => {
         const b = document.createElement('button');
@@ -285,7 +285,7 @@ export function createViewer(): Viewer {
     newBtn.type = 'button';
     newBtn.className = 'tp-new-file';
     newBtn.innerHTML = `${NEW_FILE_SVG}<span>New file</span>`;
-    newBtn.title = 'Create a new file in the folder open in SharePoint';
+    newBtn.title = 'Create a new file in the folder open in Sharepoint';
     newBtn.hidden = true;
     title.append(newBtn);
     // Note: tooltip on header
@@ -534,7 +534,7 @@ export function createViewer(): Viewer {
     statusBar.append(progress, formatBar, zoomBar, views);
     box.append(header, csvBar, content, stage3d, editorWrap, loadMoreBtn, statusBar, splitter);
 
-    // Keep panel's events away from SharePoint's handlers (split mode: inside its DOM)
+    // Keep panel's events away from Sharepoint's handlers (split mode: inside its DOM)
     for (const type of ['click', 'dblclick', 'mousedown', 'pointerdown', 'keydown', 'keyup', 'contextmenu', 'wheel']) {
         box.addEventListener(type, (e) => e.stopPropagation());
     }
@@ -694,7 +694,7 @@ export function createViewer(): Viewer {
         }
         exitWriteView(v);
     };
-    // Save stages edits; upload hands saved state to SharePoint
+    // Save stages edits; upload hands saved state to Sharepoint
     saveBtn.onclick = () => {
         const src = v.source;
         if (!v.writeMode || !v.dirty || !src) return;

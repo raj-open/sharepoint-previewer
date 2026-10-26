@@ -19,7 +19,7 @@ describe('list', () => {
         );
         assert.equal(currentFolder(), '/sites/Test/Shared Documents/Data');
     });
-    it("SharePoint's own preview: parent folder", () => {
+    it("Sharepoint's own preview: parent folder", () => {
         setLocation('/sites/Test/Shared%20Documents/Forms/AllItems.aspx?id=%2Fx%2Ff.pdf&parent=%2Fsites%2FTest%2FDocs');
         assert.equal(currentFolder(), '/sites/Test/Docs');
     });

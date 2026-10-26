@@ -1,4 +1,4 @@
-// Search: path of a file below the open folder, from the library list or SharePoint's search index
+// Search: path of a file below the open folder, from the library list or Sharepoint's search index
 import assert from 'node:assert/strict';
 import { describe } from 'node:test';
 import { it } from 'node:test';

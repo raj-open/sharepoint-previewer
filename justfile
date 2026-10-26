@@ -21,7 +21,7 @@ set windows-shell := ["bash", "-euo", "pipefail", "-c"]
 # --------------------------------
 
 NAME := env("NAME", "sharepoint-previewer")
-# local port of the explorative tests (mock SharePoint)
+# local port of the explorative tests (mock Sharepoint)
 HTTP_PORT := env("HTTP_PORT", "8080")
 # userscript: TypeScript modules under /src (entry, header);
 # bundled by build-src into /dist/userscript.js + minified (local only, version and 3D hashes as dummies)
@@ -187,12 +187,12 @@ tests-behave:
 tests-integration:
     @just _tests integration
 
-# explorative tests: mock SharePoint + userscript (/dist/userscript.js) on http://localhost:${HTTP_PORT}; library: Mock Data + Data, or folder
+# explorative tests: mock Sharepoint + userscript (/dist/userscript.js) on http://localhost:${HTTP_PORT}; library: Mock Data + Data, or folder
 [group("tests")]
 tests-explore folder="":
     @node tests/explore/server.ts "{{HTTP_PORT}}" "{{folder}}"
 
-# screenshots for /demos (/demos/img/<case>.png) on the mock SharePoint; no case: all (cf. /scripts/demos.ts)
+# screenshots for /demos (/demos/img/<case>.png) on the mock Sharepoint; no case: all (cf. /scripts/demos.ts)
 [group("tests")]
 demos *cases:
     @node scripts/demos.ts "$@"

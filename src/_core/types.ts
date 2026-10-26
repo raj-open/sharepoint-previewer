@@ -41,7 +41,7 @@ type SourceBase = {
     // caching: relay of progress, "cache all" running
     relay?: { fn: ((loaded: number, total: number) => void) | null; controller: AbortController | null };
     fullJob?: Promise<void> | null;
-    // editing: new file (not on SharePoint until uploaded), text as read, checks of the text shown
+    // editing: new file (not on Sharepoint until uploaded), text as read, checks of the text shown
     fresh?: boolean;
     originalText?: string | null;
     lintResult?: LintResult | null;
