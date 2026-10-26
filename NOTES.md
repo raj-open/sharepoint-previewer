@@ -47,9 +47,10 @@ and where it stores data.
 - **Viewer** in three layouts:
   - below the list
   - right of the list
-  - as a movable pop-up
+  - as a movable pop-up, resizable at its lower right corner (position and size kept)
 - **Header:**
   - layout, edit, cache whole file, stop / cancel, save, upload
+  - when narrow: the file name on a second row; very narrow: without version and logo
   - file name, with (i) for the properties and a chain icon:
     a click copies the clean link (not encoded, no query) of the file shown
     (a link file or search result: where it leads),

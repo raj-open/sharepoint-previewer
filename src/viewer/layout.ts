@@ -8,12 +8,14 @@ import { loadPref } from '../_core/prefs.ts';
 import { savePref } from '../_core/prefs.ts';
 import { view } from '../_core/prefs.ts';
 import { POPUP_POS_KEY } from '../_core/settings-form.ts';
+import { POPUP_SIZE_KEY } from '../_core/settings-form.ts';
 import { DEFAULT_PREVIEW_SIZE } from '../_core/settings.ts';
 import { SPLIT_GAP } from '../_core/settings.ts';
 import { POPUP_SVG } from '../ui/icons.ts';
 import { SPLIT_H_SVG } from '../ui/icons.ts';
 import { SPLIT_V_SVG } from '../ui/icons.ts';
 import { placeMoved } from '../ui/move.ts';
+import { placeSized } from '../ui/move.ts';
 import { viewer } from './open.ts';
 
 import type { Layout } from '../_core/types.ts';
@@ -36,6 +38,11 @@ const BOX_CSS = {
     top: 10vh;
     width: 80vw;
     height: 80vh;
+    min-width: 360px;
+    min-height: 240px;
+    max-width: 100vw;
+    max-height: 100vh;
+    resize: both; /* corner bottom right; size kept (cf. keepSize) */
     ${CARD_CSS}
     box-shadow: 0 8px 32px rgba(0,0,0,.35);
   `,
@@ -458,7 +465,10 @@ export function setMode(mode: Layout): void {
   `;
     v.backdrop.style.display = mode === 'popup' ? 'block' : 'none';
     v.header.style.cursor = mode === 'popup' ? 'move' : ''; // popup: drag header to move it
-    if (mode === 'popup') placeMoved(v.box, POPUP_POS_KEY);
+    if (mode === 'popup') {
+        placeSized(v.box, POPUP_SIZE_KEY); // before the position: it keeps the window on screen
+        placeMoved(v.box, POPUP_POS_KEY);
+    }
     v.splitter.className = `tp-splitter tp-splitter-${mode}`;
     v.backdrop.classList.toggle('tp-overlay', mode === 'popup');
 

@@ -147,6 +147,51 @@ describe('search results', () => {
     });
 });
 
+describe('layouts', () => {
+    /** @returns top of the file name in the viewer, relative to its header */
+    async function nameTop(v: Locator): Promise<number> {
+        const header = await v.locator('.tp-header').boundingBox();
+        const name = await v.locator('.tp-title-name').boundingBox();
+        return (name?.y ?? 0) - (header?.y ?? 0);
+    }
+
+    it('wide header: file name between the buttons, one row', async () => {
+        const page = await openFolder(h.LIBRARY);
+        const v = await h.preview(page, 'notes.txt');
+        assert.equal(await v.locator('.tp-header.tp-narrow').count(), 0);
+        assert.ok((await nameTop(v)) < 40);
+    });
+
+    it('narrow header (right of the list): file name on a second row, properties below it', async () => {
+        const page = await openFolder(h.LIBRARY, { layout: 'vertical' });
+        await h.eye(page, 'notes.txt').click();
+        const v = page.locator('.tp-viewer');
+        await v.locator('.tp-header.tp-narrow').waitFor();
+        assert.ok((await nameTop(v)) > 40);
+        assert.equal(await v.locator('.tp-title-name').isVisible(), true);
+        await v.locator('.tp-mode-btn[title^="Display file metadata"]').click();
+        const meta = await v.locator('.tp-title').nth(1).boundingBox();
+        const well = await v.locator('.tp-title').first().boundingBox();
+        assert.ok(meta && well && meta.y >= well.y + well.height); // not over the file name
+    });
+
+    it('popup: resizable (corner), size kept for the next popup', async () => {
+        const page = await openFolder(h.LIBRARY, { layout: 'popup' });
+        const v = await h.preview(page, 'notes.txt');
+        assert.equal(await v.evaluate((el) => getComputedStyle(el).resize), 'both');
+        await v.evaluate((el) => {
+            el.style.width = '700px'; // as the browser writes it when the user drags the corner
+            el.style.height = '500px';
+        });
+        await page.waitForFunction(() => localStorage.getItem('tp-preview-popup-size') !== null);
+        await page.keyboard.press('Escape');
+        await h.preview(page, 'README.md');
+        const b = await page.locator('.tp-viewer').boundingBox();
+        assert.equal(Math.round(b?.width ?? 0), 700);
+        assert.equal(Math.round(b?.height ?? 0), 500);
+    });
+});
+
 describe('preview per file type', () => {
     const cases: [string, string, RegExp, string][] = [
         ['', 'notes.txt', /format: Text/, 'Meeting notes'],

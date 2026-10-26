@@ -60,6 +60,7 @@ const REMEMBERED_BY: Record<string, string> = {
 };
 const SETTINGS_POS_KEY = 'tp-preview-settings-pos';
 export const POPUP_POS_KEY = 'tp-preview-popup-pos';
+export const POPUP_SIZE_KEY = 'tp-preview-popup-size';
 
 // ===========================================================================
 // METHODS
