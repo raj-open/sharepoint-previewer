@@ -6,10 +6,9 @@ This document contains information for developers.
 
 | Path | Contents |
 | :--- | :------- |
-| `/src/_core` | entry (`main.js`), Tampermonkey header (`header.js`), settings, preferences, list view, shared types |
+| `/src/main.js` | entry: imports the modules, then starts up |
+| `/src/_core` | Tampermonkey header (`header.js`), settings, preferences, list view, shared types |
 | `/src/{readers,text,ui,view,viewer}` | the other modules (ES modules) |
-| `/src/main.js` | the userscript, bundled from the modules (written by `just build-src`) |
-| `/src/main.min.js` | the same, minified (written by `just build-src`) |
 | `/src/@apis/ifc-lite/main.js` | entry of the ifc-lite bundle for the optional 3D view |
 | `/scripts` | build and demo scripts (`bundle.mjs`, `demos.mjs`) |
 | `/demos` | demos with screenshots (`/demos/img`, written by `just demos`) |
@@ -17,6 +16,7 @@ This document contains information for developers.
 | `/tests/{unit,behave,integration}` | tests (`tests_*.mjs`, run with `node --test`); unit tests mirror `/src` |
 | `/templates` | templates for local files (e.g. `.env`) |
 | `/dist/VERSION` | version (single source) |
+| `/dist/userscript.js` | the userscript, bundled from the modules (written by `just build-src`; version and 3D hashes as dummies) |
 | `/models` | (reserved) schemata |
 | `specs.md` | public specs and conventions |
 
@@ -31,7 +31,7 @@ This document contains information for developers.
 ```bash
 just setup              # local files (.env, ...) from /templates
 just build              # dependencies (per lock) + all artefacts in /dist
-just build-src          # /src/main.js + /src/main.min.js from the modules
+just build-src          # /dist/userscript.js from the modules
 just build-dist         # artefacts only (dependencies already installed)
 just prettify           # format + lint with fixes (Biome)
 just lint-check         # same, dry run
@@ -59,7 +59,7 @@ The build writes into the userscript:
 
 - `@version` from `/dist/VERSION`
 - the SHA-256 hashes of the two 3D files
-  (the values in `/src/main.js` are those of the last deployed bundle)
+  (`/dist/userscript.js` has dummies: `0.0.0`, `<sha256>`)
 
 So the userscript and the 3D files of one build are deployed together.
 

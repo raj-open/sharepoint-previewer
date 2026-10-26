@@ -80,9 +80,9 @@ export const SPLIT_GAP = 3;
 // Width of preview (eye) column, in pixels
 export const COL_WIDTH = 32;
 
-// Checksums of 3D viewer files (they belong to this script version)
-export const VIEWER_3D_JS_SHA256 = 'f662159c4b4f5a92b7625943e8519872a1438ee32dad50e5f6997c7da77b36e2';
-export const VIEWER_3D_WASM_SHA256 = '3912d1046cf6507e7ef6f85a0492a0e54fbb31ae711b85c6e46b6313ffd63312';
+// Checksums of 3D viewer files (they belong to this script version): dummies, stamped by the release build
+export const VIEWER_3D_JS_SHA256 = '<sha256>';
+export const VIEWER_3D_WASM_SHA256 = '<sha256>';
 
 // ===========================================================================
 // METHODS
