@@ -94,19 +94,26 @@ export function openSettingsForm(): void {
     const mono = 'Consolas, monospace';
     wrap.style.cssText = `position:fixed; inset:0; z-index:2147483100; background:rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center; font:13px ${font};`;
     const form = document.createElement('form');
-    form.style.cssText = `background:${c.bg}; color:${c.fg}; padding:20px 24px; border-radius:10px; width:min(620px, 92vw); max-height:86vh; overflow:auto; box-shadow:0 8px 32px rgba(0,0,0,.3); font:13px ${font}; color-scheme:${dark ? 'dark' : 'light'}; user-select:text;`;
+    form.style.cssText = `background:${c.bg}; color:${c.fg}; padding:20px 24px; border-radius:10px; width:min(980px, 94vw); max-height:92vh; overflow:auto; box-shadow:0 8px 32px rgba(0,0,0,.3); font:13px ${font}; color-scheme:${dark ? 'dark' : 'light'}; user-select:text;`;
     const field = `font:13px ${font}; color:${c.fg}; background:${c.field}; padding:4px 8px; border:1px solid ${c.border}; border-radius:6px; box-sizing:border-box;`;
     const stored: Settings = Object.fromEntries(
         SETTING_FORM.map(([key]) => [key, GM_getValue(key, defaults[key]) as SettingValue]),
     );
 
+    // One cell per setting: label left, field right; two columns of cells when there is room, else one;
+    // text settings (folder, logo) over the full width
+    const cell = (wide: boolean) =>
+        `display:grid; grid-template-columns:${wide ? 'minmax(0, 1fr) minmax(0, 3fr)' : 'minmax(0, 1fr) auto'}; ` +
+        `gap:4px 12px; align-items:center; min-height:28px;${wide ? ' grid-column:1 / -1;' : ''}`;
     const rows = SETTING_FORM.map(([key, label, extra]) => {
         if (key === 'logo') {
             // full line, four lines high, wraps, scrolls
             return (
-                `<div style="grid-column:1 / -1; margin-top:4px; user-select:text; cursor:text">${esc(label)}</div>` +
-                `<textarea name="${key}" rows="4" spellcheck="false" style="grid-column:1 / -1; ${field} width:100%; ` +
-                `resize:none; overflow-y:auto; word-break:break-all; font-family:${mono}; font-size:12px; line-height:16px; height:${4 * 16 + 10}px"></textarea>`
+                `<div style="grid-column:1 / -1; display:grid; gap:4px">` +
+                `<div style="user-select:text; cursor:text">${esc(label)}</div>` +
+                `<textarea name="${key}" rows="4" spellcheck="false" style="${field} width:100%; ` +
+                `resize:none; overflow-y:auto; word-break:break-all; font-family:${mono}; font-size:12px; line-height:16px; height:${4 * 16 + 10}px"></textarea>` +
+                '</div>'
             );
         }
         let input: string;
@@ -128,9 +135,12 @@ export function openSettingsForm(): void {
             input = `<input type="text" name="${key}" placeholder="${esc(extra || '')}" style="${field} width:100%">`;
         }
         // plain text (not a <label>): selectable, and click doesn't toggle field
+        const wide = typeof defaults[key] === 'string' && !Array.isArray(extra);
         return (
-            `<span style="align-self:center; user-select:text; cursor:text">${esc(label)}</span>` +
-            `<div style="display:flex; align-items:center; min-width:0">${input}</div>`
+            `<div style="${cell(wide)}">` +
+            `<span style="user-select:text; cursor:text">${esc(label)}</span>` +
+            `<div style="display:flex; align-items:center; justify-content:${wide ? 'stretch' : 'flex-end'}; min-width:0">${input}</div>` +
+            '</div>'
         );
     });
     const tab = (mode: string, text: string) =>
@@ -140,7 +150,7 @@ export function openSettingsForm(): void {
       <h3 style="flex:1; margin:0; font:600 16px ${font}">Sharepoint Previewer: settings</h3>
       <button type="button" data-act="close" title="Close" style="width:28px; height:28px; padding:0; border:none; border-radius:6px; background:transparent; color:${c.fg}; font:18px/1 ${font}; cursor:pointer">✕</button>
     </div>
-    <div data-pane="form" style="display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:10px 16px">${rows.join('')}</div>
+    <div data-pane="form" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(min(400px, 100%), 1fr)); gap:8px 32px">${rows.join('')}</div>
     <div data-pane="json" style="display:none">
       <div style="position:relative">
         <textarea data-json spellcheck="false" style="${field} width:100%; height:360px; resize:none; overflow-x:hidden; overflow-y:auto; white-space:pre-wrap; word-break:break-all; font:12px/17px ${mono}"></textarea>
