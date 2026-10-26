@@ -6,13 +6,14 @@ name: QA (manual)
 
 on:
   workflow_dispatch:
-    environment:
-      description: |-
-        Choice of environment for pipeline
-      # NOTE: this option provides dropdown list of choices of environments set on GitHub (enterprise only)
-      type: environment
-      required: true
-      default: "local"
+    inputs:
+      environment:
+        description: |-
+          Choice of environment for pipeline
+        # NOTE: this option provides dropdown list of choices of environments set on GitHub (enterprise only)
+        type: environment
+        required: true
+        default: "local"
 
 permissions:
   contents: read
