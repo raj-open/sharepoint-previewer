@@ -44,6 +44,7 @@ type Case = {
     folder: string;
     file?: string;
     settings?: Record<string, unknown>;
+    width?: number; // of the window (default: as the behavioural tests)
     skip?: () => string;
     before?: (page: Page) => Promise<void>;
     steps?: (page: Page, viewer: Locator) => Promise<void>;
@@ -65,13 +66,28 @@ const CASES: Record<string, Case> = {
     },
     vertical: {
         folder: '',
-        settings: { layout: 'vertical' },
+        settings: { 'layout': 'vertical', 'viewer-share': 0.5 },
+        width: 1800, // the title bar on one row (narrower: file name on a second row)
         // NOTE: no file opened by `preview` (it waits for the progress bar, hidden in a narrow status bar)
         before: async (page) => {
             await h.eye(page, 'README.md').click();
             await page.locator('.tp-viewer .tp-md h1').waitFor();
         },
         pointer: (page) => h.eye(page, 'README.md'),
+    },
+    // narrow viewer (right of the list, default share): title bar on two rows
+    narrow: {
+        folder: '/Data',
+        settings: { layout: 'vertical' },
+        before: async (page) => {
+            await h.eye(page, 'prices.csv').click();
+            await page.locator('.tp-viewer .tp-header.tp-narrow').waitFor();
+            await page.locator('.tp-viewer .tp-mode-btn[title^="Display file metadata"]').click();
+        },
+        clip: async (page) => {
+            const v = page.locator('.tp-viewer');
+            return top(v, v.locator('.tp-title').nth(1));
+        },
     },
     popup: { folder: '/Config', file: 'settings.xml', settings: { layout: 'popup' } },
     // ---- title bar: name, properties, link, rename ----
@@ -241,6 +257,7 @@ async function view(v: Locator, name: string): Promise<void> {
 
 async function capture(browser: Awaited<ReturnType<typeof h.launch>>, name: string, c: Case): Promise<void> {
     const { page } = await browser.open(h.folderUrl(`${h.LIBRARY}${c.folder}`), { settings: c.settings ?? {} });
+    if (c.width) await page.setViewportSize({ width: c.width, height: page.viewportSize()?.height ?? 900 });
     await page.locator('.tp-preview').first().waitFor();
     await c.before?.(page);
     const v = page.locator('.tp-viewer');

@@ -30,6 +30,11 @@ or in a movable pop-up (layout button, top left of the viewer).
 
 ![Viewer as pop-up](img/popup.png)
 
+The pop-up can be resized at its lower right corner (its size is kept, like its position).
+A narrow viewer puts the file name on a second row.
+
+![Narrow viewer: title bar on two rows](img/narrow.png)
+
 ## Title bar ##
 
 The title bar names the file shown.
