@@ -16,8 +16,7 @@ on:
     inputs:
       version:
         description: 'Release version tag'
-        required: true
-        default: 'v0.0.0-test'
+        default: ""
         type: string
 
 permissions:
