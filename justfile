@@ -24,13 +24,14 @@ NAME := env("NAME", "sharepoint-previewer")
 # local port of the explorative tests (mock SharePoint)
 HTTP_PORT := env("HTTP_PORT", "8080")
 # userscript: TypeScript modules under /src (entry, header);
-# bundled by build-src into /dist/userscript.js (kept in the repo, version and 3D hashes as dummies)
+# bundled by build-src into /dist/userscript.js + minified (local only, version and 3D hashes as dummies)
 PATH_MODULES := "src"
 PATH_ENTRY := PATH_MODULES / "main.ts"
 PATH_HEADER := PATH_MODULES / "_core/header.ts"
 PATH_SRC_3D := "src/@apis/ifc-lite/main.ts"
 PATH_DIST := "dist"
 PATH_BUNDLE := PATH_DIST / "userscript.js"
+PATH_BUNDLE_MIN := PATH_DIST / "userscript.min.js"
 PATH_VERSION := "dist/VERSION"
 VERSION := trim(read(PATH_VERSION))
 # release tag: short pre-release forms in /dist/VERSION (1.1.0a1, 1.1.0b2, 1.1.0rc1), long in tags (v1.1.0-alpha.1, ...)
@@ -86,7 +87,7 @@ build-lock:
     @npm version "{{trim_start_match(TAG, "v")}}" --no-git-tag-version --allow-same-version > /dev/null
     @npm install --package-lock-only --no-audit --no-fund
 
-# bundles the modules into the userscript (/dist/userscript.js, readable; types removed; version and 3D hashes as dummies)
+# bundles the modules into the userscript (/dist/userscript.js, readable; types removed) + minified (/dist/userscript.min.js); local only, version and 3D hashes as dummies
 [group("build")]
 build-src:
     #!/usr/bin/env bash
@@ -94,6 +95,8 @@ build-src:
     node --disable-warning=ExperimentalWarning scripts/bundle.ts "{{PATH_ENTRY}}" "{{PATH_HEADER}}" "{{PATH_BUNDLE}}"
     node --check "{{PATH_BUNDLE}}"
     just _size "{{PATH_BUNDLE}}" "{{MAX_KB_SRC}}"
+    just _minify "{{PATH_BUNDLE}}" "{{PATH_BUNDLE_MIN}}"
+    just _size "{{PATH_BUNDLE_MIN}}" "{{MAX_KB_MIN}}"
 
 # writes release to /dist/v<VERSION>: userscript with @version (not the commit tagged with the release tag: <VERSION>-beta.<short commit>) and 3D hashes stamped, minified, 3D files, notes
 [group("build")]

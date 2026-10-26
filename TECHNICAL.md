@@ -16,7 +16,7 @@ This document contains information for developers.
 | `/tests/{unit,behave,integration}` | tests (`tests_*.ts`, run with `node --test`); unit tests mirror `/src` |
 | `/templates` | templates for local files (e.g. `.env`) |
 | `/dist/VERSION` | version (single source) |
-| `/dist/userscript.js` | the userscript, bundled from the modules (written by `just build-src`; version and 3D hashes as dummies) |
+| `/dist/userscript{,.min}.js` | the userscript, bundled from the modules, and minified (written by `just build-src`; local only; version and 3D hashes as dummies) |
 | `/models` | (reserved) schemata |
 | `specs.md` | public specs and conventions |
 
@@ -31,7 +31,7 @@ This document contains information for developers.
 ```bash
 just setup              # local files (.env, ...) from /templates
 just build              # dependencies (per lock) + all artefacts in /dist
-just build-src          # /dist/userscript.js from the modules
+just build-src          # /dist/userscript{,.min}.js from the modules (local only)
 just build-dist         # artefacts only (dependencies already installed)
 just prettify           # format + lint with fixes (Biome)
 just lint-check         # same, dry run
@@ -60,7 +60,7 @@ The build writes into the userscript:
 
 - `@version` from `/dist/VERSION`
 - the SHA-256 hashes of the two 3D files
-  (`/dist/userscript.js` has dummies: `0.0.0`, `<sha256>`)
+  (`/dist/userscript{,.min}.js` have dummies: `0.0.0`, `<sha256>`)
 
 So the userscript and the 3D files of one build are deployed together.
 

@@ -64,13 +64,6 @@ jobs:
       # Checks
       # --------------------------------
 
-      # NOTE: bundle /dist/userscript.js is committed: warn if it was not rebuilt before the commit
-      - name: Check build is up to date
-        run: |-
-          if ! git diff --quiet -- dist/userscript.js; then
-            echo "::warning::dist/userscript.js not rebuilt before commit (run \`just build-src\`)"
-          fi
-
       - name: QA - Linting
         run: |-
           just lint-check
