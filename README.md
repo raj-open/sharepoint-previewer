@@ -116,11 +116,6 @@ and IT teams who want all this without another app to roll out.
 
 4. Follow Instructions 3–6 [above](#setup-from-releases).
 
-## Notes ##
-
-- See [TECHNICAL.md](./TECHNICAL.md) for basic technical notes about this repository.
-- See [NOTES.md](./NOTES.md) for notes on application logic and design.
-
 ## Credits and licences ##
 
 - **This script:**
@@ -152,3 +147,8 @@ and IT teams who want all this without another app to roll out.
 
 Microsoft, Sharepoint, Tampermonkey and other names are trademarks of their respective owners;
 this project is not affiliated with or endorsed by them.
+
+## Notes ##
+
+- See [TECHNICAL.md](./TECHNICAL.md) for basic technical notes about this repository.
+- See [NOTES.md](./NOTES.md) for notes on application logic and design.
