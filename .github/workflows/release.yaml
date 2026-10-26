@@ -23,6 +23,10 @@ on:
 permissions:
   contents: read
 
+env:
+  LABEL_ARTEFACTS: "artefacts"
+  PATH_ARTEFACTS: "dist/artefacts"
+
 jobs:
   qa:
     name: QA
@@ -31,7 +35,7 @@ jobs:
     timeout-minutes: 30
     steps:
       # --------------------------------
-      # setup
+      # Setup
       # --------------------------------
 
       - uses: actions/checkout@v7.0.1
@@ -52,10 +56,14 @@ jobs:
           HTTP_PORT=${{ vars.HTTP_PORT }}
           EOF
 
-      - name: Build dependencies
+      - name: Build dependencies + artefacts
         run: |-
           just build
           npx playwright install-deps chromium
+
+      # --------------------------------
+      # Checks
+      # --------------------------------
 
       # NOTE: bundle in /src is committed: warn if it was not rebuilt before the commit
       - name: Check build is up to date
@@ -63,10 +71,6 @@ jobs:
           if ! git diff --quiet -- src/main.js src/main.min.js; then
             echo "::warning::src/main.js or src/main.min.js not rebuilt before commit (run \`just build-src\`)"
           fi
-
-      # --------------------------------
-      # checks
-      # --------------------------------
 
       - name: QA - Linting
         run: |-
@@ -81,8 +85,23 @@ jobs:
         run: |-
           just tests-behave
 
+      # --------------------------------
+      # Artefacts
+      # --------------------------------
+
+      - name: Rename artefacts folder
+        run: |-
+          mkdir -p "${{ env.PATH_ARTEFACTS }}"
+          cp -r dist/v*/. "${{ env.PATH_ARTEFACTS }}"
+
+      - name: Buffer artefacts between job stages
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: "${{ env.LABEL_ARTEFACTS }}"
+          path: "${{ env.PATH_ARTEFACTS }}"
+
   release:
-    name: release
+    name: Release
     needs: qa
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -91,7 +110,7 @@ jobs:
 
     steps:
       # --------------------------------
-      # setup
+      # Setup
       # --------------------------------
 
       - uses: actions/checkout@v7.0.1
@@ -99,32 +118,23 @@ jobs:
           fetch-tags: true
           persist-credentials: false
 
-      - uses: actions/setup-node@v7.1.0
+      # --------------------------------
+      # Release
+      # --------------------------------
+
+      - name: Load artefacts from previous stage
+        uses: actions/download-artifact@v8.0.2
         with:
-          node-version: 22
-          cache: npm
-
-      - uses: extractions/setup-just@v4
-
-      # --------------------------------
-      # build (no browser needed)
-      # --------------------------------
-
-      - name: build
-        run: |-
-          npm ci --no-audit --no-fund
-          just build-dist
-
-      # --------------------------------
-      # release
-      # --------------------------------
-
+          name: "${{ env.LABEL_ARTEFACTS }}"
+          # merge-multiple: true # <- NOTE: only needed for matrix-build
+          # pattern: "*"
+          path: "${{ env.PATH_ARTEFACTS }}"
 
       - name: Upload to GitHub Releases
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3.0.3
         with:
           tag_name: ${{ github.event.inputs.version || github.ref_name }}
-          files: dist/v*
+          files: "${{ env.PATH_ARTEFACTS }}/*"
 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
