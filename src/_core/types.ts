@@ -156,7 +156,12 @@ export type Viewer = {
     tableEditing?: boolean;
     dirty?: boolean;
     staged?: string | null;
+    // another name (save as): being edited, saved with the staged text
+    newName?: string | null;
+    stagedName?: string | null;
 };
+/** where an edit is uploaded: name, server-relative path, new file (the original stays) */
+export type Target = { name: string; url: string; isNew: boolean };
 /** bytes [from, to) of a file */
 export type ByteReader = (from: number, to: number) => Promise<Uint8Array>;
 export type RangeFile = {
