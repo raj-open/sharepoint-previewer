@@ -6,14 +6,14 @@ This document contains information for developers.
 
 | Path | Contents |
 | :--- | :------- |
-| `/src/main.js` | entry: imports the modules, then starts up |
-| `/src/_core` | Tampermonkey header (`header.js`), settings, preferences, list view, shared types |
-| `/src/{readers,text,ui,view,viewer}` | the other modules (ES modules) |
-| `/src/@apis/ifc-lite/main.js` | entry of the ifc-lite bundle for the optional 3D view |
-| `/scripts` | build and demo scripts (`bundle.mjs`, `demos.mjs`) |
+| `/src/main.ts` | entry: imports the modules, then starts up |
+| `/src/_core` | Tampermonkey header (`header.ts`), settings, preferences, list view, shared types (`types.ts`) |
+| `/src/{readers,text,ui,view,viewer}` | the other modules (TypeScript) |
+| `/src/@apis/ifc-lite/main.ts` | entry of the ifc-lite bundle for the optional 3D view |
+| `/scripts` | build and demo scripts (`bundle.ts`, `demos.ts`) |
 | `/demos` | demos with screenshots (`/demos/img`, written by `just demos`) |
 | `/.github/workflows` | qa (automatic, manual) and release (cf. [Workflows](#workflows)) |
-| `/tests/{unit,behave,integration}` | tests (`tests_*.mjs`, run with `node --test`); unit tests mirror `/src` |
+| `/tests/{unit,behave,integration}` | tests (`tests_*.ts`, run with `node --test`); unit tests mirror `/src` |
 | `/templates` | templates for local files (e.g. `.env`) |
 | `/dist/VERSION` | version (single source) |
 | `/dist/userscript.js` | the userscript, bundled from the modules (written by `just build-src`; version and 3D hashes as dummies) |
@@ -23,7 +23,7 @@ This document contains information for developers.
 ## System requirements ##
 
 - The [Justfile](https://just.systems) tool.
-- Node.js (≥ 22) for package dependencies.
+- Node.js (≥ 22.18: runs TypeScript itself) for package dependencies, build and tests.
 - Bash (Windows users should install e.g. [Git Bash](https://gitforwindows.org)).
 
 ## Taskrunner recipes ##
@@ -38,6 +38,7 @@ just lint-check         # same, dry run
 just tests              # all tests (tests-unit, tests-behave, tests-integration)
 just tests-explore      # mock Sharepoint with the userscript on localhost (HTTP_PORT in .env)
 just demos [case ...]   # screenshots for /demos (/demos/img)
+just type-check         # type check (strict): modules, tests, scripts
 just qa                 # lint checks + type check + all tests
 just tag                # release tag of /dist/VERSION (e.g. v1.1.0-alpha.1 for 1.1.0a1)
 just clean              # node_modules + built artefacts
@@ -68,6 +69,7 @@ So the userscript and the 3D files of one build are deployed together.
 Development only (nothing is loaded at runtime):
 
 - `@biomejs/biome` - lint + format (cf. `/biome.json`)
+- `typescript`, `@types/node` - type check (cf. `/tsconfig.json`); the build removes types with Node itself
 - `esbuild` - bundles the 3D view
 - `@ifc-lite/geometry`, `@ifc-lite/renderer`, `@ifc-lite/wasm` - 3D view (MPL-2.0)
 
