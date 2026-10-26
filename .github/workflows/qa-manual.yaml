@@ -2,7 +2,7 @@
 # QA (manual): on demand, for any branch, tag or commit
 # ----------------------------------------------------------------
 
-name: qa-manual
+name: QA (manual)
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ on:
         Choice of environment for pipeline
       # NOTE: this option provides dropdown list of choices of environments set on GitHub (enterprise only)
       type: environment
-      reuired: true
+      required: true
       default: "local"
 
 permissions:
@@ -22,4 +22,55 @@ jobs:
     name: QA
     runs-on: "ubuntu-latest"
     environment: "${{ github.event.inputs.environment }}"
-    uses: ./.github/workflows/_common.yaml
+    timeout-minutes: 30
+    steps:
+      # --------------------------------
+      # setup
+      # --------------------------------
+
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: extractions/setup-just@v4
+
+      - name: Setup
+        run: |-
+          cat <<EOF > .env
+          NAME="${{ vars.PROGRAMME_NAME }}"
+          HTTP_PORT=${{ vars.HTTP_PORT }}
+          EOF
+
+      - name: Build dependencies
+        run: |-
+          just build
+          npx playwright install-deps chromium
+
+      # NOTE: bundle in /src is committed: warn if it was not rebuilt before the commit
+      - name: Check build is up to date
+        run: |-
+          if ! git diff --quiet -- src/main.js src/main.min.js; then
+            echo "::warning::src/main.js or src/main.min.js not rebuilt before commit (run \`just build-src\`)"
+          fi
+
+      # --------------------------------
+      # checks
+      # --------------------------------
+
+      - name: QA - Linting
+        run: |-
+          just lint-check
+          just type-check
+
+      - name: QA - Unit Tests
+        run: |-
+          just tests-unit
+
+      - name: QA - Behavioural Tests
+        run: |-
+          just tests-behave
