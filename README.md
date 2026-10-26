@@ -1,6 +1,6 @@
 # Sharepoint Previewer #
 
-[![qa (main)](../../actions/workflows/qa-auto.yaml/badge.svg?branch=main)](../../actions/workflows/qa-auto.yaml?query=branch%3Amain)
+[![qa (main)](../../actions/workflows/qa-manual.yaml/badge.svg?branch=main)](../../actions/workflows/qa-manual.yaml?query=branch%3Amain)
 [![qa (staging)](../../actions/workflows/qa-auto.yaml/badge.svg?branch=staging)](../../actions/workflows/qa-auto.yaml?query=branch%3Astaging)
 [![release](../../actions/workflows/release.yaml/badge.svg)](../../actions/workflows/release.yaml)
 
