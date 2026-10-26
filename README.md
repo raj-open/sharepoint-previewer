@@ -30,7 +30,7 @@ See
 - [Tables and spreadsheets](demos/tables.md): CSV, Excel tables and sheets, logs
 - [3D](demos/3d.md): IFC models
 
-Technical description for IT (behaviour, network, storage, security, deployment):
+Technical descriptions (behaviour, network, storage, security, deployment):
 see [NOTES.md](NOTES.md).
 
 ## Motivation ##
@@ -49,7 +49,7 @@ Our tool allows users to
 - view CSV, Parquet, Excel and OpenDocument files as sortable, filterable tables
 - read Markdown rendered and logs as tables (experimental)
 - view IFC models in 3D (optional)
-- edit plaintext files and save them back through Sharepoint's own upload
+- edit plaintext files, or create new ones, and save them back through Sharepoint's own upload (also under another name)
 
 > [!NOTE]
 > Our tool involves no API calls or 3rd party usage (beyond an optional IFC-lite viewer).
@@ -117,9 +117,16 @@ and IT teams who want all this without another app to roll out.
 - See [TECHNICAL.md](./TECHNICAL.md) for basic technical notes about this repository.
 - See [NOTES.md](./NOTES.md) for notes on application logic and design.
 
-## Licence ##
+## Licences ##
 
-[MPL-2.0](./LICENCE) (Mozilla Public License 2.0):
-use, change and pass on freely, also commercially;
-the copyright and licence notices stay,
-and changed files of this project stay under MPL-2.0 (their source available to whoever receives them).
+- **The script:**
+  written for this purpose and contains no third-party code;
+  licence: [MPL-2.0](./LICENCE) (Mozilla Public License 2.0):
+  use, change and pass on freely, also commercially;
+  the copyright and licence notices stay,
+  and changed files of this project stay under MPL-2.0 (their source available to whoever receives them).
+
+- **Optional 3D bundle:**
+  ifc-lite, **MPL-2.0** (<https://github.com/LTplus-AG/ifc-lite>).
+  Using it unchanged, as here, is permitted;
+  modified ifc-lite source files would have to stay under MPL-2.0.

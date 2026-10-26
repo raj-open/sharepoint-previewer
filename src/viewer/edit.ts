@@ -18,6 +18,7 @@ import { listRegion } from './layout.ts';
 import { showName } from './names.ts';
 import { target } from './names.ts';
 import { uploadQuestion } from './names.ts';
+import { showEmpty } from './open.ts';
 import { viewer } from './open.ts';
 import { close3d } from './view3d.ts';
 
@@ -49,8 +50,8 @@ export async function enterWrite(v: Viewer): Promise<void> {
     v.dirty = false;
     showName(v); // name can be changed now
     v.uploadBtn.disabled = v.staged == null; // saved changes stay uploadable
-    if (v.lang === 'csv' && view.table) {
-        // CSV in table view: edit cells directly
+    if (v.lang === 'csv' && view.table && src.text) {
+        // CSV in table view: edit cells directly (empty: in the text box)
         src.crlf = src.text.includes('\r\n');
         src.trailingNewline = /\n$/.test(src.text);
         v.tableEditing = true;
@@ -97,10 +98,11 @@ export function confirmDiscard(v: Viewer): boolean {
     return true;
 }
 
-// Cancel (button, Esc): drop all changes (unsaved and saved) after asking, back to read view;
-// false = user keeps them
+// Cancel (button, Esc): drop all changes (unsaved and saved) after asking, back to read view
+// (new file: to the empty viewer); false = user keeps them
 export function cancelEdits(v: Viewer): boolean {
     if (!v.writeMode || !confirmDiscard(v)) return false;
+    if (v.source?.fresh) return showEmpty(v);
     exitWriteView(v);
     return true;
 }

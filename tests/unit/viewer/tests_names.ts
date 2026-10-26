@@ -7,7 +7,7 @@ import { fakeViewer } from '../helpers.ts';
 import { load } from '../helpers.ts';
 import { setLocation } from '../helpers.ts';
 
-const { nameProblem, target, nameFree, showName, uploadQuestion } = await load('viewer/names.ts');
+const { nameProblem, target, nameFree, showName, uploadQuestion, askName } = await load('viewer/names.ts');
 setLocation('https://acme.sharepoint.com/sites/Test/Shared%20Documents/Forms/AllItems.aspx');
 
 const FILE = { name: 'notes.txt', url: '/sites/Test/Shared Documents/notes.txt' };
@@ -76,5 +76,20 @@ describe('viewer/names', () => {
         const t = target(v, 'b.txt');
         assert.match(uploadQuestion(v, t, false), /new file "b\.txt"[\s\S]*"notes\.txt" stays unchanged/);
         assert.match(uploadQuestion(v, t, true), /already exists/);
+    });
+    it('new file: always a new target; no original named before upload', () => {
+        const v = fakeViewer({ file: FILE, source: { text: '', fresh: true } });
+        assert.equal(target(v).isNew, true);
+        assert.doesNotMatch(uploadQuestion(v, target(v), false), /stays unchanged/);
+    });
+    it('asking for a name: trimmed, refused ones asked again, cancel gives null', async () => {
+        const answers = ['a|b.txt', '  todo.md  '];
+        const alerts: string[] = [];
+        globalThis.prompt = () => answers.shift() ?? null;
+        globalThis.alert = (m: string) => void alerts.push(m);
+        globalThis.fetch = async () => new Response(null, { status: 404 });
+        assert.equal(await askName('/sites/Test/Shared Documents'), 'todo.md');
+        assert.equal(alerts.length, 1);
+        assert.equal(await askName('/sites/Test/Shared Documents'), null);
     });
 });

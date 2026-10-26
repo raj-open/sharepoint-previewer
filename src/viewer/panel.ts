@@ -25,6 +25,7 @@ import { COLOUR_SVG } from '../ui/icons.ts';
 import { COPY_SVG } from '../ui/icons.ts';
 import { LOAD_ALL_SVG } from '../ui/icons.ts';
 import { MORE_SVG } from '../ui/icons.ts';
+import { NEW_FILE_SVG } from '../ui/icons.ts';
 import { POPUP_SVG } from '../ui/icons.ts';
 import { PROPS_SVG } from '../ui/icons.ts';
 import { REFRESH_SVG } from '../ui/icons.ts';
@@ -62,6 +63,7 @@ import { startRename } from './names.ts';
 import { target } from './names.ts';
 import { chooseFormat } from './open.ts';
 import { closeViewer } from './open.ts';
+import { newFile } from './open.ts';
 import { showFile } from './open.ts';
 import { viewer } from './open.ts';
 import { setBusy } from './status.ts';
@@ -195,6 +197,7 @@ export function createViewer(): Viewer {
     const clearBtn = item(CLEAR_SVG, 'Clear this file from the cache', { disabled: true });
     const clearAllBtn = item(CLEAR_SVG, 'Clear all files from the cache', { disabled: memoryCache.size === 0 });
     const settingsBtn = item(SETTINGS_SVG, 'Full settings …');
+    const newItem = item(NEW_FILE_SVG, 'New file …');
 
     // Small drop-down under its button; closes on any click outside or on entry
     const menu = (anchor: HTMLElement, entries: HTMLElement[], alignRight = false) => {
@@ -226,7 +229,7 @@ export function createViewer(): Viewer {
     const layoutMenu = menu(layoutBtn, [hBtn, vBtn, pBtn]);
     const moreMenu = menu(
         moreBtn,
-        [settingsBtn, themeBtn, colourBtn, wrapBtn, refreshBtn, clearBtn, clearAllBtn],
+        [newItem, settingsBtn, themeBtn, colourBtn, wrapBtn, refreshBtn, clearBtn, clearAllBtn],
         true,
     );
 
@@ -267,6 +270,14 @@ export function createViewer(): Viewer {
     cursor: pointer;
   `;
     title.prepend(propsBtn);
+    // New file: in the title well while no file is open (also in the ⋯ menu)
+    const newBtn = document.createElement('button');
+    newBtn.type = 'button';
+    newBtn.className = 'tp-new-file';
+    newBtn.innerHTML = `${NEW_FILE_SVG}<span>New file</span>`;
+    newBtn.title = 'Create a new file in the folder open in SharePoint';
+    newBtn.hidden = true;
+    title.append(newBtn);
     // Note: tooltip on header
     header.title =
         'Note: this viewer is primarily for text files. Parquet files and spreadsheets may also be viewed (read only). ' +
@@ -534,6 +545,7 @@ export function createViewer(): Viewer {
         saveBtn,
         uploadBtn,
         writeBtn,
+        newBtn,
         textBtn,
         previewBtn,
         sheetPicker,
@@ -619,6 +631,8 @@ export function createViewer(): Viewer {
     clearBtn.onclick = () => v.file && clearCached(v);
     clearAllBtn.onclick = () => clearAllCached();
     settingsBtn.onclick = () => openSettingsForm();
+    newBtn.onclick = () => newFile();
+    newItem.onclick = () => newFile();
     writeBtn.onclick = () => (v.writeMode ? leaveWrite() : enterWrite(v));
     // 3D choice remembered for next IFC files (also across reloads)
     const set3d = (on: boolean) => {
@@ -662,6 +676,7 @@ export function createViewer(): Viewer {
     // Back to read mode (edit button again): unsaved edits only after asking
     const leaveWrite = () => {
         if (!v.writeMode) return;
+        if (v.source?.fresh) return void cancelEdits(v); // new file: no read view yet
         if (v.dirty) {
             // only unsaved edits are at stake here; saved changes stay
             flash(saveBtn);

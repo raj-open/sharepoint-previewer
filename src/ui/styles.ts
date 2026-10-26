@@ -137,6 +137,21 @@ const CSS = `
     border-radius: 3px;
     outline: none;
   }
+  .tp-new-file {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border: none;
+    border-radius: 4px;
+    background: var(--tp-accent);
+    color: #fff;
+    font: 12px sans-serif;
+    cursor: pointer;
+  }
+  .tp-new-file[hidden] { display: none; }
+  .tp-new-file svg { width: 14px; height: 14px; }
   .tp-mode-btn { background: var(--tp-btn-bg); color: var(--tp-btn-fg); }
   .tp-mode-btn[aria-pressed="true"] { background: var(--tp-accent); color: #fff; }
   .tp-mode-btn:disabled { opacity: .4; cursor: default; }
