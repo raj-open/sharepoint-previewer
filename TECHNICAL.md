@@ -41,7 +41,7 @@ just demos [case ...]   # screenshots for /demos (/demos/img)
 just type-check         # type check (strict): modules, tests, scripts
 just qa                 # lint checks + type check + all tests
 just tag                # release tag of /dist/VERSION (e.g. v1.1.0-alpha.1 for 1.1.0a1)
-just clean              # node_modules + built artefacts
+just clean              # node_modules + built artefacts (incl. /dist/userscript{,.min}.js)
 ```
 
 ## Artefacts ##
