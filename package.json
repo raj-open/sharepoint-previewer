@@ -19,7 +19,7 @@
         "sharepoint"
     ],
     "engines": {
-        "node": ">=22"
+        "node": ">=22.18"
     },
     "devDependencies": {
         "@biomejs/biome": "2.6.3",

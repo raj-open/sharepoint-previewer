@@ -23,9 +23,12 @@ set windows-shell := ["bash", "-euo", "pipefail", "-c"]
 NAME := env("NAME", "sharepoint-previewer")
 # local port of the explorative tests (mock SharePoint)
 HTTP_PORT := env("HTTP_PORT", "8080")
-# userscript: modules under /src (entry /src/main.js, header in /src/_core);
+# userscript: modules under /src (entry, header, shared types);
 # bundled by build-src into /dist/userscript.js (kept in the repo, version and 3D hashes as dummies)
 PATH_MODULES := "src"
+PATH_ENTRY := PATH_MODULES / "main.js"
+PATH_HEADER := PATH_MODULES / "_core/header.js"
+PATH_TYPES := PATH_MODULES / "_core/types.js"
 PATH_SRC_3D := "src/@apis/ifc-lite/main.js"
 PATH_DIST := "dist"
 PATH_BUNDLE := PATH_DIST / "userscript.js"
@@ -84,12 +87,14 @@ build-lock:
     @npm version "{{trim_start_match(TAG, "v")}}" --no-git-tag-version --allow-same-version > /dev/null
     @npm install --package-lock-only --no-audit --no-fund
 
-# bundles the modules into the userscript (/dist/userscript.js, readable; version and 3D hashes as dummies)
+# bundles the modules into the userscript (/dist/userscript.js, readable; types removed; version and 3D hashes as dummies)
 [group("build")]
 build-src:
-    @node scripts/bundle.mjs "{{PATH_MODULES}}/main.js" "{{PATH_MODULES}}/_core/header.js" "{{PATH_MODULES}}/_core/types.js" "{{PATH_BUNDLE}}"
-    @node --check "{{PATH_BUNDLE}}"
-    @just _size "{{PATH_BUNDLE}}" "{{MAX_KB_SRC}}"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    node --disable-warning=ExperimentalWarning scripts/bundle.mjs "{{PATH_ENTRY}}" "{{PATH_HEADER}}" "{{PATH_TYPES}}" "{{PATH_BUNDLE}}"
+    node --check "{{PATH_BUNDLE}}"
+    just _size "{{PATH_BUNDLE}}" "{{MAX_KB_SRC}}"
 
 # writes release to /dist/v<VERSION>: userscript with @version (not the commit tagged with the release tag: <VERSION>-beta.<short commit>) and 3D hashes stamped, minified, 3D files, notes
 [group("build")]
