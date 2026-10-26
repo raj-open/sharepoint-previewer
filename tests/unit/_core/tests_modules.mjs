@@ -16,7 +16,7 @@ const modules = fs
         (f) =>
             f.endsWith('.js') &&
             !f.startsWith('@apis/') &&
-            !['main.js', 'main.min.js', '_core/header.js', '_core/main.js', '_core/types.js'].includes(f),
+            !['_core/header.js', '_core/main.js', '_core/types.js'].includes(f),
     )
     .sort();
 

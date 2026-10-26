@@ -1,5 +1,5 @@
 // Harness for behavioural tests: Chromium (Playwright) on the mock SharePoint,
-// userscript from /src/main.js injected per page load (as Tampermonkey does at document-idle).
+// userscript from /dist/userscript.js injected per page load (as Tampermonkey does at document-idle).
 //
 // Browser once per machine: `npx playwright install chromium` (part of `just build-deps`).
 

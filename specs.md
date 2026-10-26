@@ -16,8 +16,9 @@
 
 - Source: ES modules under `/src` (entry `/src/_core/main.js`, Tampermonkey header `/src/_core/header.js`);
   third-party code under `/src/@apis`.
-- Userscript: `/src/main.js` (bundle, esbuild) and `/src/main.min.js` (minified), both written by `just build-src`
-  and committed; never edited by hand.
+- Userscript: `/dist/userscript.js` (bundle), written by `just build-src`
+  and committed (to follow how the whole script changes between versions); never edited by hand.
+  The minified userscript is written only into the release folder `/dist/v<VERSION>`.
   Identifier names are kept (the check worker is built from the script's own function sources).
 - Modules: one concern each; a module only writes its own top-level variables
   (shared, changeable state lives in objects, e.g. `view` in `prefs.js`).
@@ -32,9 +33,9 @@
   the entry `/src/_core/main.js` starts everything explicitly, in order, at the end of the bundle.
 - Version: `/dist/VERSION` is the single source;
   the build writes it into the userscript's `@version`,
-  except on the commit tagged `v<VERSION>` as `<VERSION>-beta.<short commit>` (release files only, not `/src/main.js`).
+  except on the commit tagged `v<VERSION>` as `<VERSION>-beta.<short commit>` (release files only, not `/dist/userscript.js`).
 - 3D hashes: the build writes the SHA-256 of the built 3D files into the userscript;
-  the values in `/src/main.js` are only those of the last deployed bundle.
+  the values in `/dist/userscript.js` are only those of the last deployed bundle.
 - Tests: `node --test`, files named `tests_*.mjs` under `/tests/{unit,behave,integration}`.
   Unit tests: one file per module, same path under `/tests/unit`;
   browser and Tampermonkey stubbed by `/tests/unit/helpers.mjs`.
