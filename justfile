@@ -72,11 +72,17 @@ setup:
 [group("build")]
 build: build-deps build-dist
 
-# installs dependencies per lock; updates lock only if manifest changed
+# installs dependencies per lock; updates lock only if dependencies in manifest changed (version: cf. build-lock)
 [group("build")]
 build-deps:
     @npm ci --no-audit --no-fund || npm install --no-audit --no-fund
     @npx playwright install chromium
+
+# writes /dist/VERSION (as semver, cf. TAG) into manifest + lock, then updates lock per manifest; installs nothing
+[group("build")]
+build-lock:
+    @npm version "{{trim_start_match(TAG, "v")}}" --no-git-tag-version --allow-same-version > /dev/null
+    @npm install --package-lock-only --no-audit --no-fund
 
 # bundles the modules into the userscript (/dist/userscript.js, readable; version and 3D hashes as dummies)
 [group("build")]
