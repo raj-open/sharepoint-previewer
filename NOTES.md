@@ -425,4 +425,4 @@ That is outside the scope of this script.
   IFClite by Louis Trümpler & contributors (LTplus AG), **MPL-2.0**
   (<https://ifclite.dev>, source code: <https://github.com/LTplus-AG/ifc-lite>).
   Used unchanged, as permitted.
-    Modified IFClite source files would have to stay under MPL-2.0.
+  Modified IFClite source files would have to stay under MPL-2.0.
