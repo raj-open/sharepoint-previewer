@@ -273,7 +273,8 @@ are detected from their first bytes and not shown.
 
   Sharepoint then performs the upload as the signed-in user,
   including its usual "replace?" prompt.
-  A `HEAD` request then confirms the change.
+  A `HEAD` request then confirms the change
+  (the status bar shows the wait: up to 20 s per way).
 - **If Sharepoint does not accept it,**
   the user is offered a local save of the edited file to upload by hand.
 - **Cancel** (button or Esc) ends write mode

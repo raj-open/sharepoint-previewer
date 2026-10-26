@@ -8316,6 +8316,13 @@
       }
   }
 
+  // Note in place of the cache state (e.g. upload under way); showCached() brings the cache state back
+  function showStatus(v, text) {
+      v.progress.classList.remove('tp-off', 'tp-full', 'tp-idle');
+      v.progressBar.style.display = 'none';
+      v.progressText.textContent = text;
+  }
+
   function showProgress(v, loaded, total) {
       const share = total ? Math.min(1, loaded / total) : 0;
       v.progress.classList.remove('tp-off', 'tp-full', 'tp-idle');
@@ -10913,9 +10920,11 @@
       // How file looks on SharePoint right now (none: new file); upload changes this
       const stamp = () => fileStamp(to.url);
       const before = await stamp();
-      // Watch for SharePoint to change file (it may first ask "replace?"): up to `ms`
-      const changed = async (ms) => {
+      // Watch for SharePoint to change file (it may first ask "replace?"): up to `ms`, shown in the status bar
+      const changed = async (ms, how) => {
           for (const end = Date.now() + ms; Date.now() < end; ) {
+              const left = Math.ceil((end - Date.now()) / 1000);
+              showStatus(v, `Uploading "${to.name}" (${how}) … waiting for SharePoint (${left} s)`);
               await new Promise((r) => setTimeout(r, 1500));
               const now = await stamp();
               if (now && now !== before) return true;
@@ -10935,7 +10944,7 @@
           for (const type of ['dragenter', 'dragover', 'drop']) {
               list.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer, ...at }));
           }
-          done = await changed(20000);
+          done = await changed(20000, 'dropped on the list');
       }
 
       // 2. Like choice in SharePoint's own upload dialogue
@@ -10945,10 +10954,11 @@
               (input).files = transfer.files;
               input.dispatchEvent(new Event('input', { bubbles: true }));
               input.dispatchEvent(new Event('change', { bubbles: true }));
-              done = await changed(20000);
+              done = await changed(20000, "SharePoint's upload dialogue");
           }
       }
 
+      showCached(v);
       v.uploadBtn.title = 'Upload the saved changes to SharePoint';
       if (!done) {
           v.uploadBtn.disabled = false;
