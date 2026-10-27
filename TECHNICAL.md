@@ -50,7 +50,7 @@ just clean              # node_modules + built artefacts (incl. /dist/userscript
 
 ## Artefacts ##
 
-Each build writes one flat release folder `/dist/v<VERSION>`:
+Each build writes one flat release folder `/dist/v<BUILD_VERSION>`, named after the userscript's `@version`:
 
 | File | Contents |
 | :--- | :------- |
@@ -109,6 +109,7 @@ Sharepoint page (DOM)
      ├─ Sources: same-origin fetch with HTTP Range (chunks), in-memory cache (LRU)
      ├─ Decoders built in: Parquet (Thrift, RLE/bit-packing, dictionary, v1/v2 pages),
      │   Snappy, LZ4_RAW, ZSTD (RFC 8878); GZIP / ZIP via the browser's DecompressionStream;
+     │   Power BI data models: XPress9 (ported, MIT), backup (ABF), SQLite (read only);
      │   spreadsheets: OOXML (XML scanner, no DOM), XLSB (BIFF12), XLS (BIFF8/BIFF5 in a
      │   compound file), OpenDocument
      └─ Checks (linters) in a Web Worker created from the script's own code (blob: URL)
@@ -148,7 +149,7 @@ How the parts communicate: [NOTES.md, §3](NOTES.md#3-communication).
     (blue while caching, neutral when idle or complete),
     with a "click to fully cache" hint
   - right: format of the file (recognised from its name);
-    its menu lists text formats and file formats (Parquet, spreadsheet, IFCZIP) side by side,
+    its menu lists text formats and file formats (Parquet, spreadsheet, IFCZIP, Power BI) side by side,
     any of them can be chosen (also a wrong one: the file is then read as that format, or a message says why not;
     a chosen format is marked and kept while the page is open);
     text size **− 100 % +**
@@ -180,7 +181,9 @@ What the script reads from the list and leaves alone: [NOTES.md, §2](NOTES.md#2
 | CSV / TSV (delimiter detected) | ✓ (per column) | | ✓ (sort, filter, edit cells, rows, columns) | | ✓ |
 | Parquet (Snappy, GZIP, ZSTD, LZ4_RAW, uncompressed) | ✓ | | ✓ (read only) | | |
 | Spreadsheets: Excel `.xlsx` `.xlsm` `.xltx` `.xltm`, `.xlsb`, `.xls` `.xlt` (97–2003, 5.0/95), OpenDocument `.ods` `.ots` | ✓ | | ✓ (read only, per sheet) | | |
-| IFC / IFCZIP | ✓ | ✓ | | ✓ (up to 8 MB, setting) | IFC only |
+| IFC / IFCZIP | ✓ | ✓ | | ✓ (asks first above 25 MB, setting) | IFC only |
+| Power BI `.pbix` `.pbit` `.pbiviz`: overview (Markdown), parts and queries in the picker | ✓ | JSON, XML, M | | | |
+| Power BI project files `.pbir` `.pbism` `.pbip` `.pbids`, tabular models `.bim` (JSON) | ✓ | ✓ | | | ✓ |
 | Any other text file | – | | | | ✓ |
 
 Spreadsheets show the last saved value of each cell (formulas are not recalculated):
@@ -190,6 +193,20 @@ dates and times as ISO 8601 (`2026-10-24`, `14:30:00`, `2026-10-24 14:30:00`),
 both date systems (1900, 1904).
 Number formats beyond that (decimals, currencies, thousands separators) are not applied.
 Password-protected workbooks are not opened.
+
+Power BI files are read by range: the archive's directory and its parts (each up to 16 MB);
+above 25 MB of parts (setting) the viewer asks first.
+Queries and parameters come from `DataMashup` (older `.pbix`) or `DataModelSchema` (`.pbit`);
+newer `.pbix` files ("enhanced metadata") keep them only in the data model (`DataModel`):
+then it is read as well (asked first above 25 MB),
+decompressed (XPress9) in the browser, and its metadata (SQLite) read
+(shared expressions and parameters, then the M partitions of the tables);
+the data itself is not looked at.
+The overview lists the parts as a tree, the Power Query parameters and queries.
+The picker (bottom right) lists the parts and the queries side by side;
+a part chosen is shown in its own format (JSON, XML, M; recognised from its start if it has no extension),
+UTF-16 decoded, JSON indented and JSON held in strings (e.g. `config` in `Report/Layout`) unpacked.
+Reports, visuals and data are not shown.
 
 Tables (Excel's "Format as Table" in `.xlsx` and `.xlsb`; named database ranges in `.ods`)
 can be shown instead of whole sheets:
@@ -217,7 +234,12 @@ are detected from their first bytes and not shown.
 
 - **Opening a file** fetches the first chunk (default 512 KB).
   "Cache next" fetches the next chunk,
-  and "Cache all" fetches the rest.
+  and "Cache all" fetches the rest in one request
+  (chunk by chunk, if that request fails or Sharepoint sends less).
+- **Files read by byte range** (spreadsheets, Parquet, Power BI):
+  the first request fetches the first 64 KB (small files: all of it);
+  smaller reads fetch 64 KB around them,
+  and small pieces are kept, so that nearby parts need no further request.
 - **Spreadsheets are cached sheet by sheet:**
   opening one fetches the workbook's directory, shared strings and styles
   and the sheet that was active when it was saved.
@@ -318,11 +340,12 @@ plus "Reset to defaults".
 | `cache-chunk-bytes` | 512 KB | Chunk size; also the threshold for asking before big Parquet / IFCZIP |
 | `memory-cache-bytes` | 256 MB | Cache limit for all files together |
 | `cache-all-confirm-bytes` | 16 MB | "Cache all" asks above this size |
+| `powerbi-confirm-bytes` | 25 MB | Power BI files ask first if their parts to read (data model left out) exceed this; the same for the data model, read for its queries |
 | `parquet-rows` | `100` | Table rows shown per step |
 | `max-line-chars` | `5000` | Longer lines are cut for display |
 | `follow-links` | `true` | Follow `.url` link files (same origin only) |
 | `viewer-3d-folder` | *(empty)* | Folder with the 3D files: relative to the site, or from the top with a leading `/` |
-| `viewer-3d-max-bytes` | 8 MB | 3D view only up to this IFC size |
+| `viewer-3d-max-bytes` | 25 MB | 3D view asks first (each time) above this IFC size |
 | `logo` | *(empty)* | `data:image/…` URI shown in the header |
 
 Settings that are start values (layout, size, theme, colours, wrap)

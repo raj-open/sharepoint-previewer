@@ -14,10 +14,10 @@ import { rememberSheetMode } from '../_core/prefs.ts';
 import { sheetMode } from '../_core/prefs.ts';
 import { view } from '../_core/prefs.ts';
 import { FOLLOW_LINKS } from '../_core/settings.ts';
-import { MAX_3D_BYTES } from '../_core/settings.ts';
 import { MAX_BYTES } from '../_core/settings.ts';
 import { MAX_LINE_CHARS } from '../_core/settings.ts';
 import { MAX_LINK_HOPS } from '../_core/settings.ts';
+import { POWERBI_CONFIRM_BYTES } from '../_core/settings.ts';
 import { esc } from '../_core/util.ts';
 import { formatBytes } from '../_core/util.ts';
 import { nextFrame } from '../_core/util.ts';
@@ -28,6 +28,7 @@ import { readerOf } from '../readers/formats.ts';
 import { cleanUrl } from '../readers/links.ts';
 import { linkTarget } from '../readers/links.ts';
 import { openParquetSource } from '../readers/parquet/source.ts';
+import { openPbixSource } from '../readers/pbix/index.ts';
 import { encodePath } from '../readers/request.ts';
 import { findFile } from '../readers/search.ts';
 import { lookupNotes } from '../readers/search.ts';
@@ -109,6 +110,7 @@ export const pendingOpens = new Map(); // url -> first fetch still running { pro
 export const forcedUrls = new Set(); // big Parquet / IFCZIP files the user chose to cache in full
 export const formatChoices = new Map(); // url -> format chosen by the user (while the page is open)
 const knownSizes = new Map(); // url -> file size seen before (shown right away next time)
+const PROGRESS_MS = 50; // progress shown at most this often while caching (ms)
 
 // Notes on "New file" (button, menu entry)
 export const NEW_FILE_ON = 'Create a new file in the folder open in Sharepoint';
@@ -161,7 +163,9 @@ async function openFile(
                   ? await openSheetSource(fetchUrl, getSignal, reload, onProgress, sheetMode(hops[0]))
                   : reader === 'ifczip'
                     ? await openZipSource(fetchUrl, getSignal, reload, onProgress, force)
-                    : await openSource(fetchUrl, getSignal, reload, onProgress);
+                    : reader === 'pbix'
+                      ? await openPbixSource(fetchUrl, getSignal, reload, onProgress, askPowerBi)
+                      : await openSource(fetchUrl, getSignal, reload, onProgress);
         if ('deferred' in result) return { src: null, deferred: result as Deferred, message: null, fileName, hops };
         if ('error' in result) {
             // file from search results, not found by name: say so first, details below
@@ -191,6 +195,17 @@ async function openFile(
         fetchUrl = target.fetchUrl;
         onLink(`Link → ${target.display}`);
     }
+}
+
+// Power BI: asks before reading many parts (setting)
+function askPowerBi(bytes: number, model = false): boolean {
+    if (bytes <= POWERBI_CONFIRM_BYTES) return true;
+    return confirm(
+        model
+            ? `The queries of this Power BI file are in its data model (${formatBytes(bytes)}). ` +
+                  'Read it? It is unpacked in this browser only.'
+            : `This Power BI file has ${formatBytes(bytes)} of parts to read (the data model is left out). Read them?`,
+    );
 }
 
 // Open file viewed as another format (a wrong one too: that format's reader tries);
@@ -309,6 +324,7 @@ export function showEmpty(v: Viewer): boolean {
     v.place = null; // the folder open in Sharepoint
     v.source = null;
     v.rerender = null;
+    v.goToLine = null;
     v.relint = null;
     v.text = '';
     for (const b of [v.copyBtn, v.loadAllBtn, v.writeBtn, v.clearBtn]) b.disabled = true;
@@ -428,9 +444,13 @@ export async function showFile(name: string, url: string, reload: boolean, keep 
     let rendered = false; // once text is shown, progress goes to "Cache next" bar
 
     let metaSize = 0;
+    let shownAt = 0; // time of last progress shown
     const progress = (loaded: number, total: number) => {
         if (!current()) return;
         if (total) loaded = Math.min(loaded, total); // overlapping reads may count twice
+        const now = performance.now();
+        if (now - shownAt < PROGRESS_MS && !(total && loaded >= total)) return; // the last one is always shown
+        shownAt = now;
         showProgress(v, loaded, total);
         if (!rendered && total && total !== metaSize) {
             metaSize = total;
@@ -550,6 +570,7 @@ export async function showFile(name: string, url: string, reload: boolean, keep 
         v.copyBtn.disabled = true;
         v.writeBtn.disabled = true;
         v.rerender = null;
+        v.goToLine = null;
         v.relint = null;
         v.loadAllBtn.disabled = false;
         setPreview(v, previewOf(earlyLang), 'Preview: once the whole file is cached');
@@ -577,6 +598,7 @@ export async function showFile(name: string, url: string, reload: boolean, keep 
         v.source = null;
         v.writeBtn.disabled = true;
         v.rerender = null;
+        v.goToLine = null;
         v.relint = null;
         v.loadAllBtn.disabled = true;
         setPreview(v, null);
@@ -591,13 +613,16 @@ export async function showFile(name: string, url: string, reload: boolean, keep 
     v.fileName = fileName;
     const format = chosen || formatOf(fileName);
     v.lang = langOfFormat(format);
+    const part = src.parts ? src.parts[src.part?.list ?? 0].items[src.part?.item ?? 0] : null; // archives
+    if (part) {
+        src.text = part.text ?? `${part.name}: not shown (${part.note}).`;
+        v.lang = part.lang;
+    }
     showName(v); // name an edit goes to (another name, new file)
     v.writeBtn.disabled = !canWrite(v);
     v.writeBtn.title = src.isSheet ? 'Edit: not available for spreadsheets (read only)' : 'Edit (text files only)';
     const kind = previewOf(v.lang);
-    const ifcSize = src.ifcBytes ? src.ifcBytes.length : src.total;
-    const tooBig = kind === '3d' && ifcSize > MAX_3D_BYTES;
-    setPreview(v, kind, tooBig ? `3D view: only for IFC files up to ${formatBytes(MAX_3D_BYTES)}` : '');
+    setPreview(v, kind);
     showFormat(v, format, formatOf(fileName));
     updateViews(v);
     v.text = src.text;
@@ -823,6 +848,7 @@ export async function showFile(name: string, url: string, reload: boolean, keep 
     };
     v.loadAll = () => load(true);
     v.rerender = render; // colours switched on / off
+    v.goToLine = goToLine;
     v.applyColour?.(); // colour button for this file's view
     v.updateMeta = updateMeta;
     v.relint = () => {
@@ -837,7 +863,15 @@ export async function showFile(name: string, url: string, reload: boolean, keep 
 
     // Other sheet or table: its sheet cached on first choice (stop keeps what was shown before);
     // sheets or tables: remembered for this file
-    v.selectSheet = async (i: number, mode: SheetMode = src.mode) => {
+    v.selectSheet = async (i: number, list: number) => {
+        if (src.parts?.[list]?.items[i]) {
+            // archive: shown anew as the part chosen (own language, colours, checks)
+            if (src.part?.list === list && src.part?.item === i) return;
+            src.part = { list, item: i };
+            src.lintResult = null;
+            return showFile(name, url, false);
+        }
+        const mode: SheetMode = list ? 'tables' : 'sheets';
         if (!src.isSheet || !(mode === 'tables' ? src.tables : src.sheets)[i]) return;
         if (mode === src.mode && i === src.current && !src.waiting) return;
         if (mode !== src.mode) rememberSheetMode(url, mode);

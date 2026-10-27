@@ -524,7 +524,8 @@ export function createViewer(): Viewer {
     stage3d.style.cssText = 'display:none; position:relative; flex:1; min-height:0; background:var(--tp-bg);';
     const canvas3d = document.createElement('canvas');
     canvas3d.style.cssText = 'display:block; width:100%; height:100%; touch-action:none; cursor:grab;';
-    canvas3d.title = 'Drag: rotate · right drag or Shift + drag: move · wheel: zoom · double-click: fit';
+    canvas3d.title =
+        'Click: select · drag: rotate · right drag or Shift + drag: move · wheel: zoom · double-click: fit';
     const status3d = document.createElement('div');
     status3d.style.cssText =
         'position:absolute; left:8px; bottom:6px; font:12px sans-serif; color:var(--tp-fg); opacity:.75; pointer-events:none;';
@@ -541,7 +542,7 @@ export function createViewer(): Viewer {
     const statusBar = document.createElement('div');
     statusBar.className = 'tp-statusbar';
     // Spreadsheets: sheet or table shown; its menu lists sheets and tables side by side
-    const sheetPicker = createPicker(statusBar, (list, i) => v.selectSheet?.(i, list ? 'tables' : 'sheets'));
+    const sheetPicker = createPicker(statusBar, (list, i) => v.selectSheet?.(i, list));
     const views = document.createElement('div');
     views.className = 'tp-views';
     views.append(textBtn, previewBtn, sheetPicker.button);

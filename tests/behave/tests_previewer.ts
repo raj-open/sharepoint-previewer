@@ -440,6 +440,35 @@ describe('preview per file type', () => {
         await preview.click(); // Markdown view stays the remembered choice
     });
 
+    it('Power BI: overview first; parts and queries in the picker, shown in their own format (read only)', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Data`);
+        const v = await h.preview(page, 'sales.pbix');
+        const picker = v.locator(SHEET_PICKER);
+        const menu = v.locator('.tp-picker-menu').first();
+        await v.locator('.tp-title-sheet', { hasText: 'Part: Overview' }).waitFor();
+        await v.locator('.tp-view-btn', { hasText: 'Text' }).click();
+        await v.locator('.tp-code', { hasText: '## Parameters (1)' }).waitFor();
+
+        await picker.click();
+        await menu.locator('.tp-picker-item', { hasText: 'Report/Layout' }).click();
+        await v.locator('.tp-title-sheet', { hasText: 'Part: Report/Layout' }).waitFor();
+        await v.locator('.tp-code', { hasText: '"visualType": "tableEx"' }).waitFor(); // JSON in strings unpacked
+        assert.match(await properties(v), /format: JSON/);
+        assert.equal(await v.locator('.tp-mode-btn[title^="Edit"]').isDisabled(), true);
+
+        await picker.click();
+        await menu.locator('.tp-picker-tab', { hasText: 'Queries' }).click();
+        await menu.locator('.tp-picker-item', { hasText: 'Orders' }).click();
+        await v.locator('.tp-title-sheet', { hasText: 'Query: Orders' }).waitFor();
+        await v.locator('.tp-code', { hasText: 'Table.PromoteHeaders' }).waitFor();
+        assert.match(await properties(v), /format: Power Query M/);
+
+        await picker.click();
+        await menu.locator('.tp-picker-tab', { hasText: 'Parts' }).click();
+        await menu.locator('.tp-picker-item', { hasText: 'DataModel' }).click();
+        await v.locator('.tp-code', { hasText: 'DataModel: not shown' }).waitFor();
+    });
+
     it('refuses binary files', async () => {
         const page = await openFolder(`${h.LIBRARY}/Data`);
         const v = await h.preview(page, 'logo.png');

@@ -2,14 +2,15 @@
 
 ## Scope ##
 
-- Each build produces one flat release folder `/dist/v<VERSION>`
+- Each build produces one flat release folder `/dist/v<BUILD_VERSION>`,
+  named exactly after the `@version` of its userscript (cf. Version below)
   with the Tampermonkey userscript (`sharepoint-previewer.js`, minified: `sharepoint-previewer.min.js`),
   the optional 3D files (unless `BUILD_3D=false`) and `NOTES.md`.
 - 3D files:
   ifc-lite bundled from `/src/@apis/ifc-lite/main.ts`,
   the `.wasm` copied unchanged from `@ifc-lite/wasm` (not rebuilt from its Rust source).
 - Keep the script a single, dependency-free JavaScript file at runtime.
-- Size (rule of thumb): userscript source ≤ 500 KB, minified userscript ≤ 300 KB.
+- Size (rule of thumb): userscript source ≤ 750 KB, minified userscript ≤ 400 KB.
 - Development tooling (lint, format, tests) must not end up in the artefact.
 
 ## Conventions ##
@@ -25,7 +26,7 @@
 - Userscript: `/dist/userscript.js` (bundle) and `/dist/userscript.min.js` (minified),
   written by `just build-src`; local only (not synchronised), never edited by hand.
   Their `@version` and 3D hashes are dummies (`0.0.0`, `<sha256>`);
-  only the release files in `/dist/v<VERSION>` carry real values.
+  only the release files in `/dist/v<BUILD_VERSION>` carry real values.
   Identifier names are kept (the check worker is built from the script's own function sources).
 - Modules: one concern each; a module only writes its own top-level variables
   (shared, changeable state lives in objects, e.g. `view` in `prefs.ts`).
@@ -41,8 +42,8 @@
   the entry `/src/main.ts` starts everything explicitly, in order, at the end of the bundle.
 - Version: `/dist/VERSION` is the single source;
   `just build-lock` writes it into `/package.json` and `/package-lock.json` (semver form, cf. `just tag`);
-  the build writes it into the userscript's `@version`,
-  except on the commit tagged `v<VERSION>` as `<VERSION>-beta.<short commit>` (release files only).
+  the build writes it into the userscript's `@version` on the commit tagged `v<VERSION>`,
+  on any other commit as `<VERSION>-beta.<short commit>` (release files only; `BUILD_VERSION` in `/justfile`).
 - 3D hashes: the release build writes the SHA-256 of the built 3D files into the userscript;
   without them (dummies) the 3D view refuses to load.
 - Tests: `node --test`, files named `tests_*.ts` under `/tests/{unit,behave,integration}`.

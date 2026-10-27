@@ -47,6 +47,7 @@ Our tool allows users to
 
 - preview any text file, with syntax colours and checks (JSON, XML, YAML, IFC, ...)
 - view CSV, Parquet, Excel and OpenDocument files as sortable, filterable tables
+- look into Power BI files (parts, Power Query scripts and parameters)
 - read Markdown rendered and logs as tables (experimental)
 - view IFC models in 3D (optional)
 - edit plaintext files, or create new ones, and save them back through Sharepoint's own upload (also under another name)
@@ -122,11 +123,18 @@ and IT teams who want all this without another app to roll out.
 ## Credits and licences ##
 
 - **This script:**
-  written for this purpose, contains no third-party code;
+  written for this purpose, apart from the XPress9 decoder below;
   licence: [MPL-2.0](./LICENCE) (Mozilla Public License 2.0):
   use, change and pass on freely, also commercially;
   the copyright and licence notices stay,
   and changed files of this project stay under MPL-2.0 (their source available to whoever receives them).
+
+- **XPress9** by Microsoft Corporation, **MIT**:
+  the decompression of Power BI data models
+  ([/src/readers/codecs/xpress9.ts](./src/readers/codecs/xpress9.ts))
+  is ported from Microsoft's XPress9 sources (decoder only),
+  as published with [xpress9-python](https://github.com/Hugoberry/xpress9-python);
+  its copyright and licence notice is kept at the top of that file.
 
 - **[Tampermonkey](https://www.tampermonkey.net)** by Jan Biniok:
   the browser extension that runs the userscript.
@@ -146,6 +154,7 @@ and IT teams who want all this without another app to roll out.
   [Biome](https://biomejs.dev),
   [esbuild](https://esbuild.github.io),
   [Playwright](https://playwright.dev),
+  the test file `Data/model.pbix` from the samples of [PBIXRay](https://github.com/Hugoberry/pbixray) (MIT),
   [just](https://just.systems).
 
 Microsoft, Sharepoint, Tampermonkey and other names are trademarks of their respective owners;

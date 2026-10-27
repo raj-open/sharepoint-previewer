@@ -481,6 +481,16 @@ const CSS = `
   .tp-picker-item.tp-chosen { font-weight: 600; }
   .tp-picker-item.tp-chosen::after { content: ' ✓'; color: var(--tp-accent); }
   .tp-picker-empty { padding: 8px; font: 12px sans-serif; color: var(--tp-fg); opacity: .6; }
+  /* 3D view: controls laid over the model (views, section; selection below) */
+  .tp-3d-bar, .tp-3d-info { position: absolute; left: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: calc(100% - 16px); font: 12px sans-serif; }
+  .tp-3d-bar { top: 6px; }
+  .tp-3d-info { top: 36px; padding: 2px 2px 2px 8px; border-radius: 4px; background: var(--tp-bg); color: var(--tp-fg); box-shadow: 0 0 0 1px var(--tp-border); }
+  .tp-3d-info[hidden] { display: none; }
+  .tp-3d-btn { height: 24px; padding: 0 8px; border: 1px solid var(--tp-edge); border-radius: 4px; background: var(--tp-btn-bg); color: var(--tp-btn-fg); font: 12px sans-serif; cursor: pointer; }
+  .tp-3d-btn:hover { border-color: var(--tp-accent); }
+  .tp-3d-btn[hidden], .tp-3d-slider[hidden] { display: none; }
+  .tp-3d-slider { width: 140px; accent-color: var(--tp-accent); }
+  .tp-3d-label { max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tp-progress-bar {
     width: 140px;
     height: 3px;

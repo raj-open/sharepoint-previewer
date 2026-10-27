@@ -112,6 +112,7 @@ export function clearCached(v: Viewer): void {
     v.source = null;
     v.writeBtn.disabled = true;
     v.rerender = null;
+    v.goToLine = null;
     v.relint = null;
     v.text = '';
     v.copyBtn.disabled = true;

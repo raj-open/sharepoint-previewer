@@ -52,7 +52,14 @@ type SourceBase = {
     isZip?: boolean;
     isParquet?: boolean;
     rows?: number;
+    // archives (Power BI): lists of parts (picker), the one shown (list 0, item 0: overview)
+    parts?: { label: string; items: ArchivePart[]; empty?: string }[]; // empty: why a list has no items
+    part?: { list: number; item: number };
 };
+/** part of an archive: text read at once (null: not plain text, not readable) */
+/** Power Query: name and M expression (`let … in …`, or a value with `meta […]`) */
+export type Query = { name: string; body: string };
+export type ArchivePart = { name: string; note: string; lang: string | null; text: string | null };
 /** spreadsheet: sheets and tables, one shown (current entry of the view, `mode`); waiting: none chosen yet */
 export type SheetSource = Omit<SourceBase, 'isSheet'> & {
     isSheet: true;
@@ -150,10 +157,11 @@ export type Viewer = {
     userStopped?: boolean;
     loadAll?: () => Promise<boolean>;
     updateMeta?: () => void;
-    selectSheet?: (i: number, mode?: SheetMode) => Promise<void>;
+    selectSheet?: (i: number, list: number) => Promise<void>; // picker: sheets / tables, or parts of an archive
     // Views: lines or table, 3D, checks
     lineView?: LineView | null;
     rerender?: (() => void) | null;
+    goToLine?: ((line: number) => void) | null; // text view at this line
     view3d?: View3d | null;
     lintWorker?: Worker | null;
     relint?: (() => void) | null;

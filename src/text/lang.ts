@@ -10,7 +10,7 @@ const LANGS: [string, RegExp][] = [
         'xml',
         /\.(xml|xsd|xsl|xslt|svg|xaml|config|csproj|vbproj|props|targets|resx|plist|kml|gpx|rss|atom|wsdl|addin)$/i,
     ], // .addin: Revit add-in manifest
-    ['json', /\.(json|geojson|webmanifest|har)$/i],
+    ['json', /\.(json|geojson|webmanifest|har|pbir|pbism|pbip|pbids|bim)$/i], // Power BI project files, tabular models
     ['yaml', /\.ya?ml$/i],
     ['ifc', /\.ifc(zip)?$/i], // .ifczip: unpacked first
     ['toml', /\.toml$/i],

@@ -36,8 +36,10 @@ PATH_VERSION := "dist/VERSION"
 VERSION := trim(read(PATH_VERSION))
 # release tag: short pre-release forms in /dist/VERSION (1.1.0a1, 1.1.0b2, 1.1.0rc1), long in tags (v1.1.0-alpha.1, ...)
 TAG := "v" + replace_regex(replace_regex(replace_regex(VERSION, '([0-9])a([0-9]+)$', '${1}-alpha.${2}'), '([0-9])b([0-9]+)$', '${1}-beta.${2}'), '([0-9])rc([0-9]+)$', '${1}-rc.${2}')
-# release folder, flat: userscript, 3D files, NOTES.md
-PATH_RELEASE := PATH_DIST / "v" + VERSION
+# version of a build (@version of the userscript): VERSION on the commit tagged TAG, else VERSION-beta.<short commit>
+BUILD_VERSION := shell('if git rev-parse --git-dir >/dev/null 2>&1 && ! git tag --points-at HEAD 2>/dev/null | grep -qFx "$1"; then echo "$2-beta.$(git rev-parse --short HEAD)"; else echo "$2"; fi', TAG, VERSION)
+# release folder, flat: userscript, 3D files, NOTES.md; named after the version of the build
+PATH_RELEASE := PATH_DIST / "v" + BUILD_VERSION
 # 3D files (ifc-lite) in the release folder: true (default) or false (cf. .env);
 # if false, they are built in a temporary folder only, for their hashes in the userscript
 BUILD_3D := env("BUILD_3D", "true")
@@ -45,8 +47,8 @@ BIOME := "node_modules/.bin/biome"
 ESBUILD := "node_modules/.bin/esbuild"
 TSC := "node_modules/.bin/tsc"
 # size limits (rule of thumb, cf. /specs.md): userscript source, minified userscript
-MAX_KB_SRC := "500"
-MAX_KB_MIN := "300"
+MAX_KB_SRC := "750"
+MAX_KB_MIN := "400"
 # lint scope: src + tests + named root files (same as `files.includes` in /biome.json)
 LINT_PATHS := "src scripts tests biome.json package.json tsconfig.json"
 
@@ -108,7 +110,7 @@ build-src:
     just _minify "{{PATH_BUNDLE}}" "{{PATH_BUNDLE_MIN}}"
     just _size "{{PATH_BUNDLE_MIN}}" "{{MAX_KB_MIN}}"
 
-# writes release to /dist/v<VERSION>: userscript with @version (not the commit tagged with the release tag: <VERSION>-beta.<short commit>) and 3D hashes stamped, minified, 3D files (unless BUILD_3D=false), notes
+# writes release to /dist/v<BUILD_VERSION>: userscript with @version (BUILD_VERSION: <VERSION>, off the release tag <VERSION>-beta.<short commit>) and 3D hashes stamped, minified, 3D files (unless BUILD_3D=false), notes
 [group("build")]
 build-dist: build-src
     #!/usr/bin/env bash
@@ -134,11 +136,7 @@ build-dist: build-src
     just build-3d "${path_3d}"
     hash_js="$(just _sha256 "${path_3d}/ifc-lite-3d.js")"
     hash_wasm="$(just _sha256 "${path_3d}/ifc-lite_bg.wasm")"
-    version="{{VERSION}}"
-    if git rev-parse --git-dir >/dev/null 2>&1 &&
-        [ "$(git tag --points-at HEAD 2>/dev/null | grep -Fx "{{TAG}}")" != "{{TAG}}" ]; then
-        version="{{VERSION}}-beta.$(git rev-parse --short HEAD)"
-    fi
+    version="{{BUILD_VERSION}}"
     # quoted value: opening quote, then anything up to the closing quote
     quote='"'"'";
     path="{{PATH_RELEASE}}/{{NAME}}.js"

@@ -8,7 +8,7 @@
 // - Tampermonkey: stood in for by ./tampermonkey.js (settings in localStorage, menu commands as a panel);
 //   its panel (and the console) names each library and the folder it serves
 // - search: box in the middle of the suite bar (files below the folder open, found by the userscript by name)
-// - 3D files: those of the release in /dist/v<VERSION> (`just build`), listed in "Mock Tools Library" as folder "Viewer";
+// - 3D files: those of the release built last in /dist/v<VERSION>[-beta.<commit>] (`just build`), listed in "Mock Tools Library" as folder "Viewer";
 //   the setting `viewer-3d-folder` points there unless set (filled in when empty)
 // - logo: a test logo (setting `logo`), filled in when empty
 // - uploads (drop on the list, "Upload", the viewer's upload): simulated, kept apart in
@@ -100,7 +100,9 @@ function inject(reply: Reply, libs: Libraries): Reply {
     const defaults = JSON.stringify({ 'viewer-3d-folder': sharepoint.RELEASE_SETTING, 'logo': LOGO });
     const notes = JSON.stringify([
         ...libraryNotes(libs),
-        built ? `Folder "${sharepoint.RELEASE_SETTING}": ${release} (3D files)` : `3D files: none in ${release} (run "just build")`,
+        built
+            ? `Folder "${sharepoint.RELEASE_SETTING}": ${release} (3D files)`
+            : `3D files: none in ${release} (run "just build")`,
     ]);
     const data = `data-version="${VERSION}" data-defaults="${attr(defaults)}" data-notes="${attr(notes)}"`;
     const tag = `<script src="${PREFIX}/tampermonkey.js" ${data}></script>`;

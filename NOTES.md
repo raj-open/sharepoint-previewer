@@ -18,11 +18,11 @@ Development: [TECHNICAL.md](TECHNICAL.md).
 
 | Topic | Behaviour |
 | :---- | :-------- |
-| Form | One JavaScript file (userscript, ~470 KB; minified ~260 KB), runs in the user's browser via Tampermonkey. Built from TypeScript modules in the repository (types removed by the build) |
+| Form | One JavaScript file (userscript, ~530 KB; minified ~295 KB), runs in the user's browser via Tampermonkey. Built from TypeScript modules in the repository (types removed by the build) |
 | Scope | Only on `https://*.sharepoint.com/*/*/*`, and only inside a library's file list |
 | APIs | No Graph API. It reads the page's HTML and fetches the file itself, like opening its URL. Only for files found by the library search (their rows carry no path): two read-only Sharepoint REST queries by file name (library list, else search index) |
 | Third parties | **None.** No CDN, no analytics, no external servers. All requests go to the same Sharepoint origin |
-| External libraries | None in the script itself. Optional 3D view: two files (ifc-lite, MPL-2.0) that **you** host in your own Sharepoint |
+| External libraries | None loaded at runtime. The script contains a port of Microsoft's XPress9 decoder (MIT), to read the queries of newer Power BI files in the browser. Optional 3D view: two files (ifc-lite, MPL-2.0) that **you** host in your own Sharepoint |
 | Permissions | Those of the signed-in user, through the browser's normal session. No extra rights, no tokens |
 | Data leaving the browser | Only when the user explicitly uploads a file (edited, new, or a renamed copy), through Sharepoint's own upload (as if done by hand) |
 | Storage | Settings in Tampermonkey's script storage. View choices and window positions in the browser's `localStorage` for the Sharepoint origin. File contents only in memory, gone on reload |
@@ -282,7 +282,7 @@ That is outside the scope of this script.
 ## 9. Credits and licences ##
 
 - **The script:**
-  written for this purpose and contains no third-party code;
+  written for this purpose, apart from the XPress9 decoder (ported from Microsoft's sources, MIT; its notice kept in that file);
   licence: MPL-2.0, see `LICENCE` in the repository
   (also named in the script's header: `@copyright`, `@license`).
 - **Tampermonkey** (<https://www.tampermonkey.net>, by Jan Biniok):
