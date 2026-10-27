@@ -5,7 +5,8 @@
 // ===========================================================================
 
 import './_core/settings.ts';
-import { registerMenu } from './_core/settings-form.ts';
+import './_core/settings-form.ts';
+import { registerMenu } from './_core/menu.ts';
 import './ui/move.ts';
 import './text/lang.ts';
 import './ui/icons.ts';

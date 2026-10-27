@@ -1,4 +1,4 @@
-// Settings form (Tampermonkey menu): form and JSON views, validation, reset
+// Settings form: form and JSON views, validation, reset
 
 // ===========================================================================
 // IMPORTS
@@ -432,13 +432,9 @@ export function openSettingsForm(): void {
 export function completeSettings(data: Record<string, unknown>): Record<string, unknown> {
     return Object.fromEntries(Object.keys(DEFAULTS).map((key) => [key, key in data ? data[key] : defaults[key]]));
 }
-/** Tampermonkey menu: settings form, reset to defaults. */
-export function registerMenu(): void {
-    GM_registerMenuCommand('Settings …', openSettingsForm);
-
-    GM_registerMenuCommand('Reset settings to defaults', () => {
-        if (!confirm('Reset all Sharepoint Previewer settings to their defaults?')) return;
-        for (const [key, value] of Object.entries(DEFAULTS)) GM_setValue(key, value);
-        alert('Settings reset. Reload the page to apply them.');
-    });
+/** Asks, then writes every default back (applies after a reload). */
+export function resetSettings(): void {
+    if (!confirm('Reset all Sharepoint Previewer settings to their defaults?')) return;
+    for (const [key, value] of Object.entries(DEFAULTS)) GM_setValue(key, value);
+    alert('Settings reset. Reload the page to apply them.');
 }

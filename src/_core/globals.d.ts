@@ -3,7 +3,8 @@
 declare function GM_getValue(key: string, fallback?: unknown): unknown;
 declare function GM_setValue(key: string, value: unknown): void;
 declare function GM_registerMenuCommand(label: string, onClick: () => void): void;
-declare const GM_info: { script: { version: string } };
+declare function GM_openInTab(url: string, options?: { active?: boolean }): void;
+declare const GM_info: { script: { version: string; uuid: string } };
 
 // Selectors in this script target HTML elements (the one exception, icons incl. SVG, is typed as Element where used).
 // Results may still be null: callers check.

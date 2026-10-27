@@ -35,10 +35,11 @@ export function anything(name = 'stub'): any {
     });
 }
 
-/** Tampermonkey storage, localStorage, menu commands: inspectable by tests. */
+/** Tampermonkey storage, localStorage, menu commands, opened tabs: inspectable by tests. */
 export const gm = {
     store: {} as Record<string, unknown>,
     menu: {} as Record<string, () => void>,
+    tabs: [] as string[],
     local: new Map<string, string>(),
 };
 
@@ -50,7 +51,10 @@ Object.assign(globalThis, {
     GM_registerMenuCommand: (label: string, fn: () => void) => {
         gm.menu[label] = fn;
     },
-    GM_info: { script: { version: 'test' } },
+    GM_openInTab: (url: string) => {
+        gm.tabs.push(url);
+    },
+    GM_info: { script: { version: 'test', uuid: 'test-uuid' } },
     localStorage: {
         getItem: (k: string) => gm.local.get(k) ?? null,
         setItem: (k: string, v: unknown) => gm.local.set(k, String(v)),

@@ -100,7 +100,7 @@ the lock is only rewritten when `package.json` has changed.
 
 ```text
 Sharepoint page (DOM)
- └─ userscript (Tampermonkey, @grant GM_getValue/GM_setValue/GM_registerMenuCommand)
+ └─ userscript (Tampermonkey, @grant GM_getValue/GM_setValue/GM_registerMenuCommand/GM_openInTab)
      ├─ MutationObserver: finds file and folder rows → adds eye cells (HTML only)
      ├─ Viewer (own DOM elements, own CSS, prefix "tp-")
      │   ├─ text view: syntax colours, whitespace markers, virtualised rendering
