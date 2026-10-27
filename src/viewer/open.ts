@@ -324,6 +324,7 @@ export function showEmpty(v: Viewer): boolean {
     v.place = null; // the folder open in Sharepoint
     v.source = null;
     v.rerender = null;
+    v.goToLine = null;
     v.relint = null;
     v.text = '';
     for (const b of [v.copyBtn, v.loadAllBtn, v.writeBtn, v.clearBtn]) b.disabled = true;
@@ -569,6 +570,7 @@ export async function showFile(name: string, url: string, reload: boolean, keep 
         v.copyBtn.disabled = true;
         v.writeBtn.disabled = true;
         v.rerender = null;
+        v.goToLine = null;
         v.relint = null;
         v.loadAllBtn.disabled = false;
         setPreview(v, previewOf(earlyLang), 'Preview: once the whole file is cached');
@@ -596,6 +598,7 @@ export async function showFile(name: string, url: string, reload: boolean, keep 
         v.source = null;
         v.writeBtn.disabled = true;
         v.rerender = null;
+        v.goToLine = null;
         v.relint = null;
         v.loadAllBtn.disabled = true;
         setPreview(v, null);
@@ -845,6 +848,7 @@ export async function showFile(name: string, url: string, reload: boolean, keep 
     };
     v.loadAll = () => load(true);
     v.rerender = render; // colours switched on / off
+    v.goToLine = goToLine;
     v.applyColour?.(); // colour button for this file's view
     v.updateMeta = updateMeta;
     v.relint = () => {
