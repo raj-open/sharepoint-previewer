@@ -38,6 +38,9 @@ VERSION := trim(read(PATH_VERSION))
 TAG := "v" + replace_regex(replace_regex(replace_regex(VERSION, '([0-9])a([0-9]+)$', '${1}-alpha.${2}'), '([0-9])b([0-9]+)$', '${1}-beta.${2}'), '([0-9])rc([0-9]+)$', '${1}-rc.${2}')
 # release folder, flat: userscript, 3D files, NOTES.md
 PATH_RELEASE := PATH_DIST / "v" + VERSION
+# 3D files (ifc-lite) in the release folder: true (default) or false (cf. .env);
+# if false, they are built in a temporary folder only, for their hashes in the userscript
+BUILD_3D := env("BUILD_3D", "true")
 BIOME := "node_modules/.bin/biome"
 ESBUILD := "node_modules/.bin/esbuild"
 TSC := "node_modules/.bin/tsc"
@@ -105,13 +108,32 @@ build-src:
     just _minify "{{PATH_BUNDLE}}" "{{PATH_BUNDLE_MIN}}"
     just _size "{{PATH_BUNDLE_MIN}}" "{{MAX_KB_MIN}}"
 
-# writes release to /dist/v<VERSION>: userscript with @version (not the commit tagged with the release tag: <VERSION>-beta.<short commit>) and 3D hashes stamped, minified, 3D files, notes
+# writes release to /dist/v<VERSION>: userscript with @version (not the commit tagged with the release tag: <VERSION>-beta.<short commit>) and 3D hashes stamped, minified, 3D files (unless BUILD_3D=false), notes
 [group("build")]
-build-dist: build-src build-3d
+build-dist: build-src
     #!/usr/bin/env bash
     set -euo pipefail
-    hash_js="$(just _sha256 "{{PATH_RELEASE}}/ifc-lite-3d.js")"
-    hash_wasm="$(just _sha256 "{{PATH_RELEASE}}/ifc-lite_bg.wasm")"
+    mkdir -p "{{PATH_RELEASE}}"
+    # 3D files: in the release folder, or only in a temporary folder (for the hashes)
+    case "{{BUILD_3D}}" in
+        true)
+            path_3d="{{PATH_RELEASE}}"
+            ;;
+
+        false)
+            path_3d="$(mktemp -d)"
+            trap 'rm -rf "${path_3d}"' EXIT
+            rm -f "{{PATH_RELEASE}}/ifc-lite-3d.js" "{{PATH_RELEASE}}/ifc-lite_bg.wasm"
+            ;;
+
+        *)
+            echo "error: BUILD_3D must be true or false (is: {{BUILD_3D}})"
+            exit 1
+            ;;
+    esac
+    just build-3d "${path_3d}"
+    hash_js="$(just _sha256 "${path_3d}/ifc-lite-3d.js")"
+    hash_wasm="$(just _sha256 "${path_3d}/ifc-lite_bg.wasm")"
     version="{{VERSION}}"
     if git rev-parse --git-dir >/dev/null 2>&1 &&
         [ "$(git tag --points-at HEAD 2>/dev/null | grep -Fx "{{TAG}}")" != "{{TAG}}" ]; then
@@ -131,7 +153,7 @@ build-dist: build-src build-3d
     just _size "{{PATH_RELEASE}}/{{NAME}}.min.js" "{{MAX_KB_MIN}}"
     cp NOTES.md "{{PATH_RELEASE}}/NOTES.md"
     built=$(sed -n 's|^// @version[[:space:]]*||p' "{{PATH_RELEASE}}/{{NAME}}.js")
-    echo "built {{PATH_RELEASE}} (${built})"
+    echo "built {{PATH_RELEASE}} (${built}; 3D files: {{BUILD_3D}})"
 
 # minified userscript; its ==UserScript== header is kept as is (Tampermonkey reads it).
 # NOTE: names are kept: the check worker is built from the script's own function sources
@@ -155,17 +177,17 @@ _size path max_kb:
         echo "size {{path}}: ${kb} KB (limit {{max_kb}} KB)"
     fi
 
-# bundles ifc-lite (pinned in manifest) for the optional 3D view; wasm is copied as is
+# bundles ifc-lite (pinned in manifest) for the optional 3D view into a folder (default: release folder); wasm is copied as is
 [group("build")]
-build-3d:
+build-3d path=PATH_RELEASE:
     #!/usr/bin/env bash
     set -euo pipefail
-    mkdir -p "{{PATH_RELEASE}}"
+    mkdir -p "{{path}}"
     banner="$(node -p '["geometry", "renderer", "wasm"].map((name) => `@ifc-lite/${name} ${require(`./node_modules/@ifc-lite/${name}/package.json`).version}`).join(", ")')"
     "{{ESBUILD}}" "{{PATH_SRC_3D}}" --bundle --minify --format=iife --log-level=warning \
         --banner:js="/* ifc-lite library bundle for Sharepoint Previewer: ${banner} (MPL-2.0, source: https://github.com/LTplus-AG/ifc-lite). Engine binary: ifc-lite_bg.wasm from @ifc-lite/wasm. */" \
-        --outfile="{{PATH_RELEASE}}/ifc-lite-3d.js"
-    cp node_modules/@ifc-lite/wasm/pkg/ifc-lite_bg.wasm "{{PATH_RELEASE}}/ifc-lite_bg.wasm"
+        --outfile="{{path}}/ifc-lite-3d.js"
+    cp node_modules/@ifc-lite/wasm/pkg/ifc-lite_bg.wasm "{{path}}/ifc-lite_bg.wasm"
 
 # prints the release tag of /dist/VERSION (cf. TAG)
 [group("build")]
@@ -194,7 +216,7 @@ tests-behave:
 tests-integration:
     @just _tests integration
 
-# explorative tests: mock Sharepoint + userscript (/dist/userscript.js) on http://localhost:${HTTP_PORT}; libraries: Mock Data (tests), Local Data (/data, or folder)
+# explorative tests: mock Sharepoint + userscript (/dist/userscript.js) on http://localhost:${HTTP_PORT}; libraries: Mock Library (tests), Mock Tools Library (3D files), Local Library (/data, or folder)
 [group("tests")]
 tests-explore folder="":
     @node tests/explore/server.ts "{{HTTP_PORT}}" "{{folder}}"

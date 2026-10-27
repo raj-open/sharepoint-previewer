@@ -1,25 +1,26 @@
 // Mock Sharepoint Online: one site with document libraries, each served from a local folder
-// (default: library "Mock Data" from ./library). Read only: files are read from disk per request.
+// (default: libraries "Mock Library" from ./library and "Mock Tools Library" from ./tools; URLs without spaces). Read only: files are read from disk per request.
 // Uploads (optional, simulated): kept apart in a session folder under ./__uploads__ that mirrors the site's
 // paths (<library>/<path>); they are listed and served over the originals (which stay untouched) until the session ends.
 //
-//   /sites/Test/<library>/Forms/AllItems.aspx[?id=<folder>][&q=<term>]   list view (client-side app); q: search
-//   /sites/Test/<library>/<path>                                         file (GET / HEAD, byte ranges)
-//   /sites/Test/SitePages/Home.aspx                                      page outside any library
-//   /sites/Test/Mock Data/previewer/<file>                               3D files of the release (if built),
-//                                                                        listed as folder "previewer" in "Mock Data"
-//   /sites/Test/<library>/_api/upload?folder=<f>&name=<n>                upload (POST, body: the file; simulated)
-//   /sites/Test/<library>/_api/tree                                      folders and files (JSON; list refresh)
-//   /sites/Test/_api/web/GetList(@list)/items?$filter=FileLeafRef eq '<name>'&@list='<library>'
+//   <site> = /sites/MockSharepoint
+//   <site>/<library>/Forms/AllItems.aspx[?id=<folder>][&q=<term>]        list view (client-side app); q: search
+//   <site>/<library>/<path>                                              file (GET / HEAD, byte ranges)
+//   <site>/SitePages/Home.aspx                                           page outside any library
+//   <site>/MockToolsLibrary/Viewer/<file>                                3D files of the release (if built),
+//                                                                        listed as folder "Viewer" in "Mock Tools Library"
+//   <site>/<library>/_api/upload?folder=<f>&name=<n>                     upload (POST, body: the file; simulated)
+//   <site>/<library>/_api/tree                                           folders and files (JSON; list refresh)
+//   <site>/_api/web/GetList(@list)/items?$filter=FileLeafRef eq '<name>'&@list='<library>'
 //                                                                        files of that name in a library (as Sharepoint)
-//   /sites/Test/_api/search/query?querytext='(filename:"<name>" …) path:"<url of folder>"'
+//   <site>/_api/search/query?querytext='(filename:"<name>" …) path:"<url of folder>"'
 //                                                                        search index (as Sharepoint; Parquet: a form as Path)
 //
 // The list view mimics what the userscript reads: ARIA grid rows (selection column first), name fields,
 // folder icons, the scroll card and Sharepoint's `display: contents` wrapper;
 // plus, for the eye only: file and folder icons, "Modified By" (made-up people), sizes (folders: items).
 // Navigation between folders happens in place (history API) and recycles row elements,
-// as Sharepoint does. Search (box in the command bar) lists files and folders below the folder open
+// as Sharepoint does. Search (box in the middle of the suite bar) lists files and folders below the folder open
 // whose names contain the term; file rows carry no path (as in Sharepoint), folder rows link to the folder.
 
 import fs from 'node:fs';
@@ -30,7 +31,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
 
 export const ORIGIN = 'https://acme.sharepoint.com';
-export const SITE = '/sites/Test';
+export const SITE = '/sites/MockSharepoint';
 
 /** @param library server-relative @returns its list view */
 export const listPageOf = (library: string): string => `${library}/Forms/AllItems.aspx`;
@@ -39,15 +40,18 @@ export const listPageOf = (library: string): string => `${library}/Forms/AllItem
 export const libraryOf = (p: string): string => p.split('/').slice(0, 4).join('/');
 
 // Library of the test fixtures (behavioural tests, demos)
-export const LIBRARY = `${SITE}/Mock Data`;
+export const LIBRARY = `${SITE}/MockLibrary`;
 export const LIST_PAGE = listPageOf(LIBRARY);
 export const PATH_FILES = path.join(HERE, 'library');
+// Library of the tools: 3D files of the release (cf. RELEASE_FOLDER), plus a readme, a text file and an example model
+export const TOOLS = `${SITE}/MockToolsLibrary`;
+export const PATH_TOOLS = path.join(HERE, 'tools');
 
 export const VERSION = fs.readFileSync(path.join(ROOT, 'dist/VERSION'), 'utf8').trim();
 export const PATH_RELEASE = path.join(ROOT, 'dist', `v${VERSION}`);
-// 3D files of the release, as a folder of the test library (as deployed); setting `viewer-3d-folder`: site-relative
-export const RELEASE_FOLDER = `${LIBRARY}/previewer`;
-export const RELEASE_SETTING = RELEASE_FOLDER.slice(SITE.length + 1);
+// 3D files of the release, as a folder of the tools library (as deployed); setting `viewer-3d-folder`: from the top (/sites/…)
+export const RELEASE_FOLDER = `${TOOLS}/Viewer`;
+export const RELEASE_SETTING = RELEASE_FOLDER;
 const FILES_3D = ['ifc-lite-3d.js', 'ifc-lite_bg.wasm'];
 // Simulated uploads, one folder per session (never synchronised: cf. /.gitignore; removed by `just clean`)
 export const PATH_UPLOADS = path.join(HERE, '__uploads__');
@@ -55,7 +59,7 @@ export const PATH_UPLOADS = path.join(HERE, '__uploads__');
 const MODIFIED = new Date('2026-10-01T12:00:00Z');
 
 // Name of the mock tenant (title, suite bar) and its icon: plain shapes, no real logo
-const TENANT = 'TestSharepoint';
+const TENANT = 'Mock Sharepoint';
 const ICON =
     'data:image/svg+xml,' +
     encodeURIComponent(
@@ -101,11 +105,19 @@ const ICONS: Record<string, string> = {
 type Entry = { name: string; folder: boolean; size: number; author?: string; uploaded?: boolean };
 // Answer to a request
 export type Reply = { status: number; headers: Record<string, string>; body: Buffer | string };
-// Libraries of the site: name (also its URL part) -> local folder
-export type Libraries = Record<string, string>;
+// Library: name shown (navigation, breadcrumb, title) and local folder
+export type Library = { title: string; folder: string };
+// Libraries of the site: URL part (as Sharepoint: no spaces) -> library
+export type Libraries = Record<string, Library>;
 
-// Default: the test library alone
-export const LIBRARIES: Libraries = { 'Mock Data': PATH_FILES };
+/** @param library server-relative @returns its URL part */
+export const urlNameOf = (library: string): string => library.slice(SITE.length + 1);
+
+// Default: the test fixtures and the tools
+export const LIBRARIES: Libraries = {
+    [urlNameOf(LIBRARY)]: { title: 'Mock Library', folder: PATH_FILES },
+    [urlNameOf(TOOLS)]: { title: 'Mock Tools Library', folder: PATH_TOOLS },
+};
 
 // ----------------------------------------------------------------
 // Local paths
@@ -120,14 +132,14 @@ function within(root: string, rel: string): string | null {
 /** @returns name of the library of a server-relative path, if the site has it */
 function libraryName(libs: Libraries, p: string): string | null {
     if (!p.startsWith(`${SITE}/`)) return null;
-    const name = libraryOf(p).slice(SITE.length + 1);
+    const name = urlNameOf(libraryOf(p));
     return Object.hasOwn(libs, name) ? name : null;
 }
 
 /** @param p server-relative @returns local path */
 function localPath(libs: Libraries, p: string): string | null {
     const name = libraryName(libs, p);
-    return name == null ? null : within(libs[name], p.slice(libraryOf(p).length));
+    return name == null ? null : within(libs[name].folder, p.slice(libraryOf(p).length));
 }
 
 /** @param p server-relative @returns place among the uploads (null: outside the site) */
@@ -154,8 +166,8 @@ export function endUploads(dir: string): void {
 /** @returns with absolute paths; folders not there left out */
 export function resolveLibraries(libs: Libraries): Libraries {
     const found = Object.entries(libs)
-        .map(([name, dir]) => [name, path.resolve(dir)] as const)
-        .filter(([, dir]) => fs.existsSync(dir) && fs.statSync(dir).isDirectory());
+        .map(([name, lib]) => [name, { ...lib, folder: path.resolve(lib.folder) }] as const)
+        .filter(([, lib]) => fs.existsSync(lib.folder) && fs.statSync(lib.folder).isDirectory());
     return Object.fromEntries(found);
 }
 
@@ -199,9 +211,9 @@ function tree(libs: Libraries, library: string, uploads?: string): Record<string
     };
     walk(library);
     if (!out[library]) return out;
-    if (library === LIBRARY && has3dRelease() && !out[RELEASE_FOLDER]) {
-        out[LIBRARY].push({ name: 'previewer', folder: true, size: 0 });
-        out[LIBRARY].sort(byName);
+    if (library === TOOLS && has3dRelease() && !out[RELEASE_FOLDER]) {
+        out[TOOLS].push({ name: path.basename(RELEASE_FOLDER), folder: true, size: 0 });
+        out[TOOLS].sort(byName);
         out[RELEASE_FOLDER] = listing(PATH_RELEASE).filter((e) => FILES_3D.includes(e.name));
     }
     for (const [folder, entries] of Object.entries(out)) {
@@ -249,11 +261,11 @@ const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;'
 
 /** @param library server-relative */
 function listPage(libs: Libraries, library: string, uploads?: string): Reply {
-    const name = library.slice(SITE.length + 1);
-    const nav = Object.keys(libs)
-        .map((lib) => {
-            const current = lib === name ? ' class="current"' : '';
-            return `<a href="${esc(encodeURI(listPageOf(`${SITE}/${lib}`)))}"${current}>${esc(lib)}</a>`;
+    const name = libs[urlNameOf(library)].title;
+    const nav = Object.entries(libs)
+        .map(([key, lib]) => {
+            const current = `${SITE}/${key}` === library ? ' class="current"' : '';
+            return `<a href="${esc(encodeURI(listPageOf(`${SITE}/${key}`)))}"${current}>${esc(lib.title)}</a>`;
         })
         .join('');
     return html(`<!doctype html>
@@ -266,7 +278,8 @@ function listPage(libs: Libraries, library: string, uploads?: string): Reply {
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; font: 14px "Segoe UI", sans-serif; color: #323130; }
   body { display: flex; flex-direction: column; overflow: hidden; }
-  .suite-bar { flex: none; height: 48px; background: #0078d4; color: #fff; padding: 14px 16px; }
+  .suite-bar { flex: none; height: 48px; background: #0078d4; color: #fff; padding: 0 16px; display: grid; grid-template-columns: 1fr minmax(0, 560px) 1fr; align-items: center; gap: 16px; }
+  .suite-bar input[type="search"] { width: 100%; height: 32px; padding: 4px 12px; border: none; border-radius: 4px; background: #fff; color: #323130; font: inherit; }
   .app { flex: 1; min-height: 0; display: flex; }
   .nav { flex: none; width: 200px; padding: 12px; background: #faf9f8; display: flex; flex-direction: column; gap: 6px; }
   .nav a { color: inherit; text-decoration: none; padding-left: 8px; }
@@ -274,7 +287,6 @@ function listPage(libs: Libraries, library: string, uploads?: string): Reply {
   .nav a.current { font-weight: 600; border-left: 3px solid #0078d4; padding-left: 5px; }
   .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .command-bar { flex: none; height: 44px; padding: 8px 16px; border-bottom: 1px solid #edebe9; display: flex; align-items: center; gap: 12px; }
-  .command-bar input[type="search"] { margin-left: auto; width: 240px; padding: 4px 8px; border: 1px solid #8a8886; border-radius: 4px; font: inherit; }
   .breadcrumb { flex: none; padding: 8px 16px; font-size: 18px; }
   .breadcrumb a { color: inherit; text-decoration: none; }
   .breadcrumb a:hover { text-decoration: underline; }
@@ -301,7 +313,10 @@ function listPage(libs: Libraries, library: string, uploads?: string): Reply {
 </style>
 </head>
 <body>
-  <div class="suite-bar">${TENANT}</div>
+  <div class="suite-bar">
+    <span>${TENANT}</span>
+    <input type="search" id="search" placeholder="Search this library" aria-label="Search this library">
+  </div>
   <div class="app">
     <div class="nav">Home${nav}</div>
     <div class="main">
@@ -309,7 +324,6 @@ function listPage(libs: Libraries, library: string, uploads?: string): Reply {
         <span>+ New</span>
         <label class="upload">Upload<input type="file" id="upload" multiple hidden></label>
         <span>Sync</span>
-        <input type="search" id="search" placeholder="Search this library" aria-label="Search this library">
       </div>
       <div class="breadcrumb" id="breadcrumb"></div>
       <div class="list-host">
@@ -565,7 +579,7 @@ function searchQuery(libs: Libraries, params: URLSearchParams, origin: string, u
 /**
  * Answers one request to the mock Sharepoint.
  *
- * @param opts libraries of the site (default: "Mock Data" from ./library);
+ * @param opts libraries of the site (default: LIBRARIES);
  *   folder of the session's uploads (none: uploads refused)
  */
 export function handle(

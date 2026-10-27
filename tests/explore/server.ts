@@ -2,13 +2,13 @@
 //
 //   node tests/explore/server.ts <port> [folder]    (cf. `just tests-explore`)
 //
-// - libraries: "Mock Data" (test fixtures, /tests/mocks/mock-sharepoint/library) and "Local Data"
+// - libraries: "Mock Library" (test fixtures, /tests/mocks/mock-sharepoint/library), "Mock Tools Library" (cf. 3D files) and "Local Library"
 //   (your own files: /data, local only, or the folder given; if there); read afresh per request (read only)
 // - userscript: read afresh per page load, so `just build-src` + reload picks up changes
 // - Tampermonkey: stood in for by ./tampermonkey.js (settings in localStorage, menu commands as a panel);
 //   its panel (and the console) names each library and the folder it serves
-// - search: box in the list's command bar (files below the folder open, found by the userscript by name)
-// - 3D files: those of the release in /dist/v<VERSION> (`just build`), listed in "Mock Data" as folder "previewer";
+// - search: box in the middle of the suite bar (files below the folder open, found by the userscript by name)
+// - 3D files: those of the release in /dist/v<VERSION> (`just build`), listed in "Mock Tools Library" as folder "Viewer";
 //   the setting `viewer-3d-folder` points there unless set (filled in when empty)
 // - logo: a test logo (setting `logo`), filled in when empty
 // - uploads (drop on the list, "Upload", the viewer's upload): simulated, kept apart in
@@ -57,8 +57,7 @@ const NO_CACHE = { 'cache-control': 'no-store' };
 
 // Libraries: test fixtures, and own files (default: the repo's local /data)
 const ROOT = path.resolve(import.meta.dirname, '../..');
-const MOCK = 'Mock Data';
-const LOCAL = 'Local Data';
+const LOCAL = 'LocalLibrary';
 const PATH_LOCAL = path.join(ROOT, 'data');
 // Simulated uploads of this server (cf. /tests/mocks/mock-sharepoint/server.ts)
 const PATH_UPLOADS = path.join(sharepoint.PATH_UPLOADS, 'explore');
@@ -84,7 +83,7 @@ const shortPath = (dir: string): string => {
 /** @returns what the libraries show */
 function libraryNotes(libs: Libraries): string[] {
     const uploads = `Uploads (simulated, removed on stop): ${shortPath(PATH_UPLOADS)}`;
-    return [...Object.entries(libs).map(([name, dir]) => `Library "${name}": ${shortPath(dir)}`), uploads];
+    return [...Object.values(libs).map((lib) => `Library "${lib.title}": ${shortPath(lib.folder)}`), uploads];
 }
 
 /** @returns text for an HTML attribute */
@@ -101,7 +100,7 @@ function inject(reply: Reply, libs: Libraries): Reply {
     const defaults = JSON.stringify({ 'viewer-3d-folder': sharepoint.RELEASE_SETTING, 'logo': LOGO });
     const notes = JSON.stringify([
         ...libraryNotes(libs),
-        built ? `Folder "${MOCK}/previewer": ${release} (3D files)` : `3D files: none in ${release} (run "just build")`,
+        built ? `Folder "${sharepoint.RELEASE_SETTING}": ${release} (3D files)` : `3D files: none in ${release} (run "just build")`,
     ]);
     const data = `data-version="${VERSION}" data-defaults="${attr(defaults)}" data-notes="${attr(notes)}"`;
     const tag = `<script src="${PREFIX}/tampermonkey.js" ${data}></script>`;
@@ -129,14 +128,14 @@ function answer(req: http.IncomingMessage, libraries: Libraries, body: Buffer): 
 // server
 // --------------------------------
 
-/** @param folder own files, as library "Local Data" (default: /data) */
+/** @param folder own files, as library "Local Library" (default: /data) */
 function serve(port: string, folder?: string) {
     const local = folder ? path.resolve(folder) : PATH_LOCAL;
     if (folder && !(fs.existsSync(local) && fs.statSync(local).isDirectory())) {
         console.error(`not a folder: ${local}`);
         process.exit(1);
     }
-    const libraries: Libraries = { [MOCK]: sharepoint.PATH_FILES, [LOCAL]: local };
+    const libraries: Libraries = { ...sharepoint.LIBRARIES, [LOCAL]: { title: 'Local Library', folder: local } };
     sharepoint.startUploads('explore');
     const stop = () => {
         sharepoint.endUploads(PATH_UPLOADS);

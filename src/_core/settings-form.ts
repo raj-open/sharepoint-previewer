@@ -37,7 +37,7 @@ const SETTING_FORM: [string, string, (string[] | string)?][] = [
     ['parquet-rows', 'Table rows shown'],
     ['max-line-chars', 'Lines cut after (characters)'],
     ['follow-links', 'Follow .url link files'],
-    ['viewer-3d-folder', '3D viewer folder', 'Shared Documents/previewer  or  /sites/…/previewer'],
+    ['viewer-3d-folder', '3D viewer folder', '/sites/…/Viewer  or  /teams/…/Viewer  (or relative to the site)'],
     ['viewer-3d-max-bytes', '3D view up to', 'MB'],
     ['logo', 'Logo (data:image/… URI, empty = no image)'],
 ];

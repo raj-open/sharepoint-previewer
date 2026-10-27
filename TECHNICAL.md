@@ -56,8 +56,8 @@ Each build writes one flat release folder `/dist/v<VERSION>`:
 | :--- | :------- |
 | `sharepoint-previewer.js` | userscript to install |
 | `sharepoint-previewer.min.js` | the same, minified (whitespace and syntax; names kept) |
-| `ifc-lite-3d.js` | ifc-lite bundle (esbuild, versions pinned in `package.json`) |
-| `ifc-lite_bg.wasm` | engine binary, copied unchanged from `@ifc-lite/wasm` |
+| `ifc-lite-3d.js` | ifc-lite bundle (esbuild, versions pinned in `package.json`; unless `BUILD_3D=false`) |
+| `ifc-lite_bg.wasm` | engine binary, copied unchanged from `@ifc-lite/wasm` (unless `BUILD_3D=false`) |
 | `NOTES.md` | notes for review (permissions, network, storage, security, deployment) |
 
 The build writes into the userscript:
@@ -67,6 +67,13 @@ The build writes into the userscript:
   (`/dist/userscript{,.min}.js` have dummies: `0.0.0`, `<sha256>`)
 
 So the userscript and the 3D files of one build are deployed together.
+
+`BUILD_3D=false` (`.env`, or `just BUILD_3D=false build`) leaves the 3D files out of the release folder;
+they are still built in a temporary folder, so the userscript carries their hashes.
+The build is deterministic (versions pinned),
+so such a release accepts the 3D files of the last release built with them,
+as long as the ifc-lite and esbuild versions are unchanged.
+The release workflow includes them only if its checkbox is ticked (default: off).
 
 ## Dependencies ##
 
