@@ -38,7 +38,7 @@ const SETTING_FORM: [string, string, (string[] | string)?][] = [
     ['max-line-chars', 'Lines cut after (characters)'],
     ['follow-links', 'Follow .url link files'],
     ['viewer-3d-folder', '3D viewer folder', '/sites/…/Viewer  or  /teams/…/Viewer  (or relative to the site)'],
-    ['viewer-3d-max-bytes', '3D view up to', 'MB'],
+    ['viewer-3d-max-bytes', 'Warn 3D view if IFC size exceeds', 'MB'],
     ['logo', 'Logo (data:image/… URI, empty = no image)'],
 ];
 const UNIT_BYTES: Record<string, number> = { KB: 1024, MB: 1024 * 1024 };

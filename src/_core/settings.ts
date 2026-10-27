@@ -62,8 +62,8 @@ export const DEFAULTS = {
     // with leading '/'. Fetched on first use of 3D button, checked by SHA-256.
     'viewer-3d-folder': '',
 
-    // 3D view only for IFC files up to this size (for .ifczip: unpacked IFC file)
-    'viewer-3d-max-bytes': 8 * 1024 * 1024,
+    // 3D view asks first for IFC files above this size (for .ifczip: unpacked IFC file)
+    'viewer-3d-max-bytes': 25 * 1024 * 1024,
 
     // 'dark' or 'light' (start value)
     'theme': 'light',

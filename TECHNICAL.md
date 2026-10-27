@@ -148,7 +148,7 @@ How the parts communicate: [NOTES.md, §3](NOTES.md#3-communication).
     (blue while caching, neutral when idle or complete),
     with a "click to fully cache" hint
   - right: format of the file (recognised from its name);
-    its menu lists text formats and file formats (Parquet, spreadsheet, IFCZIP) side by side,
+    its menu lists text formats and file formats (Parquet, spreadsheet, IFCZIP, Power BI) side by side,
     any of them can be chosen (also a wrong one: the file is then read as that format, or a message says why not;
     a chosen format is marked and kept while the page is open);
     text size **− 100 % +**
@@ -180,7 +180,8 @@ What the script reads from the list and leaves alone: [NOTES.md, §2](NOTES.md#2
 | CSV / TSV (delimiter detected) | ✓ (per column) | | ✓ (sort, filter, edit cells, rows, columns) | | ✓ |
 | Parquet (Snappy, GZIP, ZSTD, LZ4_RAW, uncompressed) | ✓ | | ✓ (read only) | | |
 | Spreadsheets: Excel `.xlsx` `.xlsm` `.xltx` `.xltm`, `.xlsb`, `.xls` `.xlt` (97–2003, 5.0/95), OpenDocument `.ods` `.ots` | ✓ | | ✓ (read only, per sheet) | | |
-| IFC / IFCZIP | ✓ | ✓ | | ✓ (up to 8 MB, setting) | IFC only |
+| IFC / IFCZIP | ✓ | ✓ | | ✓ (asks first above 25 MB, setting) | IFC only |
+| Power BI `.pbix` `.pbit`: parts as a tree, Power Query scripts and parameters (shown as Markdown) | ✓ (M) | | | | |
 | Any other text file | – | | | | ✓ |
 
 Spreadsheets show the last saved value of each cell (formulas are not recalculated):
@@ -190,6 +191,10 @@ dates and times as ISO 8601 (`2026-10-24`, `14:30:00`, `2026-10-24 14:30:00`),
 both date systems (1900, 1904).
 Number formats beyond that (decimals, currencies, thousands separators) are not applied.
 Password-protected workbooks are not opened.
+
+Power BI files are read by range: only the archive's directory and its small parts
+(`DataMashup` in `.pbix`, `DataModelSchema` in `.pbit`) are fetched, never the data model.
+Reports, visuals and data are not shown.
 
 Tables (Excel's "Format as Table" in `.xlsx` and `.xlsb`; named database ranges in `.ods`)
 can be shown instead of whole sheets:
@@ -322,7 +327,7 @@ plus "Reset to defaults".
 | `max-line-chars` | `5000` | Longer lines are cut for display |
 | `follow-links` | `true` | Follow `.url` link files (same origin only) |
 | `viewer-3d-folder` | *(empty)* | Folder with the 3D files: relative to the site, or from the top with a leading `/` |
-| `viewer-3d-max-bytes` | 8 MB | 3D view only up to this IFC size |
+| `viewer-3d-max-bytes` | 25 MB | 3D view asks first (each time) above this IFC size |
 | `logo` | *(empty)* | `data:image/…` URI shown in the header |
 
 Settings that are start values (layout, size, theme, colours, wrap)

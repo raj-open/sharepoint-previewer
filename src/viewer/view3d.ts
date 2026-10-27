@@ -240,10 +240,11 @@ export async function toggle3d(v: Viewer): Promise<void> {
     }
     if (!src.done && !(await v.loadAll?.())) return; // 3D view needs whole file
     if (!src.done) return;
-    if ((src.ifcBytes ? src.ifcBytes.length : src.text.length) > MAX_3D_BYTES) {
-        alert(`3D view: only for IFC files up to ${formatBytes(MAX_3D_BYTES)}.`);
-        return;
-    }
+    const size = src.ifcBytes ? src.ifcBytes.length : src.text.length;
+    const question =
+        `This IFC file is large (${formatBytes(size)}, above ${formatBytes(MAX_3D_BYTES)}).\n` +
+        'The 3D view may be slow or run out of memory. Open it anyway?';
+    if (size > MAX_3D_BYTES && !confirm(question)) return;
     const file = v.file;
     if (!file) return;
     const state: View3d = {
