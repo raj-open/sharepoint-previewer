@@ -2,7 +2,7 @@
 
 Fixture library for the behavioural tests.
 
-- `Data/` tables (CSV, Parquet)
+- `Data/` tables (CSV, Parquet, spreadsheets), Power BI (`model.pbix`: queries in the data model only)
 - `Config/` XML settings
 - `Models/` IFC models
 

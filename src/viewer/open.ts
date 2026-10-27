@@ -28,7 +28,7 @@ import { readerOf } from '../readers/formats.ts';
 import { cleanUrl } from '../readers/links.ts';
 import { linkTarget } from '../readers/links.ts';
 import { openParquetSource } from '../readers/parquet/source.ts';
-import { openPbixSource } from '../readers/pbix.ts';
+import { openPbixSource } from '../readers/pbix/index.ts';
 import { encodePath } from '../readers/request.ts';
 import { findFile } from '../readers/search.ts';
 import { lookupNotes } from '../readers/search.ts';
@@ -198,10 +198,13 @@ async function openFile(
 }
 
 // Power BI: asks before reading many parts (setting)
-function askPowerBi(bytes: number): boolean {
+function askPowerBi(bytes: number, model = false): boolean {
     if (bytes <= POWERBI_CONFIRM_BYTES) return true;
     return confirm(
-        `This Power BI file has ${formatBytes(bytes)} of parts to read (the data model is left out). Read them?`,
+        model
+            ? `The queries of this Power BI file are in its data model (${formatBytes(bytes)}). ` +
+                  'Read it? It is unpacked in this browser only.'
+            : `This Power BI file has ${formatBytes(bytes)} of parts to read (the data model is left out). Read them?`,
     );
 }
 
