@@ -1,18 +1,19 @@
 // Mock Sharepoint Online: one site with document libraries, each served from a local folder
-// (default: libraries "Mock Library" from ./library and "Mock Tools Library" from ./tools). Read only: files are read from disk per request.
+// (default: libraries "Mock Library" from ./library and "Mock Tools Library" from ./tools; URLs without spaces). Read only: files are read from disk per request.
 // Uploads (optional, simulated): kept apart in a session folder under ./__uploads__ that mirrors the site's
 // paths (<library>/<path>); they are listed and served over the originals (which stay untouched) until the session ends.
 //
-//   /sites/Test/<library>/Forms/AllItems.aspx[?id=<folder>][&q=<term>]   list view (client-side app); q: search
-//   /sites/Test/<library>/<path>                                         file (GET / HEAD, byte ranges)
-//   /sites/Test/SitePages/Home.aspx                                      page outside any library
-//   /sites/Test/Mock Tools Library/Viewer/<file>                         3D files of the release (if built),
+//   <site> = /sites/MockSharepoint
+//   <site>/<library>/Forms/AllItems.aspx[?id=<folder>][&q=<term>]        list view (client-side app); q: search
+//   <site>/<library>/<path>                                              file (GET / HEAD, byte ranges)
+//   <site>/SitePages/Home.aspx                                           page outside any library
+//   <site>/MockToolsLibrary/Viewer/<file>                                3D files of the release (if built),
 //                                                                        listed as folder "Viewer" in "Mock Tools Library"
-//   /sites/Test/<library>/_api/upload?folder=<f>&name=<n>                upload (POST, body: the file; simulated)
-//   /sites/Test/<library>/_api/tree                                      folders and files (JSON; list refresh)
-//   /sites/Test/_api/web/GetList(@list)/items?$filter=FileLeafRef eq '<name>'&@list='<library>'
+//   <site>/<library>/_api/upload?folder=<f>&name=<n>                     upload (POST, body: the file; simulated)
+//   <site>/<library>/_api/tree                                           folders and files (JSON; list refresh)
+//   <site>/_api/web/GetList(@list)/items?$filter=FileLeafRef eq '<name>'&@list='<library>'
 //                                                                        files of that name in a library (as Sharepoint)
-//   /sites/Test/_api/search/query?querytext='(filename:"<name>" …) path:"<url of folder>"'
+//   <site>/_api/search/query?querytext='(filename:"<name>" …) path:"<url of folder>"'
 //                                                                        search index (as Sharepoint; Parquet: a form as Path)
 //
 // The list view mimics what the userscript reads: ARIA grid rows (selection column first), name fields,
@@ -30,7 +31,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
 
 export const ORIGIN = 'https://acme.sharepoint.com';
-export const SITE = '/sites/Test';
+export const SITE = '/sites/MockSharepoint';
 
 /** @param library server-relative @returns its list view */
 export const listPageOf = (library: string): string => `${library}/Forms/AllItems.aspx`;
@@ -39,18 +40,18 @@ export const listPageOf = (library: string): string => `${library}/Forms/AllItem
 export const libraryOf = (p: string): string => p.split('/').slice(0, 4).join('/');
 
 // Library of the test fixtures (behavioural tests, demos)
-export const LIBRARY = `${SITE}/Mock Library`;
+export const LIBRARY = `${SITE}/MockLibrary`;
 export const LIST_PAGE = listPageOf(LIBRARY);
 export const PATH_FILES = path.join(HERE, 'library');
 // Library of the tools: 3D files of the release (cf. RELEASE_FOLDER), plus a readme, a text file and an example model
-export const TOOLS = `${SITE}/Mock Tools Library`;
+export const TOOLS = `${SITE}/MockToolsLibrary`;
 export const PATH_TOOLS = path.join(HERE, 'tools');
 
 export const VERSION = fs.readFileSync(path.join(ROOT, 'dist/VERSION'), 'utf8').trim();
 export const PATH_RELEASE = path.join(ROOT, 'dist', `v${VERSION}`);
-// 3D files of the release, as a folder of the tools library (as deployed); setting `viewer-3d-folder`: site-relative
+// 3D files of the release, as a folder of the tools library (as deployed); setting `viewer-3d-folder`: from the top (/sites/…)
 export const RELEASE_FOLDER = `${TOOLS}/Viewer`;
-export const RELEASE_SETTING = RELEASE_FOLDER.slice(SITE.length + 1);
+export const RELEASE_SETTING = RELEASE_FOLDER;
 const FILES_3D = ['ifc-lite-3d.js', 'ifc-lite_bg.wasm'];
 // Simulated uploads, one folder per session (never synchronised: cf. /.gitignore; removed by `just clean`)
 export const PATH_UPLOADS = path.join(HERE, '__uploads__');
@@ -104,13 +105,18 @@ const ICONS: Record<string, string> = {
 type Entry = { name: string; folder: boolean; size: number; author?: string; uploaded?: boolean };
 // Answer to a request
 export type Reply = { status: number; headers: Record<string, string>; body: Buffer | string };
-// Libraries of the site: name (also its URL part) -> local folder
-export type Libraries = Record<string, string>;
+// Library: name shown (navigation, breadcrumb, title) and local folder
+export type Library = { title: string; folder: string };
+// Libraries of the site: URL part (as Sharepoint: no spaces) -> library
+export type Libraries = Record<string, Library>;
+
+/** @param library server-relative @returns its URL part */
+export const urlNameOf = (library: string): string => library.slice(SITE.length + 1);
 
 // Default: the test fixtures and the tools
 export const LIBRARIES: Libraries = {
-    [LIBRARY.slice(SITE.length + 1)]: PATH_FILES,
-    [TOOLS.slice(SITE.length + 1)]: PATH_TOOLS,
+    [urlNameOf(LIBRARY)]: { title: 'Mock Library', folder: PATH_FILES },
+    [urlNameOf(TOOLS)]: { title: 'Mock Tools Library', folder: PATH_TOOLS },
 };
 
 // ----------------------------------------------------------------
@@ -126,14 +132,14 @@ function within(root: string, rel: string): string | null {
 /** @returns name of the library of a server-relative path, if the site has it */
 function libraryName(libs: Libraries, p: string): string | null {
     if (!p.startsWith(`${SITE}/`)) return null;
-    const name = libraryOf(p).slice(SITE.length + 1);
+    const name = urlNameOf(libraryOf(p));
     return Object.hasOwn(libs, name) ? name : null;
 }
 
 /** @param p server-relative @returns local path */
 function localPath(libs: Libraries, p: string): string | null {
     const name = libraryName(libs, p);
-    return name == null ? null : within(libs[name], p.slice(libraryOf(p).length));
+    return name == null ? null : within(libs[name].folder, p.slice(libraryOf(p).length));
 }
 
 /** @param p server-relative @returns place among the uploads (null: outside the site) */
@@ -160,8 +166,8 @@ export function endUploads(dir: string): void {
 /** @returns with absolute paths; folders not there left out */
 export function resolveLibraries(libs: Libraries): Libraries {
     const found = Object.entries(libs)
-        .map(([name, dir]) => [name, path.resolve(dir)] as const)
-        .filter(([, dir]) => fs.existsSync(dir) && fs.statSync(dir).isDirectory());
+        .map(([name, lib]) => [name, { ...lib, folder: path.resolve(lib.folder) }] as const)
+        .filter(([, lib]) => fs.existsSync(lib.folder) && fs.statSync(lib.folder).isDirectory());
     return Object.fromEntries(found);
 }
 
@@ -255,11 +261,11 @@ const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;'
 
 /** @param library server-relative */
 function listPage(libs: Libraries, library: string, uploads?: string): Reply {
-    const name = library.slice(SITE.length + 1);
-    const nav = Object.keys(libs)
-        .map((lib) => {
-            const current = lib === name ? ' class="current"' : '';
-            return `<a href="${esc(encodeURI(listPageOf(`${SITE}/${lib}`)))}"${current}>${esc(lib)}</a>`;
+    const name = libs[urlNameOf(library)].title;
+    const nav = Object.entries(libs)
+        .map(([key, lib]) => {
+            const current = `${SITE}/${key}` === library ? ' class="current"' : '';
+            return `<a href="${esc(encodeURI(listPageOf(`${SITE}/${key}`)))}"${current}>${esc(lib.title)}</a>`;
         })
         .join('');
     return html(`<!doctype html>

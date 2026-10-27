@@ -57,7 +57,7 @@ const NO_CACHE = { 'cache-control': 'no-store' };
 
 // Libraries: test fixtures, and own files (default: the repo's local /data)
 const ROOT = path.resolve(import.meta.dirname, '../..');
-const LOCAL = 'Local Library';
+const LOCAL = 'LocalLibrary';
 const PATH_LOCAL = path.join(ROOT, 'data');
 // Simulated uploads of this server (cf. /tests/mocks/mock-sharepoint/server.ts)
 const PATH_UPLOADS = path.join(sharepoint.PATH_UPLOADS, 'explore');
@@ -83,7 +83,7 @@ const shortPath = (dir: string): string => {
 /** @returns what the libraries show */
 function libraryNotes(libs: Libraries): string[] {
     const uploads = `Uploads (simulated, removed on stop): ${shortPath(PATH_UPLOADS)}`;
-    return [...Object.entries(libs).map(([name, dir]) => `Library "${name}": ${shortPath(dir)}`), uploads];
+    return [...Object.values(libs).map((lib) => `Library "${lib.title}": ${shortPath(lib.folder)}`), uploads];
 }
 
 /** @returns text for an HTML attribute */
@@ -135,7 +135,7 @@ function serve(port: string, folder?: string) {
         console.error(`not a folder: ${local}`);
         process.exit(1);
     }
-    const libraries: Libraries = { ...sharepoint.LIBRARIES, [LOCAL]: local };
+    const libraries: Libraries = { ...sharepoint.LIBRARIES, [LOCAL]: { title: 'Local Library', folder: local } };
     sharepoint.startUploads('explore');
     const stop = () => {
         sharepoint.endUploads(PATH_UPLOADS);

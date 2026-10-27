@@ -133,7 +133,7 @@ describe('search results', () => {
         const v = await h.preview(page, '2025.csv');
         const content = await h.text(v.locator('.tp-content'));
         assert.match(content, /cannot be viewed from search results/);
-        assert.match(content, /Looked up by name below \/sites\/Test\/Mock Library/);
+        assert.match(content, /Looked up by name below \/sites\/MockSharepoint\/MockLibrary/);
         assert.match(content, /library list: HTTP 500/);
     });
 
