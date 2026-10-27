@@ -16,7 +16,7 @@ dates, size, format, encoding, delimiter, shape.
 
 The chain icon copies the file's link,
 clean as a person reads it (not encoded, no query),
-e.g. `https://acme.sharepoint.com/sites/Test/Mock Data/Data/prices.csv`.
+e.g. `https://acme.sharepoint.com/sites/Test/Mock Library/Data/prices.csv`.
 Without a file open, it copies the folder's link.
 
 ![Link copied](img/link.png)

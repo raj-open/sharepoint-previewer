@@ -61,15 +61,18 @@
   or one installed already, named in `BROWSER_CHANNEL` (e.g. `chrome`; the workflows use the runner image's Google Chrome: nothing downloaded).
 - Explorative tests: `just tests-explore [folder]` serves the mock Sharepoint on `http://localhost:<HTTP_PORT>` (loopback only),
   the userscript injected per page load with a Tampermonkey stand-in (`/tests/explore`);
-  the site has two libraries: `Mock Data` (test fixtures, `/tests/mocks/mock-sharepoint/library`; behavioural tests and demos use it alone)
-  and `Local Data` (own files: `/data`, local only, or `folder` if given);
+  the site (`Mock Sharepoint`) has three libraries:
+  `Mock Library` (test fixtures, `/tests/mocks/mock-sharepoint/library`),
+  `Mock Artefacts` (the 3D files, see below, plus a readme, a text file and an example model: `/tests/mocks/mock-sharepoint/artefacts`)
+  and `Local Library` (own files: `/data`, local only, or `folder` if given);
+  behavioural tests and demos use the two mock libraries alone;
   files are read from disk per request (read only);
-  search (box in the command bar) lists files and folders below the folder open;
+  search (box in the middle of the suite bar, as in Sharepoint) lists files and folders below the folder open;
   file rows carry no path (as in Sharepoint), so the userscript looks them up by name
   (the site's list and search REST APIs are mocked as well);
   uploads are simulated: kept apart in `/tests/mocks/mock-sharepoint/__uploads__/<session>` (site paths mirrored),
   listed and served over the originals, removed when the server stops (behavioural tests: when their browser closes)
   and by `just clean`; never synchronised;
-  the 3D files of the release (`just build`) appear in `Mock Data` as folder `previewer`,
+  the 3D files of the release (`just build`) appear in `Mock Artefacts` as folder `previewer`,
   empty settings `viewer-3d-folder` (pointing there) and `logo` (a test logo) are filled in on each page load;
   not part of `just qa`.
