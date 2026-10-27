@@ -17,6 +17,7 @@ const {
     decodePart,
     prettyJson,
 } = await load('readers/pbix.ts');
+const { READ_MIN } = await load('readers/ranges.ts');
 const signal = () => new AbortController().signal;
 
 const SECTION = [
@@ -125,12 +126,13 @@ describe('readers/pbix', () => {
                 ['Server', 'parameter'],
             ],
         );
-        // directory (end of the archive) and the small parts only
+        // start and end of the archive only (directory, small parts): one request each, the data model in between
         const fetched = requests.reduce((n, r) => {
             const m = /bytes=(\d+)-(\d+)/.exec(r.range || '');
             return n + (m ? Number(m[2]) - Number(m[1]) + 1 : bytes.length);
         }, 0);
-        assert.ok(fetched < 10_000, `fetched ${fetched} bytes`);
+        assert.ok(requests.length <= 2, `${requests.length} requests`);
+        assert.ok(fetched <= 2 * READ_MIN && fetched < big.length, `fetched ${fetched} bytes`);
     });
 
     it('parts: UTF-16LE without BOM, UTF-8, binary', () => {
