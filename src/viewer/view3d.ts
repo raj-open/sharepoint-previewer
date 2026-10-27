@@ -70,7 +70,8 @@ function loadIfcLibrary(onStatus: (s: string) => void): Promise<{ lib: IfcLite; 
             const url = encodePath(`${folder.replace(/\/$/, '')}/${name}`);
             if (!sameOrigin(url)) throw new Error('the 3D viewer folder must be in this Sharepoint');
             onStatus(`caching ${name} …`);
-            const res = await fetch(url, { credentials: 'same-origin' });
+            // revalidated: a cached file of an earlier release would fail its checksum
+            const res = await fetch(url, { credentials: 'same-origin', cache: 'no-cache' });
             if (!res.ok) throw new Error(`${name}: error ${res.status}`);
             const buf = await res.arrayBuffer();
             if ((await sha256(buf)) !== hash) throw new Error(`${name} does not match its checksum: not used`);
