@@ -4,7 +4,7 @@
 
 - Each build produces one flat release folder `/dist/v<VERSION>`
   with the Tampermonkey userscript (`sharepoint-previewer.js`, minified: `sharepoint-previewer.min.js`),
-  the optional 3D files and `NOTES.md`.
+  the optional 3D files (unless `BUILD_3D=false`) and `NOTES.md`.
 - 3D files:
   ifc-lite bundled from `/src/@apis/ifc-lite/main.ts`,
   the `.wasm` copied unchanged from `@ifc-lite/wasm` (not rebuilt from its Rust source).
