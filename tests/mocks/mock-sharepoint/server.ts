@@ -48,7 +48,7 @@ export const TOOLS = `${SITE}/MockToolsLibrary`;
 export const PATH_TOOLS = path.join(HERE, 'tools');
 
 export const VERSION = fs.readFileSync(path.join(ROOT, 'dist/VERSION'), 'utf8').trim();
-export const PATH_RELEASE = path.join(ROOT, 'dist', `v${VERSION}`);
+export const PATH_RELEASE = latestRelease();
 // 3D files of the release, as a folder of the tools library (as deployed); setting `viewer-3d-folder`: from the top (/sites/…)
 export const RELEASE_FOLDER = `${TOOLS}/Viewer`;
 export const RELEASE_SETTING = RELEASE_FOLDER;
@@ -122,6 +122,21 @@ export const LIBRARIES: Libraries = {
 // ----------------------------------------------------------------
 // Local paths
 // ----------------------------------------------------------------
+
+/**
+ * Release folder of VERSION built last (cf. `just build-dist`: v<VERSION>, off the release tag v<VERSION>-beta.<commit>)
+ * @returns its path; v<VERSION> if none is built yet
+ */
+function latestRelease(): string {
+    const dist = path.join(ROOT, 'dist');
+    const names = fs.existsSync(dist) ? fs.readdirSync(dist) : [];
+    const builds = names
+        .filter((name) => name === `v${VERSION}` || name.startsWith(`v${VERSION}-beta.`))
+        .map((name) => path.join(dist, name))
+        .filter((p) => fs.statSync(p).isDirectory())
+        .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+    return builds[0] || path.join(dist, `v${VERSION}`);
+}
 
 /** @returns local path, never outside root (no "..") */
 function within(root: string, rel: string): string | null {

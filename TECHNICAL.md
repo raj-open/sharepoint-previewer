@@ -50,7 +50,7 @@ just clean              # node_modules + built artefacts (incl. /dist/userscript
 
 ## Artefacts ##
 
-Each build writes one flat release folder `/dist/v<VERSION>`:
+Each build writes one flat release folder `/dist/v<BUILD_VERSION>`, named after the userscript's `@version`:
 
 | File | Contents |
 | :--- | :------- |
