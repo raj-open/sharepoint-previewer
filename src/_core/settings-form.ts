@@ -4,6 +4,8 @@
 // IMPORTS
 // ===========================================================================
 
+import { brandHtml } from '../ui/brand.ts';
+import { brandTitle } from '../ui/brand.ts';
 import { COPY_SVG } from '../ui/icons.ts';
 import { placeMoved } from '../ui/move.ts';
 import { startMove } from '../ui/move.ts';
@@ -150,6 +152,7 @@ export function openSettingsForm(): void {
     form.innerHTML = `<div data-drag title="Drag to move" style="display:flex; align-items:center; gap:12px; margin:0 0 14px; cursor:move">
       <div style="display:flex; border:1px solid ${c.border}; border-radius:6px; overflow:hidden">${tab('form', 'Form')}${tab('json', 'JSON')}</div>
       <h3 style="flex:1; margin:0; font:600 16px ${font}">Sharepoint Previewer: settings</h3>
+      <div title="${esc(brandTitle())}" style="display:flex; align-items:center; gap:8px; font:11px ${font}; opacity:.75; white-space:nowrap">${brandHtml()}</div>
       <button type="button" data-act="close" title="Close" style="width:28px; height:28px; padding:0; border:none; border-radius:6px; background:transparent; color:${c.fg}; font:18px/1 ${font}; cursor:pointer">✕</button>
     </div>
     <div data-pane="form" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(min(400px, 100%), 1fr)); gap:8px 32px">${rows.join('')}</div>
