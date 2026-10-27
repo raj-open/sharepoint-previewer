@@ -13,18 +13,18 @@ import { openRanges } from '../ranges.ts';
 import { zipEntries } from '../zip.ts';
 import { sniffText } from '../text.ts';
 import { zipEntryBytes } from '../zip.ts';
+import { modelQueries } from './model.ts';
 
 import type { ArchivePart } from '../../_core/types.ts';
 import type { Source } from '../../_core/types.ts';
 import type { ByteReader } from '../../_core/types.ts';
+import type { Query } from '../../_core/types.ts';
 import type { ZipEntry } from '../../_core/types.ts';
 
 // ===========================================================================
 // TYPES
 // ===========================================================================
 
-/** query: name and M expression (`let … in …`, or a value with `meta […]`) */
-type Query = { name: string; body: string };
 type Node = { size: number | null; kids: Map<string, Node> };
 
 // ===========================================================================
@@ -37,7 +37,7 @@ const STRING_RE = /"(?:\\.|[^"\\])*"/g;
 
 // Parts with notes in the tree
 const NOTES: Record<string, string> = {
-    datamodel: 'data, not readable',
+    datamodel: 'data model (queries read if needed)',
     datamashup: 'Power Query',
     datamodelschema: 'model as JSON',
 };
@@ -53,13 +53,15 @@ const META_RE = /\bmeta\s*\[([^\]]*)\]\s*$/;
 // Source
 // ---------------------------------------------------------------------------
 
-// Directory and parts are fetched by range, each part read once (never the data model)
+// Directory and parts are fetched by range, each part read once;
+// the data model only for its queries, if no other part holds them (newer files)
+/** @param ask whether to read this many bytes of parts (model: of the data model) */
 export async function openPbixSource(
     url: string,
     getSignal: () => AbortSignal,
     reload: boolean,
     onProgress: (loaded: number, total: number) => void,
-    ask: (bytes: number) => boolean = () => true,
+    ask: (bytes: number, model?: boolean) => boolean = () => true,
 ): Promise<Source | { error: string }> {
     const file = await openRanges(url, getSignal, reload, onProgress);
     if ('error' in file) return file;
@@ -72,8 +74,26 @@ export async function openPbixSource(
         const bytes = entries.filter(readable).reduce((n, e) => n + e.packed, 0);
         if (!ask(bytes)) return { error: `Not opened: ${formatBytes(bytes)} of parts to read.` };
         queries = await pbixQueries(file.read, entries);
-        overview = pbixMarkdown(entries, queries);
-        if (noQueries(entries, queries)) empty = 'No queries read: see the overview';
+        let model: string | null = null; // data model: not tried, '' read, else why not
+        const entry = entries.find((e) => e.name.toLowerCase() === 'datamodel');
+        if (!queries.length && entry) {
+            model = 'declined';
+            if (ask(entry.packed, true)) {
+                const pause = async () => {
+                    await new Promise((r) => setTimeout(r, 0)); // page stays responsive
+                    if (getSignal().aborted) throw new DOMException('stopped', 'AbortError');
+                };
+                try {
+                    queries = await modelQueries(await zipEntryBytes(file.read, entry), pause);
+                    model = '';
+                } catch (err) {
+                    if ((err as Error).name === 'AbortError') throw err;
+                    model = (err as Error).message;
+                }
+            }
+        }
+        overview = pbixMarkdown(entries, queries, model);
+        if (noQueries(entries, queries, model)) empty = 'No queries read: see the overview';
         parts = [];
         for (const e of entries) parts.push(await entryPart(file.read, e));
     } catch (err) {
@@ -112,7 +132,7 @@ async function entryPart(read: ByteReader, e: ZipEntry): Promise<ArchivePart> {
     const key = e.name.toLowerCase();
     const size = formatBytes(e.size);
     if (!readable(e)) {
-        const why = key === 'datamodel' ? 'data, not readable' : 'too large';
+        const why = key === 'datamodel' ? 'data model' : 'too large';
         return { name: e.name, note: `${size}, ${why}`, lang: null, text: null };
     }
     const raw = await zipEntryBytes(read, e);
@@ -254,7 +274,8 @@ export function parameterOf(q: Query): { type: string; value: string; required: 
 // ---------------------------------------------------------------------------
 
 // Parts as a tree, then parameters (table) and queries (M)
-export function pbixMarkdown(entries: ZipEntry[], queries: Query[]): string {
+/** @param model data model: null not read, '' read (queries from it), else why not */
+export function pbixMarkdown(entries: ZipEntry[], queries: Query[], model: string | null = null): string {
     const hint = 'Parts and queries: picker bottom right (text parts with colours and checks).';
     const out = [hint, '', '## Parts', '', '```', ...treeLines(entries), '```'];
     const params = queries.filter((q) => parameterOf(q));
@@ -272,9 +293,10 @@ export function pbixMarkdown(entries: ZipEntry[], queries: Query[]): string {
             out.push(`| ${cell(q.name)} | ${p.type} | ${cell(p.value)} | ${p.required ? 'yes' : 'no'} |`);
         }
     }
-    const why = noQueries(entries, queries);
+    const why = noQueries(entries, queries, model);
     if (why || queries.length) out.push('', `## Queries (${others.length})`);
     if (why) out.push('', why);
+    else if (model === '') out.push('', 'Read from the data model (Power BI\'s "enhanced metadata").');
     for (const q of others) {
         const fence = '`'.repeat(Math.max(3, ...(q.body.match(/`+/g) || []).map((b) => b.length + 1)));
         out.push('', `### ${q.name}`, '', `${fence}m`, q.body, fence);
@@ -283,15 +305,18 @@ export function pbixMarkdown(entries: ZipEntry[], queries: Query[]): string {
 }
 
 // Why there are no queries (null: there are some, or the file has no queries at all)
-export function noQueries(entries: ZipEntry[], queries: Query[]): string | null {
+/** @param model data model: null not read, '' read, 'declined', else why it could not be read */
+export function noQueries(entries: ZipEntry[], queries: Query[], model: string | null = null): string | null {
     if (queries.length) return null;
     const has = (name: string) => entries.some((e) => e.name.toLowerCase() === name);
-    if (has('datamodel'))
-        return (
-            'Power Query scripts and parameters are kept in the data model (Power BI\'s "enhanced metadata"), ' +
-            'which is not read. To see them here, save the report as a template ' +
-            '(File > Export > Power BI template, `.pbit`).'
-        );
+    const pbit = 'save the report as a template (File > Export > Power BI template, `.pbit`)';
+    if (has('datamodel') && model !== '') {
+        const kept = 'Power Query scripts and parameters are kept in the data model (Power BI\'s "enhanced metadata")';
+        if (model === null) return `${kept}, which is not read. To see them here, ${pbit}.`;
+        if (model === 'declined') return `${kept}, not read (declined). Open the file again to read it, or ${pbit}.`;
+        return `${kept}, which could not be read (${model}). To see them here, ${pbit}.`;
+    }
+    if (model === '') return 'No Power Query scripts found (data model read).';
     return has('datamashup') || has('datamodelschema') ? 'No Power Query scripts found.' : null;
 }
 

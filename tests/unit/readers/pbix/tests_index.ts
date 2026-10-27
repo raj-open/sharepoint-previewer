@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { describe } from 'node:test';
 import { it } from 'node:test';
+import { fixture } from '../../helpers.ts';
 import { load } from '../../helpers.ts';
 import { serve } from '../../helpers.ts';
 import { zip } from '../../helpers.ts';
@@ -92,7 +93,7 @@ describe('readers/pbix', () => {
         const lines = treeLines(entries);
         assert.equal(lines[0], '├── Report/');
         assert.ok(lines.some((l: string) => /── StaticResources\/$/.test(l)));
-        assert.ok(lines.some((l: string) => /DataModel {2}\(.*data, not readable\)/.test(l)));
+        assert.ok(lines.some((l: string) => /DataModel {2}\(.*data model \(queries read if needed\)\)/.test(l)));
     });
 
     it('source: Markdown with parts, parameters, queries; data model never fetched', async () => {
@@ -136,12 +137,48 @@ describe('readers/pbix', () => {
         assert.ok(fetched <= 2 * READ_MIN && fetched < big.length, `fetched ${fetched} bytes`);
     });
 
-    it('no queries: says where they are (data model: .pbit), or nothing if the file has none', () => {
+    it('no queries: says where they are and why not read (data model: .pbit), or nothing if the file has none', () => {
         const parts = (...names: string[]) => names.map((name) => ({ name }));
-        assert.match(noQueries(parts('DataModel', 'Report/Layout'), []), /data model.*\.pbit/s);
+        const model = parts('DataModel', 'Report/Layout');
+        assert.match(noQueries(model, []), /data model.*not read.*\.pbit/s);
+        assert.match(noQueries(model, [], 'declined'), /not read \(declined\)/);
+        assert.match(noQueries(model, [], 'bad block header'), /could not be read \(bad block header\)/);
+        assert.match(noQueries(model, [], ''), /No Power Query scripts found \(data model read\)/);
         assert.match(noQueries(parts('DataMashup'), []), /No Power Query scripts found/);
         assert.equal(noQueries(parts('Report/Layout'), []), null);
         assert.equal(noQueries(parts('DataModel'), [{ name: 'q', body: 'let x = 1 in x' }]), null);
+    });
+
+    it('newer file (no DataMashup): queries read from the data model, asked first; declined: said why', async () => {
+        serve({ '/m.pbix': fixture('Data/model.pbix') });
+        const asked: [number, boolean | undefined][] = [];
+        const src = await openPbixSource(
+            '/m.pbix',
+            signal,
+            false,
+            () => {},
+            (bytes: number, model?: boolean) => {
+                asked.push([bytes, model]);
+                return true;
+            },
+        );
+        assert.equal(asked.length, 2);
+        assert.equal(asked[1][1], true);
+        assert.deepEqual(
+            src.parts[1].items.map((q: { name: string }) => q.name),
+            ['ABC', 'BrokenColumns'],
+        );
+        assert.match(src.text, /## Queries \(2\)\n\nRead from the data model/);
+        assert.match(src.text, /### ABC\n\n```m\nlet/);
+        const declined = await openPbixSource(
+            '/m.pbix',
+            signal,
+            false,
+            () => {},
+            (_: number, model?: boolean) => !model,
+        );
+        assert.deepEqual(declined.parts[1].items, []);
+        assert.match(declined.text, /not read \(declined\)/);
     });
 
     it('parts: UTF-16LE without BOM, UTF-8, binary', () => {
