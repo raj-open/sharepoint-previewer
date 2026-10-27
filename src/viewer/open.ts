@@ -110,6 +110,7 @@ export const pendingOpens = new Map(); // url -> first fetch still running { pro
 export const forcedUrls = new Set(); // big Parquet / IFCZIP files the user chose to cache in full
 export const formatChoices = new Map(); // url -> format chosen by the user (while the page is open)
 const knownSizes = new Map(); // url -> file size seen before (shown right away next time)
+const PROGRESS_MS = 50; // progress shown at most this often while caching (ms)
 
 // Notes on "New file" (button, menu entry)
 export const NEW_FILE_ON = 'Create a new file in the folder open in Sharepoint';
@@ -199,7 +200,9 @@ async function openFile(
 // Power BI: asks before reading many parts (setting)
 function askPowerBi(bytes: number): boolean {
     if (bytes <= POWERBI_CONFIRM_BYTES) return true;
-    return confirm(`This Power BI file has ${formatBytes(bytes)} of parts to read (the data model is left out). Read them?`);
+    return confirm(
+        `This Power BI file has ${formatBytes(bytes)} of parts to read (the data model is left out). Read them?`,
+    );
 }
 
 // Open file viewed as another format (a wrong one too: that format's reader tries);
@@ -437,9 +440,13 @@ export async function showFile(name: string, url: string, reload: boolean, keep 
     let rendered = false; // once text is shown, progress goes to "Cache next" bar
 
     let metaSize = 0;
+    let shownAt = 0; // time of last progress shown
     const progress = (loaded: number, total: number) => {
         if (!current()) return;
         if (total) loaded = Math.min(loaded, total); // overlapping reads may count twice
+        const now = performance.now();
+        if (now - shownAt < PROGRESS_MS && !(total && loaded >= total)) return; // the last one is always shown
+        shownAt = now;
         showProgress(v, loaded, total);
         if (!rendered && total && total !== metaSize) {
             metaSize = total;
