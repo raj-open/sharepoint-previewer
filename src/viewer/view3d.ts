@@ -13,10 +13,12 @@ import { formatBytes } from '../_core/util.ts';
 import { encodePath } from '../readers/request.ts';
 import { sameOrigin } from '../readers/request.ts';
 import { flash } from './edit.ts';
+import { propsReader } from './props3d.ts';
 import { tools3d } from './tools3d.ts';
 import { updateViews } from './views.ts';
 
 import type { Viewer } from '../_core/types.ts';
+import type { PropsLib } from './props3d.ts';
 import type { GeometryProcessor } from '@ifc-lite/geometry';
 import type { Renderer } from '@ifc-lite/renderer';
 import type initEngine from '@ifc-lite/wasm';
@@ -26,7 +28,7 @@ import type initEngine from '@ifc-lite/wasm';
 // ===========================================================================
 
 // ifc-lite as its bundle provides it (cf. /src/@apis/ifc-lite/main.ts); ready: engine started (once per page)
-type IfcLite = {
+type IfcLite = PropsLib & {
     init: typeof initEngine;
     GeometryProcessor: typeof GeometryProcessor;
     Renderer: typeof Renderer;
@@ -154,7 +156,14 @@ async function open3dModel(
     }
     onStatus(`${result.meshes.length.toLocaleString()} objects · ${result.totalTriangles.toLocaleString()} triangles`);
     const stage = canvas.parentElement as HTMLElement; // controls laid over the canvas
-    const tools = tools3d(stage, { renderer, bounds: b ? { min: b.min, max: b.max } : null, fit, text, showLine });
+    const tools = tools3d(stage, {
+        renderer,
+        bounds: b ? { min: b.min, max: b.max } : null,
+        fit,
+        text,
+        showLine,
+        sets: propsReader(lib, ifcBytes), // model parsed for them on first use
+    });
 
     // Drag: rotate or move; click (no drag): select
     let drag: { x: number; y: number; pan: boolean; moved: number } | null = null;

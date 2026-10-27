@@ -482,10 +482,21 @@ const CSS = `
   .tp-picker-item.tp-chosen::after { content: ' ✓'; color: var(--tp-accent); }
   .tp-picker-empty { padding: 8px; font: 12px sans-serif; color: var(--tp-fg); opacity: .6; }
   /* 3D view: controls laid over the model (views, section; selection below) */
-  .tp-3d-bar, .tp-3d-info { position: absolute; left: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: calc(100% - 16px); font: 12px sans-serif; }
+  .tp-3d-bar, .tp-3d-info { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: 100%; font: 12px sans-serif; }
+  .tp-3d-bar, .tp-3d-side { position: absolute; left: 8px; max-width: calc(100% - 16px); }
   .tp-3d-bar { top: 6px; }
-  .tp-3d-info { top: 36px; padding: 2px 2px 2px 8px; border-radius: 4px; background: var(--tp-bg); color: var(--tp-fg); box-shadow: 0 0 0 1px var(--tp-border); }
-  .tp-3d-info[hidden] { display: none; }
+  .tp-3d-side { top: 36px; bottom: 28px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; }
+  .tp-3d-side > * { pointer-events: auto; }
+  .tp-3d-info, .tp-3d-props { border-radius: 4px; background: var(--tp-bg); color: var(--tp-fg); box-shadow: 0 0 0 1px var(--tp-border); }
+  .tp-3d-info { padding: 2px 2px 2px 8px; }
+  .tp-3d-info[hidden], .tp-3d-props[hidden] { display: none; }
+  .tp-3d-btn[aria-pressed="true"] { border-color: var(--tp-accent); }
+  .tp-3d-props { box-sizing: border-box; width: 46ch; max-width: 100%; min-height: 0; overflow: auto; padding: 4px 8px; font: 12px sans-serif; }
+  .tp-3d-set summary { padding: 2px 0; font-weight: 600; cursor: pointer; }
+  .tp-3d-from { margin-left: 6px; font-weight: normal; opacity: .7; }
+  .tp-3d-set table { width: 100%; margin-bottom: 4px; border-collapse: collapse; }
+  .tp-3d-set td { padding: 1px 6px 1px 0; border-top: 1px solid var(--tp-border); vertical-align: top; user-select: text; overflow-wrap: anywhere; }
+  .tp-3d-set td:first-child { width: 45%; opacity: .75; }
   .tp-3d-btn { height: 24px; padding: 0 8px; border: 1px solid var(--tp-edge); border-radius: 4px; background: var(--tp-btn-bg); color: var(--tp-btn-fg); font: 12px sans-serif; cursor: pointer; }
   .tp-3d-btn:hover { border-color: var(--tp-accent); }
   .tp-3d-btn[hidden], .tp-3d-slider[hidden] { display: none; }
