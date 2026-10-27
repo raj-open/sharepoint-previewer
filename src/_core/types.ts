@@ -87,6 +87,7 @@ export type Viewer = {
     uploadBtn: HTMLButtonElement;
     writeBtn: HTMLButtonElement;
     newBtn: HTMLButtonElement;
+    newItem: HTMLButtonElement;
     linkBtn: HTMLButtonElement;
     textBtn: HTMLButtonElement;
     previewBtn: HTMLButtonElement;

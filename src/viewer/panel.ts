@@ -68,6 +68,7 @@ import { target } from './names.ts';
 import { chooseFormat } from './open.ts';
 import { closeViewer } from './open.ts';
 import { newFile } from './open.ts';
+import { NEW_FILE_ON } from './open.ts';
 import { showFile } from './open.ts';
 import { shownUrl } from './open.ts';
 import { viewer } from './open.ts';
@@ -209,6 +210,7 @@ export function createViewer(): Viewer {
     const clearAllBtn = item(CLEAR_SVG, 'Clear all files from the cache', { disabled: memoryCache.size === 0 });
     const settingsBtn = item(SETTINGS_SVG, 'Full settings …');
     const newItem = item(NEW_FILE_SVG, 'New file …');
+    newItem.title = NEW_FILE_ON;
 
     // Small drop-down under its button; closes on any click outside or on entry
     const menu = (anchor: HTMLElement, entries: HTMLElement[], alignRight = false) => {
@@ -293,7 +295,7 @@ export function createViewer(): Viewer {
     newBtn.type = 'button';
     newBtn.className = 'tp-new-file';
     newBtn.innerHTML = `${NEW_FILE_SVG}<span>New file</span>`;
-    newBtn.title = 'Create a new file in the folder open in Sharepoint';
+    newBtn.title = NEW_FILE_ON;
     newBtn.hidden = true;
     title.append(newBtn);
     // Note: tooltip on header
@@ -581,6 +583,7 @@ export function createViewer(): Viewer {
         uploadBtn,
         writeBtn,
         newBtn,
+        newItem,
         linkBtn,
         textBtn,
         previewBtn,

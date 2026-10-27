@@ -110,6 +110,11 @@ export const forcedUrls = new Set(); // big Parquet / IFCZIP files the user chos
 export const formatChoices = new Map(); // url -> format chosen by the user (while the page is open)
 const knownSizes = new Map(); // url -> file size seen before (shown right away next time)
 
+// Notes on "New file" (button, menu entry)
+export const NEW_FILE_ON = 'Create a new file in the folder open in Sharepoint';
+const NEW_FILE_OFF =
+    'New files in a sub-folder: not yet available.\nOpen the folder in Sharepoint to create a file there.';
+
 // ===========================================================================
 // METHODS
 // ===========================================================================
@@ -228,6 +233,7 @@ export function openFolder(folder: string | null): void {
         setMode(view.mode);
     }
     if (showEmpty(viewer)) viewer.place = folder;
+    showNewFile(viewer);
     refreshEyes();
 }
 
@@ -255,6 +261,7 @@ export async function newFile(): Promise<void> {
         alert('New files go into the folder open in Sharepoint: please open a folder of a library first.');
         return;
     }
+    if (inSubFolder()) return; // greyed out (cf. showNewFile)
     if (viewer && !confirmDiscard(viewer)) return; // pending in the open file: stay
     const name = await askName(folder);
     if (!name) return;
@@ -269,6 +276,25 @@ export async function newFile(): Promise<void> {
     await enterWrite(v); // shows the name (click: another name)
     v.staged = ''; // saved as it is: may be uploaded empty
     v.uploadBtn.disabled = false;
+}
+
+/**
+ * @returns the empty viewer shows another folder than the one open in Sharepoint (a folder eye):
+ * no new files there yet (uploads only reach the folder open in Sharepoint)
+ */
+function inSubFolder(): boolean {
+    const folder = currentFolder();
+    return !!viewer && !viewer.file && !!viewer.place && !!folder && !sameFile(viewer.place, folder);
+}
+
+// "New file" (button, menu entry): greyed out with a note while the viewer shows another folder
+export function showNewFile(v: Viewer): void {
+    const off = inSubFolder();
+    for (const b of [v.newBtn, v.newItem]) {
+        if (b.getAttribute('aria-disabled') === String(off)) continue;
+        b.setAttribute('aria-disabled', String(off));
+        b.title = off ? NEW_FILE_OFF : NEW_FILE_ON;
+    }
 }
 
 // Viewer back to no file; false if user keeps pending changes
@@ -294,6 +320,7 @@ export function showEmpty(v: Viewer): boolean {
     v.titleName.title = '';
     v.titleName.className = 'tp-title-name';
     v.newBtn.hidden = false;
+    showNewFile(v);
     v.metaLine.innerHTML = '';
     v.metaLine.title = '';
     showPlain(

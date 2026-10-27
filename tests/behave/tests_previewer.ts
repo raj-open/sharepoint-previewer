@@ -461,10 +461,11 @@ describe('preview per file type', () => {
 
 describe('editing', () => {
     /** @returns dialogues so far (the stand-in records them; confirm answers "yes") */
-    const dialogues = (page: Page): Promise<{ alerts: string[]; confirms: string[] }> =>
+    type Dialogues = { alerts: string[]; confirms: string[]; prompts: string[] };
+    const dialogues = (page: Page): Promise<Dialogues> =>
         page.evaluate(() => {
-            const { alerts, confirms } = (window as unknown as { __gm: { alerts: string[]; confirms: string[] } }).__gm;
-            return { alerts: [...alerts], confirms: [...confirms] };
+            const { alerts, confirms, prompts } = (window as unknown as { __gm: Dialogues }).__gm;
+            return { alerts: [...alerts], confirms: [...confirms], prompts: [...prompts] };
         });
     /** Write mode on (file shown) */
     async function edit(v: Locator): Promise<void> {
@@ -555,6 +556,23 @@ describe('editing', () => {
         await page.keyboard.press('Escape'); // close: asks (not uploaded)
         assert.match((await dialogues(page)).confirms.join('\n'), /not been uploaded/);
         assert.equal(await v.count(), 0);
+    });
+
+    it('new file: greyed out for a sub-folder (folder eye), with a note; folder open in Sharepoint: available', async () => {
+        const page = await openFolder(h.LIBRARY);
+        await h.eye(page, 'Data').click();
+        const v = page.locator('.tp-viewer');
+        const btn = v.locator('.tp-new-file');
+        await btn.waitFor();
+        assert.equal(await btn.getAttribute('aria-disabled'), 'true');
+        assert.match((await btn.getAttribute('title')) ?? '', /not yet available/);
+        await btn.click({ force: true }); // nothing happens: no name asked
+        assert.equal((await dialogues(page)).prompts.length, 0);
+        assert.equal(await v.locator('.tp-editor').isVisible(), false);
+
+        await page.locator('.tp-head').dispatchEvent('click'); // folder open in Sharepoint
+        await page.locator('.tp-new-file[aria-disabled="false"]').waitFor();
+        assert.doesNotMatch((await btn.getAttribute('title')) ?? '', /not yet available/);
     });
 
     it('name: read-only files (spreadsheets) can be renamed (a copy) without edit mode; text files only in it', async () => {
