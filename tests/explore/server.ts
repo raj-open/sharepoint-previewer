@@ -100,7 +100,9 @@ function inject(reply: Reply, libs: Libraries): Reply {
     const defaults = JSON.stringify({ 'viewer-3d-folder': sharepoint.RELEASE_SETTING, 'logo': LOGO });
     const notes = JSON.stringify([
         ...libraryNotes(libs),
-        built ? `Folder "${sharepoint.RELEASE_SETTING}": ${release} (3D files)` : `3D files: none in ${release} (run "just build")`,
+        built
+            ? `Folder "${sharepoint.RELEASE_SETTING}": ${release} (3D files)`
+            : `3D files: none in ${release} (run "just build")`,
     ]);
     const data = `data-version="${VERSION}" data-defaults="${attr(defaults)}" data-notes="${attr(notes)}"`;
     const tag = `<script src="${PREFIX}/tampermonkey.js" ${data}></script>`;
