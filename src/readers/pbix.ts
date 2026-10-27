@@ -59,6 +59,7 @@ export async function openPbixSource(
     getSignal: () => AbortSignal,
     reload: boolean,
     onProgress: (loaded: number, total: number) => void,
+    ask: (bytes: number) => boolean = () => true,
 ): Promise<Source | { error: string }> {
     const file = await openRanges(url, getSignal, reload, onProgress);
     if ('error' in file) return file;
@@ -67,6 +68,8 @@ export async function openPbixSource(
     let overview: string;
     try {
         const entries = (await zipEntries(file.read, file.size)).filter((e) => !e.name.endsWith('/'));
+        const bytes = entries.filter(readable).reduce((n, e) => n + e.packed, 0);
+        if (!ask(bytes)) return { error: `Not opened: ${formatBytes(bytes)} of parts to read.` };
         queries = await pbixQueries(file.read, entries);
         overview = pbixMarkdown(entries, queries);
         parts = [];
@@ -99,12 +102,17 @@ export async function openPbixSource(
     };
 }
 
+// Parts read: all but the data model and very large ones
+const readable = (e: ZipEntry): boolean => e.name.toLowerCase() !== 'datamodel' && e.size <= MAX_PART_BYTES;
+
 // Part as text (language from its name, else from its start); null: not plain text, data model, too large
 async function entryPart(read: ByteReader, e: ZipEntry): Promise<ArchivePart> {
     const key = e.name.toLowerCase();
     const size = formatBytes(e.size);
-    if (key === 'datamodel') return { name: e.name, note: `${size}, data, not readable`, lang: null, text: null };
-    if (e.size > MAX_PART_BYTES) return { name: e.name, note: `${size}, too large`, lang: null, text: null };
+    if (!readable(e)) {
+        const why = key === 'datamodel' ? 'data, not readable' : 'too large';
+        return { name: e.name, note: `${size}, ${why}`, lang: null, text: null };
+    }
     const raw = await zipEntryBytes(read, e);
     if (key === 'datamashup') {
         const text = (await mashupFormulas(raw)).join('\n\n');

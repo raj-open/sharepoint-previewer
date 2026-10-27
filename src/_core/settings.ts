@@ -52,6 +52,9 @@ export const DEFAULTS = {
     // "cache all" button asks for confirmation for files bigger than this
     'cache-all-confirm-bytes': 16 * 1024 * 1024,
 
+    // Power BI files ask first if their parts to read (data model left out) are bigger than this
+    'powerbi-confirm-bytes': 25 * 1024 * 1024,
+
     // Longer lines are cut for display (copy still gets full text)
     'max-line-chars': 5000,
 
@@ -123,6 +126,7 @@ export const {
     'parquet-rows': PARQUET_ROWS,
     'memory-cache-bytes': MEMORY_CACHE_BYTES,
     'cache-all-confirm-bytes': LARGE_FILE_BYTES,
+    'powerbi-confirm-bytes': POWERBI_CONFIRM_BYTES,
     'max-line-chars': MAX_LINE_CHARS,
     'follow-links': FOLLOW_LINKS,
     'viewer-3d-folder': VIEWER_3D_FOLDER,

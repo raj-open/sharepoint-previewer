@@ -34,6 +34,7 @@ const SETTING_FORM: [string, string, (string[] | string)?][] = [
     ['cache-chunk-bytes', 'Cache chunk size', 'KB'],
     ['memory-cache-bytes', 'Cache limit (all files)', 'MB'],
     ['cache-all-confirm-bytes', 'Warn full file cache if file size exceeds', 'MB'],
+    ['powerbi-confirm-bytes', 'Warn Power BI if parts to read exceed', 'MB'],
     ['parquet-rows', 'Table rows shown'],
     ['max-line-chars', 'Lines cut after (characters)'],
     ['follow-links', 'Follow .url link files'],

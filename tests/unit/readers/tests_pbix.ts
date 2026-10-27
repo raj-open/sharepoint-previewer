@@ -147,6 +147,19 @@ describe('readers/pbix', () => {
         assert.equal(prettyJson('not json'), 'not json');
     });
 
+    it('asks before reading the parts (data model left out); declined: not opened', async () => {
+        const { bytes } = zip({ DataModel: new Uint8Array(randomBytes(50_000)), Version: '1.28' });
+        serve({ '/a.pbix': bytes });
+        const asked: number[] = [];
+        const decline = (n: number) => {
+            asked.push(n);
+            return false;
+        };
+        const src = await openPbixSource('/a.pbix', signal, false, () => {}, decline);
+        assert.ok(asked.length === 1 && asked[0] < 100);
+        assert.match(src.error, /Not opened/);
+    });
+
     it('not an archive', async () => {
         serve({ '/x.pbix': 'no zip here' });
         const src = await openPbixSource('/x.pbix', signal, false, () => {});

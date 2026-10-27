@@ -193,7 +193,8 @@ both date systems (1900, 1904).
 Number formats beyond that (decimals, currencies, thousands separators) are not applied.
 Password-protected workbooks are not opened.
 
-Power BI files are read by range: the archive's directory and its parts (each up to 16 MB), never the data model.
+Power BI files are read by range: the archive's directory and its parts (each up to 16 MB), never the data model;
+above 25 MB of parts (setting) the viewer asks first.
 The overview lists the parts as a tree, the Power Query parameters and queries.
 The picker (bottom right) lists the parts and the queries side by side;
 a part chosen is shown in its own format (JSON, XML, M; recognised from its start if it has no extension),
@@ -327,6 +328,7 @@ plus "Reset to defaults".
 | `cache-chunk-bytes` | 512 KB | Chunk size; also the threshold for asking before big Parquet / IFCZIP |
 | `memory-cache-bytes` | 256 MB | Cache limit for all files together |
 | `cache-all-confirm-bytes` | 16 MB | "Cache all" asks above this size |
+| `powerbi-confirm-bytes` | 25 MB | Power BI files ask first if their parts to read (data model left out) exceed this |
 | `parquet-rows` | `100` | Table rows shown per step |
 | `max-line-chars` | `5000` | Longer lines are cut for display |
 | `follow-links` | `true` | Follow `.url` link files (same origin only) |

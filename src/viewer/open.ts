@@ -17,6 +17,7 @@ import { FOLLOW_LINKS } from '../_core/settings.ts';
 import { MAX_BYTES } from '../_core/settings.ts';
 import { MAX_LINE_CHARS } from '../_core/settings.ts';
 import { MAX_LINK_HOPS } from '../_core/settings.ts';
+import { POWERBI_CONFIRM_BYTES } from '../_core/settings.ts';
 import { esc } from '../_core/util.ts';
 import { formatBytes } from '../_core/util.ts';
 import { nextFrame } from '../_core/util.ts';
@@ -162,7 +163,7 @@ async function openFile(
                   : reader === 'ifczip'
                     ? await openZipSource(fetchUrl, getSignal, reload, onProgress, force)
                     : reader === 'pbix'
-                      ? await openPbixSource(fetchUrl, getSignal, reload, onProgress)
+                      ? await openPbixSource(fetchUrl, getSignal, reload, onProgress, askPowerBi)
                       : await openSource(fetchUrl, getSignal, reload, onProgress);
         if ('deferred' in result) return { src: null, deferred: result as Deferred, message: null, fileName, hops };
         if ('error' in result) {
@@ -193,6 +194,12 @@ async function openFile(
         fetchUrl = target.fetchUrl;
         onLink(`Link → ${target.display}`);
     }
+}
+
+// Power BI: asks before reading many parts (setting)
+function askPowerBi(bytes: number): boolean {
+    if (bytes <= POWERBI_CONFIRM_BYTES) return true;
+    return confirm(`This Power BI file has ${formatBytes(bytes)} of parts to read (the data model is left out). Read them?`);
 }
 
 // Open file viewed as another format (a wrong one too: that format's reader tries);
