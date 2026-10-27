@@ -185,6 +185,10 @@ describe('readers/pbix', () => {
         assert.equal(decodePart(Buffer.from('{"a":1}', 'utf16le')), '{"a":1}');
         assert.equal(decodePart(Buffer.from('<x/>')), '<x/>');
         assert.equal(decodePart(new Uint8Array([1, 0, 0, 2, 0])), null);
+        // encrypted blob (as SecurityBindings): public DPAPI header (version 1, provider GUID), looks like UTF-16LE
+        assert.equal(decodePart(new Uint8Array([1, 0, 0, 0, 0xd0, 0x8c, 0x9d, 0xdf, 1, 0x15, 0xd1, 0x11])), null);
+        // invented bytes without NUL: not UTF-8
+        assert.equal(decodePart(new Uint8Array([0x80, 0xc3, 0x28, 0xf5, 0x41, 0xfe, 0x7a])), null);
     });
 
     it('JSON: indented, numbers as written, JSON in strings unpacked', () => {
