@@ -22,6 +22,7 @@ function tampermonkey({ script, settings }: { script: string; settings: Record<s
     const store: Record<string, unknown> = { ...settings };
     const gm = {
         menu: {} as Record<string, () => void>,
+        tabs: [] as string[],
         alerts: [] as string[],
         confirms: [] as string[],
         prompts: [] as string[],
@@ -36,7 +37,8 @@ function tampermonkey({ script, settings }: { script: string; settings: Record<s
         GM_registerMenuCommand: (label: string, fn: () => void) => {
             gm.menu[label] = fn;
         },
-        GM_info: { script: { version: 'test' } },
+        GM_openInTab: (url: string) => void gm.tabs.push(url),
+        GM_info: { script: { version: 'test', uuid: 'test-uuid' } },
         // dialogues would block the page: recorded instead (confirm answers "yes", prompt the next of `answers`)
         alert: (msg: unknown) => void gm.alerts.push(String(msg)),
         confirm: (msg: unknown) => {
