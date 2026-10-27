@@ -10,6 +10,8 @@ CSV and Parquet files open as a table.
 
 ![CSV file as table](img/csv.png)
 
+![Parquet file as table](img/parquet.png)
+
 Column colours are optional (⋯ → Syntax colours, or the setting `colours-table`).
 
 ![CSV file as table, columns coloured](img/csv-colours.png)

@@ -14,6 +14,7 @@ and text files can be edited and uploaded again.
 All screenshots show the mock Sharepoint of the tests
 (`/tests/mocks/mock-sharepoint`, made-up files and people),
 written by `just demos` (cf. `/scripts/demos.ts`).
+So is the animation at the top of the [README](../README.md) (`img/hero.webp`, `just demos hero`; joined by ffmpeg, cf. `/scripts/hero.ts`).
 Review (permissions, network, storage, security, deployment; how the parts communicate):
 [NOTES.md](../NOTES.md).
 Development and the logic inside: [TECHNICAL.md](../TECHNICAL.md).
