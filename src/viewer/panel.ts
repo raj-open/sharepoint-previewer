@@ -17,9 +17,9 @@ import { openSettingsForm } from '../_core/settings-form.ts';
 import { POPUP_POS_KEY } from '../_core/settings-form.ts';
 import { POPUP_SIZE_KEY } from '../_core/settings-form.ts';
 import { LARGE_FILE_BYTES } from '../_core/settings.ts';
-import { LOGO } from '../_core/settings.ts';
-import { esc } from '../_core/util.ts';
 import { formatBytes } from '../_core/util.ts';
+import { brandHtml } from '../ui/brand.ts';
+import { brandTitle } from '../ui/brand.ts';
 import { CHECK_SVG } from '../ui/icons.ts';
 import { CLEAR_SVG } from '../ui/icons.ts';
 import { COLOUR_SVG } from '../ui/icons.ts';
@@ -344,16 +344,8 @@ export function createViewer(): Viewer {
     opacity: .75;
     white-space: nowrap;
   `;
-    // NOTE: not `!== 'undefined'`: minified to `GM_info<"u"`, which editors read as type arguments (brackets then mismatch)
-    const version = typeof GM_info === 'object' ? GM_info.script.version : '';
-    const logo = /^data:image\/[\w.+-]+;base64,[A-Za-z0-9+/=\s]+$/.test(LOGO) ? LOGO.replace(/\s+/g, '') : '';
-    const logoHtml = logo ? `<img src="${logo}" alt="" style="height:18px; width:auto; display:block">` : '';
-    const versionHtml = version ? `<span>v${esc(version)}</span>` : '';
-    brand.innerHTML = `
-    ${logoHtml}
-    ${versionHtml}
-  `;
-    brand.title = version ? `Sharepoint Previewer v${version}` : 'Sharepoint Previewer';
+    brand.innerHTML = brandHtml();
+    brand.title = brandTitle();
 
     // Copy button (left of X)
     const copyBtn = document.createElement('button');
