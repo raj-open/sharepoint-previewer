@@ -13,7 +13,8 @@
             "src/**",
             "scripts/**",
             "tests/**",
-            "!tests/mocks/mock-sharepoint/library"
+            "!tests/mocks/mock-sharepoint/library",
+            "!**/*.md"
         ]
     },
     "formatter": {
