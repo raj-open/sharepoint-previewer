@@ -6,18 +6,16 @@ import { load } from '../helpers.ts';
 
 const menu = await load('_core/menu.ts');
 const form = await load('_core/settings-form.ts');
+const script = await load('_core/script.ts');
 const before = Object.keys(gm.menu).length; // loading only defines
 menu.registerMenu();
 
 describe('menu', () => {
     it('loading registers nothing, registerMenu does', () => assert.equal(before, 0));
-    it('entries: settings, reset, editor (in this order)', () => {
-        assert.deepEqual(Object.keys(gm.menu), ['Settings …', 'Reset settings to defaults', 'Edit plugin']);
+    it('entries: editor (with version), settings, reset (in this order)', () => {
+        assert.deepEqual(Object.keys(gm.menu), ['Edit (vtest)', 'Settings …', 'Reset settings']);
+        assert.equal(gm.menu['Edit (vtest)'], script.openEditor);
         assert.equal(gm.menu['Settings …'], form.openSettingsForm);
-        assert.equal(gm.menu['Reset settings to defaults'], form.resetSettings);
-    });
-    it('editor: relative URL of this script in the extension', () => {
-        gm.menu['Edit plugin']();
-        assert.deepEqual(gm.tabs, ['options.html#nav=test-uuid+editor']);
+        assert.equal(gm.menu['Reset settings'], form.resetSettings);
     });
 });

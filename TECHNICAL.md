@@ -326,6 +326,8 @@ They are opened via the Tampermonkey menu → "Settings …",
 or the viewer's ⋯ → "Full settings …".
 There is a form view and a JSON view (with validation),
 plus "Reset to defaults".
+The Tampermonkey menu → "Edit (v…)" and the version top right (viewer, settings form)
+open Tampermonkey's editor of the script (e.g. to upgrade).
 
 | Key | Default | Meaning |
 | :-- | :------ | :------ |

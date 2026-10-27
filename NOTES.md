@@ -75,7 +75,7 @@ sequenceDiagram
     Note over TM,Page: Page load
     TM->>US: injects the script (document-idle)
     US->>TM: GM_getValue (settings)
-    US->>TM: GM_registerMenuCommand (Settings …, Reset, Edit plugin)
+    US->>TM: GM_registerMenuCommand (Edit (v…), Settings …, Reset settings)
     US->>LS: reads view choices (layout, theme, …)
     US->>Page: MutationObserver: an eye per file and folder row
 

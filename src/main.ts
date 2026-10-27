@@ -4,6 +4,7 @@
 // IMPORTS
 // ===========================================================================
 
+import './_core/script.ts';
 import './_core/settings.ts';
 import './_core/settings-form.ts';
 import { registerMenu } from './_core/menu.ts';
