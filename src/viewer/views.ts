@@ -181,7 +181,7 @@ function showParts(v: Viewer, src: Source): void {
     const items = lists.map((l) => ({
         label: l.label,
         items: l.items.map((p) => ({ text: p.note ? `${p.name} (${p.note})` : p.name })),
-        empty: `No ${l.label.toLowerCase()} in this file`,
+        empty: l.empty || `No ${l.label.toLowerCase()} in this file`,
         start: 0,
     }));
     const name = lists[list].items[item].name;

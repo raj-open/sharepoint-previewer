@@ -15,6 +15,7 @@ const {
     treeLines,
     openPbixSource,
     decodePart,
+    noQueries,
     prettyJson,
 } = await load('readers/pbix.ts');
 const { READ_MIN } = await load('readers/ranges.ts');
@@ -133,6 +134,14 @@ describe('readers/pbix', () => {
         }, 0);
         assert.ok(requests.length <= 2, `${requests.length} requests`);
         assert.ok(fetched <= 2 * READ_MIN && fetched < big.length, `fetched ${fetched} bytes`);
+    });
+
+    it('no queries: says where they are (data model: .pbit), or nothing if the file has none', () => {
+        const parts = (...names: string[]) => names.map((name) => ({ name }));
+        assert.match(noQueries(parts('DataModel', 'Report/Layout'), []), /data model.*\.pbit/s);
+        assert.match(noQueries(parts('DataMashup'), []), /No Power Query scripts found/);
+        assert.equal(noQueries(parts('Report/Layout'), []), null);
+        assert.equal(noQueries(parts('DataModel'), [{ name: 'q', body: 'let x = 1 in x' }]), null);
     });
 
     it('parts: UTF-16LE without BOM, UTF-8, binary', () => {
