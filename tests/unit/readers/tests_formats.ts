@@ -9,7 +9,9 @@ const { FORMAT_LISTS, formatName, formatOf, langOfFormat, readerOf } = await loa
 describe('readers/formats', () => {
     it('recognised from the file name: file formats first, then languages, else plain text', () => {
         assert.deepEqual(
-            ['a.parquet', 'a.XLSX', 'a.ods', 'a.ifczip', 'a.pbix', 'a.ifc', 'a.csv', 'a.log', 'a.xyz', 'a'].map(formatOf),
+            ['a.parquet', 'a.XLSX', 'a.ods', 'a.ifczip', 'a.pbix', 'a.ifc', 'a.csv', 'a.log', 'a.xyz', 'a'].map(
+                formatOf,
+            ),
             ['parquet', 'sheet', 'sheet', 'ifczip', 'pbix', 'ifc', 'csv', 'log', 'text', 'text'],
         );
     });

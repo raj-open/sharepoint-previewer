@@ -6,8 +6,17 @@ import { load } from '../helpers.ts';
 import { serve } from '../helpers.ts';
 import { zip } from '../helpers.ts';
 
-const { PBIX_RE, sectionQueries, parameterOf, schemaQueries, mashupQueries, treeLines, openPbixSource } =
-    await load('readers/pbix.ts');
+const {
+    PBIX_RE,
+    sectionQueries,
+    parameterOf,
+    schemaQueries,
+    mashupQueries,
+    treeLines,
+    openPbixSource,
+    decodePart,
+    prettyJson,
+} = await load('readers/pbix.ts');
 const signal = () => new AbortController().signal;
 
 const SECTION = [
@@ -86,19 +95,56 @@ describe('readers/pbix', () => {
 
     it('source: Markdown with parts, parameters, queries; data model never fetched', async () => {
         const big = new Uint8Array(randomBytes(200_000)); // not compressible
-        const { bytes } = zip({ DataModel: big, DataMashup: mashup(SECTION), Version: '1.28' });
+        const layout = Buffer.from(JSON.stringify({ sections: [{ config: '{"name":"p1"}' }] }), 'utf16le');
+        const { bytes } = zip({
+            DataModel: big,
+            DataMashup: mashup(SECTION),
+            'Report/Layout': layout,
+            'Report/StaticResources/a.png': new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0]),
+            Version: '1.28',
+        });
         const requests = serve({ '/r.pbix': bytes });
         const src = await openPbixSource('/r.pbix', signal, false, () => {});
         assert.ok(src.isZip && src.done);
-        assert.match(src.text, /^## Parts\n/);
+        assert.match(src.text, /\n## Parts\n/);
         assert.match(src.text, /\| `Server` \| Text \| `"srv\\\|01"` \| yes \|/);
         assert.match(src.text, /### Sales "2026"\n\n```m\nlet/);
+        // parts: overview first; text parts with language; data model and images not shown
+        const [parts, queries] = src.parts;
+        const part = (name: string) => parts.items.find((p: { name: string }) => p.name === name);
+        assert.equal(parts.items[0].name, 'Overview');
+        assert.equal(part('DataModel').text, null);
+        assert.equal(part('Report/StaticResources/a.png').text, null);
+        assert.equal(part('Report/Layout').lang, 'json');
+        assert.match(part('Report/Layout').text, /"config": \{\n\s+"name": "p1"/);
+        assert.equal(part('DataMashup').lang, 'm');
+        assert.deepEqual(
+            queries.items.map((q: { name: string; note: string }) => [q.name, q.note]),
+            [
+                ['Sales "2026"', ''],
+                ['Server', 'parameter'],
+            ],
+        );
         // directory (end of the archive) and the small parts only
         const fetched = requests.reduce((n, r) => {
             const m = /bytes=(\d+)-(\d+)/.exec(r.range || '');
             return n + (m ? Number(m[2]) - Number(m[1]) + 1 : bytes.length);
         }, 0);
         assert.ok(fetched < 10_000, `fetched ${fetched} bytes`);
+    });
+
+    it('parts: UTF-16LE without BOM, UTF-8, binary', () => {
+        assert.equal(decodePart(Buffer.from('{"a":1}', 'utf16le')), '{"a":1}');
+        assert.equal(decodePart(Buffer.from('<x/>')), '<x/>');
+        assert.equal(decodePart(new Uint8Array([1, 0, 0, 2, 0])), null);
+    });
+
+    it('JSON: indented, numbers as written, JSON in strings unpacked', () => {
+        assert.equal(
+            prettyJson('{"n":12345678901234567890,"c":"[1,2]","s":"[x"}'),
+            ['{', '  "n": 12345678901234567890,', '  "c": [', '    1,', '    2', '  ],', '  "s": "[x"', '}'].join('\n'),
+        );
+        assert.equal(prettyJson('not json'), 'not json');
     });
 
     it('not an archive', async () => {

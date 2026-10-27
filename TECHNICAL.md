@@ -181,7 +181,8 @@ What the script reads from the list and leaves alone: [NOTES.md, §2](NOTES.md#2
 | Parquet (Snappy, GZIP, ZSTD, LZ4_RAW, uncompressed) | ✓ | | ✓ (read only) | | |
 | Spreadsheets: Excel `.xlsx` `.xlsm` `.xltx` `.xltm`, `.xlsb`, `.xls` `.xlt` (97–2003, 5.0/95), OpenDocument `.ods` `.ots` | ✓ | | ✓ (read only, per sheet) | | |
 | IFC / IFCZIP | ✓ | ✓ | | ✓ (asks first above 25 MB, setting) | IFC only |
-| Power BI `.pbix` `.pbit`: parts as a tree, Power Query scripts and parameters (shown as Markdown) | ✓ (M) | | | | |
+| Power BI `.pbix` `.pbit` `.pbiviz`: overview (Markdown), parts and queries in the picker | ✓ | JSON, XML, M | | | |
+| Power BI project files `.pbir` `.pbism` `.pbip` `.pbids`, tabular models `.bim` (JSON) | ✓ | ✓ | | | ✓ |
 | Any other text file | – | | | | ✓ |
 
 Spreadsheets show the last saved value of each cell (formulas are not recalculated):
@@ -192,8 +193,11 @@ both date systems (1900, 1904).
 Number formats beyond that (decimals, currencies, thousands separators) are not applied.
 Password-protected workbooks are not opened.
 
-Power BI files are read by range: only the archive's directory and its small parts
-(`DataMashup` in `.pbix`, `DataModelSchema` in `.pbit`) are fetched, never the data model.
+Power BI files are read by range: the archive's directory and its parts (each up to 16 MB), never the data model.
+The overview lists the parts as a tree, the Power Query parameters and queries.
+The picker (bottom right) lists the parts and the queries side by side;
+a part chosen is shown in its own format (JSON, XML, M; recognised from its start if it has no extension),
+UTF-16 decoded, JSON indented and JSON held in strings (e.g. `config` in `Report/Layout`) unpacked.
 Reports, visuals and data are not shown.
 
 Tables (Excel's "Format as Table" in `.xlsx` and `.xlsb`; named database ranges in `.ods`)

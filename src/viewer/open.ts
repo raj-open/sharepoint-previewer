@@ -593,6 +593,11 @@ export async function showFile(name: string, url: string, reload: boolean, keep 
     v.fileName = fileName;
     const format = chosen || formatOf(fileName);
     v.lang = langOfFormat(format);
+    const part = src.parts ? src.parts[src.part?.list ?? 0].items[src.part?.item ?? 0] : null; // archives
+    if (part) {
+        src.text = part.text ?? `${part.name}: not shown (${part.note}).`;
+        v.lang = part.lang;
+    }
     showName(v); // name an edit goes to (another name, new file)
     v.writeBtn.disabled = !canWrite(v);
     v.writeBtn.title = src.isSheet ? 'Edit: not available for spreadsheets (read only)' : 'Edit (text files only)';
@@ -837,7 +842,15 @@ export async function showFile(name: string, url: string, reload: boolean, keep 
 
     // Other sheet or table: its sheet cached on first choice (stop keeps what was shown before);
     // sheets or tables: remembered for this file
-    v.selectSheet = async (i: number, mode: SheetMode = src.mode) => {
+    v.selectSheet = async (i: number, list: number) => {
+        if (src.parts?.[list]?.items[i]) {
+            // archive: shown anew as the part chosen (own language, colours, checks)
+            if (src.part?.list === list && src.part?.item === i) return;
+            src.part = { list, item: i };
+            src.lintResult = null;
+            return showFile(name, url, false);
+        }
+        const mode: SheetMode = list ? 'tables' : 'sheets';
         if (!src.isSheet || !(mode === 'tables' ? src.tables : src.sheets)[i]) return;
         if (mode === src.mode && i === src.current && !src.waiting) return;
         if (mode !== src.mode) rememberSheetMode(url, mode);
