@@ -227,7 +227,12 @@ are detected from their first bytes and not shown.
 
 - **Opening a file** fetches the first chunk (default 512 KB).
   "Cache next" fetches the next chunk,
-  and "Cache all" fetches the rest.
+  and "Cache all" fetches the rest in one request
+  (chunk by chunk, if that request fails or Sharepoint sends less).
+- **Files read by byte range** (spreadsheets, Parquet, Power BI):
+  the first request fetches the first 64 KB (small files: all of it);
+  smaller reads fetch 64 KB around them,
+  and small pieces are kept, so that nearby parts need no further request.
 - **Spreadsheets are cached sheet by sheet:**
   opening one fetches the workbook's directory, shared strings and styles
   and the sheet that was active when it was saved.
