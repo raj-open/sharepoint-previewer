@@ -34,6 +34,7 @@ type Node = { size: number | null; kids: Map<string, Node> };
 export const PBIX_RE = /\.(pbix|pbit|pbiviz)$/i;
 const MAX_PART_BYTES = 16 * 1024 * 1024; // larger parts are listed, not read
 const STRING_RE = /"(?:\\.|[^"\\])*"/g;
+const CHECK_CHARS = 4096; // decoded characters checked for control characters
 
 // Parts with notes in the tree
 const NOTES: Record<string, string> = {
@@ -146,11 +147,27 @@ async function entryPart(read: ByteReader, e: ZipEntry): Promise<ArchivePart> {
     return { name: e.name, note: size, lang, text: lang === 'json' ? prettyJson(text) : text };
 }
 
-// Text of a part: UTF-16LE (Power BI writes most parts so, often without BOM), else as sniffed
+// Text of a part: UTF-16LE (Power BI writes most parts so, often without BOM), else as sniffed;
+// null if the bytes do not decode to text (e.g. SecurityBindings: encrypted, starts 01 00 00 00)
 export function decodePart(raw: Uint8Array): string | null {
     const wide = raw.length > 3 && raw[0] !== 0 && raw[1] === 0 && raw[3] === 0;
     const encoding = wide ? 'utf-16le' : sniffText(raw);
-    return encoding ? new TextDecoder(encoding).decode(raw) : null;
+    if (!encoding) return null;
+    try {
+        const text = new TextDecoder(encoding, { fatal: true }).decode(raw);
+        return hasControl(text.slice(0, CHECK_CHARS)) ? null : text;
+    } catch {
+        return null; // invalid sequences
+    }
+}
+
+// Control characters other than tab, line breaks, form feed: never in text (binary decoded as text)
+function hasControl(text: string): boolean {
+    for (let i = 0; i < text.length; i++) {
+        const c = text.charCodeAt(i);
+        if (c < 0x09 || (c > 0x0d && c < 0x20) || c === 0x7f) return true;
+    }
+    return false;
 }
 
 // JSON indented (values as written); strings holding JSON (layout: config, filters, query) unpacked in place
