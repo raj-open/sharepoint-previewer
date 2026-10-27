@@ -1,4 +1,4 @@
-// Controls of the 3D view (DOM and renderer stood in for): views, selection with its IFC line, hide / isolate, section
+// Controls of the 3D view (DOM and renderer stood in for): views, selection with its IFC line and properties, hide / isolate, section
 import assert from 'node:assert/strict';
 import { describe } from 'node:test';
 import { it } from 'node:test';
@@ -22,6 +22,13 @@ const element = (): Fake => ({
     remove() {
         this.removed = true;
     },
+    replaceChildren() {
+        this.children = [];
+        this.textContent = '';
+    },
+    setAttribute(k: string, v: string) {
+        this[k] = v;
+    },
 });
 Object.assign(globalThis, {
     document: { createElement: element },
@@ -33,7 +40,7 @@ Object.assign(globalThis, {
 const { tools3d, describe: describeEntity } = await load('viewer/tools3d.ts');
 const wall = new TextDecoder().decode(fixture('Models/wall.ifc'));
 
-function setup(picked: number | null = 60) {
+function setup(picked: number | null = 60, sets?: (id: number) => Promise<unknown[]>) {
     const calls: string[] = [];
     const camera = {
         mode: 'perspective',
@@ -59,11 +66,13 @@ function setup(picked: number | null = 60) {
         fit: () => calls.push('fit'),
         text: () => wall,
         showLine: (n: number) => lines.push(n),
+        sets,
     });
-    const [bar, info] = stage.children;
+    const [bar, side] = stage.children;
+    const [info, props] = side.children;
     const find = (row: Fake, text: string) => row.children.find((c: Fake) => c.textContent === text);
     const click = (row: Fake, text: string) => find(row, text).onclick({ stopPropagation() {} });
-    return { tools, bar, info, calls, lines, find, click };
+    return { tools, bar, side, info, props, calls, lines, find, click };
 }
 
 describe('viewer/tools3d', () => {
@@ -142,10 +151,45 @@ describe('viewer/tools3d', () => {
 
     it('unknown id: number only; dispose removes the controls', async () => {
         assert.equal(describeEntity({ id: 7, type: '', name: '' }), '#7');
-        const { tools, bar, info } = setup(424242);
+        const { tools, bar, side, info } = setup(424242);
         await tools.select(1, 1);
         assert.equal(info.children[0].textContent, '#424242');
         tools.dispose();
-        assert.ok(bar.removed && info.removed);
+        assert.ok(bar.removed && side.removed);
+    });
+
+    it('properties: button only with a reader; read when opened, kept open for the next selection', async () => {
+        const asked: number[] = [];
+        const sets = async (id: number) => {
+            asked.push(id);
+            return [{ name: `Pset_${id}`, kind: 'Pset', from: '', rows: [] }];
+        };
+        const plain = setup();
+        await plain.tools.select(1, 1);
+        assert.equal(plain.find(plain.info, 'Properties').hidden, true); // no reader: no button
+        const { tools, info, props, click, find } = setup(60, sets);
+        await tools.select(1, 1);
+        assert.equal(find(info, 'Properties').hidden, false);
+        assert.equal(props.hidden, true);
+        assert.deepEqual(asked, []); // nothing read before asked
+        click(info, 'Properties');
+        await new Promise((r) => setTimeout(r));
+        assert.equal(props.hidden, false);
+        assert.equal(props.children[0].children[0].textContent, 'Pset_60');
+        await tools.select(1, 1); // same object: not read again
+        assert.deepEqual(asked, [60]);
+        click(info, 'Properties'); // closed: kept closed for the next 3D view
+        assert.equal(props.hidden, true);
+    });
+
+    it('properties: read failure shown', async () => {
+        const { tools, info, props, click } = setup(60, async () => {
+            throw new Error('bad file');
+        });
+        await tools.select(1, 1);
+        click(info, 'Properties');
+        await new Promise((r) => setTimeout(r));
+        assert.equal(props.textContent, 'Properties not read: bad file');
+        click(info, 'Properties');
     });
 });

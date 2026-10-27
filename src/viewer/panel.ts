@@ -17,13 +17,14 @@ import { openSettingsForm } from '../_core/settings-form.ts';
 import { POPUP_POS_KEY } from '../_core/settings-form.ts';
 import { POPUP_SIZE_KEY } from '../_core/settings-form.ts';
 import { LARGE_FILE_BYTES } from '../_core/settings.ts';
-import { LOGO } from '../_core/settings.ts';
-import { esc } from '../_core/util.ts';
 import { formatBytes } from '../_core/util.ts';
+import { brandHtml } from '../ui/brand.ts';
+import { brandTitle } from '../ui/brand.ts';
 import { CHECK_SVG } from '../ui/icons.ts';
 import { CLEAR_SVG } from '../ui/icons.ts';
 import { COLOUR_SVG } from '../ui/icons.ts';
 import { COPY_SVG } from '../ui/icons.ts';
+import { CUBE_SVG } from '../ui/icons.ts';
 import { LINK_SVG } from '../ui/icons.ts';
 import { LOAD_ALL_SVG } from '../ui/icons.ts';
 import { MORE_SVG } from '../ui/icons.ts';
@@ -74,6 +75,8 @@ import { shownUrl } from './open.ts';
 import { viewer } from './open.ts';
 import { setBusy } from './status.ts';
 import { close3d } from './view3d.ts';
+import { RELOAD_TITLE } from './view3d.ts';
+import { reload3d } from './view3d.ts';
 import { toggle3d } from './view3d.ts';
 import { colourKey } from './views.ts';
 import { colourOn } from './views.ts';
@@ -206,6 +209,8 @@ export function createViewer(): Viewer {
     const colourBtn = item(COLOUR_SVG, 'Syntax colours');
     const wrapBtn = item(WRAP_SVG, 'Wrap long lines');
     const refreshBtn = item(REFRESH_SVG, 'Reload this file');
+    const reload3dBtn = item(CUBE_SVG, 'Reload ifc-lite');
+    reload3dBtn.title = RELOAD_TITLE;
     const clearBtn = item(CLEAR_SVG, 'Clear this file from the cache', { disabled: true });
     const clearAllBtn = item(CLEAR_SVG, 'Clear all files from the cache', { disabled: memoryCache.size === 0 });
     const settingsBtn = item(SETTINGS_SVG, 'Full settings …');
@@ -242,7 +247,7 @@ export function createViewer(): Viewer {
     const layoutMenu = menu(layoutBtn, [hBtn, vBtn, pBtn]);
     const moreMenu = menu(
         moreBtn,
-        [newItem, settingsBtn, themeBtn, colourBtn, wrapBtn, refreshBtn, clearBtn, clearAllBtn],
+        [newItem, settingsBtn, themeBtn, colourBtn, wrapBtn, refreshBtn, reload3dBtn, clearBtn, clearAllBtn],
         true,
     );
 
@@ -339,16 +344,8 @@ export function createViewer(): Viewer {
     opacity: .75;
     white-space: nowrap;
   `;
-    // NOTE: not `!== 'undefined'`: minified to `GM_info<"u"`, which editors read as type arguments (brackets then mismatch)
-    const version = typeof GM_info === 'object' ? GM_info.script.version : '';
-    const logo = /^data:image\/[\w.+-]+;base64,[A-Za-z0-9+/=\s]+$/.test(LOGO) ? LOGO.replace(/\s+/g, '') : '';
-    const logoHtml = logo ? `<img src="${logo}" alt="" style="height:18px; width:auto; display:block">` : '';
-    const versionHtml = version ? `<span>v${esc(version)}</span>` : '';
-    brand.innerHTML = `
-    ${logoHtml}
-    ${versionHtml}
-  `;
-    brand.title = version ? `Sharepoint Previewer v${version}` : 'Sharepoint Previewer';
+    brand.innerHTML = brandHtml();
+    brand.title = brandTitle();
 
     // Copy button (left of X)
     const copyBtn = document.createElement('button');
@@ -665,6 +662,7 @@ export function createViewer(): Viewer {
     vBtn.onclick = () => v.mode !== 'vertical' && setMode('vertical');
     pBtn.onclick = () => v.mode !== 'popup' && setMode('popup');
     refreshBtn.onclick = () => v.file && showFile(v.file.name, v.file.url, true);
+    reload3dBtn.onclick = () => void reload3d(v);
     stopBtn.onclick = () => {
         if (v.writeMode) return void cancelEdits(v); // in write mode: cancel all changes (asks first)
         if (!v.busy) return;

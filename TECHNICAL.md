@@ -83,6 +83,7 @@ Development only (nothing is loaded at runtime):
 - `typescript`, `@types/node` - type check (cf. `/tsconfig.json`); the build removes types with Node itself
 - `esbuild` - bundles the 3D view
 - `@ifc-lite/geometry`, `@ifc-lite/renderer`, `@ifc-lite/wasm` - 3D view (MPL-2.0)
+- `@ifc-lite/parser` - property and quantity sets of the object selected in the 3D view (MPL-2.0)
 
 `just build` installs per `package-lock.json`;
 the lock is only rewritten when `package.json` has changed.

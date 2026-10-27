@@ -5,7 +5,8 @@ import { it } from 'node:test';
 import { fakeViewer } from '../helpers.ts';
 import { load } from '../helpers.ts';
 
-const { close3d, ifcLibraryReady } = await load('viewer/view3d.ts');
+const view3d = await load('viewer/view3d.ts');
+const { close3d, ifcLibraryReady, reload3d } = view3d;
 
 describe('viewer/view3d', () => {
     it('library not loaded at start', () => assert.equal(ifcLibraryReady, false));
@@ -25,5 +26,19 @@ describe('viewer/view3d', () => {
         assert.equal(v.view3d, null);
         assert.equal(v.stage3d.style.display, 'none');
         assert.equal(v.content.style.display, '');
+    });
+    it('reload: library dropped; no 3D view: nothing else', async () => {
+        const v = fakeViewer();
+        await reload3d(v);
+        assert.equal(view3d.ifcLibraryReady, false);
+        assert.equal(v.stage3d.style.display, undefined);
+    });
+    it('reload: 3D view closed and opened again (here: no file, stays closed)', async () => {
+        let disposed = false;
+        const v = fakeViewer({ view3d: { handle: { pose: () => ({}), dispose: () => (disposed = true) } } });
+        await reload3d(v);
+        assert.equal(disposed, true);
+        assert.equal(v.view3d, null);
+        assert.equal(view3d.ifcLibraryReady, false);
     });
 });
