@@ -4,20 +4,20 @@
 // IMPORTS
 // ===========================================================================
 
-import { formatBytes } from '../_core/util.ts';
-import { langOf } from '../text/lang.ts';
-import { indentJson } from '../text/segments.ts';
-import { dataView } from './bytes.ts';
-import { utf8 } from './bytes.ts';
-import { openRanges } from './ranges.ts';
-import { zipEntries } from './zip.ts';
-import { sniffText } from './text.ts';
-import { zipEntryBytes } from './zip.ts';
+import { formatBytes } from '../../_core/util.ts';
+import { langOf } from '../../text/lang.ts';
+import { indentJson } from '../../text/segments.ts';
+import { dataView } from '../bytes.ts';
+import { utf8 } from '../bytes.ts';
+import { openRanges } from '../ranges.ts';
+import { zipEntries } from '../zip.ts';
+import { sniffText } from '../text.ts';
+import { zipEntryBytes } from '../zip.ts';
 
-import type { ArchivePart } from '../_core/types.ts';
-import type { Source } from '../_core/types.ts';
-import type { ByteReader } from '../_core/types.ts';
-import type { ZipEntry } from '../_core/types.ts';
+import type { ArchivePart } from '../../_core/types.ts';
+import type { Source } from '../../_core/types.ts';
+import type { ByteReader } from '../../_core/types.ts';
+import type { ZipEntry } from '../../_core/types.ts';
 
 // ===========================================================================
 // TYPES

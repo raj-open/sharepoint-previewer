@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { describe } from 'node:test';
 import { it } from 'node:test';
-import { load } from '../helpers.ts';
-import { serve } from '../helpers.ts';
-import { zip } from '../helpers.ts';
+import { load } from '../../helpers.ts';
+import { serve } from '../../helpers.ts';
+import { zip } from '../../helpers.ts';
 
 const {
     PBIX_RE,
@@ -17,7 +17,7 @@ const {
     decodePart,
     noQueries,
     prettyJson,
-} = await load('readers/pbix.ts');
+} = await load('readers/pbix/index.ts');
 const { READ_MIN } = await load('readers/ranges.ts');
 const signal = () => new AbortController().signal;
 

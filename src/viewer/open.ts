@@ -28,7 +28,7 @@ import { readerOf } from '../readers/formats.ts';
 import { cleanUrl } from '../readers/links.ts';
 import { linkTarget } from '../readers/links.ts';
 import { openParquetSource } from '../readers/parquet/source.ts';
-import { openPbixSource } from '../readers/pbix.ts';
+import { openPbixSource } from '../readers/pbix/index.ts';
 import { encodePath } from '../readers/request.ts';
 import { findFile } from '../readers/search.ts';
 import { lookupNotes } from '../readers/search.ts';
