@@ -39,6 +39,43 @@ describe('readers/text', () => {
         assert.equal(src.text, big);
     });
 
+    it('cache all: the rest in one request', async () => {
+        const big = 'y'.repeat(MAX_BYTES * 5 + 3);
+        const requests = serve({ '/big.txt': big });
+        const src = await open('/big.txt');
+        await src.loadAll();
+        assert.equal(src.text, big);
+        assert.ok(src.done);
+        assert.deepEqual(
+            requests.map((r) => r.range),
+            [`bytes=0-${MAX_BYTES - 1}`, `bytes=${MAX_BYTES}-`],
+        );
+    });
+
+    it('cache all: server cuts the rest short, chunks follow', async () => {
+        const big = 'z'.repeat(MAX_BYTES * 4 + 7);
+        const requests = serve({ '/big.txt': big }, { cap: MAX_BYTES * 2 });
+        const src = await open('/big.txt');
+        await src.loadAll();
+        assert.equal(src.text, big);
+        assert.ok(src.done);
+        assert.ok(requests.length <= 4);
+    });
+
+    it('cache all: the one request fails, chunks follow', async () => {
+        const big = 'w'.repeat(MAX_BYTES * 3 + 1);
+        const requests = serve({ '/big.txt': big });
+        const served = globalThis.fetch;
+        globalThis.fetch = (async (url: string, init: { headers?: Record<string, string> }) => {
+            if (init.headers?.Range?.endsWith('-')) throw new TypeError('network error');
+            return served(url, init);
+        }) as typeof fetch;
+        const src = await open('/big.txt');
+        await src.loadAll();
+        assert.equal(src.text, big);
+        assert.equal(requests.length, 4); // first chunk, then three more (the failed request is not served)
+    });
+
     it('server without ranges: same text', async () => {
         serve({ '/f.txt': 'äöü' }, { ranges: false });
         assert.equal((await open('/f.txt')).text, 'äöü');

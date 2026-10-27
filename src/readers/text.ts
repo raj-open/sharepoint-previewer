@@ -38,7 +38,8 @@ const BINARY_MAGIC = [
 // ===========================================================================
 
 // Open file in chunks of MAX_BYTES, same origin only (nothing is sent elsewhere).
-// Ranges if supported, else paused transfer. Returns { error } | { binary } | source.
+// Ranges if supported, else paused transfer; "cache all" fetches the rest at once.
+// Returns { error } | { binary } | source.
 export async function openSource(
     url: string,
     getSignal: () => AbortSignal,
@@ -46,11 +47,12 @@ export async function openSource(
     onProgress: (loaded: number, total: number) => void,
 ): Promise<Source | { error: string } | { binary: true; name?: string }> {
     if (!sameOrigin(url)) return { error: OUTSIDE };
-    const request = (from: number) =>
+    // One chunk from `from`; with `rest`, everything from there to the end
+    const request = (from: number, rest = false) =>
         fetch(url, {
             credentials: 'same-origin',
             cache: reload ? 'reload' : 'default', // 'reload': fresh copy, which also updates cache
-            headers: { Range: `bytes=${from}-${from + MAX_BYTES - 1}` },
+            headers: { Range: rest ? `bytes=${from}-` : `bytes=${from}-${from + MAX_BYTES - 1}` },
             signal: getSignal(),
         });
 
@@ -147,7 +149,8 @@ export async function openSource(
         finish();
     }
 
-    async function more(): Promise<void> {
+    // Next `budget` bytes (one chunk, or all the rest)
+    async function next(budget: number): Promise<void> {
         if (src.done) return;
         let state: string | null = null;
         if (reader) {
@@ -156,7 +159,7 @@ export async function openSource(
             reader = null;
             const signal = getSignal(); // current one: aborted only by stop from now on
             try {
-                state = await read({ body: { getReader: () => r } }, MAX_BYTES);
+                state = await read({ body: { getReader: () => r } }, budget);
             } catch (err) {
                 if (signal.aborted) throw err; // stopped by user now
                 state = null;
@@ -164,22 +167,35 @@ export async function openSource(
         }
         if (!state) {
             // Next range (if Sharepoint suddenly sends whole file, skip what we have)
-            const res = await request(src.loaded);
+            const rest = budget === Infinity;
+            const res = await request(src.loaded, rest);
             if (res.status === 416) {
                 finish(); // nothing left (size was unknown)
                 return;
             }
             if (!res.ok) throw new Error(`Error ${res.status} on caching`);
-            state = await read(res, MAX_BYTES, res.status === 206 ? 0 : src.loaded);
+            state = await read(res, budget, res.status === 206 ? 0 : src.loaded);
             if (res.status === 206) {
                 (reader as ReadableStreamDefaultReader<Uint8Array> | null)?.cancel(); // read() may have set it
                 reader = null;
+                if (rest && src.total && src.loaded < src.total) state = 'more'; // range cut short by the server
             }
         }
         if (state === 'end' || (src.total && src.loaded >= src.total)) finish();
     }
 
+    async function more(): Promise<void> {
+        await next(MAX_BYTES);
+    }
+
+    // All the rest in one request; chunk by chunk if that fails or the server cuts it short (stop still stops)
     async function loadAll(): Promise<void> {
+        const signal = getSignal();
+        try {
+            await next(Infinity);
+        } catch (err) {
+            if (signal.aborted || (err as Error).name === 'AbortError') throw err;
+        }
         while (!src.done) {
             const before = src.loaded;
             await more();
