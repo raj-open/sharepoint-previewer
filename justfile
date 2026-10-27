@@ -194,7 +194,7 @@ tests-behave:
 tests-integration:
     @just _tests integration
 
-# explorative tests: mock Sharepoint + userscript (/dist/userscript.js) on http://localhost:${HTTP_PORT}; libraries: Mock Data (tests), Local Data (/data, or folder)
+# explorative tests: mock Sharepoint + userscript (/dist/userscript.js) on http://localhost:${HTTP_PORT}; libraries: Mock Library (tests), Mock Tools Library (3D files), Local Library (/data, or folder)
 [group("tests")]
 tests-explore folder="":
     @node tests/explore/server.ts "{{HTTP_PORT}}" "{{folder}}"
