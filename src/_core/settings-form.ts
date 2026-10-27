@@ -1,9 +1,10 @@
-// Settings form (Tampermonkey menu): form and JSON views, validation, reset
+// Settings form: form and JSON views, validation, reset
 
 // ===========================================================================
 // IMPORTS
 // ===========================================================================
 
+import { bindBrand } from '../ui/brand.ts';
 import { brandHtml } from '../ui/brand.ts';
 import { brandTitle } from '../ui/brand.ts';
 import { COPY_SVG } from '../ui/icons.ts';
@@ -171,6 +172,7 @@ export function openSettingsForm(): void {
     </div>`;
     // Parts of the form (all written in its HTML above)
     const part = (selector: string): HTMLElement => form.querySelector(selector) as HTMLElement;
+    bindBrand(form);
     /** @returns input or select of a setting */
     const setting = (name: string): HTMLInputElement => form.elements.namedItem(name) as HTMLInputElement;
     const json = part('[data-json]') as HTMLTextAreaElement;
@@ -414,9 +416,9 @@ export function openSettingsForm(): void {
     wrap.onclick = (e) => {
         if (downOnBackdrop && e.target === wrap) close(); // block body: `return false` would cancel clicks
     };
-    // Drag title row (not its buttons) to move window
+    // Drag title row (not its buttons or links) to move window
     part('[data-drag]').addEventListener('pointerdown', (e) => {
-        if (e.button === 0 && !(e.target as HTMLElement).closest('button')) startMove(e, form, SETTINGS_POS_KEY);
+        if (e.button === 0 && !(e.target as HTMLElement).closest('button, a')) startMove(e, form, SETTINGS_POS_KEY);
     });
 
     wrap.append(form);
@@ -432,13 +434,9 @@ export function openSettingsForm(): void {
 export function completeSettings(data: Record<string, unknown>): Record<string, unknown> {
     return Object.fromEntries(Object.keys(DEFAULTS).map((key) => [key, key in data ? data[key] : defaults[key]]));
 }
-/** Tampermonkey menu: settings form, reset to defaults. */
-export function registerMenu(): void {
-    GM_registerMenuCommand('Settings …', openSettingsForm);
-
-    GM_registerMenuCommand('Reset settings to defaults', () => {
-        if (!confirm('Reset all Sharepoint Previewer settings to their defaults?')) return;
-        for (const [key, value] of Object.entries(DEFAULTS)) GM_setValue(key, value);
-        alert('Settings reset. Reload the page to apply them.');
-    });
+/** Asks, then writes every default back (applies after a reload). */
+export function resetSettings(): void {
+    if (!confirm('Reset all Sharepoint Previewer settings to their defaults?')) return;
+    for (const [key, value] of Object.entries(DEFAULTS)) GM_setValue(key, value);
+    alert('Settings reset. Reload the page to apply them.');
 }

@@ -32,7 +32,7 @@ describe('modules', () => {
     it('entry: starts up (modules alone register no menu)', async () => {
         assert.deepEqual(Object.keys(gm.menu), []);
         await load('main.ts');
-        assert.deepEqual(Object.keys(gm.menu).sort(), ['Reset settings to defaults', 'Settings …']);
+        assert.deepEqual(Object.keys(gm.menu).sort(), ['Edit (vtest)', 'Reset settings', 'Settings …']);
     });
 
     it('header: Tampermonkey metadata block', () => {

@@ -18,6 +18,7 @@ import { POPUP_POS_KEY } from '../_core/settings-form.ts';
 import { POPUP_SIZE_KEY } from '../_core/settings-form.ts';
 import { LARGE_FILE_BYTES } from '../_core/settings.ts';
 import { formatBytes } from '../_core/util.ts';
+import { bindBrand } from '../ui/brand.ts';
 import { brandHtml } from '../ui/brand.ts';
 import { brandTitle } from '../ui/brand.ts';
 import { CHECK_SVG } from '../ui/icons.ts';
@@ -346,6 +347,7 @@ export function createViewer(): Viewer {
   `;
     brand.innerHTML = brandHtml();
     brand.title = brandTitle();
+    bindBrand(brand);
 
     // Copy button (left of X)
     const copyBtn = document.createElement('button');

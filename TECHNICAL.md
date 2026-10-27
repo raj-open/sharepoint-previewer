@@ -100,7 +100,7 @@ the lock is only rewritten when `package.json` has changed.
 
 ```text
 Sharepoint page (DOM)
- └─ userscript (Tampermonkey, @grant GM_getValue/GM_setValue/GM_registerMenuCommand)
+ └─ userscript (Tampermonkey, @grant GM_getValue/GM_setValue/GM_registerMenuCommand/GM_openInTab)
      ├─ MutationObserver: finds file and folder rows → adds eye cells (HTML only)
      ├─ Viewer (own DOM elements, own CSS, prefix "tp-")
      │   ├─ text view: syntax colours, whitespace markers, virtualised rendering
@@ -326,6 +326,8 @@ They are opened via the Tampermonkey menu → "Settings …",
 or the viewer's ⋯ → "Full settings …".
 There is a form view and a JSON view (with validation),
 plus "Reset to defaults".
+The Tampermonkey menu → "Edit (v…)" and the version top right (viewer, settings form)
+open Tampermonkey's editor of the script (e.g. to upgrade).
 
 | Key | Default | Meaning |
 | :-- | :------ | :------ |

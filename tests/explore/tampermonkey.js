@@ -4,7 +4,8 @@
 //   settings not set (missing, empty, or an earlier default) get the server's defaults on each page load
 //   (`viewer-3d-folder` of the mock Sharepoint, a test logo)
 // - GM_registerMenuCommand: buttons in a small panel at the top right (where Tampermonkey's menu is)
-// - GM_info.script.version: the userscript's @version
+// - GM_openInTab: no Tampermonkey editor here, so it only says which URL it would open
+// - GM_info.script: the userscript's @version, a dummy uuid
 
 (() => {
     // ================================================================
@@ -113,7 +114,8 @@
         GM_getValue: getValue,
         GM_setValue: setValue,
         GM_registerMenuCommand: registerMenuCommand,
-        GM_info: { script: { version } },
+        GM_openInTab: (/** @type {string} */ url) => alert(`Tampermonkey would open: ${url}`),
+        GM_info: { script: { version, uuid: 'explore' } },
     });
 
     // settings not set (or left empty, or still an earlier default of the explorer): the server's defaults

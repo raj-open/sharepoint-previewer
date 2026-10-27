@@ -27,7 +27,7 @@ Development: [TECHNICAL.md](TECHNICAL.md).
 | Data leaving the browser | Only when the user explicitly uploads a file (edited, new, or a renamed copy), through Sharepoint's own upload (as if done by hand) |
 | Storage | Settings in Tampermonkey's script storage. View choices and window positions in the browser's `localStorage` for the Sharepoint origin. File contents only in memory, gone on reload |
 | Cookies | Not used |
-| Tampermonkey grants | `GM_getValue`, `GM_setValue`, `GM_registerMenuCommand` (settings only) |
+| Tampermonkey grants | `GM_getValue`, `GM_setValue`, `GM_registerMenuCommand` (settings, editor), `GM_openInTab` (editor only) |
 
 ---
 
@@ -75,7 +75,7 @@ sequenceDiagram
     Note over TM,Page: Page load
     TM->>US: injects the script (document-idle)
     US->>TM: GM_getValue (settings)
-    US->>TM: GM_registerMenuCommand (Settings …)
+    US->>TM: GM_registerMenuCommand (Edit (v…), Settings …, Reset settings)
     US->>LS: reads view choices (layout, theme, …)
     US->>Page: MutationObserver: an eye per file and folder row
 
