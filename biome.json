@@ -13,8 +13,7 @@
             "src/**",
             "scripts/**",
             "tests/**",
-            "!tests/mocks/mock-sharepoint/library",
-            "!**/*.md"
+            "!tests/mocks/mock-sharepoint/library"
         ]
     },
     "formatter": {
@@ -30,6 +29,11 @@
             "trailingCommas": "all",
             "semicolons": "always",
             "quoteProperties": "preserve"
+        }
+    },
+    "markdown": {
+        "formatter": {
+            "enabled": false
         }
     },
     "linter": {
