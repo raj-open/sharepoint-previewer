@@ -152,6 +152,8 @@ const CSS = `
   }
   .tp-new-file[hidden] { display: none; }
   .tp-new-file svg { width: 14px; height: 14px; }
+  /* Not available here (sub-folder): greyed out, its note on hover (aria-disabled keeps the tooltip) */
+  .tp-new-file[aria-disabled="true"] { opacity: .4; cursor: default; }
   .tp-mode-btn { background: var(--tp-btn-bg); color: var(--tp-btn-fg); }
   .tp-mode-btn[aria-pressed="true"] { background: var(--tp-accent); color: #fff; }
   .tp-mode-btn:disabled { opacity: .4; cursor: default; }
@@ -183,8 +185,8 @@ const CSS = `
     text-align: left;
     cursor: pointer;
   }
-  .tp-menu-item:hover:not(:disabled) { background: var(--tp-hover); }
-  .tp-menu-item:disabled { opacity: .4; cursor: default; }
+  .tp-menu-item:hover:not(:disabled, [aria-disabled="true"]) { background: var(--tp-hover); }
+  .tp-menu-item:is(:disabled, [aria-disabled="true"]) { opacity: .4; cursor: default; }
   .tp-menu-item[aria-pressed="true"]::after { content: '✓'; margin-left: auto; color: var(--tp-accent); font-weight: 700; }
   .tp-attn { animation: tp-attn 3s ease-out; }
   @keyframes tp-attn {

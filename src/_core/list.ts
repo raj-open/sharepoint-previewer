@@ -15,6 +15,7 @@ import { openFolder } from '../viewer/open.ts';
 import { openPreview } from '../viewer/open.ts';
 import { pendingOpens } from '../viewer/open.ts';
 import { sameFile } from '../viewer/open.ts';
+import { showNewFile } from '../viewer/open.ts';
 import { shownFolder } from '../viewer/open.ts';
 import { viewer } from '../viewer/open.ts';
 import { COL_WIDTH } from './settings.ts';
@@ -307,6 +308,7 @@ function scan() {
     scheduled = false;
     // H-mode panel inside Sharepoint's container: put it back if Sharepoint re-rendered
     if (viewer?.anchor && !viewer.box.isConnected) syncPanel();
+    if (viewer) showNewFile(viewer); // folder open in Sharepoint may have changed
     if (!inLibrary()) {
         for (const el of document.querySelectorAll('.tp-cell, .tp-head')) el.remove(); // left from library page
         return;
