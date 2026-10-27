@@ -159,6 +159,7 @@ export type Viewer = {
     // Views: lines or table, 3D, checks
     lineView?: LineView | null;
     rerender?: (() => void) | null;
+    goToLine?: ((line: number) => void) | null; // text view at this line
     view3d?: View3d | null;
     lintWorker?: Worker | null;
     relint?: (() => void) | null;
