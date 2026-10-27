@@ -11,7 +11,7 @@ For reviewing the script (permissions, network, storage, security, deployment): 
 | `/src/_core` | Tampermonkey header (`header.ts`), settings, preferences, list view, shared types (`types.ts`) |
 | `/src/{readers,text,ui,view,viewer}` | the other modules (TypeScript) |
 | `/src/@apis/ifc-lite/main.ts` | entry of the ifc-lite bundle for the optional 3D view |
-| `/scripts` | build and demo scripts (`bundle.ts`, `demos.ts`) |
+| `/scripts` | build and demo scripts (`bundle.ts`, `demos.ts`, `hero.ts`) |
 | `/demos` | demos with screenshots (`/demos/img`, written by `just demos`) |
 | `/.github/workflows` | qa (automatic, manual) and release (cf. [Workflows](#workflows)) |
 | `/tests/{unit,behave,integration}` | tests (`tests_*.ts`, run with `node --test`); unit tests mirror `/src` |
@@ -41,7 +41,7 @@ just prettify           # format + lint with fixes (Biome)
 just lint-check         # same, dry run
 just tests              # all tests (tests-unit, tests-behave, tests-integration)
 just tests-explore      # mock Sharepoint with the userscript on localhost (HTTP_PORT in .env); [folder]: own files
-just demos [case ...]   # screenshots for /demos (/demos/img)
+just demos [case ...]   # screenshots for /demos (/demos/img); case hero: README animation (needs ffmpeg with libwebp)
 just type-check         # type check (strict): modules, tests, scripts
 just qa                 # lint checks + type check + all tests
 just tag                # release tag of /dist/VERSION (e.g. v1.1.0-alpha.1 for 1.1.0a1)

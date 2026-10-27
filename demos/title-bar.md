@@ -21,6 +21,10 @@ Without a file open, it copies the folder's link.
 
 ![Link copied](img/link.png)
 
+Pasted, next to the link Sharepoint's own "Copy link" gives (typical form):
+
+![Link pasted, next to Sharepoint's form of it](img/link-paste.png)
+
 ## Another name ##
 
 In edit mode, a click on the name (or F2) gives the file another name:
