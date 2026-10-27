@@ -79,7 +79,7 @@ describe('list view', () => {
         await h.eye(page, '2025.csv').waitFor();
         await page.locator('#breadcrumb a', { hasText: /^Data$/ }).click();
         await h.eye(page, 'prices.csv').waitFor();
-        await page.locator('#breadcrumb a', { hasText: 'Mock Data' }).click();
+        await page.locator('#breadcrumb a', { hasText: 'Mock Library' }).click();
         await h.eye(page, 'notes.txt').waitFor();
     });
 
@@ -91,7 +91,7 @@ describe('list view', () => {
 });
 
 describe('search results', () => {
-    /** Searches the library below the folder open (box in the command bar), waits for the results */
+    /** Searches the library below the folder open (box in the suite bar), waits for the results */
     async function search(page: Page, term: string): Promise<void> {
         await page.locator('#search').fill(term);
         await page.locator('#search').press('Enter');
@@ -133,7 +133,7 @@ describe('search results', () => {
         const v = await h.preview(page, '2025.csv');
         const content = await h.text(v.locator('.tp-content'));
         assert.match(content, /cannot be viewed from search results/);
-        assert.match(content, /Looked up by name below \/sites\/Test\/Mock Data/);
+        assert.match(content, /Looked up by name below \/sites\/MockSharepoint\/MockLibrary/);
         assert.match(content, /library list: HTTP 500/);
     });
 
