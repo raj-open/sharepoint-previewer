@@ -96,10 +96,11 @@ export function reader(bytes: Uint8Array): {
 /**
  * fetch() for files on this origin: answers Range requests (206) unless `ranges` is false (200, whole file).
  * @param files url path -> content
+ * @param cap most bytes per partial answer (0: no limit), as servers may cut ranges short
  */
 export function serve(
     files: Record<string, Uint8Array | string>,
-    { ranges = true } = {},
+    { ranges = true, cap = 0 } = {},
 ): { url: string; range?: string }[] {
     const requests: { url: string; range?: string }[] = [];
     const fake = async (url: string | URL, init: { headers?: Record<string, string> } = {}) => {
@@ -120,7 +121,8 @@ export function serve(
             return new Response(body, { status: 200, headers: { ...headers, 'content-length': String(body.length) } });
         const from = Number(m[1]);
         if (from >= body.length) return new Response('', { status: 416 });
-        const to = Math.min(body.length - 1, m[2] ? Number(m[2]) : body.length - 1);
+        let to = Math.min(body.length - 1, m[2] ? Number(m[2]) : body.length - 1);
+        if (cap) to = Math.min(to, from + cap - 1);
         return new Response(body.subarray(from, to + 1), {
             status: 206,
             headers: { ...headers, 'content-range': `bytes ${from}-${to}/${body.length}` },
