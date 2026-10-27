@@ -53,7 +53,7 @@ type SourceBase = {
     isParquet?: boolean;
     rows?: number;
     // archives (Power BI): lists of parts (picker), the one shown (list 0, item 0: overview)
-    parts?: { label: string; items: ArchivePart[] }[];
+    parts?: { label: string; items: ArchivePart[]; empty?: string }[]; // empty: why a list has no items
     part?: { list: number; item: number };
 };
 /** part of an archive: text read at once (null: not plain text, not readable) */

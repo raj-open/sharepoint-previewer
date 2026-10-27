@@ -66,12 +66,14 @@ export async function openPbixSource(
     let parts: ArchivePart[];
     let queries: Query[];
     let overview: string;
+    let empty = ''; // why the queries list is empty
     try {
         const entries = (await zipEntries(file.read, file.size)).filter((e) => !e.name.endsWith('/'));
         const bytes = entries.filter(readable).reduce((n, e) => n + e.packed, 0);
         if (!ask(bytes)) return { error: `Not opened: ${formatBytes(bytes)} of parts to read.` };
         queries = await pbixQueries(file.read, entries);
         overview = pbixMarkdown(entries, queries);
+        if (noQueries(entries, queries)) empty = 'No queries read: see the overview';
         parts = [];
         for (const e of entries) parts.push(await entryPart(file.read, e));
     } catch (err) {
@@ -94,7 +96,7 @@ export async function openPbixSource(
         text: overview,
         parts: [
             { label: 'Parts', items: [{ name: 'Overview', note: '', lang: 'md', text: overview }, ...parts] },
-            { label: 'Queries', items: scripts },
+            { label: 'Queries', items: scripts, empty },
         ],
         part: { list: 0, item: 0 },
         more: async () => {},
@@ -270,15 +272,27 @@ export function pbixMarkdown(entries: ZipEntry[], queries: Query[]): string {
             out.push(`| ${cell(q.name)} | ${p.type} | ${cell(p.value)} | ${p.required ? 'yes' : 'no'} |`);
         }
     }
-    const data = entries.some((e) => /^(datamashup|datamodelschema)$/i.test(e.name));
-    if (data || queries.length) out.push('', `## Queries (${others.length})`);
-    if (data && !queries.length)
-        out.push('', 'No Power Query scripts found (newer files may keep them only in the data model).');
+    const why = noQueries(entries, queries);
+    if (why || queries.length) out.push('', `## Queries (${others.length})`);
+    if (why) out.push('', why);
     for (const q of others) {
         const fence = '`'.repeat(Math.max(3, ...(q.body.match(/`+/g) || []).map((b) => b.length + 1)));
         out.push('', `### ${q.name}`, '', `${fence}m`, q.body, fence);
     }
     return `${out.join('\n')}\n`;
+}
+
+// Why there are no queries (null: there are some, or the file has no queries at all)
+export function noQueries(entries: ZipEntry[], queries: Query[]): string | null {
+    if (queries.length) return null;
+    const has = (name: string) => entries.some((e) => e.name.toLowerCase() === name);
+    if (has('datamodel'))
+        return (
+            'Power Query scripts and parameters are kept in the data model (Power BI\'s "enhanced metadata"), ' +
+            'which is not read. To see them here, save the report as a template ' +
+            '(File > Export > Power BI template, `.pbit`).'
+        );
+    return has('datamashup') || has('datamodelschema') ? 'No Power Query scripts found.' : null;
 }
 
 // Table cell as code (pipes escaped, one line)
