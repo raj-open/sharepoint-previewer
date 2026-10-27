@@ -333,6 +333,44 @@ const CASES: Record<string, Case> = {
         pointer: (_page, v) => v.locator('.tp-table tr', { hasText: 'request' }).locator('.tp-expand'),
         clip: async (_page, v) => box(v),
     },
+    // ---- Power BI: overview, picker with parts and queries, a part, a query ----
+    powerbi: {
+        folder: '/Data',
+        file: 'sales.pbix',
+        steps: async (_page, v) => {
+            await view(v, 'Markdown');
+            await v.locator('.tp-md h2').first().waitFor();
+        },
+        clip: async (_page, v) => box(v),
+    },
+    'powerbi-picker': {
+        folder: '/Data',
+        file: 'sales.pbix',
+        steps: async (_page, v) => {
+            await v.locator(SHEET_PICKER).click();
+            await v.locator('.tp-picker-menu').first().locator('.tp-picker-item').first().waitFor();
+        },
+        pointer: (_page, v) => v.locator(SHEET_PICKER),
+        clip: async (_page, v) => box(v),
+    },
+    'powerbi-layout': {
+        folder: '/Data',
+        file: 'sales.pbix',
+        steps: async (_page, v) => {
+            await pick(v, 'Parts', 'Report/Layout');
+            await v.locator('.tp-code', { hasText: '"visualType"' }).waitFor();
+        },
+        clip: async (_page, v) => box(v),
+    },
+    'powerbi-query': {
+        folder: '/Data',
+        file: 'sales.pbix',
+        steps: async (_page, v) => {
+            await pick(v, 'Queries', 'Orders');
+            await v.locator('.tp-code', { hasText: 'Table.PromoteHeaders' }).waitFor();
+        },
+        clip: async (_page, v) => box(v),
+    },
     '3d': {
         folder: '/Models',
         file: 'corner.ifc',
@@ -418,6 +456,15 @@ async function openSettings(page: Page): Promise<void> {
 async function view(v: Locator, name: string): Promise<void> {
     const btn = v.locator('.tp-view-btn', { hasText: name });
     if ((await btn.getAttribute('aria-pressed')) !== 'true') await btn.click();
+}
+
+// Entry of the sheet picker (sheets / tables, or parts / queries of an archive): list, then item
+async function pick(v: Locator, list: string, item: string): Promise<void> {
+    await v.locator(SHEET_PICKER).click();
+    const menu = v.locator('.tp-picker-menu').first();
+    await menu.locator('.tp-picker-tab', { hasText: list }).click();
+    await menu.locator('.tp-picker-item', { hasText: item }).first().click();
+    await v.locator('.tp-title-sheet', { hasText: item }).waitFor();
 }
 
 async function capture(browser: Awaited<ReturnType<typeof h.launch>>, name: string, c: Case): Promise<void> {
