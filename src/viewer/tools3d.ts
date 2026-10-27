@@ -28,7 +28,6 @@ export type Tools3dTarget = {
     text: () => string; // IFC text of the model
     showLine: (line: number) => void; // text view at this line
     sets?: PropsReader; // property and quantity sets of an object
-    reload?: () => void; // ifc-lite fetched again, model shown again
 };
 
 /** controls of one 3D view */
@@ -48,9 +47,6 @@ const SECTIONS: [SectionPlaneAxis | '', string][] = [
     ['front', 'Section: front'],
     ['side', 'Section: side'],
 ];
-
-/** tooltip of the reload buttons (3D bar, failed 3D view) */
-export const RELOAD_TITLE = 'Reload ifc-lite: fetch the 3D files again (e.g. after new ones were deployed)';
 
 let propsOpen = false; // properties of the selection shown (kept for the next 3D view while the page is open)
 
@@ -129,8 +125,6 @@ export function tools3d(stage: HTMLElement, target: Tools3dTarget): Tools3d {
         renderer.requestRender();
     };
     bar.append(section, slider);
-    const reload = target.reload;
-    if (reload) bar.append(button('↻', RELOAD_TITLE, reload));
 
     // Selection: what it is, its line in the text; hide, isolate, show all
     const label = document.createElement('span');

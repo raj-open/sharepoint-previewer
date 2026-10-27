@@ -14,7 +14,6 @@ import { encodePath } from '../readers/request.ts';
 import { sameOrigin } from '../readers/request.ts';
 import { flash } from './edit.ts';
 import { propsReader } from './props3d.ts';
-import { RELOAD_TITLE } from './tools3d.ts';
 import { tools3d } from './tools3d.ts';
 import { updateViews } from './views.ts';
 
@@ -48,6 +47,8 @@ export type View3d = { disposed: boolean; handle: { pose: () => Pose; dispose: (
 let ifcLibrary: Promise<{ lib: IfcLite; wasm: Uint8Array }> | null = null; // once started
 export let ifcLibraryReady = false; // loaded (then IFC files open in 3D again if it was chosen)
 const view3dPoses: Map<string, Pose> = new Map(); // file url -> camera of its last 3D view (while this page is open)
+/** tooltip of "Reload ifc-lite" (⋯ menu, failed 3D view) */
+export const RELOAD_TITLE = 'Fetch the 3D files (ifc-lite) again, e.g. after new ones were deployed';
 
 // ===========================================================================
 // METHODS
@@ -105,7 +106,6 @@ async function open3dModel(
     pose?: Pose,
     text: () => string = () => '',
     showLine: (line: number) => void = () => {},
-    reload: () => void = () => {},
 ): Promise<{ pose: () => Pose; dispose: () => void }> {
     onStatus('3D engine start …');
     lib.ready ||= lib.init({ module_or_path: wasm }); // once per page
@@ -166,7 +166,6 @@ async function open3dModel(
         text,
         showLine,
         sets: propsReader(lib, ifcBytes), // model parsed for them on first use
-        reload,
     });
 
     // Drag: rotate or move; click (no drag): select
@@ -304,7 +303,6 @@ export async function toggle3d(v: Viewer): Promise<void> {
             view3dPoses.get(file.url),
             text,
             showLine,
-            () => void reload3d(v),
         );
         if (state.disposed) handle.dispose();
         else state.handle = handle;
@@ -315,10 +313,11 @@ export async function toggle3d(v: Viewer): Promise<void> {
     }
 }
 
-/** ifc-lite dropped and fetched again (e.g. new files deployed), then the 3D view of the file opened again */
+/** ifc-lite dropped (fetched again when next used, e.g. after new files were deployed); a 3D view open: shown again */
 export async function reload3d(v: Viewer): Promise<void> {
     ifcLibrary = null;
     ifcLibraryReady = false;
+    if (!v.view3d) return;
     close3d(v);
     await toggle3d(v);
 }

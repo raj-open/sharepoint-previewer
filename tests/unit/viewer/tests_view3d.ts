@@ -27,7 +27,13 @@ describe('viewer/view3d', () => {
         assert.equal(v.stage3d.style.display, 'none');
         assert.equal(v.content.style.display, '');
     });
-    it('reload: library dropped, 3D view closed and opened again (here: no file, stays closed)', async () => {
+    it('reload: library dropped; no 3D view: nothing else', async () => {
+        const v = fakeViewer();
+        await reload3d(v);
+        assert.equal(view3d.ifcLibraryReady, false);
+        assert.equal(v.stage3d.style.display, undefined);
+    });
+    it('reload: 3D view closed and opened again (here: no file, stays closed)', async () => {
         let disposed = false;
         const v = fakeViewer({ view3d: { handle: { pose: () => ({}), dispose: () => (disposed = true) } } });
         await reload3d(v);
