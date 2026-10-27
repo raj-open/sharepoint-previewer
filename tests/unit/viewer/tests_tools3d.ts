@@ -40,7 +40,7 @@ Object.assign(globalThis, {
 const { tools3d, describe: describeEntity } = await load('viewer/tools3d.ts');
 const wall = new TextDecoder().decode(fixture('Models/wall.ifc'));
 
-function setup(picked: number | null = 60, sets?: (id: number) => Promise<unknown[]>) {
+function setup(picked: number | null = 60, sets?: (id: number) => Promise<unknown[]>, reload?: () => void) {
     const calls: string[] = [];
     const camera = {
         mode: 'perspective',
@@ -67,6 +67,7 @@ function setup(picked: number | null = 60, sets?: (id: number) => Promise<unknow
         text: () => wall,
         showLine: (n: number) => lines.push(n),
         sets,
+        reload,
     });
     const [bar, side] = stage.children;
     const [info, props] = side.children;
@@ -180,6 +181,14 @@ describe('viewer/tools3d', () => {
         assert.deepEqual(asked, [60]);
         click(info, 'Properties'); // closed: kept closed for the next 3D view
         assert.equal(props.hidden, true);
+    });
+
+    it('reload: button at the end of the bar only when given', () => {
+        let reloads = 0;
+        const { bar, click } = setup(60, undefined, () => reloads++);
+        click(bar, '↻');
+        assert.equal(reloads, 1);
+        assert.equal(setup().find(setup().bar, '↻'), undefined);
     });
 
     it('properties: read failure shown', async () => {

@@ -14,6 +14,7 @@ import { encodePath } from '../readers/request.ts';
 import { sameOrigin } from '../readers/request.ts';
 import { flash } from './edit.ts';
 import { propsReader } from './props3d.ts';
+import { RELOAD_TITLE } from './tools3d.ts';
 import { tools3d } from './tools3d.ts';
 import { updateViews } from './views.ts';
 
@@ -104,6 +105,7 @@ async function open3dModel(
     pose?: Pose,
     text: () => string = () => '',
     showLine: (line: number) => void = () => {},
+    reload: () => void = () => {},
 ): Promise<{ pose: () => Pose; dispose: () => void }> {
     onStatus('3D engine start …');
     lib.ready ||= lib.init({ module_or_path: wasm }); // once per page
@@ -164,6 +166,7 @@ async function open3dModel(
         text,
         showLine,
         sets: propsReader(lib, ifcBytes), // model parsed for them on first use
+        reload,
     });
 
     // Drag: rotate or move; click (no drag): select
@@ -301,12 +304,34 @@ export async function toggle3d(v: Viewer): Promise<void> {
             view3dPoses.get(file.url),
             text,
             showLine,
+            () => void reload3d(v),
         );
         if (state.disposed) handle.dispose();
         else state.handle = handle;
     } catch (err) {
-        if (!state.disposed) status(`3D view failed: ${(err as Error).message}`);
+        if (state.disposed) return;
+        status(`3D view failed: ${(err as Error).message} `);
+        v.status3d.append(reloadButton(v));
     }
+}
+
+/** ifc-lite dropped and fetched again (e.g. new files deployed), then the 3D view of the file opened again */
+export async function reload3d(v: Viewer): Promise<void> {
+    ifcLibrary = null;
+    ifcLibraryReady = false;
+    close3d(v);
+    await toggle3d(v);
+}
+
+function reloadButton(v: Viewer): HTMLButtonElement {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'tp-3d-btn';
+    b.style.pointerEvents = 'auto'; // the status line itself lets clicks through to the canvas
+    b.textContent = '↻ Reload ifc-lite';
+    b.title = RELOAD_TITLE;
+    b.onclick = () => void reload3d(v);
+    return b;
 }
 
 export function close3d(v: Viewer): void {
