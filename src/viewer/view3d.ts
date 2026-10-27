@@ -5,6 +5,7 @@
 // IMPORTS
 // ===========================================================================
 
+import { openSettingsForm } from '../_core/settings-form.ts';
 import { MAX_3D_BYTES } from '../_core/settings.ts';
 import { VIEWER_3D_FOLDER } from '../_core/settings.ts';
 import { VIEWER_3D_JS_SHA256 } from '../_core/settings.ts';
@@ -49,6 +50,7 @@ export let ifcLibraryReady = false; // loaded (then IFC files open in 3D again i
 const view3dPoses: Map<string, Pose> = new Map(); // file url -> camera of its last 3D view (while this page is open)
 /** tooltip of "Reload ifc-lite" (⋯ menu, failed 3D view) */
 export const RELOAD_TITLE = 'Fetch the 3D files (ifc-lite) again, e.g. after new ones were deployed';
+const NOT_FOUND = '3d-files-not-found'; // cause of the error when the 3D folder has no such file
 
 // ===========================================================================
 // METHODS
@@ -74,6 +76,10 @@ function loadIfcLibrary(onStatus: (s: string) => void): Promise<{ lib: IfcLite; 
             onStatus(`caching ${name} …`);
             // revalidated: a cached file of an earlier release would fail its checksum
             const res = await fetch(url, { credentials: 'same-origin', cache: 'no-cache' });
+            if (res.status === 404) {
+                const message = `${name} not found in "${folder}": is the setting "3D viewer folder" right?`;
+                throw new Error(message, { cause: NOT_FOUND });
+            }
             if (!res.ok) throw new Error(`${name}: error ${res.status}`);
             const buf = await res.arrayBuffer();
             if ((await sha256(buf)) !== hash) throw new Error(`${name} does not match its checksum: not used`);
@@ -309,7 +315,8 @@ export async function toggle3d(v: Viewer): Promise<void> {
     } catch (err) {
         if (state.disposed) return;
         status(`3D view failed: ${(err as Error).message} `);
-        v.status3d.append(reloadButton(v));
+        if ((err as Error).cause === NOT_FOUND) v.status3d.append(statusButton('Settings …', openSettingsForm), ' ');
+        v.status3d.append(statusButton('↻ Reload ifc-lite', () => void reload3d(v), RELOAD_TITLE));
     }
 }
 
@@ -322,14 +329,15 @@ export async function reload3d(v: Viewer): Promise<void> {
     await toggle3d(v);
 }
 
-function reloadButton(v: Viewer): HTMLButtonElement {
+// Button in the status line of the 3D view
+function statusButton(text: string, fn: () => void, title = ''): HTMLButtonElement {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'tp-3d-btn';
     b.style.pointerEvents = 'auto'; // the status line itself lets clicks through to the canvas
-    b.textContent = '↻ Reload ifc-lite';
-    b.title = RELOAD_TITLE;
-    b.onclick = () => void reload3d(v);
+    b.textContent = text;
+    b.title = title;
+    b.onclick = fn;
     return b;
 }
 
