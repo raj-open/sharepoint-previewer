@@ -2,6 +2,7 @@
 # RELEASE: on a release tag (v<VERSION>, cf. `just tag`),
 # runs qa, builds /dist/v<VERSION> and attaches its files to the GitHub release
 # (created if missing; pre-release for alpha, beta, rc)
+# (3D files only if chosen: they rarely change and the wasm is large)
 # ----------------------------------------------------------------
 
 name: Release
@@ -18,6 +19,10 @@ on:
         description: 'Release version tag'
         default: ""
         type: string
+      build-3d:
+        description: 'Include 3D files (ifc-lite)'
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -55,6 +60,8 @@ jobs:
           HTTP_PORT=${{ vars.HTTP_PORT }}
           # behavioural tests: Google Chrome of the runner image (no browser download)
           BROWSER_CHANNEL=chrome
+          # 3D files (ifc-lite) in the release; hashes in the userscript either way
+          BUILD_3D=${{ inputs.build-3d }}
           EOF
 
       - name: Build dependencies + artefacts
