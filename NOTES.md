@@ -282,7 +282,7 @@ That is outside the scope of this script.
 ## 9. Credits and licences ##
 
 - **The script:**
-  written for this purpose and contains no third-party code;
+  written for this purpose, apart from the XPress9 decoder (ported from Microsoft's sources, MIT; its notice kept in that file);
   licence: MPL-2.0, see `LICENCE` in the repository
   (also named in the script's header: `@copyright`, `@license`).
 - **Tampermonkey** (<https://www.tampermonkey.net>, by Jan Biniok):
