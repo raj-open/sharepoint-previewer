@@ -1,3 +1,0 @@
-Artefacts of the 3D viewer (mock).
-The files in folder "previewer" are those of the current release (just build).
-Example model: Examples/sample.ifc

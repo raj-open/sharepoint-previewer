@@ -2,13 +2,13 @@
 //
 //   node tests/explore/server.ts <port> [folder]    (cf. `just tests-explore`)
 //
-// - libraries: "Mock Library" (test fixtures, /tests/mocks/mock-sharepoint/library), "Mock Artefacts" (cf. 3D files) and "Local Library"
+// - libraries: "Mock Library" (test fixtures, /tests/mocks/mock-sharepoint/library), "Mock Tools Library" (cf. 3D files) and "Local Library"
 //   (your own files: /data, local only, or the folder given; if there); read afresh per request (read only)
 // - userscript: read afresh per page load, so `just build-src` + reload picks up changes
 // - Tampermonkey: stood in for by ./tampermonkey.js (settings in localStorage, menu commands as a panel);
 //   its panel (and the console) names each library and the folder it serves
 // - search: box in the middle of the suite bar (files below the folder open, found by the userscript by name)
-// - 3D files: those of the release in /dist/v<VERSION> (`just build`), listed in "Mock Artefacts" as folder "previewer";
+// - 3D files: those of the release in /dist/v<VERSION> (`just build`), listed in "Mock Tools Library" as folder "Viewer";
 //   the setting `viewer-3d-folder` points there unless set (filled in when empty)
 // - logo: a test logo (setting `logo`), filled in when empty
 // - uploads (drop on the list, "Upload", the viewer's upload): simulated, kept apart in

@@ -1,13 +1,13 @@
 // Mock Sharepoint Online: one site with document libraries, each served from a local folder
-// (default: libraries "Mock Library" from ./library and "Mock Artefacts" from ./artefacts). Read only: files are read from disk per request.
+// (default: libraries "Mock Library" from ./library and "Mock Tools Library" from ./tools). Read only: files are read from disk per request.
 // Uploads (optional, simulated): kept apart in a session folder under ./__uploads__ that mirrors the site's
 // paths (<library>/<path>); they are listed and served over the originals (which stay untouched) until the session ends.
 //
 //   /sites/Test/<library>/Forms/AllItems.aspx[?id=<folder>][&q=<term>]   list view (client-side app); q: search
 //   /sites/Test/<library>/<path>                                         file (GET / HEAD, byte ranges)
 //   /sites/Test/SitePages/Home.aspx                                      page outside any library
-//   /sites/Test/Mock Artefacts/previewer/<file>                          3D files of the release (if built),
-//                                                                        listed as folder "previewer" in "Mock Artefacts"
+//   /sites/Test/Mock Tools Library/Viewer/<file>                         3D files of the release (if built),
+//                                                                        listed as folder "Viewer" in "Mock Tools Library"
 //   /sites/Test/<library>/_api/upload?folder=<f>&name=<n>                upload (POST, body: the file; simulated)
 //   /sites/Test/<library>/_api/tree                                      folders and files (JSON; list refresh)
 //   /sites/Test/_api/web/GetList(@list)/items?$filter=FileLeafRef eq '<name>'&@list='<library>'
@@ -42,14 +42,14 @@ export const libraryOf = (p: string): string => p.split('/').slice(0, 4).join('/
 export const LIBRARY = `${SITE}/Mock Library`;
 export const LIST_PAGE = listPageOf(LIBRARY);
 export const PATH_FILES = path.join(HERE, 'library');
-// Library of the artefacts: 3D files of the release (cf. RELEASE_FOLDER), plus a readme, a text file and an example model
-export const ARTEFACTS = `${SITE}/Mock Artefacts`;
-export const PATH_ARTEFACTS = path.join(HERE, 'artefacts');
+// Library of the tools: 3D files of the release (cf. RELEASE_FOLDER), plus a readme, a text file and an example model
+export const TOOLS = `${SITE}/Mock Tools Library`;
+export const PATH_TOOLS = path.join(HERE, 'tools');
 
 export const VERSION = fs.readFileSync(path.join(ROOT, 'dist/VERSION'), 'utf8').trim();
 export const PATH_RELEASE = path.join(ROOT, 'dist', `v${VERSION}`);
-// 3D files of the release, as a folder of the artefacts library (as deployed); setting `viewer-3d-folder`: site-relative
-export const RELEASE_FOLDER = `${ARTEFACTS}/previewer`;
+// 3D files of the release, as a folder of the tools library (as deployed); setting `viewer-3d-folder`: site-relative
+export const RELEASE_FOLDER = `${TOOLS}/Viewer`;
 export const RELEASE_SETTING = RELEASE_FOLDER.slice(SITE.length + 1);
 const FILES_3D = ['ifc-lite-3d.js', 'ifc-lite_bg.wasm'];
 // Simulated uploads, one folder per session (never synchronised: cf. /.gitignore; removed by `just clean`)
@@ -107,10 +107,10 @@ export type Reply = { status: number; headers: Record<string, string>; body: Buf
 // Libraries of the site: name (also its URL part) -> local folder
 export type Libraries = Record<string, string>;
 
-// Default: the test fixtures and the artefacts
+// Default: the test fixtures and the tools
 export const LIBRARIES: Libraries = {
     [LIBRARY.slice(SITE.length + 1)]: PATH_FILES,
-    [ARTEFACTS.slice(SITE.length + 1)]: PATH_ARTEFACTS,
+    [TOOLS.slice(SITE.length + 1)]: PATH_TOOLS,
 };
 
 // ----------------------------------------------------------------
@@ -205,9 +205,9 @@ function tree(libs: Libraries, library: string, uploads?: string): Record<string
     };
     walk(library);
     if (!out[library]) return out;
-    if (library === ARTEFACTS && has3dRelease() && !out[RELEASE_FOLDER]) {
-        out[ARTEFACTS].push({ name: 'previewer', folder: true, size: 0 });
-        out[ARTEFACTS].sort(byName);
+    if (library === TOOLS && has3dRelease() && !out[RELEASE_FOLDER]) {
+        out[TOOLS].push({ name: path.basename(RELEASE_FOLDER), folder: true, size: 0 });
+        out[TOOLS].sort(byName);
         out[RELEASE_FOLDER] = listing(PATH_RELEASE).filter((e) => FILES_3D.includes(e.name));
     }
     for (const [folder, entries] of Object.entries(out)) {
