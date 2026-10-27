@@ -5,6 +5,7 @@
 // ===========================================================================
 
 import { ifcEntity } from '../text/ifc.ts';
+import { ifcIdsOf } from '../text/ifc.ts';
 import { showSets } from './props3d.ts';
 
 import type { IfcEntity } from '../text/ifc.ts';
@@ -62,7 +63,9 @@ export function tools3d(stage: HTMLElement, target: Tools3dTarget): Tools3d {
 
     // State shown in each frame
     let selected: IfcEntity | { id: number; type: ''; name: ''; line: 0 } | null = null;
-    const hidden = new Set<number>();
+    const hidden = new Set<number>(); // by the user
+    const voids = ifcIdsOf(target.text(), 'IFCOPENINGELEMENT'); // never shown: openings are cut out of their walls
+    let hiddenAll = new Set<number>(voids); // both, as drawn and picked
     let isolated: Set<number> | null = null;
     let axis: SectionPlaneAxis | '' = '';
     let position = 50; // % of the model along the axis
@@ -160,6 +163,7 @@ export function tools3d(stage: HTMLElement, target: Tools3dTarget): Tools3d {
     // ---------------------------------------------------------------
 
     const update = () => {
+        hiddenAll = new Set([...voids, ...hidden]);
         const some = hidden.size > 0 || isolated !== null;
         info.hidden = !selected && !some;
         label.textContent = selected ? describe(selected) : 'Nothing selected';
@@ -202,12 +206,12 @@ export function tools3d(stage: HTMLElement, target: Tools3dTarget): Tools3d {
     return {
         options: () => ({
             selectedId: selected?.id ?? null,
-            hiddenIds: hidden,
+            hiddenIds: hiddenAll,
             isolatedIds: isolated,
             sectionPlane: axis ? { axis, position, enabled: true, showGizmo: false } : undefined,
         }),
         async select(x, y) {
-            const hit = await renderer.pick(x, y);
+            const hit = await renderer.pick(x, y, { hiddenIds: hiddenAll, isolatedIds: isolated });
             setSelected(hit ? hit.expressId : null);
         },
         dispose() {

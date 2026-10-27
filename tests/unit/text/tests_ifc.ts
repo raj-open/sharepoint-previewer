@@ -1,11 +1,11 @@
-// IFC (STEP) text: entity by id (type, name, line), STEP strings
+// IFC (STEP) text: entity by id (type, name, line), ids of a type, STEP strings
 import assert from 'node:assert/strict';
 import { describe } from 'node:test';
 import { it } from 'node:test';
 import { fixture } from '../helpers.ts';
 import { load } from '../helpers.ts';
 
-const { ifcEntity, stepString } = await load('text/ifc.ts');
+const { ifcEntity, ifcIdsOf, stepString } = await load('text/ifc.ts');
 const wall = new TextDecoder().decode(fixture('Models/wall.ifc'));
 
 describe('text/ifc', () => {
@@ -23,6 +23,12 @@ describe('text/ifc', () => {
         const text = "ISO-10303-21;\n#5= IFCSLAB('a,b',(#1,#2),'It''s (big)',$);\n#6=IFCCARTESIANPOINT((0.,0.,0.));\n";
         assert.deepEqual(ifcEntity(text, 5), { id: 5, type: 'IFCSLAB', name: "It's (big)", line: 2 });
         assert.equal(ifcEntity(text, 6)?.name, '');
+    });
+
+    it('ids of a type: any case and spacing, whole type name only', () => {
+        const text = '#1=IFCWALL($);\n#22 = IfcOpeningElement ($);#3=IFCOPENINGELEMENTX($);\n#4=IFCOPENINGELEMENT($);';
+        assert.deepEqual(ifcIdsOf(text, 'IFCOPENINGELEMENT'), [22, 4]);
+        assert.deepEqual(ifcIdsOf(wall, 'IFCSLAB'), []);
     });
 
     it('STEP strings: quotes, \\X2\\ and \\X\\ encodings; not a string: empty', () => {
