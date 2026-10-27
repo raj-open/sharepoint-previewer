@@ -57,6 +57,8 @@ type SourceBase = {
     part?: { list: number; item: number };
 };
 /** part of an archive: text read at once (null: not plain text, not readable) */
+/** Power Query: name and M expression (`let … in …`, or a value with `meta […]`) */
+export type Query = { name: string; body: string };
 export type ArchivePart = { name: string; note: string; lang: string | null; text: string | null };
 /** spreadsheet: sheets and tables, one shown (current entry of the view, `mode`); waiting: none chosen yet */
 export type SheetSource = Omit<SourceBase, 'isSheet'> & {

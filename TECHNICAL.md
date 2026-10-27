@@ -109,6 +109,7 @@ Sharepoint page (DOM)
      ├─ Sources: same-origin fetch with HTTP Range (chunks), in-memory cache (LRU)
      ├─ Decoders built in: Parquet (Thrift, RLE/bit-packing, dictionary, v1/v2 pages),
      │   Snappy, LZ4_RAW, ZSTD (RFC 8878); GZIP / ZIP via the browser's DecompressionStream;
+     │   Power BI data models: XPress9 (ported, MIT), backup (ABF), SQLite (read only);
      │   spreadsheets: OOXML (XML scanner, no DOM), XLSB (BIFF12), XLS (BIFF8/BIFF5 in a
      │   compound file), OpenDocument
      └─ Checks (linters) in a Web Worker created from the script's own code (blob: URL)
@@ -193,8 +194,14 @@ both date systems (1900, 1904).
 Number formats beyond that (decimals, currencies, thousands separators) are not applied.
 Password-protected workbooks are not opened.
 
-Power BI files are read by range: the archive's directory and its parts (each up to 16 MB), never the data model;
+Power BI files are read by range: the archive's directory and its parts (each up to 16 MB);
 above 25 MB of parts (setting) the viewer asks first.
+Queries and parameters come from `DataMashup` (older `.pbix`) or `DataModelSchema` (`.pbit`);
+newer `.pbix` files ("enhanced metadata") keep them only in the data model (`DataModel`):
+then it is read as well (asked first above 25 MB),
+decompressed (XPress9) in the browser, and its metadata (SQLite) read
+(shared expressions and parameters, then the M partitions of the tables);
+the data itself is not looked at.
 The overview lists the parts as a tree, the Power Query parameters and queries.
 The picker (bottom right) lists the parts and the queries side by side;
 a part chosen is shown in its own format (JSON, XML, M; recognised from its start if it has no extension),
@@ -333,7 +340,7 @@ plus "Reset to defaults".
 | `cache-chunk-bytes` | 512 KB | Chunk size; also the threshold for asking before big Parquet / IFCZIP |
 | `memory-cache-bytes` | 256 MB | Cache limit for all files together |
 | `cache-all-confirm-bytes` | 16 MB | "Cache all" asks above this size |
-| `powerbi-confirm-bytes` | 25 MB | Power BI files ask first if their parts to read (data model left out) exceed this |
+| `powerbi-confirm-bytes` | 25 MB | Power BI files ask first if their parts to read (data model left out) exceed this; the same for the data model, read for its queries |
 | `parquet-rows` | `100` | Table rows shown per step |
 | `max-line-chars` | `5000` | Longer lines are cut for display |
 | `follow-links` | `true` | Follow `.url` link files (same origin only) |

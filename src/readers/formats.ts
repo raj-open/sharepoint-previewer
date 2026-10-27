@@ -7,7 +7,7 @@
 import { LANG_NAMES } from '../text/lang.ts';
 import { langOf } from '../text/lang.ts';
 import { PARQUET_RE } from './parquet/meta.ts';
-import { PBIX_RE } from './pbix.ts';
+import { PBIX_RE } from './pbix/index.ts';
 import { SHEET_RE } from './sheets/cells.ts';
 import { ZIP_RE } from './zip.ts';
 
