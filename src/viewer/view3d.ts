@@ -13,6 +13,7 @@ import { formatBytes } from '../_core/util.ts';
 import { encodePath } from '../readers/request.ts';
 import { sameOrigin } from '../readers/request.ts';
 import { flash } from './edit.ts';
+import { tools3d } from './tools3d.ts';
 import { updateViews } from './views.ts';
 
 import type { Viewer } from '../_core/types.ts';
@@ -98,6 +99,8 @@ async function open3dModel(
     ifcBytes: Uint8Array,
     onStatus: (s: string) => void,
     pose?: Pose,
+    text: () => string = () => '',
+    showLine: (line: number) => void = () => {},
 ): Promise<{ pose: () => Pose; dispose: () => void }> {
     onStatus('3D engine start …');
     lib.ready ||= lib.init({ module_or_path: wasm }); // once per page
@@ -130,8 +133,8 @@ async function open3dModel(
     renderer.loadGeometry(result);
     const camera = renderer.getCamera();
     // Whole model in view (bounds after ifc-lite's shift of far-off coordinates)
+    const b = result.coordinateInfo?.shiftedBounds;
     const fit = () => {
-        const b = result.coordinateInfo?.shiftedBounds;
         const extent = b && Math.max(b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z);
         if (extent > 0 && Number.isFinite(extent)) {
             camera.fitBoundsAdaptive(
@@ -150,24 +153,32 @@ async function open3dModel(
         renderer.requestRender();
     }
     onStatus(`${result.meshes.length.toLocaleString()} objects · ${result.totalTriangles.toLocaleString()} triangles`);
+    const stage = canvas.parentElement as HTMLElement; // controls laid over the canvas
+    const tools = tools3d(stage, { renderer, bounds: b ? { min: b.min, max: b.max } : null, fit, text, showLine });
 
-    let drag: { x: number; y: number; pan: boolean } | null = null;
+    // Drag: rotate or move; click (no drag): select
+    let drag: { x: number; y: number; pan: boolean; moved: number } | null = null;
     const down = (e: PointerEvent) => {
-        drag = { x: e.clientX, y: e.clientY, pan: e.button !== 0 || e.shiftKey };
+        drag = { x: e.clientX, y: e.clientY, pan: e.button !== 0 || e.shiftKey, moved: 0 };
         canvas.setPointerCapture(e.pointerId);
     };
     const move = (e: PointerEvent) => {
         if (!drag) return;
         const dx = e.clientX - drag.x;
         const dy = e.clientY - drag.y;
+        drag.moved += Math.abs(dx) + Math.abs(dy);
         drag.x = e.clientX;
         drag.y = e.clientY;
         if (drag.pan) camera.pan(dx, dy);
         else camera.orbit(dx, dy);
         renderer.requestRender();
     };
-    const up = () => {
+    const up = (e: PointerEvent) => {
+        const click = drag && !drag.pan && drag.moved < 4 && e.type === 'pointerup';
         drag = null;
+        if (!click) return;
+        const r = canvas.getBoundingClientRect();
+        tools.select(e.clientX - r.left, e.clientY - r.top).catch(() => {}); // nothing picked on failure
     };
     const wheel = (e: WheelEvent) => {
         e.preventDefault();
@@ -188,7 +199,7 @@ async function open3dModel(
     const loop = (now: number) => {
         const moving = camera.update(now - last);
         last = now;
-        if (renderer.consumeRenderRequest() || moving) renderer.render();
+        if (renderer.consumeRenderRequest() || moving) renderer.render(tools.options());
         frame = requestAnimationFrame(loop);
     };
     frame = requestAnimationFrame(loop);
@@ -220,6 +231,7 @@ async function open3dModel(
             cancelAnimationFrame(frame);
             resize.disconnect();
             for (const off of offs) off();
+            tools.dispose();
             renderer.destroy();
         },
     };
@@ -264,7 +276,22 @@ export async function toggle3d(v: Viewer): Promise<void> {
         const { lib, wasm } = await loadIfcLibrary(status);
         if (state.disposed || v.file !== file) return;
         const bytes = src.ifcBytes || new TextEncoder().encode(v.writeMode ? (v.staged ?? src.text) : src.text);
-        const handle = await open3dModel(lib, wasm, v.canvas3d, bytes, status, view3dPoses.get(file.url));
+        const text = () => (v.writeMode ? (v.staged ?? src.text) : src.text); // as the model was built
+        // object's line: text view (in write mode the editor, without jumping)
+        const showLine = (line: number) => {
+            close3d(v);
+            if (!v.writeMode) v.goToLine?.(line);
+        };
+        const handle = await open3dModel(
+            lib,
+            wasm,
+            v.canvas3d,
+            bytes,
+            status,
+            view3dPoses.get(file.url),
+            text,
+            showLine,
+        );
         if (state.disposed) handle.dispose();
         else state.handle = handle;
     } catch (err) {
