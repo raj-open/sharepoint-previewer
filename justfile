@@ -45,8 +45,8 @@ BIOME := "node_modules/.bin/biome"
 ESBUILD := "node_modules/.bin/esbuild"
 TSC := "node_modules/.bin/tsc"
 # size limits (rule of thumb, cf. /specs.md): userscript source, minified userscript
-MAX_KB_SRC := "500"
-MAX_KB_MIN := "300"
+MAX_KB_SRC := "750"
+MAX_KB_MIN := "400"
 # lint scope: src + tests + named root files (same as `files.includes` in /biome.json)
 LINT_PATHS := "src scripts tests biome.json package.json tsconfig.json"
 

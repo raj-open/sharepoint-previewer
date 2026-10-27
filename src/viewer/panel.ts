@@ -541,7 +541,7 @@ export function createViewer(): Viewer {
     const statusBar = document.createElement('div');
     statusBar.className = 'tp-statusbar';
     // Spreadsheets: sheet or table shown; its menu lists sheets and tables side by side
-    const sheetPicker = createPicker(statusBar, (list, i) => v.selectSheet?.(i, list ? 'tables' : 'sheets'));
+    const sheetPicker = createPicker(statusBar, (list, i) => v.selectSheet?.(i, list));
     const views = document.createElement('div');
     views.className = 'tp-views';
     views.append(textBtn, previewBtn, sheetPicker.button);

@@ -9,22 +9,26 @@ const { FORMAT_LISTS, formatName, formatOf, langOfFormat, readerOf } = await loa
 describe('readers/formats', () => {
     it('recognised from the file name: file formats first, then languages, else plain text', () => {
         assert.deepEqual(
-            ['a.parquet', 'a.XLSX', 'a.ods', 'a.ifczip', 'a.ifc', 'a.csv', 'a.log', 'a.xyz', 'a'].map(formatOf),
-            ['parquet', 'sheet', 'sheet', 'ifczip', 'ifc', 'csv', 'log', 'text', 'text'],
+            ['a.parquet', 'a.XLSX', 'a.ods', 'a.ifczip', 'a.pbix', 'a.ifc', 'a.csv', 'a.log', 'a.xyz', 'a'].map(
+                formatOf,
+            ),
+            ['parquet', 'sheet', 'sheet', 'ifczip', 'pbix', 'ifc', 'csv', 'log', 'text', 'text'],
         );
     });
     it('reader and language of a format', () => {
-        assert.deepEqual(['parquet', 'sheet', 'ifczip', 'csv', 'text'].map(readerOf), [
+        assert.deepEqual(['parquet', 'sheet', 'ifczip', 'pbix', 'csv', 'text'].map(readerOf), [
             'parquet',
             'sheet',
             'ifczip',
+            'pbix',
             'text',
             'text',
         ]);
-        assert.deepEqual(['parquet', 'sheet', 'ifczip', 'csv', 'text'].map(langOfFormat), [
+        assert.deepEqual(['parquet', 'sheet', 'ifczip', 'pbix', 'csv', 'text'].map(langOfFormat), [
             'parquet',
             'sheet',
             'ifc',
+            'md',
             'csv',
             null,
         ]);
@@ -32,7 +36,7 @@ describe('readers/formats', () => {
     it('picker lists: plain text first, every format once, each with a name', () => {
         const [[text, texts], [files, binaries]] = FORMAT_LISTS;
         assert.deepEqual([text, files, texts[0]], ['Text', 'Files', 'text']);
-        assert.deepEqual(binaries, ['parquet', 'sheet', 'ifczip']);
+        assert.deepEqual(binaries, ['parquet', 'sheet', 'ifczip', 'pbix']);
         const all = texts.concat(binaries);
         assert.equal(new Set(all).size, all.length);
         assert.deepEqual(['text', 'csv', 'sheet', 'xyz'].map(formatName), ['Text', 'CSV', 'Spreadsheet', 'Text']);

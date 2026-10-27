@@ -121,9 +121,10 @@ export function showFormat(v: Viewer, format: string | null, recognised: string 
     v.formatPicker.button.classList.toggle('tp-chosen', chosen);
 }
 
-// Sheet or table choice (spreadsheets only): picker next to table button, name in title.
+// Sheet or table choice (spreadsheets), part choice (archives): picker next to table button, name in title.
 // Its menu lists sheets and tables side by side (● cached, ○ not cached yet).
 export function showSheets(v: Viewer, src: Source | null): void {
+    if (src?.parts) return void showParts(v, src);
     const lists = src?.isSheet ? sheetLists(src) : null;
     v.sheetPicker.button.hidden = !lists;
     v.titleSheet.hidden = !lists;
@@ -171,4 +172,22 @@ export function sheetLists(src: SheetSource): PickerList[] {
             start: src.startOf('tables'),
         },
     ];
+}
+
+// Part choice of an archive: lists side by side (parts, queries), parts without text marked
+function showParts(v: Viewer, src: Source): void {
+    const lists = src.parts ?? [];
+    const { list, item } = src.part ?? { list: 0, item: 0 };
+    const items = lists.map((l) => ({
+        label: l.label,
+        items: l.items.map((p) => ({ text: p.note ? `${p.name} (${p.note})` : p.name })),
+        empty: `No ${l.label.toLowerCase()} in this file`,
+        start: 0,
+    }));
+    const name = lists[list].items[item].name;
+    const counts = lists.map((l) => `${l.items.length} ${l.label.toLowerCase()}`).join(', ');
+    v.sheetPicker.button.hidden = false;
+    v.titleSheet.hidden = false;
+    v.sheetPicker.set(items, { list, item }, name, `${counts}; ← → in the menu: parts or queries`);
+    v.titleSheet.innerHTML = ` · <strong>${list ? 'Query' : 'Part'}:</strong> ${esc(name)}`;
 }

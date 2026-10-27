@@ -148,7 +148,7 @@ How the parts communicate: [NOTES.md, §3](NOTES.md#3-communication).
     (blue while caching, neutral when idle or complete),
     with a "click to fully cache" hint
   - right: format of the file (recognised from its name);
-    its menu lists text formats and file formats (Parquet, spreadsheet, IFCZIP) side by side,
+    its menu lists text formats and file formats (Parquet, spreadsheet, IFCZIP, Power BI) side by side,
     any of them can be chosen (also a wrong one: the file is then read as that format, or a message says why not;
     a chosen format is marked and kept while the page is open);
     text size **− 100 % +**
@@ -180,7 +180,9 @@ What the script reads from the list and leaves alone: [NOTES.md, §2](NOTES.md#2
 | CSV / TSV (delimiter detected) | ✓ (per column) | | ✓ (sort, filter, edit cells, rows, columns) | | ✓ |
 | Parquet (Snappy, GZIP, ZSTD, LZ4_RAW, uncompressed) | ✓ | | ✓ (read only) | | |
 | Spreadsheets: Excel `.xlsx` `.xlsm` `.xltx` `.xltm`, `.xlsb`, `.xls` `.xlt` (97–2003, 5.0/95), OpenDocument `.ods` `.ots` | ✓ | | ✓ (read only, per sheet) | | |
-| IFC / IFCZIP | ✓ | ✓ | | ✓ (up to 8 MB, setting) | IFC only |
+| IFC / IFCZIP | ✓ | ✓ | | ✓ (asks first above 25 MB, setting) | IFC only |
+| Power BI `.pbix` `.pbit` `.pbiviz`: overview (Markdown), parts and queries in the picker | ✓ | JSON, XML, M | | | |
+| Power BI project files `.pbir` `.pbism` `.pbip` `.pbids`, tabular models `.bim` (JSON) | ✓ | ✓ | | | ✓ |
 | Any other text file | – | | | | ✓ |
 
 Spreadsheets show the last saved value of each cell (formulas are not recalculated):
@@ -190,6 +192,14 @@ dates and times as ISO 8601 (`2026-10-24`, `14:30:00`, `2026-10-24 14:30:00`),
 both date systems (1900, 1904).
 Number formats beyond that (decimals, currencies, thousands separators) are not applied.
 Password-protected workbooks are not opened.
+
+Power BI files are read by range: the archive's directory and its parts (each up to 16 MB), never the data model;
+above 25 MB of parts (setting) the viewer asks first.
+The overview lists the parts as a tree, the Power Query parameters and queries.
+The picker (bottom right) lists the parts and the queries side by side;
+a part chosen is shown in its own format (JSON, XML, M; recognised from its start if it has no extension),
+UTF-16 decoded, JSON indented and JSON held in strings (e.g. `config` in `Report/Layout`) unpacked.
+Reports, visuals and data are not shown.
 
 Tables (Excel's "Format as Table" in `.xlsx` and `.xlsb`; named database ranges in `.ods`)
 can be shown instead of whole sheets:
@@ -318,11 +328,12 @@ plus "Reset to defaults".
 | `cache-chunk-bytes` | 512 KB | Chunk size; also the threshold for asking before big Parquet / IFCZIP |
 | `memory-cache-bytes` | 256 MB | Cache limit for all files together |
 | `cache-all-confirm-bytes` | 16 MB | "Cache all" asks above this size |
+| `powerbi-confirm-bytes` | 25 MB | Power BI files ask first if their parts to read (data model left out) exceed this |
 | `parquet-rows` | `100` | Table rows shown per step |
 | `max-line-chars` | `5000` | Longer lines are cut for display |
 | `follow-links` | `true` | Follow `.url` link files (same origin only) |
 | `viewer-3d-folder` | *(empty)* | Folder with the 3D files: relative to the site, or from the top with a leading `/` |
-| `viewer-3d-max-bytes` | 8 MB | 3D view only up to this IFC size |
+| `viewer-3d-max-bytes` | 25 MB | 3D view asks first (each time) above this IFC size |
 | `logo` | *(empty)* | `data:image/…` URI shown in the header |
 
 Settings that are start values (layout, size, theme, colours, wrap)

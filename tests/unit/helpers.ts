@@ -131,7 +131,10 @@ export function serve(
 }
 
 /** ZIP archive (deflated entries) from { path: text }; offsets: entry -> [start, end) in archive. */
-export function zip(files: Record<string, string>): { bytes: Uint8Array; offsets: Record<string, [number, number]> } {
+export function zip(files: Record<string, string | Uint8Array>): {
+    bytes: Uint8Array;
+    offsets: Record<string, [number, number]>;
+} {
     const parts: Buffer[] = [];
     const central: Buffer[] = [];
     const offsets: Record<string, [number, number]> = {};
