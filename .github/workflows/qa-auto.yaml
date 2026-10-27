@@ -43,7 +43,7 @@ concurrency:
 jobs:
   qa:
     name: QA
-    runs-on: "ubuntu-latest"
+    runs-on: "ubuntu-26.04"
     environment: "local"
     timeout-minutes: 30
     steps:
