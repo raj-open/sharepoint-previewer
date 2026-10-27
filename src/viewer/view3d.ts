@@ -5,6 +5,7 @@
 // IMPORTS
 // ===========================================================================
 
+import { openSettingsForm } from '../_core/settings-form.ts';
 import { MAX_3D_BYTES } from '../_core/settings.ts';
 import { VIEWER_3D_FOLDER } from '../_core/settings.ts';
 import { VIEWER_3D_JS_SHA256 } from '../_core/settings.ts';
@@ -13,10 +14,12 @@ import { formatBytes } from '../_core/util.ts';
 import { encodePath } from '../readers/request.ts';
 import { sameOrigin } from '../readers/request.ts';
 import { flash } from './edit.ts';
+import { propsReader } from './props3d.ts';
 import { tools3d } from './tools3d.ts';
 import { updateViews } from './views.ts';
 
 import type { Viewer } from '../_core/types.ts';
+import type { PropsLib } from './props3d.ts';
 import type { GeometryProcessor } from '@ifc-lite/geometry';
 import type { Renderer } from '@ifc-lite/renderer';
 import type initEngine from '@ifc-lite/wasm';
@@ -26,7 +29,7 @@ import type initEngine from '@ifc-lite/wasm';
 // ===========================================================================
 
 // ifc-lite as its bundle provides it (cf. /src/@apis/ifc-lite/main.ts); ready: engine started (once per page)
-type IfcLite = {
+type IfcLite = PropsLib & {
     init: typeof initEngine;
     GeometryProcessor: typeof GeometryProcessor;
     Renderer: typeof Renderer;
@@ -45,6 +48,9 @@ export type View3d = { disposed: boolean; handle: { pose: () => Pose; dispose: (
 let ifcLibrary: Promise<{ lib: IfcLite; wasm: Uint8Array }> | null = null; // once started
 export let ifcLibraryReady = false; // loaded (then IFC files open in 3D again if it was chosen)
 const view3dPoses: Map<string, Pose> = new Map(); // file url -> camera of its last 3D view (while this page is open)
+/** tooltip of "Reload ifc-lite" (⋯ menu, failed 3D view) */
+export const RELOAD_TITLE = 'Fetch the 3D files (ifc-lite) again, e.g. after new ones were deployed';
+const NOT_FOUND = '3d-files-not-found'; // cause of the error when the 3D folder has no such file
 
 // ===========================================================================
 // METHODS
@@ -68,7 +74,12 @@ function loadIfcLibrary(onStatus: (s: string) => void): Promise<{ lib: IfcLite; 
             const url = encodePath(`${folder.replace(/\/$/, '')}/${name}`);
             if (!sameOrigin(url)) throw new Error('the 3D viewer folder must be in this Sharepoint');
             onStatus(`caching ${name} …`);
-            const res = await fetch(url, { credentials: 'same-origin' });
+            // revalidated: a cached file of an earlier release would fail its checksum
+            const res = await fetch(url, { credentials: 'same-origin', cache: 'no-cache' });
+            if (res.status === 404) {
+                const message = `${name} not found in "${folder}": is the setting "3D viewer folder" right?`;
+                throw new Error(message, { cause: NOT_FOUND });
+            }
             if (!res.ok) throw new Error(`${name}: error ${res.status}`);
             const buf = await res.arrayBuffer();
             if ((await sha256(buf)) !== hash) throw new Error(`${name} does not match its checksum: not used`);
@@ -154,7 +165,14 @@ async function open3dModel(
     }
     onStatus(`${result.meshes.length.toLocaleString()} objects · ${result.totalTriangles.toLocaleString()} triangles`);
     const stage = canvas.parentElement as HTMLElement; // controls laid over the canvas
-    const tools = tools3d(stage, { renderer, bounds: b ? { min: b.min, max: b.max } : null, fit, text, showLine });
+    const tools = tools3d(stage, {
+        renderer,
+        bounds: b ? { min: b.min, max: b.max } : null,
+        fit,
+        text,
+        showLine,
+        sets: propsReader(lib, ifcBytes), // model parsed for them on first use
+    });
 
     // Drag: rotate or move; click (no drag): select
     let drag: { x: number; y: number; pan: boolean; moved: number } | null = null;
@@ -295,8 +313,32 @@ export async function toggle3d(v: Viewer): Promise<void> {
         if (state.disposed) handle.dispose();
         else state.handle = handle;
     } catch (err) {
-        if (!state.disposed) status(`3D view failed: ${(err as Error).message}`);
+        if (state.disposed) return;
+        status(`3D view failed: ${(err as Error).message} `);
+        if ((err as Error).cause === NOT_FOUND) v.status3d.append(statusButton('Settings …', openSettingsForm), ' ');
+        v.status3d.append(statusButton('↻ Reload ifc-lite', () => void reload3d(v), RELOAD_TITLE));
     }
+}
+
+/** ifc-lite dropped (fetched again when next used, e.g. after new files were deployed); a 3D view open: shown again */
+export async function reload3d(v: Viewer): Promise<void> {
+    ifcLibrary = null;
+    ifcLibraryReady = false;
+    if (!v.view3d) return;
+    close3d(v);
+    await toggle3d(v);
+}
+
+// Button in the status line of the 3D view
+function statusButton(text: string, fn: () => void, title = ''): HTMLButtonElement {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'tp-3d-btn';
+    b.style.pointerEvents = 'auto'; // the status line itself lets clicks through to the canvas
+    b.textContent = text;
+    b.title = title;
+    b.onclick = fn;
+    return b;
 }
 
 export function close3d(v: Viewer): void {

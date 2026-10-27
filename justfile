@@ -181,8 +181,8 @@ build-3d path=PATH_RELEASE:
     #!/usr/bin/env bash
     set -euo pipefail
     mkdir -p "{{path}}"
-    banner="$(node -p '["geometry", "renderer", "wasm"].map((name) => `@ifc-lite/${name} ${require(`./node_modules/@ifc-lite/${name}/package.json`).version}`).join(", ")')"
-    "{{ESBUILD}}" "{{PATH_SRC_3D}}" --bundle --minify --format=iife --log-level=warning \
+    banner="$(node -p '["geometry", "parser", "renderer", "wasm"].map((name) => `@ifc-lite/${name} ${require(`./node_modules/@ifc-lite/${name}/package.json`).version}`).join(", ")')"
+    "{{ESBUILD}}" "{{PATH_SRC_3D}}" --bundle --minify --format=iife --log-level=warning --external:laz-perf --external:'laz-perf/*' \
         --banner:js="/* ifc-lite library bundle for Sharepoint Previewer: ${banner} (MPL-2.0, source: https://github.com/LTplus-AG/ifc-lite). Engine binary: ifc-lite_bg.wasm from @ifc-lite/wasm. */" \
         --outfile="{{path}}/ifc-lite-3d.js"
     cp node_modules/@ifc-lite/wasm/pkg/ifc-lite_bg.wasm "{{path}}/ifc-lite_bg.wasm"

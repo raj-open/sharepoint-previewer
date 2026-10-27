@@ -1,12 +1,14 @@
-// Controls of the 3D view: views, projection, selection (with its IFC line), hide / isolate, section plane
+// Controls of the 3D view: views, projection, selection (with its IFC line and its properties), hide / isolate, section plane
 
 // ===========================================================================
 // IMPORTS
 // ===========================================================================
 
 import { ifcEntity } from '../text/ifc.ts';
+import { showSets } from './props3d.ts';
 
 import type { IfcEntity } from '../text/ifc.ts';
+import type { PropsReader } from './props3d.ts';
 import type { Renderer } from '@ifc-lite/renderer';
 import type { RenderOptions } from '@ifc-lite/renderer';
 import type { SectionPlaneAxis } from '@ifc-lite/renderer';
@@ -25,6 +27,7 @@ export type Tools3dTarget = {
     fit: () => void;
     text: () => string; // IFC text of the model
     showLine: (line: number) => void; // text view at this line
+    sets?: PropsReader; // property and quantity sets of an object
 };
 
 /** controls of one 3D view */
@@ -44,6 +47,8 @@ const SECTIONS: [SectionPlaneAxis | '', string][] = [
     ['front', 'Section: front'],
     ['side', 'Section: side'],
 ];
+
+let propsOpen = false; // properties of the selection shown (kept for the next 3D view while the page is open)
 
 // ===========================================================================
 // METHODS
@@ -67,9 +72,13 @@ export function tools3d(stage: HTMLElement, target: Tools3dTarget): Tools3d {
     // ---------------------------------------------------------------
 
     const bar = row('tp-3d-bar');
+    const side = row('tp-3d-side'); // below the bar: selection, then its properties
     const info = row('tp-3d-info');
     info.hidden = true;
-    stage.append(bar, info);
+    const props = row('tp-3d-props');
+    props.hidden = true;
+    side.append(info, props);
+    stage.append(bar, side);
 
     const view = (label: string, title: string, fn: () => void) =>
         bar.append(
@@ -140,7 +149,11 @@ export function tools3d(stage: HTMLElement, target: Tools3dTarget): Tools3d {
         isolated = null;
         update();
     });
-    info.append(label, toText, hide, isolate, showAll);
+    const propsBtn = button('Properties', 'Show or hide its property and quantity sets', () => {
+        propsOpen = !propsOpen;
+        update();
+    });
+    info.append(label, propsBtn, toText, hide, isolate, showAll);
 
     // ---------------------------------------------------------------
     // State
@@ -155,7 +168,30 @@ export function tools3d(stage: HTMLElement, target: Tools3dTarget): Tools3d {
         hide.hidden = !selected;
         isolate.hidden = !selected;
         showAll.hidden = !some;
+        propsBtn.hidden = !selected || !target.sets;
+        propsBtn.setAttribute('aria-pressed', String(propsOpen));
+        props.hidden = propsBtn.hidden || !propsOpen;
+        if (!props.hidden) showProps();
         renderer.requestRender();
+    };
+
+    // Properties of the selection: read once per object shown (the first read parses the model)
+    let propsOf: number | null = null;
+    const showProps = () => {
+        const id = selected?.id ?? null;
+        if (id === null || id === propsOf || !target.sets) return;
+        propsOf = id;
+        props.textContent = 'reading properties …';
+        target
+            .sets(id)
+            .then((sets) => {
+                if (propsOf === id) showSets(props, sets);
+            })
+            .catch((err: Error) => {
+                if (propsOf !== id) return;
+                propsOf = null; // try again on the next selection
+                props.textContent = `Properties not read: ${err.message}`;
+            });
     };
 
     const setSelected = (id: number | null) => {
@@ -176,7 +212,7 @@ export function tools3d(stage: HTMLElement, target: Tools3dTarget): Tools3d {
         },
         dispose() {
             bar.remove();
-            info.remove();
+            side.remove();
         },
     };
 }

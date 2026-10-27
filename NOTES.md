@@ -227,13 +227,14 @@ The logo setting only accepts `data:` URIs.
    - Provide the reviewed script from an internal location.
    - Keep auto-update pointed only at that internal URL.
 3. **3D view (optional):**
-   - Put `ifc-lite-3d.js` (~1 MB) and `ifc-lite_bg.wasm` (~10 MB)
+   - Put `ifc-lite-3d.js` (~5 MB) and `ifc-lite_bg.wasm` (~10 MB)
      into a Sharepoint library readable by the users.
    - Set `viewer-3d-folder`.
    - The script contains the expected SHA-256 hashes;
      files that don't match are refused.
    - Source of the bundle:
      `@ifc-lite/geometry`,
+     `@ifc-lite/parser`,
      `@ifc-lite/renderer`,
      `@ifc-lite/wasm`
      (versions pinned in `package.json` of the release),
