@@ -1,4 +1,4 @@
-// IFC (STEP) text: an entity by its id (type, name, line), e.g. for the object picked in the 3D view
+// IFC (STEP) text: an entity by its id (type, name, line), e.g. for the object picked in the 3D view; ids of a type
 
 // ===========================================================================
 // TYPES
@@ -10,6 +10,12 @@ export type IfcEntity = { id: number; type: string; name: string; line: number }
 // ===========================================================================
 // METHODS
 // ===========================================================================
+
+/** @returns ids of the entities of a type (upper case, e.g. IFCOPENINGELEMENT) in the IFC text */
+export function ifcIdsOf(text: string, type: string): number[] {
+    const re = new RegExp(`(?:^|[\\r\\n;])[ \\t]*#(\\d+)[ \\t]*=[ \\t]*${type}[ \\t]*\\(`, 'gi');
+    return Array.from(text.matchAll(re), (m) => Number(m[1]));
+}
 
 /** @returns entity `#id` of the IFC text, null if there is none */
 export function ifcEntity(text: string, id: number): IfcEntity | null {
