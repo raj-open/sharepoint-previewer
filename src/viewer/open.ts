@@ -14,7 +14,6 @@ import { rememberSheetMode } from '../_core/prefs.ts';
 import { sheetMode } from '../_core/prefs.ts';
 import { view } from '../_core/prefs.ts';
 import { FOLLOW_LINKS } from '../_core/settings.ts';
-import { MAX_3D_BYTES } from '../_core/settings.ts';
 import { MAX_BYTES } from '../_core/settings.ts';
 import { MAX_LINE_CHARS } from '../_core/settings.ts';
 import { MAX_LINK_HOPS } from '../_core/settings.ts';
@@ -28,6 +27,7 @@ import { readerOf } from '../readers/formats.ts';
 import { cleanUrl } from '../readers/links.ts';
 import { linkTarget } from '../readers/links.ts';
 import { openParquetSource } from '../readers/parquet/source.ts';
+import { openPbixSource } from '../readers/pbix.ts';
 import { encodePath } from '../readers/request.ts';
 import { findFile } from '../readers/search.ts';
 import { lookupNotes } from '../readers/search.ts';
@@ -161,7 +161,9 @@ async function openFile(
                   ? await openSheetSource(fetchUrl, getSignal, reload, onProgress, sheetMode(hops[0]))
                   : reader === 'ifczip'
                     ? await openZipSource(fetchUrl, getSignal, reload, onProgress, force)
-                    : await openSource(fetchUrl, getSignal, reload, onProgress);
+                    : reader === 'pbix'
+                      ? await openPbixSource(fetchUrl, getSignal, reload, onProgress)
+                      : await openSource(fetchUrl, getSignal, reload, onProgress);
         if ('deferred' in result) return { src: null, deferred: result as Deferred, message: null, fileName, hops };
         if ('error' in result) {
             // file from search results, not found by name: say so first, details below
@@ -595,9 +597,7 @@ export async function showFile(name: string, url: string, reload: boolean, keep 
     v.writeBtn.disabled = !canWrite(v);
     v.writeBtn.title = src.isSheet ? 'Edit: not available for spreadsheets (read only)' : 'Edit (text files only)';
     const kind = previewOf(v.lang);
-    const ifcSize = src.ifcBytes ? src.ifcBytes.length : src.total;
-    const tooBig = kind === '3d' && ifcSize > MAX_3D_BYTES;
-    setPreview(v, kind, tooBig ? `3D view: only for IFC files up to ${formatBytes(MAX_3D_BYTES)}` : '');
+    setPreview(v, kind);
     showFormat(v, format, formatOf(fileName));
     updateViews(v);
     v.text = src.text;

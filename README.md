@@ -47,6 +47,7 @@ Our tool allows users to
 
 - preview any text file, with syntax colours and checks (JSON, XML, YAML, IFC, ...)
 - view CSV, Parquet, Excel and OpenDocument files as sortable, filterable tables
+- look into Power BI files (parts, Power Query scripts and parameters)
 - read Markdown rendered and logs as tables (experimental)
 - view IFC models in 3D (optional)
 - edit plaintext files, or create new ones, and save them back through Sharepoint's own upload (also under another name)
