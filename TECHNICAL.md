@@ -21,6 +21,13 @@ For reviewing the script (permissions, network, storage, security, deployment): 
 | `/models` | (reserved) schemata |
 | `specs.md` | public specs and conventions |
 
+## Versions ##
+
+Versions are `MAJOR.MINOR.PATCH` as in [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html);
+pre-releases in short form in `/dist/VERSION` (e.g. `1.1.0a1`), in SemVer form in tags (e.g. `v1.1.0-alpha.1`; cf. `just tag`).
+The history starts at `v0.0.0` (repository set-up, no source code) and continues with `v1.0.0` (the userscript moved in).
+Earlier versions of the userscript were developed without version control and are not part of this history.
+
 ## System requirements ##
 
 - The [Justfile](https://just.systems) tool.

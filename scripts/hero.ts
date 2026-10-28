@@ -14,12 +14,11 @@ import path from 'node:path';
 export const PATH_FRAMES = 'sandbox/hero';
 export const PATH_HERO = 'demos/img/hero.webp';
 
-// timing (seconds), frame rate, width of the animation (pixels; screenshots are 1400 wide), quality (0–100)
+// timing (seconds), frame rate, width of the animation (pixels; screenshots are 1400 wide)
 const HOLD = 2.0;
-const FADE = 0.35;
+const FADE = 0.2;
 const FPS = 10;
 const WIDTH = 1120;
-const QUALITY = 70;
 
 // ===============================================================
 // METHODS
@@ -66,7 +65,8 @@ export function encode(dir: string = PATH_FRAMES, out: string = PATH_HERO): void
             ...['-y', '-loglevel', 'error'],
             ...inputs,
             ...['-filter_complex', graph, '-map', `[f${last}]`],
-            ...['-c:v', codec, '-quality', String(QUALITY), '-compression_level', '6', '-loop', '0', '-an'],
+            // lossless: lossy frame differences leave ghosts of earlier frames; text stays sharp
+            ...['-c:v', codec, '-lossless', '1', '-quality', '100', '-compression_level', '6', '-loop', '0', '-an'],
             out,
         ],
         { stdio: 'inherit' },
