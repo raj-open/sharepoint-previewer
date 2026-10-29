@@ -903,6 +903,8 @@ const CSS = `
   .tp-zen-table { font-family: inherit; font-weight: 400; }
   .tp-zen-table th { font-weight: 600; }
   .tp-zen.tp-zen-editing { border-color: #d13438; }
+  /* as a file explorer: rows picked, not their text marked (a click or Ctrl / ⌘ + A); editing: cells as text */
+  .tp-zen:not(.tp-zen-editing) .tp-zen-table { user-select: none; -webkit-user-select: none; }
   .tp-zen.tp-zen-layout { border-color: var(--tp-accent); }
   .tp-zen-table { min-width: 100%; }
   .tp-zen-table td { height: 26px; box-sizing: border-box; padding: 2px 10px; }

@@ -293,6 +293,24 @@ describe('zen mode', () => {
         assert.equal(await picked(), 0);
     });
 
+    it('select all, then a click on the empty space below the rows: none (no text marked); the scrollbar keeps it', async () => {
+        const { page } = await openFolder(`${h.LIBRARY}/Config`);
+        const z = await zen(page);
+        const n = (await names(z)).length;
+        const picked = () => z.locator('tr.tp-zen-selected').count();
+        const grid = await z.locator('.tp-zen-grid').boundingBox();
+        const table = await z.locator('.tp-zen-table').boundingBox();
+        assert.ok(grid && table && grid.y + grid.height > table.y + table.height + 30, 'room below the rows');
+        await z.locator('tr.tp-zen-row').first().hover();
+        await page.keyboard.press('ControlOrMeta+a');
+        assert.equal(await picked(), n);
+        assert.equal(await page.evaluate(() => String(window.getSelection())), '', 'no text marked');
+        await page.mouse.click(grid.x + grid.width / 2, table.y + table.height + 20);
+        assert.equal(await picked(), 0, 'empty space: dropped');
+        await page.mouse.dblclick(grid.x + grid.width / 2, table.y + table.height + 20);
+        assert.equal(await page.evaluate(() => String(window.getSelection()).trim()), '', 'no text marked');
+    });
+
     it('download: one file as it is; several, or a folder with all in it: a ZIP named after the folder', async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);

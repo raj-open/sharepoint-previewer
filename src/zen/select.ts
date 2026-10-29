@@ -69,9 +69,16 @@ export function dropSelection(z: Zen): boolean {
  */
 export function keepsSelection(z: Zen, e: PointerEvent): boolean {
     const t = e.target as Element;
-    if (t === z.grid || z.downloadBtn.contains(t) || z.deleteBtn.contains(t)) return true;
+    if (t === z.grid && onScrollbar(z.grid, e)) return true; // the list's empty space below the rows: not kept
+    if (z.downloadBtn.contains(t) || z.deleteBtn.contains(t)) return true;
     if (t.closest?.('.tp-zen-pick')) return true;
     return (e.shiftKey || e.ctrlKey || e.metaKey) && !!t.closest?.('tr.tp-zen-row');
+}
+
+/** @returns the pointer on a scrollbar of `el` (right of or below its content box) */
+function onScrollbar(el: HTMLElement, e: PointerEvent): boolean {
+    const r = el.getBoundingClientRect();
+    return e.clientX >= r.left + el.clientLeft + el.clientWidth || e.clientY >= r.top + el.clientTop + el.clientHeight;
 }
 
 /** @returns Ctrl / Cmd + A (no Shift or Alt) */
