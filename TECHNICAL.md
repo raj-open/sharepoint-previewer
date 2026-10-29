@@ -369,6 +369,8 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
   Ctrl / ⌘ + click on a row picks it (or drops it) without opening it.
   Ctrl / ⌘ + A with the pointer over the list picks all items it shows (all loaded, also those scrolled out of sight;
   filtered out: not; nothing more read), unless the text cursor is in a field, the viewer, a bar or the columns pane.
+  Esc or a click elsewhere drops the selection (not one on Download, Delete / Purge, a checkbox, a row by Shift or Ctrl / ⌘,
+  the list's scrollbars; not while a download or delete runs); on release, so a click that shifts the rows still arrives.
   A selection belongs to its folder (another folder: none); rows filtered out are dropped from it.
 - **Download** (`/src/zen/download.ts`, download button; again while running: stop):
   one file as it is; else a ZIP named after the folder shown (one folder alone: after it), paths inside the folder shown,

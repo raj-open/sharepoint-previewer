@@ -598,11 +598,14 @@ describe('editing', () => {
         };
         assert.deepEqual(await heads(), ['item', 'price', 'currency']);
         await drag(table.locator('th[data-c="2"]'), table.locator('th[data-c="0"]'), 'x');
+        await page.waitForFunction(
+            () => document.querySelector('.tp-table th[data-c] .tp-sort')?.textContent === 'currency',
+        );
         assert.deepEqual(await heads(), ['currency', 'item', 'price']);
         const rows = table.locator('td.tp-rn[data-row]');
         await drag(rows.nth(2), rows.nth(0), 'y');
+        await table.locator('tbody tr').first().filter({ hasText: 'cherry' }).waitFor(); // drawn anew
         assert.match((await firsts())[0] ?? '', /EUR/); // first column: currency
-        assert.match(await h.text(table.locator('tbody tr').first()), /cherry/);
     });
 
     it('Esc: only back to reading (saved changes stay, asks for unsaved ones); Esc again: closed', async () => {

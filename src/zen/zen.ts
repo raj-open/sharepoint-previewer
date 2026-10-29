@@ -81,6 +81,7 @@ import { stopGrid } from './grid.ts';
 import { wireGrid } from './grid.ts';
 import { loadLibraries } from './libraries.ts';
 import { toggleMore } from './menu.ts';
+import { dropSelection } from './select.ts';
 import { pruneSelection } from './select.ts';
 import { selectedItems } from './select.ts';
 import { showPicked } from './select.ts';
@@ -240,7 +241,10 @@ export function zenSave(): boolean {
     return true;
 }
 
-/** Esc: closes a menu or panel of the Zen list, else ends its layout or edit mode @returns Esc was used */
+/**
+ * Esc: closes a menu or panel of the Zen list, else drops the selection, else ends its layout mode, closes the columns pane
+ * or ends edit mode @returns Esc was used
+ */
 export function zenEscape(): boolean {
     const z = zenList;
     if (!z) return false;
@@ -248,6 +252,10 @@ export function zenEscape(): boolean {
     if (menu) {
         menu.remove();
         closeFilterPanel();
+        return true;
+    }
+    if (!z.fetching && !z.busy && dropSelection(z)) {
+        showButtons(z);
         return true;
     }
     if (z.layout) {

@@ -1,5 +1,5 @@
 // Zen list selection: items picked by their checkboxes (one; all shown; a range by Shift), rows by Ctrl / Cmd,
-// all shown by Ctrl / Cmd + A (the pointer over the list)
+// all shown by Ctrl / Cmd + A (the pointer over the list); dropped by Esc or a click elsewhere
 
 // ===========================================================================
 // IMPORTS
@@ -54,6 +54,26 @@ export function pickShown(z: Zen): void {
     z.anchor = null;
 }
 
+/** Selection dropped (nothing picked) @returns there was one */
+export function dropSelection(z: Zen): boolean {
+    if (!z.selected.size) return false;
+    z.selected.clear();
+    z.anchor = null;
+    showPicked(z);
+    return true;
+}
+
+/**
+ * @returns a click (pointer released) keeps the selection: on what acts on it (download, delete / purge),
+ * on a checkbox, a row by Shift or Ctrl / Cmd (they change it), or the list's scrollbars
+ */
+export function keepsSelection(z: Zen, e: PointerEvent): boolean {
+    const t = e.target as Element;
+    if (t === z.grid || z.downloadBtn.contains(t) || z.deleteBtn.contains(t)) return true;
+    if (t.closest?.('.tp-zen-pick')) return true;
+    return (e.shiftKey || e.ctrlKey || e.metaKey) && !!t.closest?.('tr.tp-zen-row');
+}
+
 /** @returns Ctrl / Cmd + A (no Shift or Alt) */
 export const isSelectAllKey = (e: KeyboardEvent): boolean =>
     !!(e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a';
@@ -102,9 +122,10 @@ export function showPicked(z: Zen): void {
  * Checkboxes: a click picks (Shift: the range from the last one clicked); the head's: all shown or none.
  * Rows (not in edit mode): Ctrl / Cmd + click picks one more (or drops it), Shift + click the range.
  * Ctrl / Cmd + A, the pointer over the list and the text cursor in no field (nor in the viewer, a bar or the pane):
- * all items shown.
+ * all items shown. A click elsewhere (cf. keepsSelection) drops the selection (Esc too: cf. zenEscape),
+ * not while a download or delete is under way.
  * @param changed selection changed
- * @returns stops listening for Ctrl / Cmd + A
+ * @returns stops listening on the page
  */
 export function wireSelect(z: Zen, changed: () => void): () => void {
     const grid = z.grid;
@@ -126,6 +147,13 @@ export function wireSelect(z: Zen, changed: () => void): () => void {
         changed();
     };
     document.addEventListener('keydown', onKey, true);
+    // on release, not on press: dropping it may change the header's height (folder line), and moving the rows
+    // between press and release would lose the click (e.g. on a folder to open)
+    const onUp = (e: PointerEvent) => {
+        if (z.fetching || z.busy || keepsSelection(z, e)) return;
+        if (dropSelection(z)) changed();
+    };
+    document.addEventListener('pointerup', onUp, true);
     grid.addEventListener('mousedown', (e) => {
         // Shift: a range of rows, not of text
         if (e.shiftKey && (e.target as HTMLElement).closest('tr.tp-zen-row, .tp-zen-pick')) e.preventDefault();
@@ -149,5 +177,8 @@ export function wireSelect(z: Zen, changed: () => void): () => void {
         showPicked(z);
         changed();
     });
-    return () => document.removeEventListener('keydown', onKey, true);
+    return () => {
+        document.removeEventListener('keydown', onKey, true);
+        document.removeEventListener('pointerup', onUp, true);
+    };
 }

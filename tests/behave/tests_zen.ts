@@ -261,7 +261,7 @@ describe('zen mode', () => {
         assert.deepEqual(await picked(), []);
     });
 
-    it('select all: Ctrl / ⌘ + A with the pointer over the list (all items it has); elsewhere or typing: not', async () => {
+    it('select all: Ctrl / ⌘ + A with the pointer over the list (all items it has); Esc or a click elsewhere drops it', async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);
         const n = (await names(z)).length;
@@ -275,7 +275,16 @@ describe('zen mode', () => {
         await page.keyboard.press('ControlOrMeta+a');
         assert.equal(await picked(), n);
         assert.equal(await h.text(z.locator('.tp-zen-picked')), `${n} selected`);
-        await z.locator('.tp-zen-pick-all').click(); // none again
+        // dropped by Esc, and by a click elsewhere (not on what acts on it: download, delete, checkboxes)
+        await page.keyboard.press('Escape');
+        assert.equal(await picked(), 0, 'Esc');
+        await page.keyboard.press('ControlOrMeta+a');
+        await btn(z, 'Download').hover(); // hovering: nothing happens
+        assert.equal(await picked(), n);
+        await rowOf(z, 'prices.csv').locator('.tp-zen-pick-one').click(); // a checkbox: changes it
+        assert.equal(await picked(), n - 1);
+        await page.locator('.tp-viewer .tp-content').click(); // elsewhere: gone
+        assert.equal(await picked(), 0, 'a click elsewhere');
         // the text cursor in a field (a filter's text): typing wins
         await z.locator('th[title="Status"] .tp-filter').click();
         await z.locator('.tp-filter-panel input[type="text"]').first().focus();
@@ -336,11 +345,12 @@ describe('zen mode', () => {
         const status = (p: string) => page.evaluate(async (url) => (await fetch(url)).status, p);
         assert.equal(await status(`${h.LIBRARY}/notes.txt`), 404);
         assert.equal(await status(`${h.LIBRARY}/Logs/app.log`), 404, 'folder: with all in it');
-        // the button; typing in a field: the Delete key is the field's
-        await box('README.md').click();
+        // the button; typing in a field: the Delete key is the field's (a click elsewhere drops the selection:
+        // edit mode first, then the item picked, the cell focused without a click)
         await z.locator('.tp-bar-btn[title^="Edit"]').click();
+        await box('README.md').click();
         const priority = (await cell(z, 'README.md', 'Priority')).locator('.tp-zen-text');
-        await priority.click();
+        await priority.focus();
         await page.keyboard.press('Delete');
         assert.equal((await dialogues(page)).confirms.length, 1, 'not asked while typing');
         await btn(z, 'Delete').click();
