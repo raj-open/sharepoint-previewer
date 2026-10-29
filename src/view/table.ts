@@ -9,6 +9,10 @@ import { CSV_COLOURS } from '../text/highlight/csv.ts';
 import { BIN_SVG } from '../ui/icons.ts';
 import { CHUNK_LINES } from './lines.ts';
 import { watchBlocks } from './lines.ts';
+import { closeFilterPanel } from './filter.ts';
+import { nextSort } from './filter.ts';
+import { openFilterPanel } from './filter.ts';
+import { shownRows } from './filter.ts';
 
 import type { LineView } from '../_core/types.ts';
 import type { TableState } from '../_core/types.ts';
@@ -123,22 +127,7 @@ export function mountTable(
     let io: IntersectionObserver | null = null;
 
     // Rows to show: filtered, then sorted (indexes into rows)
-    const viewRows = () => {
-        let idx = rows.map((_, i) => i);
-        for (const [c, f] of state.filters) {
-            const text = f.text.toLowerCase();
-            idx = idx.filter((i) => {
-                const v = rows[i][c] ?? '';
-                return (!f.values || f.values.has(v)) && (!text || v.toLowerCase().includes(text));
-            });
-        }
-        if (state.sort) {
-            const { col, dir } = state.sort;
-            const cmp = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-            idx.sort((a, b) => dir * cmp.compare(rows[a][col] ?? '', rows[b][col] ?? '') || a - b);
-        }
-        return idx;
-    };
+    const viewRows = () => shownRows(rows.length, (i, c: number) => rows[i][c] ?? '', state.filters, state.sort);
 
     const headHtml = () => {
         const all = opts.expand
@@ -300,86 +289,23 @@ export function mountTable(
         if (btn) return void openFilter(btn, Number(btn.dataset.c));
         const th = (e.target as HTMLElement).closest('th[data-c]');
         if (!th) return;
-        const col = Number(th.dataset.c);
-        const s = state.sort;
-        state.sort = !s || s.col !== col ? { col, dir: 1 } : s.dir > 0 ? { col, dir: -1 } : null;
+        state.sort = nextSort(state.sort, Number(th.dataset.c));
         build();
     });
 
-    // Filter panel: unique values with checkboxes, plus "contains" text field
-    let panel: HTMLElement | null = null;
-    const closePanel = () => {
-        panel?.remove();
-        panel = null;
-        document.removeEventListener('pointerdown', outside, true);
-    };
-    const outside = (e: Event) => {
-        if (panel && !panel.contains(e.target as Node) && !(e.target as HTMLElement).closest('.tp-filter'))
-            closePanel();
-    };
-    const openFilter = (btn: HTMLElement, c: number) => {
-        closePanel();
-        const f = state.filters.get(c) || { values: null, text: '' };
-        const counts = new Map();
-        for (const r of rows) counts.set(r[c] ?? '', (counts.get(r[c] ?? '') || 0) + 1);
-        const cmp = new Intl.Collator(undefined, { numeric: true }).compare;
-        const values = [...counts.keys()].sort(cmp).slice(0, 1000);
-        panel = document.createElement('div');
-        panel.className = 'tp-filter-panel';
-        const items = values
-            .map(
-                (val, i) => `
-        <label><input type="checkbox" data-i="${i}"${!f.values || f.values.has(val) ? ' checked' : ''}>
-        ${esc(val || '(empty)')} <span>${counts.get(val)}</span></label>`,
-            )
-            .join('');
-        const more =
-            counts.size > values.length ? `<small>first ${values.length} of ${counts.size} values</small>` : '';
-        panel.innerHTML = `
-      <input type="text" placeholder="contains …" value="${esc(f.text)}">
-      <label><input type="checkbox" data-all> <em>all</em></label>
-      <div class="tp-filter-list">${items}
-      </div>
-      ${more}
-    `;
-        const r = btn.getBoundingClientRect();
-        const box = content.getBoundingClientRect();
-        panel.style.left = `${Math.max(0, Math.min(r.left - box.left, box.width - 240))}px`;
-        panel.style.top = `${r.bottom - box.top + 2}px`;
-        (content.parentElement as HTMLElement).append(panel); // content sits in the viewer
-        document.addEventListener('pointerdown', outside, true);
-
-        const boxes = [...panel.querySelectorAll('[data-i]')] as HTMLInputElement[]; // checkboxes
-        const all = panel.querySelector('[data-all]') as HTMLInputElement; // in the panel's HTML above
-        const input = panel.querySelector('input[type="text"]') as HTMLInputElement;
-        all.checked = boxes.every((b) => b.checked);
-        const apply = () => {
-            const checked = boxes.filter((b) => b.checked).map((b) => values[Number(b.dataset.i)]);
-            const everything = checked.length === values.length;
-            const nf = { values: everything ? null : new Set(checked), text: input.value };
-            if (!nf.values && !nf.text) state.filters.delete(c);
-            else state.filters.set(c, nf);
-            build();
-        };
-        all.onchange = () => {
-            for (const b of boxes) b.checked = all.checked;
-            apply();
-        };
-        (panel.querySelector('.tp-filter-list') as HTMLElement).onchange = () => {
-            all.checked = boxes.every((b) => b.checked);
-            apply();
-        };
-        input.oninput = () => {
-            const t = input.value.toLowerCase();
-            for (const b of boxes) {
-                (b.parentElement as HTMLElement).style.display = values[Number(b.dataset.i)].toLowerCase().includes(t)
-                    ? ''
-                    : 'none';
-            }
-            apply();
-        };
-        input.focus();
-    };
+    // Filter panel of a column (its values, "contains" text)
+    const openFilter = (btn: HTMLElement, c: number) =>
+        openFilterPanel(
+            content,
+            btn,
+            rows.map((r) => r[c] ?? ''),
+            state.filters.get(c),
+            (f) => {
+                if (f) state.filters.set(c, f);
+                else state.filters.delete(c);
+                build();
+            },
+        );
 
     // Write mode: drag row numbers / column titles to move; "+" at edges to insert
     if (opts.editable) {
@@ -530,7 +456,7 @@ export function mountTable(
     return {
         stop: () => {
             io?.disconnect();
-            closePanel();
+            closeFilterPanel();
         },
         show: () => {},
         // As CSV: edited rows rewritten, others as before (all with chosen format)

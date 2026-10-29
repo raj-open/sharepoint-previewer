@@ -45,6 +45,71 @@ describe('list view', () => {
         assert.equal(await page.locator('.tp-head').count(), 1);
     });
 
+    for (const outside of [false, true]) {
+        const how = outside ? 'header outside the rows (moved by a transform, as in Sharepoint)' : 'header in the rows';
+        it(`list scrolled sideways (${how}): row eyes frozen at the left edge, header eye moves into the Zen tab`, async () => {
+            const page = await openFolder(h.LIBRARY);
+            await h.eye(page, 'notes.txt').waitFor();
+            await page.evaluate((outside) => {
+                (document.getElementById('grid') as HTMLElement).style.width = '2400px'; // wider than the list
+                if (!outside) return;
+                // header row in its own box above the scroller, moved along with the rows (no scroll of its own)
+                const scroller = document.querySelector('.scroller') as HTMLElement;
+                const header = document.querySelector('[role="row"].header') as HTMLElement;
+                const box = document.createElement('div');
+                box.style.overflow = 'hidden';
+                const strip = document.createElement('div');
+                strip.style.width = '2400px';
+                strip.append(header);
+                box.append(strip);
+                scroller.before(box);
+                scroller.style.height = 'calc(100% - 43px)';
+                scroller.addEventListener('scroll', () => {
+                    strip.style.transform = `translateX(${-scroller.scrollLeft}px)`;
+                });
+            }, outside);
+            await page.locator('.tp-head').waitFor({ state: 'attached' });
+            const cell = h.row(page, 'notes.txt').locator('.tp-cell');
+            const tab = page.locator('.tp-zen-tab');
+            const tabEye = page.locator('.tp-zen-tab-eye');
+            const head = page.locator('.tp-head');
+            const before = { cell: await cell.boundingBox(), tab: await tab.boundingBox() };
+            assert.equal(await tabEye.count(), 0, 'not scrolled: header eye in the header');
+            assert.equal(await head.evaluate((el) => getComputedStyle(el).visibility), 'visible');
+            const scrollTo = (x: number) =>
+                page.locator('.scroller').evaluate((el, x) => {
+                    el.scrollLeft = x;
+                }, x);
+            await scrollTo(600);
+            await tabEye.waitFor(); // scrolled: header eye moved into the tab
+            assert.equal(await head.evaluate((el) => getComputedStyle(el).visibility), 'hidden');
+            const after = {
+                cell: await cell.boundingBox(),
+                tab: await tab.boundingBox(),
+                eye: await tabEye.boundingBox(),
+            };
+            assert.ok(before.cell && after.cell && Math.abs(after.cell.x - before.cell.x) <= 1, 'row eye frozen');
+            const bg = await cell.evaluate((el) => getComputedStyle(el).backgroundColor);
+            assert.notEqual(bg, 'rgba(0, 0, 0, 0)', 'over the list (opaque)');
+            // the tab does not move (always this size); the eye below the Zen button, inside it (left of the list)
+            assert.ok(before.tab && after.tab && after.eye);
+            assert.ok(
+                Math.abs(after.tab.x - before.tab.x) <= 1 && Math.abs(after.tab.y - before.tab.y) <= 1,
+                'Zen button stays',
+            );
+            assert.ok(after.eye.y > after.tab.y + 20 && after.eye.x >= after.tab.x - 1, 'eye below the Zen button');
+            assert.ok(after.eye.x + after.eye.width <= (after.cell?.x ?? 0) + 1, 'left of the list');
+            await tabEye.click(); // as the header eye: viewer without file
+            const v = page.locator('.tp-viewer');
+            await v.waitFor();
+            assert.equal(await h.text(v.locator('.tp-title-name')), '–');
+            await scrollTo(0);
+            await tabEye.waitFor({ state: 'detached' }); // back in the header
+            assert.equal(await head.evaluate((el) => getComputedStyle(el).visibility), 'visible');
+            assert.equal(await cell.evaluate((el) => el.style.transform), '');
+        });
+    }
+
     it('folder eye: viewer without file for that folder; again: closed', async () => {
         const page = await openFolder(h.LIBRARY);
         await h.eye(page, 'Data').click();

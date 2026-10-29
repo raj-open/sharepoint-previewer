@@ -14,6 +14,8 @@ import { LARGE_FILE_BYTES } from '../_core/settings.ts';
 import { fileStamp } from '../readers/request.ts';
 import { csvSeparator } from '../text/highlight/csv.ts';
 import { SEPARATOR_NAMES } from '../text/highlight/csv.ts';
+import { zenPending } from '../zen/zen.ts';
+import { zenSave } from '../zen/zen.ts';
 import { memoryCache } from './cache.ts';
 import { listRegion } from './layout.ts';
 import { showName } from './names.ts';
@@ -293,7 +295,10 @@ export function guardEdits(): void {
     document.addEventListener(
         'keydown',
         (e) => {
-            if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 's' || !viewer?.writeMode) return;
+            if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 's') return;
+            if (document.querySelector('.tp-settings')) return; // settings form: its own Ctrl+S
+            if (zenSave()) return void e.preventDefault(); // Zen list in edit mode: its changes
+            if (!viewer?.writeMode) return;
             e.preventDefault(); // no "save page" dialogue
             if (!viewer.saveBtn.disabled) viewer.saveBtn.click(); // upload is separate step
         },
@@ -302,7 +307,7 @@ export function guardEdits(): void {
 
     // Unsaved changes: browser asks before page is left
     window.addEventListener('beforeunload', (e) => {
-        if (viewer && (viewer.dirty || viewer.staged != null)) e.preventDefault();
+        if ((viewer && (viewer.dirty || viewer.staged != null)) || zenPending()) e.preventDefault();
     });
 }
 

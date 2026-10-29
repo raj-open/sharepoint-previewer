@@ -85,6 +85,7 @@ export type Viewer = {
     hBtn: HTMLButtonElement;
     vBtn: HTMLButtonElement;
     pBtn: HTMLButtonElement;
+    zenBtn: HTMLButtonElement;
     refreshBtn: HTMLButtonElement;
     loadAllBtn: HTMLButtonElement;
     stopBtn: HTMLButtonElement;
@@ -174,6 +175,68 @@ export type Viewer = {
     newName?: string | null;
     stagedName?: string | null;
 };
+/**
+ * field of a library (column of the Zen list): internal name, title, type (TypeAsString), name in JSON (raw value),
+ * name in FieldValuesAsText (text shown), editable (not a system field, type supported), choices
+ */
+export type ZenField = {
+    name: string;
+    title: string;
+    type: string;
+    entity: string;
+    textKey: string;
+    editable: boolean;
+    choices: string[];
+};
+/** file or folder of the Zen list: list item id, name, server-relative path, values (shown, raw) per field */
+export type ZenItem = {
+    id: number;
+    name: string;
+    path: string;
+    folder: boolean;
+    text: Record<string, string>;
+    raw: Record<string, unknown>;
+};
+/** contents of a folder: library (server-relative, its title), folder, fields (all), the view's columns, items */
+export type ZenData = {
+    library: string;
+    title: string;
+    folder: string;
+    fields: ZenField[];
+    view: string[];
+    items: ZenItem[];
+};
+/** columns of the Zen list per library (kept): order, hidden ones, widths (px) */
+export type ZenColumns = { order: string[]; hidden: string[]; widths: Record<string, number> };
+/** Zen list: elements, folder shown, data, view state (sort, filters), edits (values by item id and field) */
+export type Zen = {
+    el: HTMLDivElement;
+    bar: HTMLDivElement;
+    crumbs: HTMLElement;
+    note: HTMLElement;
+    grid: HTMLDivElement;
+    eyeBtn: HTMLButtonElement;
+    editBtn: HTMLButtonElement;
+    saveBtn: HTMLButtonElement;
+    uploadBtn: HTMLButtonElement;
+    cancelBtn: HTMLButtonElement;
+    columnsBtn: HTMLButtonElement;
+    folder: string;
+    urlFolder: string;
+    data: ZenData | null;
+    columns: ZenColumns;
+    sort: { col: string; dir: number } | null;
+    filters: Map<string, Filter>;
+    editing: boolean;
+    busy: boolean;
+    /** changes not uploaded (kept in the view once saved) */
+    pending: Map<number, Record<string, string>>;
+    /** changes since the last save */
+    dirty: boolean;
+    errors: Map<number, Record<string, string>>;
+    token: number;
+    stop: () => void;
+};
 /** where an edit is uploaded: name, server-relative path, new file (the original stays) */
 export type Target = { name: string; url: string; isNew: boolean };
 /** bytes [from, to) of a file */
@@ -227,10 +290,12 @@ export type Package = {
 };
 /** big file: shown only after "cache all" */
 export type Deferred = { deferred: string; size: number; dates: FileDates };
+/** filter of a column: values kept (null: all), text the cells contain */
+export type Filter = { values: Set<string> | null; text: string };
 /** sort, filters, column widths, rows expanded (detail shown; allOpen: last "expand all" opened) of a table view */
 export type TableState = {
     sort: { col: number; dir: number } | null;
-    filters: Map<number, { values: Set<string> | null; text: string }>;
+    filters: Map<number, Filter>;
     widths?: Map<number, number>;
     expanded?: Set<number>;
     allOpen?: boolean;
