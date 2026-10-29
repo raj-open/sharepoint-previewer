@@ -1,11 +1,23 @@
-// Zen list columns: order and hidden ones (view's columns first), moves, kept per library
+// Zen list columns: order and hidden ones (view's columns first), moves, kept per library, layout mode (a draft)
 import assert from 'node:assert/strict';
 import { describe } from 'node:test';
 import { it } from 'node:test';
+import type { Fake } from '../helpers.ts';
 import { gm } from '../helpers.ts';
 import { load } from '../helpers.ts';
 
-const { columnOrder, loadColumns, moveColumn, saveColumns, ZEN_COLUMNS_KEY } = await load('zen/columns.ts');
+const {
+    beginLayout,
+    columnOrder,
+    endLayout,
+    layoutDirty,
+    loadColumns,
+    moveColumn,
+    saveColumns,
+    saveLayout,
+    setColumns,
+    ZEN_COLUMNS_KEY,
+} = await load('zen/columns.ts');
 
 const field = (name: string) => ({
     name,
@@ -54,5 +66,27 @@ describe('zen/columns', () => {
             '/sites/a/docs',
         ]);
         assert.deepEqual(loadColumns('/sites/C/Docs'), NONE);
+    });
+
+    it('layout mode: changes a draft until saved (same columns written out: none); end drops what is not saved', () => {
+        const data = { ...DATA, library: '/sites/L/Docs' };
+        const z: Fake = { el: { querySelector: () => null }, data, columns: loadColumns(data.library), layout: null };
+        assert.equal(layoutDirty(z), false, 'off');
+        beginLayout(z);
+        const { order, hidden } = columnOrder(data, z.columns);
+        setColumns(z, order, hidden);
+        assert.equal(layoutDirty(z), false, 'same columns');
+        setColumns(z, moveColumn(order, 'Status', 'Modified'), hidden);
+        assert.equal(layoutDirty(z), true);
+        assert.deepEqual(loadColumns(data.library), NONE, 'nothing kept yet');
+        saveLayout(z);
+        assert.equal(layoutDirty(z), false);
+        assert.equal(loadColumns(data.library).order[0], 'Status', 'kept');
+        z.columns.widths.Status = 90;
+        assert.equal(layoutDirty(z), true, 'width');
+        endLayout(z);
+        assert.equal(z.layout, null);
+        assert.equal(z.columns.widths.Status, undefined, 'dropped');
+        assert.equal(z.columns.order[0], 'Status', 'saved ones stay');
     });
 });

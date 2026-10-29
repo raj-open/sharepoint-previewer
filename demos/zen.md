@@ -29,9 +29,10 @@ The tab keeps Sharepoint's colours while Zen mode is off, and takes the theme of
   so it shows that folder once Zen mode is off.
 - Click a column title to sort (again: descending, again: off); ▾ filters by the values of a column.
 - The columns are those of the Sharepoint view at first;
-  the columns button (right) shows, hides and orders all columns of the library,
-  column titles (and the entries of the menu) can be dragged to move a column, and their right edge sets the width.
-  All of it is kept per library (in the browser).
+  the columns button (right) starts the layout mode (see below).
+- ⋯ (top right) holds the full settings, dark mode and a reload of the folder;
+  ✕ ends Zen mode (as on the viewer).
+- In a narrow list the path moves to a second row, as the file name in the viewer.
 - Sorting, filters and columns change nothing on Sharepoint.
 
 Also right of the list, under the pop-up, and in dark mode:
@@ -41,6 +42,22 @@ Also right of the list, under the pop-up, and in dark mode:
 ![Zen mode under the pop-up: the list over the full height](img/zen-popup.png)
 
 ![Zen mode in dark mode](img/zen-dark.png)
+
+## Layout ##
+
+The columns button starts the layout mode (the list framed in blue), with the menu of all columns of the library open throughout:
+
+- the checkboxes show or hide a column;
+- column titles (and the entries of the menu) are dragged to move a column, their right edge sets the width;
+- the changes show at once, as a draft:
+  **Save** (or Ctrl / ⌘ + S) keeps them for the library (in the browser),
+  **Cancel**, Esc or the columns button end the layout mode and drop what is not saved (after asking).
+
+Layout mode and edit mode exclude each other:
+columns are not changed while editing properties, nor the other way round.
+Sorting and filters work in every mode.
+
+![Zen mode, layout: columns menu open, Notes shown, Status moved before Modified (not saved yet)](img/zen-layout.png)
 
 ## Editing ##
 

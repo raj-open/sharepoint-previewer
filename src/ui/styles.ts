@@ -778,6 +778,9 @@ const CSS = `
     white-space: nowrap;
     color: var(--tp-title);
   }
+  /* narrow: the crumbs on a second row, full width (as the file name in the viewer's header) */
+  .tp-zen-bar.tp-zen-narrow { flex-wrap: wrap; row-gap: 6px; padding-top: 8px; padding-bottom: 8px; }
+  .tp-zen-bar.tp-zen-narrow .tp-zen-crumbs { order: 1; flex: 1 0 100%; }
   .tp-zen-crumbs a { cursor: pointer; color: var(--tp-accent); }
   .tp-zen-crumbs a:hover { text-decoration: underline; }
   .tp-zen-sep { opacity: .6; }
@@ -807,6 +810,9 @@ const CSS = `
   .tp-zen .tp-zen-btn.tp-zen-eye { color: #0078d4; margin-right: 4px; }
   /* Upload: saved changes waiting for it */
   .tp-zen .tp-zen-btn.tp-zen-ready { color: var(--tp-accent); box-shadow: inset 0 0 0 1px var(--tp-accent); }
+  /* close (top right), as on the viewer: Zen mode off */
+  .tp-zen .tp-zen-btn.tp-zen-close { margin-left: 4px; background: #d13438; color: #fff; font: bold 15px sans-serif; }
+  .tp-zen .tp-zen-btn.tp-zen-close:hover { background: #a4262c; }
   /* Zen toggle: a tab out of the list's left edge, as on a folder: its outline (SVG) in the list's
      colours, open towards the list and over its border (joined); the icon in the outer part */
   .tp-zen-tab {
@@ -862,6 +868,7 @@ const CSS = `
   .tp-zen-table { font-family: inherit; font-weight: 400; }
   .tp-zen-table th { font-weight: 600; }
   .tp-zen.tp-zen-editing { border-color: #d13438; }
+  .tp-zen.tp-zen-layout { border-color: var(--tp-accent); }
   .tp-zen-table { min-width: 100%; }
   .tp-zen-table td { height: 26px; box-sizing: border-box; padding: 2px 10px; }
   .tp-zen-table th, .tp-zen-table td { text-align: left; }
@@ -912,7 +919,7 @@ const CSS = `
   select.tp-zen-input { border: 1px solid var(--tp-border); border-radius: 4px; padding: 0 2px; background: var(--tp-bg); }
   .tp-zen-empty { padding: 24px; text-align: center; opacity: .7; }
   .tp-zen-failed { color: var(--tp-bad-fg); opacity: 1; white-space: pre-wrap; }
-  /* Columns menu: checkboxes, dragged to change the order */
+  /* Columns menu (layout mode, open throughout): checkboxes, dragged to change the order */
   .tp-zen-columns { max-height: 60%; display: flex; flex-direction: column; }
   .tp-zen-columns-list { overflow: auto; }
   .tp-zen-columns label { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 4px; cursor: grab; white-space: nowrap; }

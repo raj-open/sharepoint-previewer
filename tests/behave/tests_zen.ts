@@ -60,6 +60,9 @@ async function cell(z: Locator, name: string, title: string): Promise<Locator> {
     return rowOf(z, name).locator('td').nth(i);
 }
 
+/** @returns a button of the Zen bar (by the start of its title) */
+const btn = (z: Locator, title: string): Locator => z.locator(`.tp-zen-btn[title^="${title}"]`);
+
 /** @returns dialogues so far (confirm answers "yes") */
 const dialogues = (page: Page): Promise<{ alerts: string[]; confirms: string[] }> =>
     page.evaluate(() => {
@@ -175,14 +178,15 @@ describe('zen mode', () => {
         assert.deepEqual(await names(z), ['prices.csv']);
     });
 
-    it('columns: shown and hidden from the menu, kept for the library', async () => {
+    it('columns: shown and hidden from the menu (layout mode), kept for the library once saved', async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);
-        await z.locator('.tp-zen-btn[title^="Columns"]').click();
+        await btn(z, 'Columns').click();
         await z.locator('.tp-zen-columns label', { hasText: 'Notes' }).locator('input').check();
         await z.locator('.tp-zen-columns label', { hasText: 'Priority' }).locator('input').uncheck();
         assert.ok((await titles(z)).includes('Notes'));
         assert.ok(!(await titles(z)).includes('Priority'));
+        await btn(z, 'Save').click();
         await page.reload();
         const again = await filled(page); // Zen mode on again (remembered)
         assert.ok((await titles(again)).includes('Notes'));
@@ -202,6 +206,7 @@ describe('zen mode', () => {
         });
         const before = await titles(z);
         assert.equal(before[1], 'Modified');
+        await btn(z, 'Columns').click(); // layout mode
         const status = z.locator('th[title="Status"] .tp-sort');
         await status.dragTo(z.locator('th[title="Modified"] .tp-sort'), {
             targetPosition: { x: 2, y: 5 },
@@ -212,13 +217,99 @@ describe('zen mode', () => {
         // the name stays first
         await z.locator('th[title="Due"] .tp-sort').dragTo(z.locator('th.tp-zen-name'));
         assert.equal((await titles(z))[0], 'Name');
-        // menu: an entry dragged onto the first one
-        await z.locator('.tp-zen-btn[title^="Columns"]').click();
+        // menu (open throughout the layout mode): an entry dragged onto the first one
         const labels = z.locator('.tp-zen-columns label');
         await labels.filter({ hasText: 'File Size' }).dragTo(labels.first(), { targetPosition: { x: 20, y: 2 } });
         assert.equal((await titles(z))[1], 'File Size');
+        await page.keyboard.press('Control+s'); // saved, as the Save button
         await page.reload();
         assert.equal((await titles(await filled(page)))[1], 'File Size'); // kept
+    });
+
+    it('layout mode: columns moved and sized only there, not while editing (nor the other way round)', async () => {
+        const { page } = await openFolder(DATA);
+        const z = await zen(page);
+        // read mode: titles not movable, no width handles
+        assert.equal(await z.locator('th.tp-movable').count(), 0);
+        assert.equal(await z.locator('th .tp-resize').count(), 0);
+        await z.locator('th[title="Status"] .tp-sort').dragTo(z.locator('th[title="Modified"] .tp-sort'));
+        assert.equal((await titles(z))[1], 'Modified', 'not moved');
+        // edit mode: no layout mode
+        await btn(z, 'Edit').click();
+        assert.ok(await btn(z, 'Columns').isDisabled());
+        await page.keyboard.press('Escape');
+        // layout mode: no edit mode, no upload; the menu stays open; marked
+        await btn(z, 'Columns').click();
+        assert.ok(await btn(z, 'Edit').isDisabled());
+        assert.ok(await btn(z, 'Upload').isDisabled());
+        assert.ok(await btn(z, 'Save').isDisabled(), 'nothing changed yet');
+        assert.ok(await z.evaluate((el) => el.classList.contains('tp-zen-layout')));
+        assert.ok((await z.locator('th.tp-movable').count()) > 0);
+        await z.locator('th.tp-zen-name').click(); // sorts: menu still open
+        assert.equal(await z.locator('.tp-zen-columns').count(), 1);
+    });
+
+    it('layout mode: a draft; Cancel and Esc drop it (after asking), the columns as saved again', async () => {
+        const { page } = await openFolder(DATA);
+        const z = await zen(page);
+        const before = await titles(z);
+        await btn(z, 'Columns').click();
+        await z.locator('.tp-zen-columns label', { hasText: 'Status' }).locator('input').uncheck();
+        assert.ok(!(await titles(z)).includes('Status'), 'shown at once');
+        assert.ok(await btn(z, 'Save').isEnabled());
+        await btn(z, 'Cancel').click();
+        assert.deepEqual(await titles(z), before);
+        assert.equal(await z.locator('.tp-zen-columns').count(), 0, 'layout mode off');
+        assert.equal((await dialogues(page)).confirms.length, 1, 'asked');
+        await btn(z, 'Columns').click();
+        await z.locator('.tp-zen-columns label', { hasText: 'Status' }).locator('input').uncheck();
+        await page.keyboard.press('Escape');
+        assert.deepEqual(await titles(z), before);
+        await page.reload();
+        assert.deepEqual(await titles(await filled(page)), before, 'nothing kept');
+    });
+
+    it('⋯ menu: settings, dark mode, reload of the folder; ✕: Zen mode off (the viewer stays)', async () => {
+        const { page, requests } = await openFolder(DATA);
+        const z = await zen(page);
+        await btn(z, 'More').click();
+        const items = await z.locator('.tp-zen-more .tp-menu-item').allTextContents();
+        assert.deepEqual(
+            items.map((t) => t.trim()),
+            ['Full settings …', 'Dark mode', 'Reload the folder'],
+        );
+        await z.locator('.tp-zen-more .tp-menu-item', { hasText: 'Dark mode' }).click();
+        assert.ok(await z.evaluate((el) => el.classList.contains('tp-dark')));
+        assert.ok(await page.locator('.tp-viewer').evaluate((el) => el.classList.contains('tp-dark')), 'viewer too');
+        const reads = requests.filter((r) => /GetItems/.test(r.url)).length;
+        await btn(z, 'More').click();
+        await z.locator('.tp-zen-more .tp-menu-item', { hasText: 'Reload the folder' }).click();
+        await page.waitForFunction(() => !document.querySelector('.tp-zen-note')?.textContent?.includes('Loading'));
+        assert.ok(requests.filter((r) => /GetItems/.test(r.url)).length > reads, 'read anew');
+        await btn(z, 'More').click();
+        await page.keyboard.press('Escape');
+        assert.equal(await z.locator('.tp-zen-more').count(), 0, 'Esc closes it');
+        await btn(z, 'Zen mode off').click();
+        assert.equal(await page.locator('.tp-zen').count(), 0);
+        assert.equal(await page.locator('.tp-viewer').count(), 1);
+    });
+
+    it('narrow: the crumbs on a second row (full width), as the file name in the viewer', async () => {
+        const { page } = await openFolder(DATA);
+        const z = await zen(page);
+        const bar = z.locator('.tp-zen-bar');
+        const rowOfCrumbs = () =>
+            bar.evaluate((b) => {
+                const c = b.querySelector('.tp-zen-crumbs') as HTMLElement;
+                const e = b.querySelector('.tp-zen-eye') as HTMLElement;
+                return { below: c.offsetTop > e.offsetTop + e.offsetHeight, wide: c.offsetWidth > b.clientWidth - 40 };
+            });
+        assert.deepEqual(await rowOfCrumbs(), { below: false, wide: false });
+        await z.evaluate((el) => {
+            el.style.width = '420px';
+        });
+        await page.waitForFunction(() => document.querySelector('.tp-zen-bar')?.classList.contains('tp-zen-narrow'));
+        assert.deepEqual(await rowOfCrumbs(), { below: true, wide: true });
     });
 
     it("edit: saved in the view, uploaded as Sharepoint's form does (form digest), refused ones marked; system fields read only", async () => {
@@ -300,7 +391,8 @@ describe('zen mode', () => {
     it('edit: names longer than their column stay shown, cut at their end (not left out as "…")', async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);
-        // name column made narrow (its edge dragged to the left)
+        // name column made narrow (its edge dragged to the left; layout mode, saved, ended)
+        await btn(z, 'Columns').click();
         const handle = z.locator('th.tp-zen-name .tp-resize');
         const b = await handle.boundingBox();
         assert.ok(b);
@@ -308,7 +400,9 @@ describe('zen mode', () => {
         await page.mouse.down();
         await page.mouse.move(b.x - 400, b.y + b.height / 2, { steps: 5 });
         await page.mouse.up();
-        await z.locator('.tp-zen-btn[title^="Edit"]').click();
+        await btn(z, 'Save').click();
+        await btn(z, 'Columns').click();
+        await btn(z, 'Edit').click();
         await z.locator('td.tp-zen-name .tp-zen-text[contenteditable]').first().waitFor();
         const cells = await z.locator('td.tp-zen-name').evaluateAll((tds) =>
             tds.map((td) => {

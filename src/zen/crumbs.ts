@@ -6,6 +6,7 @@
 
 import { esc } from '../_core/util.ts';
 import { sameFile } from '../viewer/open.ts';
+import { closeOutside } from './menu.ts';
 
 import type { Zen } from '../_core/types.ts';
 
@@ -62,10 +63,5 @@ export function toggleLibraries(z: Zen, library: string, anchor: HTMLElement): v
     menu.style.top = `${at.bottom - box.top + 4}px`;
     menu.style.left = `${Math.max(0, at.left - box.left)}px`;
     z.el.append(menu);
-    const outside = (e: Event) => {
-        if (menu.contains(e.target as Node) || anchor.contains(e.target as Node)) return;
-        menu.remove();
-        document.removeEventListener('pointerdown', outside, true);
-    };
-    document.addEventListener('pointerdown', outside, true);
+    closeOutside(menu, anchor);
 }
