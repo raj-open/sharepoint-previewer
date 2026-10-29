@@ -416,14 +416,14 @@ describe('zen mode', () => {
         assert.deepEqual(await titles(await filled(page)), before, 'nothing kept');
     });
 
-    it('⋯ menu: settings, dark mode, reload of the folder; ✕: Zen mode off (the viewer stays)', async () => {
+    it('⋯ menu: settings, about, dark mode, reload of the folder; ✕: Zen mode off (the viewer stays)', async () => {
         const { page, requests } = await openFolder(DATA);
         const z = await zen(page);
         await btn(z, 'More').click();
         const items = await z.locator('.tp-zen-more .tp-menu-item').allTextContents();
         assert.deepEqual(
             items.map((t) => t.trim()),
-            ['Full settings …', 'Dark mode', 'Reload the folder'],
+            ['Full settings …', 'About …', 'Dark mode', 'Reload the folder'],
         );
         await z.locator('.tp-zen-more .tp-menu-item', { hasText: 'Dark mode' }).click();
         assert.ok(await z.evaluate((el) => el.classList.contains('tp-dark')));
