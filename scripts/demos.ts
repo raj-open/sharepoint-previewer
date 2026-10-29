@@ -982,9 +982,9 @@ async function editText(page: Page, v: Locator): Promise<void> {
 }
 
 /** Opens a file and caches all of it (button "Cache the whole file"), until fully cached. */
-/** Zen mode by its tab; waits for the list */
+/** Zen mode by its tab (dispatched: under a pop-up viewer the tab is covered); waits for the list */
 async function zen(page: Page): Promise<void> {
-    await page.locator('.tp-zen-tab').click();
+    await page.locator('.tp-zen-tab').dispatchEvent('click');
     await page.locator('.tp-zen .tp-zen-row').first().waitFor();
     await page.mouse.move(0, 0); // no hover marks
 }
