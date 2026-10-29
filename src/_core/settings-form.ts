@@ -41,6 +41,7 @@ const SETTING_FORM: [string, string, (string[] | string)?][] = [
     ['parquet-rows', 'Table rows shown'],
     ['max-line-chars', 'Lines cut after (characters)'],
     ['follow-links', 'Follow .url link files'],
+    ['sharepoint-api', 'Use the Sharepoint API (Zen mode, search)'],
     ['viewer-3d-folder', '3D viewer folder', '/sites/…/Viewer  or  /teams/…/Viewer  (or relative to the site)'],
     ['viewer-3d-max-bytes', 'Warn 3D view if IFC size exceeds', 'MB'],
     ['logo', 'Logo (data:image/… URI, empty = no image)'],
@@ -400,7 +401,14 @@ export function openSettingsForm(): void {
         document.removeEventListener('keydown', onKey, true);
         wrap.remove();
     };
+    // Esc closes; Ctrl+S / Cmd+S saves (as in write mode), never the browser's "save page"
     const onKey = (e: KeyboardEvent) => {
+        if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 's') {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!saveBtn.disabled) form.requestSubmit(saveBtn);
+            return;
+        }
         if (e.key !== 'Escape') return;
         e.stopPropagation();
         close();
