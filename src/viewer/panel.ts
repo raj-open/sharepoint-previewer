@@ -45,17 +45,13 @@ import { THEME_SVG } from '../ui/icons.ts';
 import { UPLOAD_SVG } from '../ui/icons.ts';
 import { WRAP_SVG } from '../ui/icons.ts';
 import { WRITE_SVG } from '../ui/icons.ts';
-import { ZEN_SVG } from '../ui/icons.ts';
 import { FORMAT_LISTS } from '../readers/formats.ts';
 import { wireLink } from '../ui/link.ts';
 import { keepSize } from '../ui/move.ts';
 import { startMove } from '../ui/move.ts';
 import { createPicker } from '../ui/picker.ts';
 import { QUOTE_MODES } from '../view/table.ts';
-import { toggleZen } from '../zen/zen.ts';
-import { ZEN_TITLE } from '../zen/zen.ts';
 import { zenEscape } from '../zen/zen.ts';
-import { zenList } from '../zen/zen.ts';
 import { zenTheme } from '../zen/zen.ts';
 import { cancelLoad } from './cache.ts';
 import { clearAllCached } from './cache.ts';
@@ -181,8 +177,6 @@ export function createViewer(): Viewer {
     const hBtn = item(SPLIT_H_SVG, 'Below the list');
     const vBtn = item(SPLIT_V_SVG, 'Right of the list');
     const pBtn = item(POPUP_SVG, 'Popup');
-    const zenBtn = item(ZEN_SVG, 'Zen mode', { pressed: !!zenList });
-    zenBtn.title = ZEN_TITLE;
     const themeBtn = item(THEME_SVG, 'Dark mode', { pressed: view.theme === 'dark' });
     themeBtn.dataset.themeToggle = ''; // pressed: dark (also if switched in the Zen list)
     const colourBtn = item(COLOUR_SVG, 'Syntax colours');
@@ -194,8 +188,6 @@ export function createViewer(): Viewer {
     const clearAllBtn = item(CLEAR_SVG, 'Clear all files from the cache', { disabled: memoryCache.size === 0 });
     const settingsBtn = item(SETTINGS_SVG, 'Full settings …');
     const aboutBtn = item(ABOUT_SVG, 'About …');
-    const newItem = item(NEW_FILE_SVG, 'New file …');
-    newItem.title = NEW_FILE_ON;
 
     // Small drop-down under its button; closes on any click outside or on entry
     const menu = (anchor: HTMLElement, entries: HTMLElement[], alignRight = false) => {
@@ -225,19 +217,7 @@ export function createViewer(): Viewer {
     const layoutMenu = menu(layoutBtn, [hBtn, vBtn, pBtn]);
     const moreMenu = menu(
         moreBtn,
-        [
-            newItem,
-            settingsBtn,
-            zenBtn,
-            themeBtn,
-            colourBtn,
-            wrapBtn,
-            refreshBtn,
-            reload3dBtn,
-            clearBtn,
-            clearAllBtn,
-            aboutBtn,
-        ],
+        [settingsBtn, themeBtn, colourBtn, wrapBtn, refreshBtn, reload3dBtn, clearBtn, clearAllBtn, aboutBtn],
         true,
     );
 
@@ -254,7 +234,7 @@ export function createViewer(): Viewer {
     propsBtn.setAttribute('aria-pressed', String(view.props));
     const linkBtn = barButton(LINK_SVG, 'Copy the link', 'tp-well-btn');
     title.prepend(propsBtn, linkBtn);
-    // New file: in the title well while no file is open (also in the ⋯ menu)
+    // New file: in the title well while no file is open
     const newBtn = document.createElement('button');
     newBtn.type = 'button';
     newBtn.className = 'tp-new-file';
@@ -462,7 +442,6 @@ export function createViewer(): Viewer {
         hBtn,
         vBtn,
         pBtn,
-        zenBtn,
         refreshBtn,
         loadAllBtn,
         stopBtn,
@@ -472,7 +451,6 @@ export function createViewer(): Viewer {
         uploadBtn,
         writeBtn,
         newBtn,
-        newItem,
         linkBtn,
         textBtn,
         previewBtn,
@@ -547,7 +525,6 @@ export function createViewer(): Viewer {
     hBtn.onclick = () => v.mode !== 'horizontal' && setMode('horizontal');
     vBtn.onclick = () => v.mode !== 'vertical' && setMode('vertical');
     pBtn.onclick = () => v.mode !== 'popup' && setMode('popup');
-    zenBtn.onclick = () => toggleZen();
     refreshBtn.onclick = () => v.file && showFile(v.file.name, v.file.url, true);
     reload3dBtn.onclick = () => void reload3d(v);
     stopBtn.onclick = () => {
@@ -562,7 +539,6 @@ export function createViewer(): Viewer {
     settingsBtn.onclick = () => openSettingsForm();
     aboutBtn.onclick = () => openSettingsForm('about');
     newBtn.onclick = () => newFile();
-    newItem.onclick = () => newFile();
     writeBtn.onclick = () => (v.writeMode ? leaveWrite() : enterWrite(v));
     // 3D choice remembered for next IFC files (also across reloads)
     const set3d = (on: boolean) => {

@@ -26,12 +26,10 @@ async function openFolder(folder: string, settings: Record<string, unknown> = {}
     return session;
 }
 
-/** Zen mode from the ⋯ menu of the viewer (no viewer yet: the empty one first, by the header eye) @returns Zen list */
+/** Zen mode by its tab (no viewer yet: the empty one first, by the header eye) @returns Zen list */
 async function zen(page: Page): Promise<Locator> {
     if (!(await page.locator('.tp-viewer').count())) await page.locator('.tp-head').dispatchEvent('click');
-    const v = page.locator('.tp-viewer');
-    await v.locator('.tp-mode-btn[title="More"]').click();
-    await v.locator('.tp-menu-item', { hasText: 'Zen mode' }).click();
+    await page.locator('.tp-zen-tab').click();
     return filled(page);
 }
 
@@ -70,12 +68,21 @@ async function cell(z: Locator, name: string, title: string): Promise<Locator> {
 }
 
 /** @returns a button of the Zen bar (by the start of its title) */
-const btn = (z: Locator, title: string): Locator => z.locator(`.tp-bar-btn[title^="${title}"]`);
+const btn = (z: Locator, title: string): Locator => z.locator(`.tp-bar .tp-bar-btn[title^="${title}"]`);
 
-/** Columns from the ⋯ menu: layout mode on (or off) */
+/** @returns a button of the columns pane (by the start of its title) */
+const paneBtn = (z: Locator, title: string): Locator => z.locator(`.tp-zen-pane .tp-bar-btn[title^="${title}"]`);
+
+/** Columns pane from the ⋯ menu (read only) */
 async function columns(z: Locator): Promise<void> {
     await btn(z, 'More').click();
     await z.locator('.tp-zen-more .tp-menu-item', { hasText: 'Columns' }).click();
+}
+
+/** Columns pane opened, then its Edit: layout mode on */
+async function editColumns(z: Locator): Promise<void> {
+    await columns(z);
+    await paneBtn(z, 'Edit').click();
 }
 
 /** @returns dialogues so far (confirm answers "yes") */
@@ -387,22 +394,32 @@ describe('zen mode', () => {
         await z.locator('.tp-zen-row').first().click({ trial: true }); // the list usable again
     });
 
-    it('columns: shown and hidden from the menu (layout mode), kept for the library once saved', async () => {
+    it('columns: a pane (read only until Edit), shown and hidden there, kept for the library once saved', async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);
         await columns(z);
-        await z.locator('.tp-zen-columns label', { hasText: 'Notes' }).locator('input').check();
-        await z.locator('.tp-zen-columns label', { hasText: 'Priority' }).locator('input').uncheck();
+        const pane = z.locator('.tp-zen-pane');
+        const list = await z.locator('.tp-zen-body').boundingBox();
+        const box = await pane.boundingBox();
+        assert.ok(list && box && Math.abs(box.height - list.height) <= 2, 'full height of the list');
+        assert.ok(await pane.locator('label', { hasText: 'Notes' }).locator('input').isDisabled(), 'read only');
+        assert.ok(await paneBtn(z, 'Save').isDisabled());
+        await paneBtn(z, 'Edit').click();
+        await pane.locator('label', { hasText: 'Notes' }).locator('input').check();
+        await pane.locator('label', { hasText: 'Priority' }).locator('input').uncheck();
         assert.ok((await titles(z)).includes('Notes'));
         assert.ok(!(await titles(z)).includes('Priority'));
-        await btn(z, 'Save').click();
+        await paneBtn(z, 'Save').click();
+        await paneBtn(z, 'Close').click(); // ✕: pane gone (saved: no question)
+        assert.equal(await pane.count(), 0);
+        assert.equal((await dialogues(page)).confirms.length, 0);
         await page.reload();
         const again = await filled(page); // Zen mode on again (remembered)
         assert.ok((await titles(again)).includes('Notes'));
         assert.ok(!(await titles(again)).includes('Priority'));
     });
 
-    it('columns: moved by dragging a title or a menu entry (no HTML drag and drop: Sharepoint takes it), kept', async () => {
+    it('columns: moved by dragging a title or a pane entry (no HTML drag and drop: Sharepoint takes it), kept', async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);
         // as Sharepoint's drop zone for uploads: HTML drag and drop never reaches the list
@@ -415,7 +432,7 @@ describe('zen mode', () => {
         });
         const before = await titles(z);
         assert.equal(before[1], 'Modified');
-        await columns(z); // layout mode
+        await editColumns(z); // layout mode
         const status = z.locator('th[title="Status"] .tp-sort');
         await status.dragTo(z.locator('th[title="Modified"] .tp-sort'), {
             targetPosition: { x: 2, y: 5 },
@@ -426,7 +443,7 @@ describe('zen mode', () => {
         // the name stays first
         await z.locator('th[title="Due"] .tp-sort').dragTo(z.locator('th.tp-zen-name'));
         assert.equal((await titles(z))[0], 'Name');
-        // menu (open throughout the layout mode): an entry dragged onto the first one
+        // pane: an entry dragged onto the first one
         const labels = z.locator('.tp-zen-columns label');
         await labels.filter({ hasText: 'File Size' }).dragTo(labels.first(), { targetPosition: { x: 20, y: 2 } });
         assert.equal((await titles(z))[1], 'File Size');
@@ -459,41 +476,66 @@ describe('zen mode', () => {
         assert.ok(((await again.locator('th[title="Status"]').boundingBox())?.width ?? 0) < wide, 'as it fits');
         await z.locator('th[title="Status"] .tp-sort').dragTo(z.locator('th[title="Modified"] .tp-sort'));
         assert.equal((await titles(z))[1], 'Modified', 'not moved');
-        // edit mode: no layout mode
+        // editing properties: the pane opens, but its Edit is off
         await btn(z, 'Edit').click();
-        await btn(z, 'More').click();
-        assert.ok(await z.locator('.tp-zen-more .tp-menu-item', { hasText: 'Columns' }).isDisabled());
-        await page.keyboard.press('Escape'); // the menu
-        await page.keyboard.press('Escape');
-        // layout mode: no edit mode, no upload; the menu stays open; marked
         await columns(z);
+        assert.ok(await paneBtn(z, 'Edit').isDisabled());
+        await page.keyboard.press('Escape'); // the pane
+        assert.equal(await z.locator('.tp-zen-pane').count(), 0);
+        await page.keyboard.press('Escape'); // editing properties
+        // layout mode: no editing properties, no upload; marked
+        await editColumns(z);
         assert.ok(await btn(z, 'Edit').isDisabled());
-        assert.ok(await btn(z, 'Upload').isDisabled());
-        assert.ok(await btn(z, 'Save').isDisabled(), 'nothing changed yet');
+        assert.ok(await paneBtn(z, 'Upload').isDisabled(), 'as the view');
+        assert.ok(await paneBtn(z, 'Save').isDisabled(), 'nothing changed yet');
         assert.ok(await z.evaluate((el) => el.classList.contains('tp-zen-layout')));
         assert.ok((await z.locator('th.tp-movable').count()) > 0);
-        await z.locator('th.tp-zen-name').click(); // sorts: menu still open
-        assert.equal(await z.locator('.tp-zen-columns').count(), 1);
+        await z.locator('th.tp-zen-name').click(); // sorts: the pane stays
+        assert.equal(await z.locator('.tp-zen-pane').count(), 1);
     });
 
     it('layout mode: a draft; Cancel and Esc drop it (after asking), the columns as saved again', async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);
         const before = await titles(z);
-        await columns(z);
+        await editColumns(z);
         await z.locator('.tp-zen-columns label', { hasText: 'Status' }).locator('input').uncheck();
         assert.ok(!(await titles(z)).includes('Status'), 'shown at once');
-        assert.ok(await btn(z, 'Save').isEnabled());
-        await btn(z, 'Cancel').click();
+        assert.ok(await paneBtn(z, 'Save').isEnabled());
+        await paneBtn(z, 'Cancel').click();
         assert.deepEqual(await titles(z), before);
-        assert.equal(await z.locator('.tp-zen-columns').count(), 0, 'layout mode off');
+        assert.equal(await z.locator('.tp-zen-pane-editing').count(), 0, 'layout mode off, the pane stays');
         assert.equal((await dialogues(page)).confirms.length, 1, 'asked');
-        await columns(z);
+        await paneBtn(z, 'Edit').click();
         await z.locator('.tp-zen-columns label', { hasText: 'Status' }).locator('input').uncheck();
         await page.keyboard.press('Escape');
         assert.deepEqual(await titles(z), before);
         await page.reload();
         assert.deepEqual(await titles(await filled(page)), before, 'nothing kept');
+    });
+
+    it('columns: Upload writes the columns saved into the Sharepoint view (asked first), for everyone', async () => {
+        // in a folder of the Tools library: its own view, so the other tests keep theirs
+        const { page, requests } = await openFolder(`${h.TOOLS}`);
+        const z = await zen(page);
+        await editColumns(z);
+        assert.ok(await paneBtn(z, 'Upload').isDisabled(), 'as the view');
+        await z.locator('.tp-zen-columns label', { hasText: 'Status' }).locator('input').uncheck();
+        assert.ok(await paneBtn(z, 'Upload').isDisabled(), 'not saved yet');
+        await paneBtn(z, 'Save').click();
+        await paneBtn(z, 'Upload').click();
+        await z.locator('.tp-zen-note', { hasText: 'columns uploaded' }).waitFor();
+        assert.match((await dialogues(page)).confirms.join('\n'), /for everyone/);
+        const posts = requests
+            .filter((r) => r.method === 'POST')
+            .map((r) => decodeURIComponent(new URL(r.url).pathname));
+        assert.ok(posts.some((p) => /\/ViewFields\/removeAllViewFields$/.test(p)));
+        assert.ok(
+            posts.some((p) => /\/ViewFields\/addViewField\('LinkFilename'\)$/.test(p)),
+            'name fields kept',
+        );
+        assert.ok(!posts.some((p) => /addViewField\('Status'\)/.test(p)));
+        assert.ok(await paneBtn(z, 'Upload').isDisabled(), 'now as the view');
     });
 
     it('⋯ menu: settings, dark mode, reload of the folder, about (last); ✕: Zen mode off (the viewer stays)', async () => {
@@ -503,7 +545,7 @@ describe('zen mode', () => {
         const items = await z.locator('.tp-zen-more .tp-menu-item').allTextContents();
         assert.deepEqual(
             items.map((t) => t.trim()),
-            ['Columns …', 'Full settings …', 'Dark mode', 'Reload the folder', 'About …'],
+            ['Full settings …', 'Columns …', 'Dark mode', 'Reload the folder', 'About …'],
         );
         await z.locator('.tp-zen-more .tp-menu-item', { hasText: 'Dark mode' }).click();
         assert.ok(await z.evaluate((el) => el.classList.contains('tp-dark')));
@@ -801,13 +843,10 @@ describe('zen mode', () => {
         assert.equal(await page.locator('.tp-zen').count(), 1); // Zen mode stays (on its own)
     });
 
-    it('setting "sharepoint-api" off: Zen mode refused with the reason, no API requests', async () => {
+    it('setting "sharepoint-api" off: no Zen mode (no tab), no API requests', async () => {
         const { page, requests } = await openFolder(DATA, { 'sharepoint-api': false });
         await page.locator('.tp-head').dispatchEvent('click');
-        const v = page.locator('.tp-viewer');
-        await v.locator('.tp-mode-btn[title="More"]').click();
-        await v.locator('.tp-menu-item', { hasText: 'Zen mode' }).click();
-        assert.match((await dialogues(page)).alerts.join('\n'), /not allowed \(setting "sharepoint-api"\)/);
+        await page.locator('.tp-viewer').waitFor();
         assert.equal(await page.locator('.tp-zen').count(), 0);
         assert.equal(await page.locator('.tp-zen-tab').count(), 0); // no toggle either
         const head = page.locator('.tp-head');

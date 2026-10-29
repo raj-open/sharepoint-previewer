@@ -21,8 +21,7 @@ import type { Zen } from '../_core/types.ts';
 // CONSTANTS
 // ===========================================================================
 
-const COLUMNS_ON = 'Columns: show, hide and order them (layout mode; Save keeps them for the library)';
-const COLUMNS_OFF = 'Columns: end the layout mode (changes not saved are dropped)';
+const COLUMNS = 'Columns: a pane beside the list (open or close it; to show, hide and order them: Edit there)';
 
 // ===========================================================================
 // METHODS
@@ -47,12 +46,11 @@ export function toggleMore(z: Zen, anchor: HTMLElement, acts: { reload: () => vo
     if (open) return void open.remove();
     const menu = document.createElement('div');
     menu.className = 'tp-menu tp-zen-more';
-    const item = (svg: string, label: string, act: () => void, pressed?: boolean, disabled = false) => {
+    const item = (svg: string, label: string, act: () => void, pressed?: boolean) => {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'tp-menu-item';
         b.innerHTML = `${svg}<span>${esc(label)}</span>`;
-        b.disabled = disabled;
         if (pressed !== undefined) b.setAttribute('aria-pressed', String(pressed));
         b.onclick = () => {
             menu.remove();
@@ -60,13 +58,12 @@ export function toggleMore(z: Zen, anchor: HTMLElement, acts: { reload: () => vo
         };
         return b;
     };
-    // columns: layout mode (not while editing or reading the folder)
-    const layout = !!z.layout;
-    const columns = item(COLUMNS_SVG, 'Columns …', acts.columns, layout, !layout && (z.busy || !z.data || z.editing));
-    columns.title = layout ? COLUMNS_OFF : COLUMNS_ON;
+    // columns: the pane (read only until its Edit)
+    const columns = item(COLUMNS_SVG, 'Columns …', acts.columns);
+    columns.title = COLUMNS;
     menu.append(
-        columns,
         item(SETTINGS_SVG, 'Full settings …', () => openSettingsForm()),
+        columns,
         item(THEME_SVG, 'Dark mode', toggleTheme, view.theme === 'dark'),
         item(REFRESH_SVG, 'Reload the folder', acts.reload),
         item(ABOUT_SVG, 'About …', () => openSettingsForm('about')),

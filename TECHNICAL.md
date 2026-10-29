@@ -171,7 +171,8 @@ How the parts communicate: [NOTES.md, §3](NOTES.md#3-communication).
     a click copies the clean link (not encoded, no query) of the file shown
     (a link file or search result: where it leads),
     or of the folder in the viewer without a file
-  - ⋯ menu: new file, full settings, dark mode, syntax colours, line wrap, properties, reload, clear cache, about (last)
+  - ⋯ menu: full settings (first), dark mode, syntax colours, line wrap, properties, reload, clear cache, about (last);
+    no new file (its button is in the well) and no Zen mode (its tab)
 - **Properties line:**
   modified date (from the file's own HTTP response),
   size, format, encoding, indentation,
@@ -309,8 +310,7 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
 
 - **On and off:**
   the tab out of the left edge of the list (as on a folder; outline: off, filled: on),
-  at the same place for Sharepoint's list and the Zen list, joined to the one seen;
-  or ⋯ → Zen mode in the viewer.
+  at the same place for Sharepoint's list and the Zen list, joined to the one seen.
   The eye at the top left of either list opens or closes the viewer;
   the splitter released with the viewer below 20 % of the space (`VIEWER_MIN`) closes it (Zen mode stays).
   Kept (`tp-preview-zen`): on again after a page load, in any library.
@@ -346,14 +346,20 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
   order, hidden ones and widths kept per library (`tp-preview-zen-columns`, at most 100 libraries).
   Widths (they never go to Sharepoint) change in any mode, by the right edge of a column title, and are kept at once
   (no Save, not part of the layout draft; `saveWidths`); a double-click on the edge: back to as it fits.
-- **Layout mode** (Columns in the ⋯ menu; `/src/zen/columns.ts`):
-  the only mode in which columns are shown or hidden and moved; the columns menu stays open throughout.
-  Columns are moved by dragging their titles or the entries of the menu with the pointer
+- **Columns pane** (Columns in the ⋯ menu, again or ✕ closes it; `/src/zen/columns.ts`):
+  right of the list, over its full height (below the header); the columns in order with a checkbox each (shown or hidden),
+  read only until its **Edit** (layout mode); its own bar: Edit, Cancel, Save, Upload (as the list's), ✕.
+- **Layout mode** (Edit in the columns pane): the only mode in which columns are shown or hidden and moved.
+  Columns are moved by dragging their titles in the list or the entries of the pane with the pointer
   (`/src/view/reorder.ts`; no HTML drag and drop, which Sharepoint takes for its uploads).
   Changes are a draft (`z.columns`, shown at once; the columns as saved in `z.layout`):
-  Save keeps them for the library, Cancel / Esc / Columns again drop what is not saved (after asking);
+  Save keeps them for the library (in this browser), Cancel / Edit again / ✕ / Esc drop what is not saved (after asking);
   compared as shown (order, hidden ones), not as written out.
-  Layout and edit mode exclude each other (the other button disabled; Upload too in layout mode);
+  **Upload** (once saved, if they differ from the view; asks first: it changes the view for everyone)
+  writes the columns into the page's Sharepoint view (`uploadView` in `/src/zen/data.ts`):
+  `POST …/Views(guid'<id>')/ViewFields/removeAllViewFields`, then `addViewField('<name>')` per column in order,
+  the view's name fields (icon, name) first as they were; needs the right to manage the list; widths stay in the browser.
+  Layout mode and editing properties exclude each other (the other Edit disabled);
   sort and filters work in every mode.
 - **Selection** (`/src/zen/select.ts`), as in Sharepoint's view: a checkbox per row, the head's for all rows shown (or none);
   Shift + click: the range from the last one clicked (in the order shown); outside edit mode on a row as well,
@@ -385,7 +391,7 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
 - **Bar:** as the viewer's (`/src/ui/bar.ts`): eye, Edit, Cancel, Save, Upload (Save and Cancel: of the mode on; same places as in the viewer), Download, Delete (with Shift: Purge); crumbs (the well); ⋯, ✕.
   Bars one above the other (Zen list over the viewer) get start and end groups of the same width: the wells line up.
   Below it, as the viewer's properties: the count of items, the note, the selection (or progress).
-  ⋯ (`/src/zen/menu.ts`): columns (layout mode), full settings, dark mode (shared with the viewer: `toggleTheme` in `/src/viewer/panel.ts`), reload of the folder, about (last).
+  ⋯ (`/src/zen/menu.ts`): full settings (first), columns (the pane), dark mode (shared with the viewer: `toggleTheme` in `/src/viewer/panel.ts`), reload of the folder, about (last).
   ✕: Zen mode off.
   Narrow (as the viewer's): the crumbs on a second row, full width.
 - **Editing:**
@@ -404,7 +410,8 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
   with the note that they take effect only once uploaded (the upload button marked).
   A file in the viewer that was renamed is shown under its new name.
 - **Keys:** Ctrl / ⌘ + S saves (edit mode: kept in the view; layout mode: the columns);
-  Esc closes a menu, then ends layout mode (asks for unsaved columns) or edit mode, then closes the viewer.
+  Esc (wherever the focus is) closes a menu, then ends layout mode (asks for unsaved columns), then closes the columns pane,
+  then ends edit mode, then closes the viewer.
 - **Changes not uploaded** (or columns not saved): Cancel drops them (after asking); leaving the page asks first;
   Zen mode off with columns not saved asks first.
 - **Tab:** in Sharepoint's colours while Zen mode is off, in the theme of the Zen list while it is on.

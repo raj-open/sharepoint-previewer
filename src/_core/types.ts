@@ -85,7 +85,6 @@ export type Viewer = {
     hBtn: HTMLButtonElement;
     vBtn: HTMLButtonElement;
     pBtn: HTMLButtonElement;
-    zenBtn: HTMLButtonElement;
     refreshBtn: HTMLButtonElement;
     loadAllBtn: HTMLButtonElement;
     stopBtn: HTMLButtonElement;
@@ -95,7 +94,6 @@ export type Viewer = {
     uploadBtn: HTMLButtonElement;
     writeBtn: HTMLButtonElement;
     newBtn: HTMLButtonElement;
-    newItem: HTMLButtonElement;
     linkBtn: HTMLButtonElement;
     textBtn: HTMLButtonElement;
     previewBtn: HTMLButtonElement;
@@ -206,12 +204,25 @@ export type ZenData = {
     folder: string;
     fields: ZenField[];
     view: string[];
+    /** Sharepoint view of the page (else the default one): its id, all its fields (name fields too) */
+    viewId: string | null;
+    viewAll: string[];
     items: ZenItem[];
 };
 /** library of a site: title, list page (its default view), root folder (server-relative) */
 export type ZenLibrary = { title: string; url: string; folder: string };
 /** columns of the Zen list per library (kept): order, hidden ones, widths (px) */
 export type ZenColumns = { order: string[]; hidden: string[]; widths: Record<string, number> };
+/** columns pane of the Zen list: its element, the list of columns, its buttons */
+export type ZenPane = {
+    el: HTMLElement;
+    list: HTMLElement;
+    reset: HTMLButtonElement;
+    editBtn: HTMLButtonElement;
+    cancelBtn: HTMLButtonElement;
+    saveBtn: HTMLButtonElement;
+    uploadBtn: HTMLButtonElement;
+};
 /** Zen list: elements, folder shown, data, view state (sort, filters), edits (values by item id and field) */
 export type Zen = {
     el: HTMLDivElement;
@@ -220,7 +231,10 @@ export type Zen = {
     note: HTMLElement;
     /** items selected (or the progress of a download or delete) */
     picked: HTMLElement;
+    /** below the header: the grid and the columns pane beside it */
+    body: HTMLDivElement;
     grid: HTMLDivElement;
+    pane: ZenPane | null;
     eyeBtn: HTMLButtonElement;
     downloadBtn: HTMLButtonElement;
     deleteBtn: HTMLButtonElement;

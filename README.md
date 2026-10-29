@@ -57,7 +57,7 @@ Once the previewer worked, we added further features. With it you can
 
   - sorting and filters, with file names and column headers that stay in view while scrolling
 
-  - a layout mode to show, hide and reorder columns (column widths can be changed at any time)
+  - a columns pane to show, hide and reorder columns, kept in your browser or written into the Sharepoint view for everyone (column widths can be changed at any time)
 
   - files and folders selected to download (several at once as a ZIP file) or delete (to the recycle bin, or permanently; always after confirmation)
 

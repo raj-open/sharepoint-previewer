@@ -182,12 +182,13 @@ const CASES: Record<string, Case> = {
             const z = page.locator('.tp-zen');
             await z.locator('.tp-bar-btn[title="More"]').click();
             await z.locator('.tp-zen-more .tp-menu-item', { hasText: 'Columns' }).click();
+            await z.locator('.tp-zen-pane .tp-bar-btn[title^="Edit"]').click(); // layout mode
             await z.locator('.tp-zen-columns label', { hasText: 'Notes' }).locator('input').check();
             await z.locator('th[title="Status"] .tp-sort').dragTo(z.locator('th[title="Modified"] .tp-sort'), {
                 targetPosition: { x: 2, y: 5 },
             });
         },
-        pointer: (page) => page.locator('.tp-zen .tp-bar-btn[title^="Save"]'),
+        pointer: (page) => page.locator('.tp-zen-pane .tp-bar-btn[title^="Save"]'),
     },
     // selection: a range by Shift, one more by Ctrl / Cmd; the download button
     'zen-select': {
@@ -981,11 +982,9 @@ async function editText(page: Page, v: Locator): Promise<void> {
 }
 
 /** Opens a file and caches all of it (button "Cache the whole file"), until fully cached. */
-/** Zen mode from the ⋯ menu of the viewer open; waits for the list */
+/** Zen mode by its tab; waits for the list */
 async function zen(page: Page): Promise<void> {
-    const v = page.locator('.tp-viewer');
-    await v.locator('.tp-mode-btn[title="More"]').click();
-    await v.locator('.tp-menu-item', { hasText: 'Zen mode' }).click();
+    await page.locator('.tp-zen-tab').click();
     await page.locator('.tp-zen .tp-zen-row').first().waitFor();
     await page.mouse.move(0, 0); // no hover marks
 }

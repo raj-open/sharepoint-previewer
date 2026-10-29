@@ -977,14 +977,29 @@ const CSS = `
   select.tp-zen-input { border: 1px solid var(--tp-border); border-radius: 4px; padding: 0 2px; background: var(--tp-bg); }
   .tp-zen-empty { padding: 24px; text-align: center; opacity: .7; }
   .tp-zen-failed { color: var(--tp-bad-fg); opacity: 1; white-space: pre-wrap; }
-  /* Columns menu (layout mode, open throughout): checkboxes, dragged to change the order */
-  .tp-zen-columns { max-height: 60%; display: flex; flex-direction: column; }
-  .tp-zen-columns-list { overflow: auto; }
-  .tp-zen-columns label { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 4px; cursor: grab; white-space: nowrap; }
-  .tp-zen-columns label:hover { background: var(--tp-hover); }
+  /* Below the header: the grid, and the columns pane beside it (full height) */
+  .tp-zen-body { flex: 1; min-height: 0; display: flex; }
+  .tp-zen-body > .tp-zen-grid { min-width: 0; }
+  /* Columns pane: read only until Edit (layout mode): then ticked, unticked and dragged to change the order */
+  .tp-zen-pane {
+    flex: none;
+    width: 260px;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--tp-edge);
+    background: var(--tp-bg);
+  }
+  .tp-zen-pane-bar { flex: none; display: flex; align-items: center; gap: 4px; padding: 8px; border-bottom: 1px solid var(--tp-edge); }
+  .tp-zen-pane-bar strong { flex: 1; padding-left: 4px; color: var(--tp-title); }
+  .tp-zen-columns-list { flex: 1; min-height: 0; overflow: auto; padding: 4px; }
+  .tp-zen-columns label { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 4px; white-space: nowrap; }
+  .tp-zen-columns input:disabled { cursor: default; }
+  .tp-zen-pane-editing label:hover { background: var(--tp-hover); }
+  .tp-zen-pane > .tp-menu-item { flex: none; border-top: 1px solid var(--tp-edge); border-radius: 0; }
+  .tp-zen-pane > .tp-menu-item:disabled { opacity: .4; cursor: default; }
   .tp-zen-grip { opacity: .5; }
-  /* Moving columns (titles, menu): dragged with the pointer */
-  .tp-zen th.tp-movable, .tp-zen-columns label { cursor: grab; user-select: none; -webkit-user-select: none; }
+  /* Moving columns (titles, pane): dragged with the pointer */
+  .tp-zen th.tp-movable, .tp-zen-pane-editing label { cursor: grab; user-select: none; -webkit-user-select: none; }
   .tp-zen .tp-reordering, .tp-zen .tp-reordering * { cursor: grabbing; }
   .tp-zen .tp-moving { opacity: .5; }
   .tp-zen-columns .tp-drop-before { box-shadow: inset 0 2px 0 var(--tp-accent); }

@@ -306,14 +306,13 @@ function inSubFolder(): boolean {
     return !!viewer && !viewer.file && !!viewer.place && !!folder && !sameFile(viewer.place, folder);
 }
 
-// "New file" (button, menu entry): greyed out with a note while the viewer shows another folder
+// "New file" (button in the well): greyed out with a note while the viewer shows another folder
 export function showNewFile(v: Viewer): void {
     const off = inSubFolder();
-    for (const b of [v.newBtn, v.newItem]) {
-        if (b.getAttribute('aria-disabled') === String(off)) continue;
-        b.setAttribute('aria-disabled', String(off));
-        b.title = off ? NEW_FILE_OFF : NEW_FILE_ON;
-    }
+    const b = v.newBtn;
+    if (b.getAttribute('aria-disabled') === String(off)) return;
+    b.setAttribute('aria-disabled', String(off));
+    b.title = off ? NEW_FILE_OFF : NEW_FILE_ON;
 }
 
 // Viewer back to no file; false if user keeps pending changes
@@ -343,10 +342,7 @@ export function showEmpty(v: Viewer): boolean {
     showNewFile(v);
     v.metaLine.innerHTML = '';
     v.metaLine.title = '';
-    showPlain(
-        v,
-        'No file opened.\nClick the eye next to a file to preview it, or create a new file (button above, or ⋯ menu).',
-    );
+    showPlain(v, 'No file opened.\nClick the eye next to a file to preview it, or create a new file (button above).');
     refreshEyes();
     return true;
 }

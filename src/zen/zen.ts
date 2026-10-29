@@ -49,11 +49,14 @@ import { viewer } from '../viewer/open.ts';
 import { keepChanges } from './changes.ts';
 import { loadChanges } from './changes.ts';
 import { beginLayout } from './columns.ts';
-import { drawColumnsMenu } from './columns.ts';
+import { closeColumnsPane } from './columns.ts';
+import { drawColumnsPane } from './columns.ts';
 import { endLayout } from './columns.ts';
 import { layoutDirty } from './columns.ts';
 import { loadColumns } from './columns.ts';
-import { openColumnsMenu } from './columns.ts';
+import { openColumnsPane } from './columns.ts';
+import { shownColumns } from './columns.ts';
+import { showPaneButtons } from './columns.ts';
 import { saveLayout } from './columns.ts';
 import { saveWidths } from './columns.ts';
 import { showCrumbs } from './crumbs.ts';
@@ -67,6 +70,7 @@ import { wireDrop } from './drop.ts';
 import { loadFolder } from './data.ts';
 import { NAME } from './data.ts';
 import { saveItem } from './data.ts';
+import { uploadView } from './data.ts';
 import { drawGrid } from './grid.ts';
 import { fieldOf } from './grid.ts';
 import { markShown } from './grid.ts';
@@ -91,6 +95,9 @@ import type { ZenItem } from '../_core/types.ts';
 export const ZEN_TITLE = 'Zen mode: own list of the folder, with its properties (sort, filter, columns, edit)';
 const DROP = 'Drop the changes of this folder which have not been uploaded to Sharepoint?';
 const DROP_LAYOUT = 'Drop the changes of the columns which have not been saved?';
+const UPLOAD_VIEW =
+    'Write the columns shown (and their order) into the Sharepoint view of this page?\n\n' +
+    'This changes the view for everyone who uses it. Column widths stay in this browser.';
 const DOWNLOAD = 'Download the items selected (folders with all in them: as a ZIP)';
 const DELETE =
     "Delete the items selected (folders with all in them; to the site's recycle bin) (Del; with Shift: purge)";
@@ -153,7 +160,7 @@ export function enterZen(quiet = false): void {
     savePref(ZEN_KEY, '1');
     if (viewer) viewer.backdrop.style.display = 'none'; // popup: the list stays usable beside it
     placeZen(); // the viewer's split as it is: nothing moves
-    showZenState();
+    placeTab(); // the tab shows Zen mode on or off
     void goTo(z, startFolder(library));
     void showLibraries(z, library);
 }
@@ -170,7 +177,7 @@ export function exitZen(): boolean {
     removeZen();
     savePref(ZEN_KEY, '0');
     if (viewer) viewer.backdrop.style.display = viewer.mode === 'popup' ? 'block' : 'none';
-    showZenState();
+    placeTab(); // the tab shows Zen mode on or off
     return true;
 }
 
@@ -183,7 +190,7 @@ export function removeZen(): void {
     z.stop();
     z.el.remove();
     zenList = null;
-    showZenState();
+    placeTab(); // the tab shows Zen mode on or off
 }
 
 /** Page load or library opened: Zen mode as last time (once Sharepoint's list is there); outside a library: none */
@@ -241,6 +248,10 @@ export function zenEscape(): boolean {
         leaveLayout(z);
         return true;
     }
+    if (z.pane) {
+        closePane(z);
+        return true;
+    }
     if (!z.editing || (viewer?.writeMode && !z.el.contains(document.activeElement))) return false;
     leaveEdit(z);
     return true;
@@ -266,12 +277,6 @@ export function zenRefresh(): void {
     z.eyeBtn.dataset.eye = state;
     z.eyeBtn.innerHTML = { closed: EYE_CLOSED_SVG, half: EYE_HALF_SVG, open: EYE_FULL_SVG }[state];
     z.eyeBtn.title = viewer ? 'Close the previewer' : 'Open the previewer (no file)';
-}
-
-// Zen on or off: the toggles (header of Sharepoint's list, ⋯ menu of the viewer) show it
-function showZenState(): void {
-    viewer?.zenBtn.setAttribute('aria-pressed', String(!!zenList));
-    placeTab();
 }
 
 // ---------------------------------------------------------------------------
@@ -474,16 +479,23 @@ function createZen(library: string): Zen {
     const head = document.createElement('div');
     head.className = 'tp-header tp-zen-header';
     head.append(bar, meta);
-    el.append(head, grid);
+    const body = document.createElement('div');
+    body.className = 'tp-zen-body';
+    body.append(grid);
+    el.append(head, body);
 
     // Events stay away from Sharepoint's handlers (split modes: inside its page)
     for (const type of ['click', 'dblclick', 'mousedown', 'pointerdown', 'keydown', 'keyup', 'contextmenu', 'wheel']) {
         el.addEventListener(type, (e) => e.stopPropagation());
     }
-    // Esc without a viewer (with one: the viewer's handler asks the list first)
-    el.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !viewer && zenEscape()) e.preventDefault();
-    });
+    // Esc without a viewer, wherever the focus is (with one: the viewer's handler asks the list first);
+    // not for the settings form (its own Esc)
+    const onEscape = (e: KeyboardEvent) => {
+        if (e.key !== 'Escape' || viewer || document.querySelector('.tp-settings') || !zenEscape()) return;
+        e.preventDefault();
+        e.stopPropagation();
+    };
+    document.addEventListener('keydown', onEscape, true);
     const onResize = () => placeZen();
     window.addEventListener('resize', onResize);
 
@@ -493,7 +505,9 @@ function createZen(library: string): Zen {
         crumbs,
         note,
         picked,
+        body,
         grid,
+        pane: null,
         eyeBtn,
         downloadBtn,
         deleteBtn,
@@ -522,6 +536,7 @@ function createZen(library: string): Zen {
         stop: () => {
             z.fetching?.abort();
             window.removeEventListener('resize', onResize);
+            document.removeEventListener('keydown', onEscape, true);
             window.removeEventListener('keydown', onShift, true);
             window.removeEventListener('keyup', onShift, true);
             window.removeEventListener('blur', noShift);
@@ -567,7 +582,7 @@ function createZen(library: string): Zen {
     // eye: the previewer on (empty, for the folder shown here) or off; Zen: off
     eyeBtn.onclick = () => (viewer ? closeViewer() : openFolder(z.folder));
     editBtn.onclick = () => (z.editing ? leaveEdit(z) : startEdit(z));
-    saveBtn.onclick = () => (z.layout ? saveColumnsOf(z) : saveView(z));
+    saveBtn.onclick = () => saveView(z);
     uploadBtn.onclick = () => void upload(z);
     downloadBtn.onclick = () => (z.fetching ? z.fetching.abort() : void downloadSelected(z));
     // delete; with Shift held: purge (the bin a flame meanwhile, as Shift + Delete)
@@ -578,11 +593,11 @@ function createZen(library: string): Zen {
     window.addEventListener('keydown', onShift, true); // capture: the list keeps its keys from Sharepoint
     window.addEventListener('keyup', onShift, true);
     window.addEventListener('blur', noShift);
-    cancelBtn.onclick = () => (z.layout ? leaveLayout(z) : cancelEdit(z));
+    cancelBtn.onclick = () => cancelEdit(z);
     moreBtn.onclick = () =>
         toggleMore(z, moreBtn, {
             reload: () => void goTo(z, z.folder, true),
-            columns: () => (z.layout ? leaveLayout(z) : startLayout(z, arranged)),
+            columns: () => (z.pane ? closePane(z) : openPane(z, arranged)),
         });
     closeBtn.onclick = () => exitZen();
     showButtons(z);
@@ -594,11 +609,10 @@ function draw(z: Zen): void {
     pruneSelection(z); // what is picked is what is seen
     drawGrid(z, zenList === z ? shownPath() : null);
     showPicked(z);
-    drawColumnsMenu(z);
+    drawColumnsPane(z);
     showButtons(z);
 }
 
-// Buttons as the mode allows: layout and edit mode exclude each other (Save and Cancel: of the mode on)
 // Delete button with Shift held: the purge (flame, red), else the delete (bin)
 function showPurge(z: Zen, purge: boolean): void {
     if (z.deleteBtn.classList.contains('tp-zen-purge') === purge) return;
@@ -607,6 +621,7 @@ function showPurge(z: Zen, purge: boolean): void {
     z.deleteBtn.title = purge ? PURGE : DELETE;
 }
 
+// Buttons as the mode allows: layout mode (columns pane) and editing properties exclude each other
 function showButtons(z: Zen): void {
     const layout = !!z.layout;
     const n = z.selected.size;
@@ -619,19 +634,14 @@ function showButtons(z: Zen): void {
     if (!fetching) z.picked.textContent = n ? `${n.toLocaleString()} selected` : '';
     z.editBtn.setAttribute('aria-pressed', String(z.editing));
     z.editBtn.disabled = z.busy || !z.data || layout;
-    z.saveBtn.disabled = z.busy || (layout ? !layoutDirty(z) : !z.editing || !z.dirty);
-    z.saveBtn.title = layout
-        ? 'Save: keep the columns for this library (Ctrl+S)'
-        : 'Save: keep the changes in the view, ready for upload (Ctrl+S)';
-    const ready = !layout && !z.busy && !z.dirty && z.pending.size > 0; // saved, not uploaded
+    z.saveBtn.disabled = z.busy || !z.editing || !z.dirty;
+    const ready = !z.busy && !z.dirty && z.pending.size > 0; // saved, not uploaded
     z.uploadBtn.disabled = !ready;
     z.uploadBtn.classList.toggle('tp-zen-ready', ready);
-    z.cancelBtn.disabled = !layout && (z.busy || (!z.editing && !z.pending.size));
-    z.cancelBtn.title = layout
-        ? 'Cancel: drop the changes of the columns not saved, end the layout mode'
-        : 'Cancel: drop the changes not uploaded, end editing';
+    z.cancelBtn.disabled = z.busy || (!z.editing && !z.pending.size);
     z.el.classList.toggle('tp-zen-editing', z.editing);
     z.el.classList.toggle('tp-zen-layout', layout);
+    showPaneButtons(z);
 }
 
 /**
@@ -917,23 +927,62 @@ async function upload(z: Zen): Promise<void> {
 // Layout mode: columns shown, hidden and moved (a draft, shown at once); Save keeps them for the library
 // ---------------------------------------------------------------------------
 
-// Layout mode on (not while editing), with the columns menu open throughout; `arranged`: columns drawn anew
-function startLayout(z: Zen, arranged: () => void): void {
+// Columns pane (⋯ menu): read only until Edit; `arranged`: columns drawn anew
+function openPane(z: Zen, arranged: () => void): void {
+    openColumnsPane(
+        z,
+        {
+            edit: () => (z.layout ? leaveLayout(z) : startLayout(z)),
+            cancel: () => leaveLayout(z),
+            save: () => saveColumnsOf(z),
+            upload: () => void uploadColumns(z),
+            close: () => closePane(z),
+        },
+        arranged,
+    );
+}
+
+/** Columns pane closed (layout mode ended first: changes not saved dropped, after asking) */
+function closePane(z: Zen): void {
+    if (z.layout && !leaveLayout(z)) return;
+    closeColumnsPane(z);
+}
+
+// Layout mode on (Edit in the columns pane; not while editing properties): changes a draft from now on
+function startLayout(z: Zen): void {
     if (!z.data || z.busy || z.editing) return;
     beginLayout(z);
-    openColumnsMenu(z, arranged);
     showButtons(z);
     draw(z);
 }
 
-// Save: the columns kept for the library (layout mode stays on)
+// Save: the columns kept for the library, in this browser (layout mode stays on)
 function saveColumnsOf(z: Zen): void {
     if (!layoutDirty(z)) return;
     saveLayout(z);
     showButtons(z);
 }
 
-/** Layout mode off (columns button, Cancel, Esc): changes not saved dropped, after asking @returns it is off */
+// Upload: the columns saved written into the Sharepoint view (for everyone; asked first), then the folder anew
+async function uploadColumns(z: Zen): Promise<void> {
+    const data = z.data;
+    if (!data || z.busy || layoutDirty(z)) return;
+    const columns = shownColumns(z);
+    if (!confirm(UPLOAD_VIEW)) return;
+    z.busy = true;
+    showButtons(z);
+    const why = await uploadView(data, columns);
+    z.busy = false;
+    if (zenList !== z) return;
+    if (why) {
+        showButtons(z);
+        return void alert(`The columns could not be written into the Sharepoint view: ${why}`);
+    }
+    await goTo(z, z.folder, true);
+    showCount(z, 'columns uploaded to the Sharepoint view');
+}
+
+/** Layout mode off (Edit again, Cancel, ✕, Esc): changes not saved dropped, after asking @returns it is off */
 function leaveLayout(z: Zen): boolean {
     if (layoutDirty(z) && !confirm(DROP_LAYOUT)) return false;
     endLayout(z);

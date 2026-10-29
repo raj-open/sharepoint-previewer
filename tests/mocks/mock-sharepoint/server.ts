@@ -23,6 +23,8 @@
 //   <site>/_api/web/GetList(@list)/items(<id>)/recycle(), …/deleteObject()
 //                                                                        item (folder: all below it) to the recycle bin, or for good
 //                                                                        (POST; simulated: gone for the session)
+//   <site>/_api/web/GetList(@list)/Views(guid'<id>')/ViewFields/removeAllViewFields, …/addViewField('<name>')
+//                                                                        fields of the view written (POST; simulated: kept for the session)
 //   <site>/_api/web/lists                                                lists of the site (libraries, plus Sharepoint's own:
 //                                                                        Site Assets, a hidden one; $filter Hidden eq false)
 //
@@ -52,6 +54,7 @@ import { renamedAway } from './properties.ts';
 import { saveStore } from './properties.ts';
 import { validateUpdate } from './properties.ts';
 import { viewsAnswer } from './properties.ts';
+import { writeView } from './properties.ts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
@@ -684,12 +687,23 @@ export function handle(
         );
     const list = listPart && listOf(libs, u.searchParams);
     if (listPart && !list) return fail(400);
+    const viewPart =
+        /^\/_api\/web\/GetList\(@list\)\/Views\(guid'[^']+'\)\/ViewFields\/(removeAllViewFields|addViewField\('((?:[^']|'')+)'\))$/.exec(
+            pathname.slice(SITE.length),
+        );
+    if (viewPart) {
+        if (method !== 'POST') return fail(405);
+        const lib = listOf(libs, u.searchParams);
+        if (!lib) return fail(400);
+        const add = viewPart[2] == null ? null : viewPart[2].replace(/''/g, "'");
+        return answer(writeView(lib, add, headers['x-requestdigest'], uploads));
+    }
     if (pathname === `${SITE}/_api/web/GetList(@list)`) {
         const lib = listOf(libs, u.searchParams);
         return lib ? json({ Title: libs[urlNameOf(lib)].title }) : fail(400);
     }
     if (list && listPart?.[1] === 'Fields') return answer(fieldsAnswer());
-    if (list && listPart?.[1] === 'Views') return answer(viewsAnswer(list));
+    if (list && listPart?.[1] === 'Views') return answer(viewsAnswer(list, loadStore(uploads)));
     if (list && listPart?.[1] === 'GetItems') {
         if (method !== 'POST') return fail(405);
         if (headers['x-requestdigest'] !== DIGEST) return fail(403);
