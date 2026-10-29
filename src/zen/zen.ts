@@ -562,6 +562,7 @@ function createZen(library: string): Zen {
             window.removeEventListener('keyup', onShift, true);
             window.removeEventListener('blur', noShift);
             stopBar();
+            stopSelect();
             stopGrid(z);
             stopDrop();
         },
@@ -577,7 +578,7 @@ function createZen(library: string): Zen {
     };
     const sized = () => saveWidths(z);
     wireGrid(z, { redraw, open: (item) => openItem(z, item), edited, arranged, sized });
-    wireSelect(z, () => showButtons(z));
+    const stopSelect = wireSelect(z, () => showButtons(z));
     // files dragged in: for Sharepoint's list beneath (it uploads them), then the folder anew
     const stopDrop = wireDrop(
         el,

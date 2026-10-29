@@ -1,9 +1,11 @@
-// Zen list selection: items picked by their checkboxes (one; all shown; a range by Shift), rows by Ctrl / Cmd
+// Zen list selection: items picked by their checkboxes (one; all shown; a range by Shift), rows by Ctrl / Cmd,
+// all shown by Ctrl / Cmd + A (the pointer over the list)
 
 // ===========================================================================
 // IMPORTS
 // ===========================================================================
 
+import { typing } from '../_core/util.ts';
 import { itemOf } from './grid.ts';
 import { itemsShown } from './grid.ts';
 
@@ -45,6 +47,16 @@ export function pickAll(z: Zen): void {
     }
     z.anchor = null;
 }
+
+/** All items shown picked (those the list has, as filtered: nothing more is read) */
+export function pickShown(z: Zen): void {
+    for (const x of itemsShown(z)) z.selected.add(x.id);
+    z.anchor = null;
+}
+
+/** @returns Ctrl / Cmd + A (no Shift or Alt) */
+export const isSelectAllKey = (e: KeyboardEvent): boolean =>
+    !!(e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a';
 
 /** Items no longer shown (filtered out, gone) dropped from the selection */
 export function pruneSelection(z: Zen): void {
@@ -89,10 +101,31 @@ export function showPicked(z: Zen): void {
 /**
  * Checkboxes: a click picks (Shift: the range from the last one clicked); the head's: all shown or none.
  * Rows (not in edit mode): Ctrl / Cmd + click picks one more (or drops it), Shift + click the range.
+ * Ctrl / Cmd + A, the pointer over the list and the text cursor in no field (nor in the viewer, a bar or the pane):
+ * all items shown.
  * @param changed selection changed
+ * @returns stops listening for Ctrl / Cmd + A
  */
-export function wireSelect(z: Zen, changed: () => void): void {
+export function wireSelect(z: Zen, changed: () => void): () => void {
     const grid = z.grid;
+    let over = false; // pointer over the list
+    grid.addEventListener('pointerenter', () => {
+        over = true;
+    });
+    grid.addEventListener('pointerleave', () => {
+        over = false;
+    });
+    const onKey = (e: KeyboardEvent) => {
+        if (!over || !z.data || !isSelectAllKey(e)) return;
+        const focus = document.activeElement;
+        if (typing(focus) || focus?.closest('.tp-viewer, .tp-bar, .tp-zen-pane, .tp-menu, .tp-settings')) return;
+        e.preventDefault(); // not the page's text
+        e.stopPropagation();
+        pickShown(z);
+        showPicked(z);
+        changed();
+    };
+    document.addEventListener('keydown', onKey, true);
     grid.addEventListener('mousedown', (e) => {
         // Shift: a range of rows, not of text
         if (e.shiftKey && (e.target as HTMLElement).closest('tr.tp-zen-row, .tp-zen-pick')) e.preventDefault();
@@ -116,4 +149,5 @@ export function wireSelect(z: Zen, changed: () => void): void {
         showPicked(z);
         changed();
     });
+    return () => document.removeEventListener('keydown', onKey, true);
 }

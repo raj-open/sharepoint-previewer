@@ -261,6 +261,29 @@ describe('zen mode', () => {
         assert.deepEqual(await picked(), []);
     });
 
+    it('select all: Ctrl / ⌘ + A with the pointer over the list (all items it has); elsewhere or typing: not', async () => {
+        const { page } = await openFolder(DATA);
+        const z = await zen(page);
+        const n = (await names(z)).length;
+        const picked = () => z.locator('tr.tp-zen-selected').count();
+        // pointer over the viewer: the list leaves it alone
+        await page.locator('.tp-viewer').hover();
+        await page.keyboard.press('ControlOrMeta+a');
+        assert.equal(await picked(), 0);
+        // pointer over the list: all of its items, also those scrolled out of sight
+        await z.locator('tr.tp-zen-row').nth(2).hover();
+        await page.keyboard.press('ControlOrMeta+a');
+        assert.equal(await picked(), n);
+        assert.equal(await h.text(z.locator('.tp-zen-picked')), `${n} selected`);
+        await z.locator('.tp-zen-pick-all').click(); // none again
+        // the text cursor in a field (a filter's text): typing wins
+        await z.locator('th[title="Status"] .tp-filter').click();
+        await z.locator('.tp-filter-panel input[type="text"]').first().focus();
+        await z.locator('tr.tp-zen-row').nth(2).hover();
+        await page.keyboard.press('ControlOrMeta+a');
+        assert.equal(await picked(), 0);
+    });
+
     it('download: one file as it is; several, or a folder with all in it: a ZIP named after the folder', async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);

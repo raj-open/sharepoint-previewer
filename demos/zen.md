@@ -70,6 +70,7 @@ As in Sharepoint's view, each row has a checkbox; the one in the head selects al
 
 - Shift + click selects the range from the last one clicked;
 - Ctrl / ⌘ + click on a row adds it (or drops it) without opening it;
+- Ctrl / ⌘ + A, with the pointer over the list, selects all rows it shows (filtered out: not);
 - **Download**: one file as it is; several, or folders with everything in them, as a ZIP named after the folder
   (made in the browser; the button stops it while it runs);
 - **Delete** (bin, or the Delete key / ⌘ + Backspace in the list): after asking, with the number and names of the items

@@ -367,6 +367,8 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
 - **Selection** (`/src/zen/select.ts`), as in Sharepoint's view: a checkbox per row, the head's for all rows shown (or none);
   Shift + click: the range from the last one clicked (in the order shown); outside edit mode on a row as well,
   Ctrl / ⌘ + click on a row picks it (or drops it) without opening it.
+  Ctrl / ⌘ + A with the pointer over the list picks all items it shows (all loaded, also those scrolled out of sight;
+  filtered out: not; nothing more read), unless the text cursor is in a field, the viewer, a bar or the columns pane.
   A selection belongs to its folder (another folder: none); rows filtered out are dropped from it.
 - **Download** (`/src/zen/download.ts`, download button; again while running: stop):
   one file as it is; else a ZIP named after the folder shown (one folder alone: after it), paths inside the folder shown,

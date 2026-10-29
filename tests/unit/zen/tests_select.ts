@@ -4,7 +4,8 @@ import { describe } from 'node:test';
 import { it } from 'node:test';
 import { load } from '../helpers.ts';
 
-const { pick, pickAll, pickState, pruneSelection, selectedItems } = await load('zen/select.ts');
+const { isSelectAllKey, pick, pickAll, pickShown, pickState, pruneSelection, selectedItems } =
+    await load('zen/select.ts');
 
 const item = (id: number, name: string, folder = false) => ({
     id,
@@ -43,6 +44,22 @@ function zen() {
 const ids = (z: ReturnType<typeof zen>) => [...z.selected].sort();
 
 describe('zen/select', () => {
+    it('Ctrl / Cmd + A: all shown picked (as filtered), also when some are already; the key alone, not with Shift or Alt', () => {
+        const z = zen();
+        z.filters.set('FileLeafRef', { values: null, text: 'txt' });
+        pick(z, 1, true);
+        pickShown(z);
+        assert.deepEqual(ids(z), [1, 2, 4], 'the folder filtered out');
+        pickShown(z);
+        assert.deepEqual(ids(z), [1, 2, 4], 'again: still all (no toggle)');
+        const key = (k: Record<string, unknown>) => isSelectAllKey({ key: 'a', ...k });
+        assert.equal(key({ ctrlKey: true }), true);
+        assert.equal(key({ metaKey: true, key: 'A' }), true);
+        assert.equal(key({ ctrlKey: true, shiftKey: true }), false);
+        assert.equal(key({ metaKey: true, altKey: true }), false);
+        assert.equal(key({}), false);
+    });
+
     it('one: picked, again: dropped; the last one clicked is the start of a range', () => {
         const z = zen();
         pick(z, 2, null);
