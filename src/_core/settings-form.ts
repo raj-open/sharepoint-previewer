@@ -1,4 +1,4 @@
-// Settings form: form and JSON views, validation, reset
+// Settings form: form and JSON views, validation, reset; the tab "About"
 
 // ===========================================================================
 // IMPORTS
@@ -10,6 +10,8 @@ import { brandTitle } from '../ui/brand.ts';
 import { COPY_SVG } from '../ui/icons.ts';
 import { placeMoved } from '../ui/move.ts';
 import { startMove } from '../ui/move.ts';
+import { aboutHtml } from './about.ts';
+import { APP_NAME } from './about.ts';
 import { removePref } from './prefs.ts';
 import { view } from './prefs.ts';
 import type { Settings } from './settings.ts';
@@ -71,7 +73,8 @@ export const POPUP_SIZE_KEY = 'tp-preview-popup-size';
 // METHODS
 // ===========================================================================
 
-export function openSettingsForm(): void {
+/** @param start tab shown first: the form, the JSON, or "About" (anything else: the form) */
+export function openSettingsForm(start = 'form'): void {
     document.querySelector('.tp-settings')?.remove();
     const wrap = document.createElement('div');
     wrap.className = 'tp-settings';
@@ -152,8 +155,8 @@ export function openSettingsForm(): void {
     const tab = (mode: string, text: string) =>
         `<button type="button" data-mode="${mode}" style="border:none; padding:4px 12px; font:12px ${font}; cursor:pointer">${text}</button>`;
     form.innerHTML = `<div data-drag title="Drag to move" style="display:flex; align-items:center; gap:12px; margin:0 0 14px; cursor:move">
-      <div style="display:flex; border:1px solid ${c.border}; border-radius:6px; overflow:hidden">${tab('form', 'Form')}${tab('json', 'JSON')}</div>
-      <h3 style="flex:1; margin:0; font:600 16px ${font}">Sharepoint Previewer: settings</h3>
+      <div style="display:flex; border:1px solid ${c.border}; border-radius:6px; overflow:hidden">${tab('form', 'Form')}${tab('json', 'JSON')}${tab('about', 'About')}</div>
+      <h3 style="flex:1; margin:0; font:600 16px ${font}">${APP_NAME}: settings</h3>
       <div title="${esc(brandTitle())}" style="display:flex; align-items:center; gap:8px; font:11px ${font}; opacity:.75; white-space:nowrap">${brandHtml()}</div>
       <button type="button" data-act="close" title="Close" style="width:28px; height:28px; padding:0; border:none; border-radius:6px; background:transparent; color:${c.fg}; font:18px/1 ${font}; cursor:pointer">✕</button>
     </div>
@@ -165,7 +168,8 @@ export function openSettingsForm(): void {
       </div>
       <div data-errors style="color:${c.bad}; margin-top:6px; height:34px; overflow-y:auto; white-space:pre-line; font-size:12px; line-height:17px"></div>
     </div>
-    <div style="display:flex; gap:8px; align-items:center; justify-content:flex-end; margin-top:18px">
+    <div data-pane="about" style="display:none; overflow-y:auto">${aboutHtml(c)}</div>
+    <div data-footer style="display:flex; gap:8px; align-items:center; justify-content:flex-end; margin-top:18px">
       <button type="button" data-act="reset" title="Fill in the defaults (saved only with Save)" style="${field} cursor:pointer; padding:5px 12px">Reset to defaults</button>
       <span data-note style="flex:1; min-width:0; color:${c.muted}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis"></span>
       <button type="button" data-act="cancel" style="${field} cursor:pointer; padding:5px 16px">Cancel</button>
@@ -181,7 +185,8 @@ export function openSettingsForm(): void {
     const note = part('[data-note]');
     const saveBtn = part('[data-act="save"]') as HTMLButtonElement;
     const slider = setting('viewer-share');
-    let mode = 'form';
+    let mode = 'form'; // the values edited in: form or JSON
+    let about = false; // the tab "About" shown (over the mode)
 
     // Form inputs <-> stored values
     const setForm = (values: Settings) => {
@@ -302,12 +307,31 @@ export function openSettingsForm(): void {
         if (changed()) note.textContent = '';
     };
 
-    // Form / JSON switch: other view takes over values entered so far
+    // Tabs: the pane of the mode (or "About"), its button pressed; no Save etc. under "About" (values stay as entered)
+    const drawTabs = () => {
+        const shown = about ? 'about' : mode;
+        for (const pane of form.querySelectorAll('[data-pane]')) {
+            pane.style.display = pane.dataset.pane !== shown ? 'none' : pane.dataset.pane === 'form' ? 'grid' : 'block';
+        }
+        for (const b of form.querySelectorAll('[data-mode]')) {
+            const active = b.dataset.mode === shown;
+            b.style.background = active ? '#0078d4' : 'transparent';
+            b.style.color = active ? '#fff' : c.fg;
+        }
+        part('[data-footer]').style.visibility = about ? 'hidden' : 'visible';
+    };
+    // Form / JSON switch: other view takes over values entered so far; "About" leaves them as they are
     const setMode = (next: string) => {
-        if (next === mode) return;
+        if (next === 'about') {
+            about = true;
+            return drawTabs();
+        }
+        about = false;
+        if (next === mode) return drawTabs();
         if (next === 'form') {
             const { values, errors } = readJson();
             if (errors) {
+                drawTabs();
                 note.textContent = 'Fix the JSON first (see the reasons below it).';
                 return;
             }
@@ -316,14 +340,7 @@ export function openSettingsForm(): void {
             json.value = toJson(readForm());
         }
         mode = next;
-        for (const pane of form.querySelectorAll('[data-pane]')) {
-            pane.style.display = pane.dataset.pane !== mode ? 'none' : pane.dataset.pane === 'form' ? 'grid' : 'block';
-        }
-        for (const b of form.querySelectorAll('[data-mode]')) {
-            const active = b.dataset.mode === mode;
-            b.style.background = active ? '#0078d4' : 'transparent';
-            b.style.color = active ? '#fff' : c.fg;
-        }
+        drawTabs();
         errorsEl.textContent = '';
         update();
     };
@@ -434,6 +451,8 @@ export function openSettingsForm(): void {
     // JSON view as high as form view: no jump on switch
     const formHeight = part('[data-pane="form"]').getBoundingClientRect().height;
     json.style.height = `${Math.max(200, Math.round(formHeight) - 43)}px`;
+    part('[data-pane="about"]').style.height = `${Math.max(200, Math.round(formHeight))}px`;
+    if (start === 'json' || start === 'about') setMode(start);
     placeMoved(form, SETTINGS_POS_KEY);
 }
 /**

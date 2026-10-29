@@ -169,7 +169,7 @@ How the parts communicate: [NOTES.md, §3](NOTES.md#3-communication).
     a click copies the clean link (not encoded, no query) of the file shown
     (a link file or search result: where it leads),
     or of the folder in the viewer without a file
-  - ⋯ menu: new file, full settings, dark mode, syntax colours, line wrap, properties, reload, clear cache
+  - ⋯ menu: new file, full settings, about, dark mode, syntax colours, line wrap, properties, reload, clear cache
 - **Properties line:**
   modified date (from the file's own HTTP response),
   size, format, encoding, indentation,
@@ -370,7 +370,7 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
   The folder is read anew; items refused are named with Sharepoint's reason;
   a file shown in the viewer (or in a folder deleted) closes the viewer.
 - **Bar:** eye, crumbs, note; selection (or progress), Download, Delete; Edit, Cancel, Save, Upload (Save and Cancel: of the mode on); columns; ⋯; ✕.
-  ⋯ (`/src/zen/menu.ts`): full settings, dark mode (shared with the viewer: `toggleTheme` in `/src/viewer/panel.ts`), reload of the folder.
+  ⋯ (`/src/zen/menu.ts`): full settings, about, dark mode (shared with the viewer: `toggleTheme` in `/src/viewer/panel.ts`), reload of the folder.
   ✕: Zen mode off.
   Narrow (less than 200 px left beside the buttons, `MIN_CRUMBS`): the crumbs on a second row, full width, as the file name in the viewer's header.
 - **Editing:**
@@ -456,6 +456,13 @@ plus "Reset to defaults";
 Ctrl / ⌘ + S saves (as Save).
 The Tampermonkey menu → "Edit (v…)" and the version top right (viewer, settings form)
 open Tampermonkey's editor of the script (e.g. to upgrade).
+
+The tab "About" (Tampermonkey menu → "About …", or ⋯ → "About …" of the viewer and of the Zen list;
+`/src/_core/about.ts`): name and version, installation in brief, the controls hard to discover, links.
+The links come from `ABOUT_LINKS` in `/src/_core/config.ts`, the first module of the userscript (at its very top),
+one line per link (label: URL, http(s) only); a line commented out drops its link,
+none left: no link section at all.
+The anonymous build empties it (cf. Artefacts).
 
 | Key | Default | Meaning |
 | :-- | :------ | :------ |

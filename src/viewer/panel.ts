@@ -21,6 +21,7 @@ import { formatBytes } from '../_core/util.ts';
 import { bindBrand } from '../ui/brand.ts';
 import { brandHtml } from '../ui/brand.ts';
 import { brandTitle } from '../ui/brand.ts';
+import { ABOUT_SVG } from '../ui/icons.ts';
 import { CHECK_SVG } from '../ui/icons.ts';
 import { CLEAR_SVG } from '../ui/icons.ts';
 import { COLOUR_SVG } from '../ui/icons.ts';
@@ -225,6 +226,7 @@ export function createViewer(): Viewer {
     const clearBtn = item(CLEAR_SVG, 'Clear this file from the cache', { disabled: true });
     const clearAllBtn = item(CLEAR_SVG, 'Clear all files from the cache', { disabled: memoryCache.size === 0 });
     const settingsBtn = item(SETTINGS_SVG, 'Full settings …');
+    const aboutBtn = item(ABOUT_SVG, 'About …');
     const newItem = item(NEW_FILE_SVG, 'New file …');
     newItem.title = NEW_FILE_ON;
 
@@ -258,7 +260,19 @@ export function createViewer(): Viewer {
     const layoutMenu = menu(layoutBtn, [hBtn, vBtn, pBtn]);
     const moreMenu = menu(
         moreBtn,
-        [newItem, settingsBtn, zenBtn, themeBtn, colourBtn, wrapBtn, refreshBtn, reload3dBtn, clearBtn, clearAllBtn],
+        [
+            newItem,
+            settingsBtn,
+            aboutBtn,
+            zenBtn,
+            themeBtn,
+            colourBtn,
+            wrapBtn,
+            refreshBtn,
+            reload3dBtn,
+            clearBtn,
+            clearAllBtn,
+        ],
         true,
     );
 
@@ -682,6 +696,7 @@ export function createViewer(): Viewer {
     clearBtn.onclick = () => v.file && clearCached(v);
     clearAllBtn.onclick = () => clearAllCached();
     settingsBtn.onclick = () => openSettingsForm();
+    aboutBtn.onclick = () => openSettingsForm('about');
     newBtn.onclick = () => newFile();
     newItem.onclick = () => newFile();
     writeBtn.onclick = () => (v.writeMode ? leaveWrite() : enterWrite(v));
