@@ -3,7 +3,7 @@ import { describe } from 'node:test';
 import { it } from 'node:test';
 import { load } from '../helpers.ts';
 
-const { esc, formatBytes, csvCell, nextFrame } = await load('_core/util.ts');
+const { esc, formatBytes, csvCell, nextFrame, typing } = await load('_core/util.ts');
 
 describe('util', () => {
     it('esc: HTML special characters', () => {
@@ -26,5 +26,20 @@ describe('util', () => {
     });
     it('nextFrame: resolves', async () => {
         await nextFrame();
+    });
+    it('typing: inside a field typed into (text inputs, not checkboxes); nothing, or no element: not', () => {
+        let asked = '';
+        const field = {
+            closest: (sel: string) => {
+                asked = sel;
+                return {};
+            },
+        };
+        assert.equal(typing(field), true);
+        for (const part of ['input:not(', '[type="checkbox"]', 'textarea', 'select', '[contenteditable]'])
+            assert.ok(asked.includes(part), part);
+        assert.equal(typing({ closest: () => null }), false);
+        assert.equal(typing({}), false); // a text node, the window
+        assert.equal(typing(null), false);
     });
 });

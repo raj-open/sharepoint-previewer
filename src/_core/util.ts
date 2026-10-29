@@ -1,10 +1,18 @@
-// Small shared helpers: HTML escaping, next frame, byte sizes, CSV cells
+// Small shared helpers: HTML escaping, next frame, byte sizes, CSV cells, typing (keys meant for a field)
 
 // ===========================================================================
 // CONSTANTS
 // ===========================================================================
 
 const HTML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
+
+// Fields typed into: keys belong to them (not checkboxes, buttons and the like)
+const TYPED = [
+    'input:not([type="checkbox"], [type="radio"], [type="button"], [type="submit"], [type="reset"], [type="file"])',
+    'textarea',
+    'select',
+    '[contenteditable]:not([contenteditable="false"])',
+].join(', ');
 
 // ===========================================================================
 // METHODS
@@ -24,3 +32,6 @@ export const formatBytes = (n: number): string => {
 
 export const csvCell = (s: string | null): string =>
     s === null ? '' : /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+
+/** @returns target is a field typed into (text input, text area, choice, editable cell): keys belong to it */
+export const typing = (target: EventTarget | null): boolean => !!(target as Element | null)?.closest?.(TYPED);
