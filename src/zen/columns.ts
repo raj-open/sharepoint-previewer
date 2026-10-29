@@ -1,4 +1,4 @@
-// Zen list columns: order, hidden ones and widths per library (kept in the browser), columns menu
+// Zen list columns: order, hidden ones and widths per library (kept in the browser), layout mode, columns menu
 
 // ===========================================================================
 // IMPORTS
@@ -82,11 +82,10 @@ export function shownColumns(z: Zen): string[] {
     return order.filter((n) => !hidden.has(n));
 }
 
-/** Keeps order and hidden columns of the list (all columns written out) */
+/** Order and hidden columns of the list (all columns written out; layout mode: a draft until saved) */
 export function setColumns(z: Zen, order: string[], hidden: Set<string>): void {
     if (!z.data) return;
     z.columns = { order, hidden: order.filter((n) => hidden.has(n)), widths: z.columns.widths };
-    saveColumns(z.data.library, z.columns);
 }
 
 /** @returns order with `col` moved before `to` (null: to the end) */
@@ -99,70 +98,110 @@ export function moveColumn(order: string[], col: string, to: string | null): str
 }
 
 // ---------------------------------------------------------------------------
-// Columns menu: a checkbox per column (shown / hidden), drag to change the order; back to the view's columns
+// Layout mode: columns changed as a draft (shown at once); Save keeps them for the library, Cancel drops them
 // ---------------------------------------------------------------------------
 
-/** Opens (or closes) the columns menu below its button; `changed`: columns to be drawn anew */
-export function toggleColumnsMenu(z: Zen, changed: () => void): void {
-    const open = z.el.querySelector('.tp-zen-columns');
-    if (open) return void open.remove();
-    if (!z.data) return;
-    const data = z.data;
+const copyColumns = (c: ZenColumns): ZenColumns => ({
+    order: [...c.order],
+    hidden: [...c.hidden],
+    widths: { ...c.widths },
+});
+
+// Same columns shown, in the same order, with the same widths (however written out)
+function sameColumns(data: ZenData, a: ZenColumns, b: ZenColumns): boolean {
+    const key = (c: ZenColumns) => {
+        const { order, hidden } = columnOrder(data, c);
+        const widths = Object.entries(c.widths).sort(([p], [q]) => (p < q ? -1 : p > q ? 1 : 0));
+        return JSON.stringify([order, order.filter((n) => hidden.has(n)), widths]);
+    };
+    return key(a) === key(b);
+}
+
+/** @returns layout mode on with columns changed since the last save */
+export function layoutDirty(z: Zen): boolean {
+    return !!z.layout && !!z.data && !sameColumns(z.data, z.layout, z.columns);
+}
+
+/** Layout mode on: the columns as saved remembered (changes from now on: a draft) */
+export function beginLayout(z: Zen): void {
+    z.layout = copyColumns(z.columns);
+}
+
+/** Save: the draft kept for the library (layout mode stays on) */
+export function saveLayout(z: Zen): void {
+    if (!z.layout || !z.data) return;
+    saveColumns(z.data.library, z.columns);
+    z.layout = copyColumns(z.columns);
+}
+
+/** Layout mode off: changes not saved dropped (the columns as saved again), menu closed */
+export function endLayout(z: Zen): void {
+    if (z.layout) z.columns = z.layout;
+    z.layout = null;
+    z.el.querySelector('.tp-zen-columns')?.remove();
+}
+
+// ---------------------------------------------------------------------------
+// Columns menu (layout mode, open throughout): a checkbox per column (shown / hidden), drag to change the order;
+// back to the view's columns
+// ---------------------------------------------------------------------------
+
+/** Opens the columns menu below its button; `changed`: columns to be drawn anew */
+export function openColumnsMenu(z: Zen, changed: () => void): void {
+    if (z.el.querySelector('.tp-zen-columns')) return;
     const menu = document.createElement('div');
     menu.className = 'tp-menu tp-zen-columns';
-    const titleOf = new Map(data.fields.map((f) => [f.name, f.title]));
-    const draw = () => {
-        const { order, hidden } = columnOrder(data, z.columns);
-        menu.innerHTML =
-            '<div class="tp-zen-columns-list">' +
-            order
-                .map(
-                    (n) =>
-                        `<label data-col="${esc(n)}" title="Drag to change the order">` +
-                        `<span class="tp-zen-grip">⠿</span><input type="checkbox"${hidden.has(n) ? '' : ' checked'}>` +
-                        `<span>${esc(titleOf.get(n) ?? n)}</span></label>`,
-                )
-                .join('') +
-            '</div><button type="button" class="tp-menu-item" data-reset>Columns of the Sharepoint view</button>';
-    };
-    draw();
-    const apply = (order: string[], hidden: Set<string>) => {
-        setColumns(z, order, hidden);
-        draw();
-        changed();
-    };
     menu.addEventListener('change', (e) => {
         const label = (e.target as HTMLElement).closest('[data-col]') as HTMLElement | null;
-        if (!label) return;
-        const { order, hidden } = columnOrder(data, z.columns);
+        if (!label || !z.data) return;
+        const { order, hidden } = columnOrder(z.data, z.columns);
         const col = label.dataset.col as string;
         if ((e.target as HTMLInputElement).checked) hidden.delete(col);
         else hidden.add(col);
-        apply(order, hidden);
+        setColumns(z, order, hidden);
+        changed();
     });
     menu.addEventListener('click', (e) => {
         if (!(e.target as HTMLElement).closest('[data-reset]')) return;
         z.columns = { order: [], hidden: [], widths: {} };
-        saveColumns(data.library, z.columns);
-        draw();
         changed();
     });
     wireReorder(menu, {
         item: 'label[data-col]',
         axis: 'y',
         drop: (col, target, after) => {
-            const { order, hidden } = columnOrder(data, z.columns);
+            if (!z.data) return;
+            const { order, hidden } = columnOrder(z.data, z.columns);
             const i = order.indexOf(target) + (after ? 1 : 0);
-            apply(moveColumn(order, col, order[i] ?? null), hidden);
+            setColumns(z, moveColumn(order, col, order[i] ?? null), hidden);
+            changed();
         },
     });
     menu.style.top = `${z.columnsBtn.offsetTop + z.columnsBtn.offsetHeight + 4}px`;
     menu.style.right = '8px';
     z.el.append(menu);
-    const outside = (e: Event) => {
-        if (menu.contains(e.target as Node) || z.columnsBtn.contains(e.target as Node)) return;
-        menu.remove();
-        document.removeEventListener('pointerdown', outside, true);
-    };
-    document.addEventListener('pointerdown', outside, true);
+    drawColumnsMenu(z);
+}
+
+/** Draws the entries of the columns menu anew (if open; its scroll position kept) */
+export function drawColumnsMenu(z: Zen): void {
+    const menu = z.el.querySelector('.tp-zen-columns');
+    if (!menu) return;
+    const scrolled = menu.querySelector('.tp-zen-columns-list')?.scrollTop ?? 0;
+    const data = z.data;
+    const { order, hidden } = data ? columnOrder(data, z.columns) : { order: [], hidden: new Set<string>() };
+    const titleOf = new Map((data?.fields ?? []).map((f) => [f.name, f.title]));
+    menu.innerHTML =
+        '<div class="tp-zen-columns-list">' +
+        order
+            .map(
+                (n) =>
+                    `<label data-col="${esc(n)}" title="Drag to change the order">` +
+                    `<span class="tp-zen-grip">⠿</span><input type="checkbox"${hidden.has(n) ? '' : ' checked'}>` +
+                    `<span>${esc(titleOf.get(n) ?? n)}</span></label>`,
+            )
+            .join('') +
+        '</div><button type="button" class="tp-menu-item" data-reset>Columns of the Sharepoint view</button>';
+    const list = menu.querySelector('.tp-zen-columns-list');
+    if (list) list.scrollTop = scrolled;
 }
