@@ -336,6 +336,46 @@ describe('zen mode', () => {
         assert.equal(status, 404);
     });
 
+    it("files dragged in: through to Sharepoint's list beneath (it uploads them), then shown in the list", async () => {
+        // a folder no other test here lists (the upload stays for the browser's session)
+        const { page } = await openFolder(`${h.LIBRARY}/Config`);
+        const z = await zen(page);
+        const box = await z.boundingBox();
+        assert.ok(box);
+        const x = box.x + box.width / 2;
+        const y = box.y + box.height / 2;
+        // as the browser does: each event to the element under the pointer (hit test anew each time)
+        const target = await page.evaluate(
+            async ([x, y]) => {
+                const data = new DataTransfer();
+                data.items.add(new File(['dropped'], 'dropped.txt', { type: 'text/plain' }));
+                const fire = (type: string) => {
+                    const el = document.elementFromPoint(x, y) as Element;
+                    el.dispatchEvent(
+                        new DragEvent(type, {
+                            dataTransfer: data,
+                            clientX: x,
+                            clientY: y,
+                            bubbles: true,
+                            cancelable: true,
+                        }),
+                    );
+                    return el;
+                };
+                fire('dragenter');
+                const under = fire('dragover');
+                const marked = !!document.querySelector('.tp-zen.tp-zen-drop');
+                fire('drop');
+                return { zen: !!under.closest('.tp-zen'), card: !!under.closest('.card'), marked };
+            },
+            [x, y],
+        );
+        assert.deepEqual(target, { zen: false, card: true, marked: true }, "Sharepoint's list under the pointer");
+        await rowOf(z, 'dropped.txt').waitFor();
+        await page.waitForFunction(() => !document.querySelector('.tp-zen-drop'));
+        await z.locator('.tp-zen-row').first().click({ trial: true }); // the list usable again
+    });
+
     it('columns: shown and hidden from the menu (layout mode), kept for the library once saved', async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);

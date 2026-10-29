@@ -759,6 +759,21 @@ const CSS = `
     /* Sharepoint's own font (Fluent UI), regular weight */
     font: 400 13px "Segoe UI", "Segoe UI Web (West European)", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", sans-serif;
   }
+  /* Files dragged in from outside: through to Sharepoint's list beneath (it uploads them), the list marked meanwhile */
+  .tp-zen.tp-zen-drop, .tp-zen.tp-zen-drop * { pointer-events: none !important; }
+  .tp-zen.tp-zen-drop { outline: 2px dashed var(--tp-accent); outline-offset: -2px; }
+  .tp-zen.tp-zen-drop::after {
+    content: "Drop to upload into this folder (by Sharepoint)";
+    position: absolute;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: var(--tp-accent);
+    color: #fff;
+    white-space: nowrap;
+  }
   .tp-zen-bar {
     flex: none;
     display: flex;

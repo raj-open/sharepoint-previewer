@@ -61,6 +61,7 @@ import { deleteQuestion } from './delete.ts';
 import { isDeleteKey } from './delete.ts';
 import { isPurgeKey } from './delete.ts';
 import { download } from './download.ts';
+import { wireDrop } from './drop.ts';
 import { loadFolder } from './data.ts';
 import { NAME } from './data.ts';
 import { saveItem } from './data.ts';
@@ -557,6 +558,7 @@ function createZen(library: string): Zen {
             window.removeEventListener('resize', onResize);
             barObserver.disconnect();
             stopGrid(z);
+            stopDrop();
         },
     };
     const redraw = () => draw(z);
@@ -571,6 +573,12 @@ function createZen(library: string): Zen {
     const sized = () => saveWidths(z);
     wireGrid(z, { redraw, open: (item) => openItem(z, item), edited, arranged, sized });
     wireSelect(z, () => showButtons(z));
+    // files dragged in: for Sharepoint's list beneath (it uploads them), then the folder anew
+    const stopDrop = wireDrop(
+        el,
+        () => listRegion()?.scroller ?? null,
+        () => void goTo(z, z.folder, true),
+    );
     // Delete key (Cmd + Backspace): the items selected, as the delete button; Shift + Delete (Cmd + Alt + Backspace):
     // as the purge button (not while typing in a field)
     grid.addEventListener('keydown', (e) => {
