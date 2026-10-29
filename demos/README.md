@@ -25,6 +25,7 @@ Development and the logic inside: [TECHNICAL.md](../TECHNICAL.md).
 | :--- | :---- |
 | [List view and search](list.md) | eyes on files and folders, search results |
 | [Layouts and dark mode](layouts.md) | below or right of the list, pop-up (resizable), narrow viewer, dark mode |
+| [Zen mode](zen.md) | own list of the folder with its properties: sort, filter, columns, edit (with the logic) |
 | [Title bar](title-bar.md) | properties, link, another name |
 | [Text, checks and Markdown](text.md) | syntax colours, syntax checks, rendered Markdown |
 | [Tables and spreadsheets](tables.md) | CSV (colours, editing), Excel tables and sheets, logs |
