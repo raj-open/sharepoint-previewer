@@ -45,6 +45,7 @@ import { WRAP_SVG } from '../ui/icons.ts';
 import { WRITE_SVG } from '../ui/icons.ts';
 import { ZEN_SVG } from '../ui/icons.ts';
 import { FORMAT_LISTS } from '../readers/formats.ts';
+import { wireLink } from '../ui/link.ts';
 import { keepSize } from '../ui/move.ts';
 import { startMove } from '../ui/move.ts';
 import { createPicker } from '../ui/picker.ts';
@@ -805,22 +806,7 @@ export function createViewer(): Viewer {
         wrapBtn.setAttribute('aria-pressed', String(view.wrap));
     };
     // Link: clean URL of the file shown (a link file: where it leads), else of the folder
-    linkBtn.onmouseenter = linkBtn.onfocus = () => {
-        linkBtn.title = `Copy the link:\n${shownUrl(v)}`;
-    };
-    linkBtn.onclick = async () => {
-        const url = shownUrl(v);
-        try {
-            await navigator.clipboard.writeText(url);
-            linkBtn.innerHTML = CHECK_SVG;
-            linkBtn.title = `Copied:\n${url}`;
-        } catch (_err) {
-            linkBtn.title = `Copy failed:\n${url}`;
-        }
-        setTimeout(() => {
-            linkBtn.innerHTML = LINK_SVG;
-        }, 2000);
-    };
+    wireLink(linkBtn, () => shownUrl(v));
     propsBtn.onclick = () => {
         view.props = !view.props;
         savePref(PROPS_KEY, view.props ? '1' : '0');
