@@ -117,12 +117,11 @@ describe('zen mode', () => {
         await z.locator('td.tp-zen-name', { hasText: 'prices.csv' }).waitFor();
     });
 
-    it("crumbs: site (its contents), library with a menu of the site's other libraries (Sharepoint's own left out)", async () => {
+    it("crumbs: link (clean URL of the folder), library with a menu of the site's other libraries (Sharepoint's own left out)", async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);
-        const site = z.locator('.tp-zen-crumbs a.tp-zen-site', { hasText: 'Mock Sharepoint' });
-        await site.waitFor();
-        assert.equal(await site.getAttribute('href'), `${h.SITE}/_layouts/15/viewlsts.aspx`);
+        await z.locator('.tp-zen-link').hover();
+        assert.equal(await z.locator('.tp-zen-link').getAttribute('title'), `Copy the link:\n${h.ORIGIN}${DATA}`);
         await z.locator('.tp-zen-libs').click();
         const menu = z.locator('.tp-zen-libraries');
         assert.deepEqual(

@@ -781,6 +781,8 @@ const CSS = `
   .tp-zen-crumbs a { cursor: pointer; color: var(--tp-accent); }
   .tp-zen-crumbs a:hover { text-decoration: underline; }
   .tp-zen-sep { opacity: .6; }
+  .tp-zen-path { display: contents; }
+  .tp-zen .tp-zen-btn.tp-zen-link { width: 24px; height: 24px; margin-left: -4px; }
   /* menu of the site's libraries: right after the library's crumb */
   .tp-zen-libs { flex: none; margin-left: -2px; padding: 0 4px; border: none; border-radius: 4px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
   .tp-zen-libs:hover { background: var(--tp-btn-bg); }
