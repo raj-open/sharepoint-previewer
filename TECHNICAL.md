@@ -164,7 +164,7 @@ How the parts communicate: [NOTES.md, §3](NOTES.md#3-communication).
   - right of the list
   - as a movable pop-up, resizable at its lower right corner (position and size kept)
 - **Header:** a bar as the Zen list's (`/src/ui/bar.ts`: start, well, end), the properties below it
-  - start: layout, edit, cache whole file, stop / cancel, save, upload
+  - start: layout, edit, stop / cancel, save, upload (same places as in the Zen list), cache whole file
   - end: version and logo, ⋯, copy, ✕
   - when narrow (less than 200 px left for the well): the file name on a second row; very narrow: without version and logo
   - file name, with (i) for the properties and a chain icon:
@@ -346,12 +346,12 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
   order, hidden ones and widths kept per library (`tp-preview-zen-columns`, at most 100 libraries).
   Widths (they never go to Sharepoint) change in any mode, by the right edge of a column title, and are kept at once
   (no Save, not part of the layout draft; `saveWidths`); a double-click on the edge: back to as it fits.
-- **Layout mode** (columns button; `/src/zen/columns.ts`):
+- **Layout mode** (Columns in the ⋯ menu; `/src/zen/columns.ts`):
   the only mode in which columns are shown or hidden and moved; the columns menu stays open throughout.
   Columns are moved by dragging their titles or the entries of the menu with the pointer
   (`/src/view/reorder.ts`; no HTML drag and drop, which Sharepoint takes for its uploads).
   Changes are a draft (`z.columns`, shown at once; the columns as saved in `z.layout`):
-  Save keeps them for the library, Cancel / Esc / the columns button drop what is not saved (after asking);
+  Save keeps them for the library, Cancel / Esc / Columns again drop what is not saved (after asking);
   compared as shown (order, hidden ones), not as written out.
   Layout and edit mode exclude each other (the other button disabled; Upload too in layout mode);
   sort and filters work in every mode.
@@ -371,7 +371,7 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
   to the site's recycle bin (restorable there), a folder with everything below it.
   The folder is read anew; items refused are named with Sharepoint's reason;
   a file shown in the viewer (or in a folder deleted) closes the viewer.
-- **Purge** (same module, red flame button; Shift + Delete or ⌘ + ⌥ + Backspace in the list, as Explorer and Finder):
+- **Purge** (same module; the bin with Shift held turns into a red flame: Shift + click; Shift + Delete or ⌘ + ⌥ + Backspace in the list, as Explorer and Finder):
   as Delete, but for good: `POST …/items(<id>)/deleteObject()`, not to the recycle bin;
   the question says so plainly (cannot be restored, cannot be undone).
 - **Files dragged in** (`/src/zen/drop.ts`): uploaded by Sharepoint itself, not by the userscript.
@@ -382,9 +382,10 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
   The drag ends at the drop, or once no `dragover` came for 300 ms (drags from outside fire no `dragend`).
   Dropped on the Zen list: Sharepoint's list is watched (own eyes ignored);
   once it has changed and settled (1 s), the folder is read anew; watched until quiet for 2 minutes.
-- **Bar:** as the viewer's (`/src/ui/bar.ts`): eye, Download, Delete, Purge, Edit, Cancel, Save, Upload (Save and Cancel: of the mode on), columns; crumbs (the well); ⋯, ✕.
+- **Bar:** as the viewer's (`/src/ui/bar.ts`): eye, Edit, Cancel, Save, Upload (Save and Cancel: of the mode on; same places as in the viewer), Download, Delete (with Shift: Purge); crumbs (the well); ⋯, ✕.
+  Bars one above the other (Zen list over the viewer) get start and end groups of the same width: the wells line up.
   Below it, as the viewer's properties: the count of items, the note, the selection (or progress).
-  ⋯ (`/src/zen/menu.ts`): full settings, dark mode (shared with the viewer: `toggleTheme` in `/src/viewer/panel.ts`), reload of the folder, about (last).
+  ⋯ (`/src/zen/menu.ts`): columns (layout mode), full settings, dark mode (shared with the viewer: `toggleTheme` in `/src/viewer/panel.ts`), reload of the folder, about (last).
   ✕: Zen mode off.
   Narrow (as the viewer's): the crumbs on a second row, full width.
 - **Editing:**

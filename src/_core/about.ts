@@ -32,7 +32,7 @@ export const CONTROLS: [string, string][] = [
     ['Ctrl / ⌘ + click (Zen list)', 'select a row (or drop it) without opening it'],
     ['Delete, ⌘ + Backspace (Zen list)', "delete the items selected (asks first; to the site's recycle bin)"],
     [
-        'Shift + Delete, ⌘ + ⌥ + Backspace (Zen list)',
+        'Shift + Delete, ⌘ + ⌥ + Backspace, Shift + click on the bin (Zen list)',
         'purge the items selected: for good, not to the recycle bin (warns first)',
     ],
     ['Files dragged in (Zen list)', 'uploaded into the folder shown, by Sharepoint itself'],

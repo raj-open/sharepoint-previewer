@@ -138,7 +138,7 @@ export function createViewer(): Viewer {
     const header = document.createElement('div');
     header.className = 'tp-header tp-viewer-header';
 
-    // Bar: [layout ▾] [edit] [cache all] [stop] [save] [upload] [(i) link File: name] [version] [⋯] [copy] [✕]
+    // Bar: [layout ▾] [edit] [stop] [save] [upload] [cache all] [(i) link File: name] [version] [⋯] [copy] [✕]
     const button = (svg: string, title: string, disabled = true) => {
         const btn = barButton(svg, title);
         btn.disabled = disabled; // off until a file is shown
@@ -329,7 +329,7 @@ export function createViewer(): Viewer {
 
     const { bar, stop: stopBar } = createBar(
         {
-            start: [layoutBtn, writeBtn, loadAllBtn, stopBtn, saveBtn, uploadBtn],
+            start: [layoutBtn, writeBtn, stopBtn, saveBtn, uploadBtn, loadAllBtn], // edit … upload: as the Zen list's
             well: title,
             end: [brand, moreBtn, copyBtn, closeBtn],
         },

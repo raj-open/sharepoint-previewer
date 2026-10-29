@@ -21,7 +21,6 @@ import { cleanUrl } from '../readers/links.ts';
 import { barButton } from '../ui/bar.ts';
 import { closeButton } from '../ui/bar.ts';
 import { createBar } from '../ui/bar.ts';
-import { COLUMNS_SVG } from '../ui/icons.ts';
 import { DELETE_SVG } from '../ui/icons.ts';
 import { DOWNLOAD_SVG } from '../ui/icons.ts';
 import { EYE_CLOSED_SVG } from '../ui/icons.ts';
@@ -92,10 +91,9 @@ import type { ZenItem } from '../_core/types.ts';
 export const ZEN_TITLE = 'Zen mode: own list of the folder, with its properties (sort, filter, columns, edit)';
 const DROP = 'Drop the changes of this folder which have not been uploaded to Sharepoint?';
 const DROP_LAYOUT = 'Drop the changes of the columns which have not been saved?';
-const COLUMNS_ON = 'Columns: show, hide and order them (layout mode; Save keeps them for the library)';
-const COLUMNS_OFF = 'Columns: end the layout mode (changes not saved are dropped)';
 const DOWNLOAD = 'Download the items selected (folders with all in them: as a ZIP)';
-const DELETE = "Delete the items selected (folders with all in them; to the site's recycle bin) (Del)";
+const DELETE =
+    "Delete the items selected (folders with all in them; to the site's recycle bin) (Del; with Shift: purge)";
 const PURGE = 'Purge the items selected: deleted for good, NOT to the recycle bin (asks first) (Shift+Del)';
 const KEPT = "Changes are kept in the viewer but won't take effect until uploaded (cloud button).";
 export const ZEN_KEY = 'tp-preview-zen'; // Zen mode on ('1') or off, kept
@@ -451,25 +449,25 @@ function createZen(library: string): Zen {
     picked.className = 'tp-zen-picked';
     const downloadBtn = barButton(DOWNLOAD_SVG, DOWNLOAD);
     const deleteBtn = barButton(DELETE_SVG, DELETE, 'tp-zen-delete');
-    const purgeBtn = barButton(PURGE_SVG, PURGE, 'tp-zen-purge');
     const editBtn = barButton(WRITE_SVG, 'Edit properties and names (non-system fields)');
     editBtn.setAttribute('aria-pressed', 'false');
     const saveBtn = barButton(SAVE_SVG, 'Save: keep the changes in the view, ready for upload (Ctrl+S)');
     const uploadBtn = barButton(UPLOAD_SVG, 'Upload the saved changes to Sharepoint (as its properties form does)');
     const cancelBtn = barButton(STOP_SVG, 'Cancel: drop the changes not uploaded, end editing');
-    const columnsBtn = barButton(COLUMNS_SVG, COLUMNS_ON);
-    columnsBtn.setAttribute('aria-pressed', 'false');
     const moreBtn = barButton(MORE_SVG, 'More');
     const closeBtn = closeButton("Zen mode off (back to Sharepoint's list)");
-    // bar as the viewer's: [eye] [tools] [crumbs] [⋯] [✕]; below it, as the viewer's properties: count, selection, progress
+    // bar as the viewer's: [eye] [edit, cancel, save, upload (same places)] [download, delete] [crumbs] [⋯] [✕];
+    // below it, as the viewer's properties: count, selection, progress
     const { bar, stop: stopBar } = createBar({
-        start: [eyeBtn, downloadBtn, deleteBtn, purgeBtn, editBtn, cancelBtn, saveBtn, uploadBtn, columnsBtn],
+        start: [eyeBtn, editBtn, cancelBtn, saveBtn, uploadBtn, downloadBtn, deleteBtn],
         well: nav,
         end: [moreBtn, closeBtn],
     });
     const meta = document.createElement('div');
     meta.className = 'tp-title tp-bar-meta tp-zen-meta';
-    meta.append(note, picked);
+    const label = document.createElement('strong');
+    label.textContent = 'Folder: ';
+    meta.append(label, note, picked); // as the viewer's line: <strong>Properties:</strong> …
     const grid = document.createElement('div');
     grid.className = 'tp-zen-grid tp-content';
     grid.tabIndex = 0;
@@ -499,12 +497,11 @@ function createZen(library: string): Zen {
         eyeBtn,
         downloadBtn,
         deleteBtn,
-        purgeBtn,
         editBtn,
         saveBtn,
         uploadBtn,
         cancelBtn,
-        columnsBtn,
+        moreBtn,
         folder: library,
         urlFolder: '',
         data: null,
@@ -525,6 +522,9 @@ function createZen(library: string): Zen {
         stop: () => {
             z.fetching?.abort();
             window.removeEventListener('resize', onResize);
+            window.removeEventListener('keydown', onShift, true);
+            window.removeEventListener('keyup', onShift, true);
+            window.removeEventListener('blur', noShift);
             stopBar();
             stopGrid(z);
             stopDrop();
@@ -570,11 +570,20 @@ function createZen(library: string): Zen {
     saveBtn.onclick = () => (z.layout ? saveColumnsOf(z) : saveView(z));
     uploadBtn.onclick = () => void upload(z);
     downloadBtn.onclick = () => (z.fetching ? z.fetching.abort() : void downloadSelected(z));
-    deleteBtn.onclick = () => void deleteSelected(z);
-    purgeBtn.onclick = () => void deleteSelected(z, true);
+    // delete; with Shift held: purge (the bin a flame meanwhile, as Shift + Delete)
+    deleteBtn.onclick = (e) => void deleteSelected(z, e.shiftKey);
+    const onShift = (e: KeyboardEvent | PointerEvent) => showPurge(z, e.shiftKey);
+    const noShift = () => showPurge(z, false);
+    deleteBtn.addEventListener('pointerenter', onShift);
+    window.addEventListener('keydown', onShift, true); // capture: the list keeps its keys from Sharepoint
+    window.addEventListener('keyup', onShift, true);
+    window.addEventListener('blur', noShift);
     cancelBtn.onclick = () => (z.layout ? leaveLayout(z) : cancelEdit(z));
-    columnsBtn.onclick = () => (z.layout ? leaveLayout(z) : startLayout(z, arranged));
-    moreBtn.onclick = () => toggleMore(z, moreBtn, () => void goTo(z, z.folder, true));
+    moreBtn.onclick = () =>
+        toggleMore(z, moreBtn, {
+            reload: () => void goTo(z, z.folder, true),
+            columns: () => (z.layout ? leaveLayout(z) : startLayout(z, arranged)),
+        });
     closeBtn.onclick = () => exitZen();
     showButtons(z);
     queueMicrotask(zenRefresh);
@@ -590,6 +599,14 @@ function draw(z: Zen): void {
 }
 
 // Buttons as the mode allows: layout and edit mode exclude each other (Save and Cancel: of the mode on)
+// Delete button with Shift held: the purge (flame, red), else the delete (bin)
+function showPurge(z: Zen, purge: boolean): void {
+    if (z.deleteBtn.classList.contains('tp-zen-purge') === purge) return;
+    z.deleteBtn.classList.toggle('tp-zen-purge', purge);
+    z.deleteBtn.innerHTML = purge ? PURGE_SVG : DELETE_SVG;
+    z.deleteBtn.title = purge ? PURGE : DELETE;
+}
+
 function showButtons(z: Zen): void {
     const layout = !!z.layout;
     const n = z.selected.size;
@@ -599,13 +616,9 @@ function showButtons(z: Zen): void {
     z.downloadBtn.title = fetching ? 'Stop the download' : DOWNLOAD;
     z.downloadBtn.setAttribute('aria-pressed', String(fetching));
     z.deleteBtn.disabled = fetching || z.busy || !z.data || !n;
-    z.purgeBtn.disabled = z.deleteBtn.disabled;
     if (!fetching) z.picked.textContent = n ? `${n.toLocaleString()} selected` : '';
     z.editBtn.setAttribute('aria-pressed', String(z.editing));
     z.editBtn.disabled = z.busy || !z.data || layout;
-    z.columnsBtn.setAttribute('aria-pressed', String(layout));
-    z.columnsBtn.disabled = !layout && (z.busy || !z.data || z.editing);
-    z.columnsBtn.title = layout ? COLUMNS_OFF : COLUMNS_ON;
     z.saveBtn.disabled = z.busy || (layout ? !layoutDirty(z) : !z.editing || !z.dirty);
     z.saveBtn.title = layout
         ? 'Save: keep the columns for this library (Ctrl+S)'

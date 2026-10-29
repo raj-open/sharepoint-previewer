@@ -180,7 +180,8 @@ const CASES: Record<string, Case> = {
         steps: async (page) => {
             await zen(page);
             const z = page.locator('.tp-zen');
-            await z.locator('.tp-bar-btn[title^="Columns"]').click();
+            await z.locator('.tp-bar-btn[title="More"]').click();
+            await z.locator('.tp-zen-more .tp-menu-item', { hasText: 'Columns' }).click();
             await z.locator('.tp-zen-columns label', { hasText: 'Notes' }).locator('input').check();
             await z.locator('th[title="Status"] .tp-sort').dragTo(z.locator('th[title="Modified"] .tp-sort'), {
                 targetPosition: { x: 2, y: 5 },

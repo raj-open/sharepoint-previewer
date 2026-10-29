@@ -187,7 +187,7 @@ export function openColumnsMenu(z: Zen, changed: () => void): void {
         },
     });
     z.el.append(menu);
-    placeBelow(menu, z.columnsBtn); // the button: among the tools, left
+    placeBelow(menu, z.moreBtn.parentElement as HTMLElement, true); // from the ⋯ menu: below the bar's end, right
     drawColumnsMenu(z);
 }
 

@@ -72,6 +72,12 @@ async function cell(z: Locator, name: string, title: string): Promise<Locator> {
 /** @returns a button of the Zen bar (by the start of its title) */
 const btn = (z: Locator, title: string): Locator => z.locator(`.tp-bar-btn[title^="${title}"]`);
 
+/** Columns from the ⋯ menu: layout mode on (or off) */
+async function columns(z: Locator): Promise<void> {
+    await btn(z, 'More').click();
+    await z.locator('.tp-zen-more .tp-menu-item', { hasText: 'Columns' }).click();
+}
+
 /** @returns dialogues so far (confirm answers "yes") */
 const dialogues = (page: Page): Promise<{ alerts: string[]; confirms: string[] }> =>
     page.evaluate(() => {
@@ -309,15 +315,20 @@ describe('zen mode', () => {
         assert.match((await dialogues(page)).confirms[1], /^Delete 1 item\?\n\n {4}• README\.md\n/);
     });
 
-    it('purge: for good after a warning (not to the recycle bin); its button red, Shift + Delete as well', async () => {
+    it('purge: for good after a warning (not to the recycle bin); the bin with Shift (red flame), Shift + Delete as well', async () => {
         // in the library's top folder: items no other test here uses (after the delete test: what is left of it)
         const { page, requests } = await openFolder(h.LIBRARY);
         const z = await zen(page);
         const box = (name: string) => rowOf(z, name).locator('.tp-zen-pick-one');
-        const purge = btn(z, 'Purge');
-        assert.equal(await purge.isDisabled(), true, 'nothing selected');
+        assert.equal(await btn(z, 'Delete').isDisabled(), true, 'nothing selected');
         await box('Empty folder').click();
-        await purge.click();
+        // the bin with Shift held: the flame (purge), red
+        await page.keyboard.down('Shift');
+        const purge = btn(z, 'Purge');
+        assert.match((await purge.getAttribute('class')) ?? '', /tp-zen-purge/);
+        await purge.click({ modifiers: ['Shift'] });
+        await page.keyboard.up('Shift');
+        assert.equal(await btn(z, 'Delete').count(), 1, 'the bin again');
         await rowOf(z, 'Empty folder').waitFor({ state: 'detached' });
         const asked = (await dialogues(page)).confirms.join('\n');
         assert.match(asked, /^PURGE 1 item for good\?/);
@@ -379,7 +390,7 @@ describe('zen mode', () => {
     it('columns: shown and hidden from the menu (layout mode), kept for the library once saved', async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);
-        await btn(z, 'Columns').click();
+        await columns(z);
         await z.locator('.tp-zen-columns label', { hasText: 'Notes' }).locator('input').check();
         await z.locator('.tp-zen-columns label', { hasText: 'Priority' }).locator('input').uncheck();
         assert.ok((await titles(z)).includes('Notes'));
@@ -404,7 +415,7 @@ describe('zen mode', () => {
         });
         const before = await titles(z);
         assert.equal(before[1], 'Modified');
-        await btn(z, 'Columns').click(); // layout mode
+        await columns(z); // layout mode
         const status = z.locator('th[title="Status"] .tp-sort');
         await status.dragTo(z.locator('th[title="Modified"] .tp-sort'), {
             targetPosition: { x: 2, y: 5 },
@@ -450,10 +461,12 @@ describe('zen mode', () => {
         assert.equal((await titles(z))[1], 'Modified', 'not moved');
         // edit mode: no layout mode
         await btn(z, 'Edit').click();
-        assert.ok(await btn(z, 'Columns').isDisabled());
+        await btn(z, 'More').click();
+        assert.ok(await z.locator('.tp-zen-more .tp-menu-item', { hasText: 'Columns' }).isDisabled());
+        await page.keyboard.press('Escape'); // the menu
         await page.keyboard.press('Escape');
         // layout mode: no edit mode, no upload; the menu stays open; marked
-        await btn(z, 'Columns').click();
+        await columns(z);
         assert.ok(await btn(z, 'Edit').isDisabled());
         assert.ok(await btn(z, 'Upload').isDisabled());
         assert.ok(await btn(z, 'Save').isDisabled(), 'nothing changed yet');
@@ -467,7 +480,7 @@ describe('zen mode', () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);
         const before = await titles(z);
-        await btn(z, 'Columns').click();
+        await columns(z);
         await z.locator('.tp-zen-columns label', { hasText: 'Status' }).locator('input').uncheck();
         assert.ok(!(await titles(z)).includes('Status'), 'shown at once');
         assert.ok(await btn(z, 'Save').isEnabled());
@@ -475,7 +488,7 @@ describe('zen mode', () => {
         assert.deepEqual(await titles(z), before);
         assert.equal(await z.locator('.tp-zen-columns').count(), 0, 'layout mode off');
         assert.equal((await dialogues(page)).confirms.length, 1, 'asked');
-        await btn(z, 'Columns').click();
+        await columns(z);
         await z.locator('.tp-zen-columns label', { hasText: 'Status' }).locator('input').uncheck();
         await page.keyboard.press('Escape');
         assert.deepEqual(await titles(z), before);
@@ -490,7 +503,7 @@ describe('zen mode', () => {
         const items = await z.locator('.tp-zen-more .tp-menu-item').allTextContents();
         assert.deepEqual(
             items.map((t) => t.trim()),
-            ['Full settings …', 'Dark mode', 'Reload the folder', 'About …'],
+            ['Columns …', 'Full settings …', 'Dark mode', 'Reload the folder', 'About …'],
         );
         await z.locator('.tp-zen-more .tp-menu-item', { hasText: 'Dark mode' }).click();
         assert.ok(await z.evaluate((el) => el.classList.contains('tp-dark')));

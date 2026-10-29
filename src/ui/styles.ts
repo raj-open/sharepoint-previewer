@@ -170,9 +170,10 @@ const CSS = `
   .tp-bar-copy { background: #0078d4; color: #fff; }
   .tp-bar-copy:disabled { opacity: .4; cursor: default; }
   /* Line below the bar: the viewer's properties, the Zen list's count and selection */
-  .tp-bar-meta { font: 12px/15px sans-serif; opacity: .85; }
+  /* Sharepoint's own font (Fluent UI), as the Zen list */
+  .tp-bar, .tp-bar-meta { font-family: "Segoe UI", "Segoe UI Web (West European)", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", sans-serif; }
+  .tp-bar-meta { font-size: 12px; line-height: 15px; opacity: .85; }
   .tp-viewer-header { position: relative; flex: none; height: 46px; }
-  .tp-viewer-header .tp-title { font-family: sans-serif; }
   .tp-viewer-header .tp-bar-meta {
     position: absolute;
     top: 44px;
@@ -183,7 +184,7 @@ const CSS = `
     -webkit-box-orient: vertical; /* wraps, cut off with "…" after the lines shown */
     white-space: normal;
   }
-  .tp-brand { font: 11px sans-serif; opacity: .75; }
+  .tp-brand { font-size: 11px; opacity: .75; }
   /* Name in write mode: click to save under another name (box in its place); new file: marked */
   .tp-title-name.tp-renamable { cursor: text; border-bottom: 1px dashed currentColor; }
   .tp-title-name.tp-new-name::after { content: ' (new file)'; font-style: italic; opacity: .7; }
@@ -932,7 +933,7 @@ const CSS = `
   .tp-zen-table th.tp-zen-pick { z-index: 3; background: linear-gradient(var(--tp-thead-bg), var(--tp-thead-bg)), var(--tp-bg); }
   .tp-zen-pick input { margin: 0; vertical-align: middle; cursor: pointer; accent-color: var(--tp-accent); }
   .tp-zen-header { flex: none; }
-  .tp-zen-meta { padding: 0 12px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tp-zen-meta { margin-top: -2px; padding: 0 12px 6px; /* as the viewer's properties */ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tp-zen-picked:not(:empty)::before { content: " · "; }
   /* Name: frozen at the left (after the checkboxes), like the column titles at the top */
   .tp-zen-table .tp-zen-name {

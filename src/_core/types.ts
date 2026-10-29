@@ -224,12 +224,12 @@ export type Zen = {
     eyeBtn: HTMLButtonElement;
     downloadBtn: HTMLButtonElement;
     deleteBtn: HTMLButtonElement;
-    purgeBtn: HTMLButtonElement;
     editBtn: HTMLButtonElement;
     saveBtn: HTMLButtonElement;
     uploadBtn: HTMLButtonElement;
     cancelBtn: HTMLButtonElement;
-    columnsBtn: HTMLButtonElement;
+    /** ⋯ (also the anchor of the columns menu) */
+    moreBtn: HTMLButtonElement;
     folder: string;
     urlFolder: string;
     data: ZenData | null;
