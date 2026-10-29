@@ -145,8 +145,11 @@ describe('zen mode', () => {
     it("crumbs: link (clean URL of the folder), library with a menu of the site's other libraries (Sharepoint's own left out)", async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);
-        await z.locator('.tp-well-btn').hover();
-        assert.equal(await z.locator('.tp-well-btn').getAttribute('title'), `Copy the link:\n${h.ORIGIN}${DATA}`);
+        await z.locator('.tp-well-btn[title^="Copy"]').hover();
+        assert.equal(
+            await z.locator('.tp-well-btn[title^="Copy"]').getAttribute('title'),
+            `Copy the link:\n${h.ORIGIN}${DATA}`,
+        );
         await z.locator('.tp-zen-libs').click();
         const menu = z.locator('.tp-zen-libraries');
         assert.deepEqual(
@@ -538,6 +541,53 @@ describe('zen mode', () => {
         assert.ok(await paneBtn(z, 'Upload').isDisabled(), 'now as the view');
     });
 
+    it('columns pane: its left edge changes the width (kept); released narrow, it closes', async () => {
+        const { page } = await openFolder(DATA);
+        const z = await zen(page);
+        await columns(z);
+        const pane = z.locator('.tp-zen-pane');
+        const drag = async (dx: number) => {
+            const g = await pane.locator('.tp-zen-pane-grip').boundingBox();
+            assert.ok(g);
+            await page.mouse.move(g.x + g.width / 2, g.y + 100);
+            await page.mouse.down();
+            await page.mouse.move(g.x + g.width / 2 + dx, g.y + 100, { steps: 5 });
+            await page.mouse.up();
+        };
+        const w0 = (await pane.boundingBox())?.width ?? 0;
+        await drag(-100);
+        const w1 = (await pane.boundingBox())?.width ?? 0;
+        assert.ok(Math.abs(w1 - w0 - 100) <= 2, `wider: ${w0} -> ${w1}`);
+        await paneBtn(z, 'Close').click();
+        await columns(z);
+        assert.ok(Math.abs(((await pane.boundingBox())?.width ?? 0) - w1) <= 2, 'width kept');
+        await drag(w1 - 100);
+        assert.equal(await pane.count(), 0, 'closed');
+    });
+
+    it('folder line: (i) as in the viewer (one setting); off, only while there is something to say', async () => {
+        const { page } = await openFolder(DATA);
+        const z = await zen(page);
+        const meta = z.locator('.tp-zen-meta');
+        const info = z.locator('.tp-well-btn[title^="Display folder"]');
+        assert.equal(await meta.isVisible(), false, "off by default (as the viewer's properties)");
+        await rowOf(z, 'prices.csv').locator('.tp-zen-pick-one').click();
+        assert.equal(await meta.isVisible(), true, 'something to say: shown');
+        assert.equal(await h.text(z.locator('.tp-zen-picked')), '1 selected');
+        assert.equal(await meta.locator('strong').isVisible(), false, 'no label');
+        assert.equal(await z.locator('.tp-zen-facts').isVisible(), false, 'no facts');
+        await rowOf(z, 'prices.csv').locator('.tp-zen-pick-one').click();
+        assert.equal(await meta.isVisible(), false);
+        await info.click();
+        assert.equal(await info.getAttribute('aria-pressed'), 'true');
+        assert.equal(await meta.locator('strong').isVisible(), true);
+        assert.match(await h.text(z.locator('.tp-zen-facts')), /^13 items \(1 folder, 12 files\) · latest change: /);
+        const viewerInfo = page.locator('.tp-viewer .tp-well-btn[title^="Display file"]');
+        assert.equal(await viewerInfo.getAttribute('aria-pressed'), 'true', "the viewer's too");
+        await viewerInfo.click();
+        assert.equal(await meta.isVisible(), false, 'and back');
+    });
+
     it('⋯ menu: settings, dark mode, reload of the folder, about (last); ✕: Zen mode off (the viewer stays)', async () => {
         const { page, requests } = await openFolder(DATA);
         const z = await zen(page);
@@ -788,9 +838,15 @@ describe('zen mode', () => {
         assert.equal(await tab.getAttribute('aria-pressed'), 'true'); // filled: on
         const after = await tab.boundingBox();
         assert.ok(after && Math.abs(after.x - before.x) <= 1 && Math.abs(after.y - before.y) <= 1, 'same place');
-        // the Zen list: its eye at the top left
+        // the Zen list: its eye at the top left; the tab as long as its header (its curve meets the header's lower edge)
         const first = await z.locator('.tp-bar-start > *').first().getAttribute('class');
         assert.match(first ?? '', /tp-zen-eye/);
+        const head = await z.locator('.tp-zen-header').boundingBox();
+        const curve = await tab.locator('.tp-zen-tab-shape').boundingBox();
+        assert.ok(
+            head && curve && Math.abs(curve.y + curve.height - (head.y + head.height)) <= 2,
+            'ends with the header',
+        );
         await tab.click();
         await page.locator('.tp-zen').waitFor({ state: 'detached' });
         assert.equal(await tab.getAttribute('aria-pressed'), 'false');

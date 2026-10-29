@@ -54,7 +54,7 @@ It is read only until its **Edit** starts the layout mode (the list framed in bl
   **Cancel**, Edit again, ✕ or Esc end the layout mode and drop what is not saved (after asking);
 - **Upload** writes the columns saved into the page's Sharepoint view, for everyone (after asking).
 
-✕ (or Columns again) closes the pane.
+✕ (or Columns again) closes the pane; its left edge changes its width, and released narrow, it closes.
 
 Widths change in any mode (the right edge of a column title; double-click: as it fits) and are kept at once.
 

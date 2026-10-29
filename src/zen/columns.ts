@@ -26,6 +26,10 @@ import type { ZenData } from '../_core/types.ts';
 
 export const ZEN_COLUMNS_KEY = 'tp-preview-zen-columns';
 const MAX_LIBRARIES = 100; // libraries whose columns are kept (most recent first)
+const PANE_KEY = 'tp-preview-zen-pane'; // width of the columns pane (px), kept
+const PANE_WIDTH = 260; // px at first
+const PANE_CLOSE = 200; // px: released narrower than this (its buttons no longer fit), the pane closes (as the viewer's splitter)
+const PANE_ROOM = 200; // px of the list left beside the pane at least
 
 // ===========================================================================
 // METHODS
@@ -189,7 +193,38 @@ export function openColumnsPane(
     reset.type = 'button';
     reset.className = 'tp-menu-item';
     reset.textContent = 'Columns of the Sharepoint view';
-    el.append(head, list, reset);
+    // left edge: dragged to change the width (kept); released below PANE_CLOSE: closed
+    const grip = document.createElement('div');
+    grip.className = 'tp-zen-pane-grip';
+    grip.title = 'Drag to change the width (narrow: closes it)';
+    el.style.width = `${Number(loadPref(PANE_KEY, String(PANE_WIDTH))) || PANE_WIDTH}px`;
+    grip.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        const x0 = e.clientX;
+        const w0 = el.offsetWidth;
+        const max = Math.max(PANE_WIDTH, z.body.clientWidth - PANE_ROOM);
+        let w = w0;
+        grip.setPointerCapture(e.pointerId);
+        const move = (ev: PointerEvent) => {
+            w = Math.min(max, w0 + x0 - ev.clientX);
+            el.style.width = `${Math.max(PANE_CLOSE / 2, w)}px`;
+            el.classList.toggle('tp-zen-pane-closing', w < PANE_CLOSE);
+        };
+        const up = () => {
+            grip.removeEventListener('pointermove', move);
+            grip.removeEventListener('pointerup', up);
+            grip.removeEventListener('pointercancel', up);
+            el.classList.remove('tp-zen-pane-closing');
+            if (w >= PANE_CLOSE) return void savePref(PANE_KEY, String(Math.round(w)));
+            el.style.width = `${w0}px`; // closed (or kept if changes are not dropped): as it was
+            acts.close();
+        };
+        grip.addEventListener('pointermove', move);
+        grip.addEventListener('pointerup', up);
+        grip.addEventListener('pointercancel', up);
+    });
+    el.append(grip, head, list, reset);
     editBtn.onclick = acts.edit;
     cancelBtn.onclick = acts.cancel;
     saveBtn.onclick = acts.save;

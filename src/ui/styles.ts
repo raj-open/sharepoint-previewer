@@ -931,7 +931,12 @@ const CSS = `
   .tp-zen-pick input { margin: 0; vertical-align: middle; cursor: pointer; accent-color: var(--tp-accent); }
   .tp-zen-header { flex: none; }
   .tp-zen-meta { margin-top: -2px; padding: 0 12px 6px; /* as the viewer's properties */ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .tp-zen-picked:not(:empty)::before { content: " · "; }
+  .tp-zen-meta[hidden] { display: none; }
+  .tp-zen-note:not(:empty)::before, .tp-zen-picked:not(:empty)::before { content: " · "; }
+  /* properties off: only what there is to say (no label, no facts, no leading dot) */
+  .tp-zen-meta-brief strong, .tp-zen-meta-brief .tp-zen-facts { display: none; }
+  .tp-zen-facts:empty + .tp-zen-note::before,
+  .tp-zen-meta-brief .tp-zen-note::before, .tp-zen-meta-brief .tp-zen-note:empty + .tp-zen-picked::before { content: none; }
   /* Name: frozen at the left (after the checkboxes), like the column titles at the top */
   .tp-zen-table .tp-zen-name {
     position: sticky;
@@ -982,15 +987,19 @@ const CSS = `
   .tp-zen-body > .tp-zen-grid { min-width: 0; }
   /* Columns pane: read only until Edit (layout mode): then ticked, unticked and dragged to change the order */
   .tp-zen-pane {
+    position: relative;
     flex: none;
-    width: 260px;
     display: flex;
     flex-direction: column;
     border-left: 1px solid var(--tp-edge);
     background: var(--tp-bg);
   }
-  .tp-zen-pane-bar { flex: none; display: flex; align-items: center; gap: 4px; padding: 8px; border-bottom: 1px solid var(--tp-edge); }
-  .tp-zen-pane-bar strong { flex: 1; padding-left: 4px; color: var(--tp-title); }
+  /* left edge: dragged to change the width; released narrow: closes (dimmed meanwhile, as the viewer's splitter) */
+  .tp-zen-pane-grip { position: absolute; left: -3px; top: 0; bottom: 0; width: 6px; z-index: 2; cursor: col-resize; }
+  .tp-zen-pane-grip:hover { background: rgba(0, 120, 212, .35); }
+  .tp-zen-pane.tp-zen-pane-closing { opacity: .45; }
+  .tp-zen-pane-bar { flex: none; overflow: hidden; display: flex; align-items: center; gap: 4px; padding: 8px; border-bottom: 1px solid var(--tp-edge); }
+  .tp-zen-pane-bar strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding-left: 4px; color: var(--tp-title); }
   .tp-zen-columns-list { flex: 1; min-height: 0; overflow: hidden auto; padding: 4px; } /* no sideways scroll: long names cut */
   .tp-zen-columns label { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 4px; white-space: nowrap; }
   .tp-zen-columns label > :not(span:last-child) { flex: none; }
@@ -1004,6 +1013,20 @@ const CSS = `
   .tp-zen th.tp-movable, .tp-zen-pane-editing label { cursor: grab; user-select: none; -webkit-user-select: none; }
   .tp-zen .tp-reordering, .tp-zen .tp-reordering * { cursor: grabbing; }
   .tp-zen .tp-moving { opacity: .5; }
+  /* the item dragged: a copy lifted under the pointer (cf. /src/view/reorder.ts) */
+  .tp-lifted {
+    position: fixed;
+    z-index: 2147483647;
+    pointer-events: none;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    white-space: nowrap;
+    border-radius: 4px;
+    opacity: .9;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .3);
+  }
   .tp-zen-columns .tp-drop-before { box-shadow: inset 0 2px 0 var(--tp-accent); }
   .tp-zen-columns .tp-drop-after { box-shadow: inset 0 -2px 0 var(--tp-accent); }
 `;

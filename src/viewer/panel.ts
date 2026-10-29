@@ -52,6 +52,7 @@ import { startMove } from '../ui/move.ts';
 import { createPicker } from '../ui/picker.ts';
 import { QUOTE_MODES } from '../view/table.ts';
 import { zenEscape } from '../zen/zen.ts';
+import { zenProps } from '../zen/zen.ts';
 import { zenTheme } from '../zen/zen.ts';
 import { cancelLoad } from './cache.ts';
 import { clearAllCached } from './cache.ts';
@@ -481,6 +482,7 @@ export function createViewer(): Viewer {
         text: '',
         loadToken: 0,
         originalBodyStyle: document.body.getAttribute('style'),
+        showProps: () => setMetaLines(view.metaLines),
     };
     setPreview(v, null);
 
@@ -656,11 +658,7 @@ export function createViewer(): Viewer {
     };
     // Link: clean URL of the file shown (a link file: where it leads), else of the folder
     wireLink(linkBtn, () => shownUrl(v));
-    propsBtn.onclick = () => {
-        view.props = !view.props;
-        savePref(PROPS_KEY, view.props ? '1' : '0');
-        setMetaLines(view.metaLines);
-    };
+    propsBtn.onclick = () => toggleProps();
     wrapBtn.onclick = () => {
         view.wrap = !view.wrap;
         savePref(WRAP_KEY, view.wrap ? '1' : '0');
@@ -783,6 +781,14 @@ export function createViewer(): Viewer {
 }
 
 /** Light / dark (kept): the viewer, its menu entry and the Zen list */
+/** Properties on or off: the viewer's line (the file's) and the Zen list's (the folder's), one setting */
+export function toggleProps(): void {
+    view.props = !view.props;
+    savePref(PROPS_KEY, view.props ? '1' : '0');
+    viewer?.showProps();
+    zenProps();
+}
+
 export function toggleTheme(): void {
     view.theme = view.theme === 'dark' ? 'light' : 'dark';
     savePref(THEME_KEY, view.theme);

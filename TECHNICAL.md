@@ -349,8 +349,10 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
 - **Columns pane** (Columns in the ⋯ menu, again or ✕ closes it; `/src/zen/columns.ts`):
   right of the list, over its full height (below the header); the columns in order with a checkbox each (shown or hidden),
   read only until its **Edit** (layout mode); its own bar: Edit, Cancel, Save, Upload (as the list's), ✕.
+  Its left edge is dragged to change the width (kept: `tp-preview-zen-pane`); released narrower than 200 px, the pane closes.
 - **Layout mode** (Edit in the columns pane): the only mode in which columns are shown or hidden and moved.
-  Columns are moved by dragging their titles in the list or the entries of the pane with the pointer
+  Columns are moved by dragging their titles in the list or the entries of the pane with the pointer (a copy of the title or entry
+  lifted and moved along meanwhile)
   (`/src/view/reorder.ts`; no HTML drag and drop, which Sharepoint takes for its uploads).
   Changes are a draft (`z.columns`, shown at once; the columns as saved in `z.layout`):
   Save keeps them for the library (in this browser), Cancel / Edit again / ✕ / Esc drop what is not saved (after asking);
@@ -390,7 +392,10 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
   once it has changed and settled (1 s), the folder is read anew; watched until quiet for 2 minutes.
 - **Bar:** as the viewer's (`/src/ui/bar.ts`): eye, Edit, Cancel, Save, Upload (Save and Cancel: of the mode on; same places as in the viewer), Download, Delete (with Shift: Purge); crumbs (the well); ⋯, ✕.
   Bars one above the other (Zen list over the viewer) get start and end groups of the same width: the wells line up.
-  Below it, as the viewer's properties: the count of items, the note, the selection (or progress).
+  Below it, as the viewer's properties, the folder line: items (folders, files) and the latest change, a note, the selection (or progress);
+  (i) in the well switches it on and off, one setting with the viewer's properties (`toggleProps`);
+  off, the line shows only while there is something to say (note, selection, progress), without the facts.
+  The tab is as long as the Zen list's header (bar and folder line): its curve meets the header's lower edge.
   ⋯ (`/src/zen/menu.ts`): full settings (first), columns (the pane), dark mode (shared with the viewer: `toggleTheme` in `/src/viewer/panel.ts`), reload of the folder, about (last).
   ✕: Zen mode off.
   Narrow (as the viewer's): the crumbs on a second row, full width.

@@ -28,6 +28,7 @@ import { EYE_FULL_SVG } from '../ui/icons.ts';
 import { EYE_HALF_SVG } from '../ui/icons.ts';
 import { LINK_SVG } from '../ui/icons.ts';
 import { MORE_SVG } from '../ui/icons.ts';
+import { PROPS_SVG } from '../ui/icons.ts';
 import { PURGE_SVG } from '../ui/icons.ts';
 import { SAVE_SVG } from '../ui/icons.ts';
 import { STOP_SVG } from '../ui/icons.ts';
@@ -46,6 +47,7 @@ import { openFolder } from '../viewer/open.ts';
 import { sameFile } from '../viewer/open.ts';
 import { showFile } from '../viewer/open.ts';
 import { viewer } from '../viewer/open.ts';
+import { toggleProps } from '../viewer/panel.ts';
 import { keepChanges } from './changes.ts';
 import { loadChanges } from './changes.ts';
 import { beginLayout } from './columns.ts';
@@ -112,7 +114,7 @@ const TAB_TOP = 8; // px below the top of the list
 // the Zen button, below it room for the header eye of Sharepoint's list: there while the list is scrolled sideways
 // (the header scrolls away), back in the header otherwise
 const TAB_EYE = 30; // px more below for the eye
-const TAB_LONG_SHAPE = ((w: number, t: number, h: number) => {
+const tabShape = (w: number, t: number, h: number): string => {
     const top = 0.5 - t; // the list's top edge (tab placed TAB_TOP below it)
     const d =
         `M ${w + 1} ${top} L 7 ${top} Q 1.5 ${top} 1.5 ${top + 5.5} ` +
@@ -120,7 +122,11 @@ const TAB_LONG_SHAPE = ((w: number, t: number, h: number) => {
     const box = `0 ${-t} ${w + 1} ${h + t}`;
     const css = `inset: auto; left: 0; top: ${-t}px; height: ${h + t}px`;
     return `<svg class="tp-zen-tab-shape" style="${css}" viewBox="${box}" aria-hidden="true"><path d="${d}"/></svg>`;
-})(TAB_WIDTH, TAB_TOP, TAB_HEIGHT + TAB_EYE);
+};
+// off: long (room for the header eye below the Zen button); on: down to the end of the Zen list's header, so its curve
+// meets the header's lower edge (bar and folder line, as high as they are)
+const TAB_OFF_SHAPE = tabShape(TAB_WIDTH, TAB_TOP, TAB_HEIGHT + TAB_EYE);
+const TAB_MIN = 30; // px: height of the tab at least
 
 let zenTab: HTMLButtonElement | null = null; // the tab, once made
 let tabEye: HTMLButtonElement | null = null; // header eye in the long tab, once made
@@ -305,9 +311,13 @@ export function placeTab(shown = !!zenTab): void {
     if (!zenTab) zenTab = createTab();
     if (!zenTab.isConnected) document.documentElement.append(zenTab);
     const on = !!zenList;
-    if (zenTab.getAttribute('aria-pressed') !== String(on)) {
+    const header = zenList?.el.querySelector<HTMLElement>('.tp-zen-header')?.offsetHeight ?? 0;
+    const height = on ? Math.max(TAB_MIN, header - TAB_TOP) : TAB_HEIGHT;
+    if (zenTab.dataset.shape !== `${on}:${height}`) {
+        zenTab.dataset.shape = `${on}:${height}`;
         zenTab.setAttribute('aria-pressed', String(on));
-        zenTab.innerHTML = TAB_LONG_SHAPE + (on ? ZEN_ON_SVG : ZEN_SVG);
+        zenTab.style.height = `${height}px`;
+        zenTab.innerHTML = (on ? tabShape(TAB_WIDTH, TAB_TOP, height) : TAB_OFF_SHAPE) + (on ? ZEN_ON_SVG : ZEN_SVG);
         zenTab.title = on ? "Zen mode off (back to Sharepoint's list)" : ZEN_TAB_TITLE;
     }
     const theme = `tp-${zenList ? view.theme : 'light'}`; // off: as Sharepoint; on: as the Zen list
@@ -368,7 +378,6 @@ function createTab(): HTMLButtonElement {
     const tab = document.createElement('button');
     tab.type = 'button';
     tab.style.width = `${TAB_WIDTH + 1}px`;
-    tab.style.height = `${TAB_HEIGHT}px`;
     for (const type of ['click', 'dblclick', 'mousedown', 'pointerdown', 'keydown', 'contextmenu']) {
         tab.addEventListener(type, (e) => e.stopPropagation()); // not for Sharepoint
     }
@@ -444,10 +453,13 @@ function createZen(library: string): Zen {
     // crumbs: link (clean URL of the folder), then the path
     const nav = document.createElement('nav');
     nav.className = 'tp-zen-crumbs tp-well';
+    // (i): the folder's line below the bar on or off (the same setting as the viewer's properties)
+    const propsBtn = barButton(PROPS_SVG, 'Display folder properties', 'tp-well-btn');
+    propsBtn.onclick = () => toggleProps();
     const linkBtn = barButton(LINK_SVG, 'Copy the link', 'tp-well-btn');
     const crumbs = document.createElement('span');
     crumbs.className = 'tp-zen-path';
-    nav.append(linkBtn, crumbs);
+    nav.append(propsBtn, linkBtn, crumbs);
     const note = document.createElement('span');
     note.className = 'tp-zen-note';
     const picked = document.createElement('span');
@@ -463,16 +475,22 @@ function createZen(library: string): Zen {
     const closeBtn = closeButton("Zen mode off (back to Sharepoint's list)");
     // bar as the viewer's: [eye] [edit, cancel, save, upload (same places)] [download, delete] [crumbs] [⋯] [✕];
     // below it, as the viewer's properties: count, selection, progress
-    const { bar, stop: stopBar } = createBar({
-        start: [eyeBtn, editBtn, cancelBtn, saveBtn, uploadBtn, downloadBtn, deleteBtn],
-        well: nav,
-        end: [moreBtn, closeBtn],
-    });
+    const { bar, stop: stopBar } = createBar(
+        {
+            start: [eyeBtn, editBtn, cancelBtn, saveBtn, uploadBtn, downloadBtn, deleteBtn],
+            well: nav,
+            end: [moreBtn, closeBtn],
+        },
+        () => placeTab(),
+    ); // two rows or one: the tab as long as the header
     const meta = document.createElement('div');
     meta.className = 'tp-title tp-bar-meta tp-zen-meta';
     const label = document.createElement('strong');
     label.textContent = 'Folder: ';
-    meta.append(label, note, picked); // as the viewer's line: <strong>Properties:</strong> …
+    const facts = document.createElement('span');
+    facts.className = 'tp-zen-facts';
+    // as the viewer's line (<strong>Properties:</strong> …); off: only while there is something to say
+    meta.append(label, facts, note, picked);
     const grid = document.createElement('div');
     grid.className = 'tp-zen-grid tp-content';
     grid.tabIndex = 0;
@@ -503,12 +521,15 @@ function createZen(library: string): Zen {
         el,
         bar,
         crumbs,
+        meta,
+        facts,
         note,
         picked,
         body,
         grid,
         pane: null,
         eyeBtn,
+        propsBtn,
         downloadBtn,
         deleteBtn,
         editBtn,
@@ -631,7 +652,7 @@ function showButtons(z: Zen): void {
     z.downloadBtn.title = fetching ? 'Stop the download' : DOWNLOAD;
     z.downloadBtn.setAttribute('aria-pressed', String(fetching));
     z.deleteBtn.disabled = fetching || z.busy || !z.data || !n;
-    if (!fetching) z.picked.textContent = n ? `${n.toLocaleString()} selected` : '';
+    if (!fetching) say(z, z.picked, n ? `${n.toLocaleString()} selected` : '');
     z.editBtn.setAttribute('aria-pressed', String(z.editing));
     z.editBtn.disabled = z.busy || !z.data || layout;
     z.saveBtn.disabled = z.busy || !z.editing || !z.dirty;
@@ -663,7 +684,7 @@ async function goTo(z: Zen, folder: string, again = false): Promise<void> {
     z.folder = folder;
     showInSharepoint(z, folder);
     showCrumbs(z, library);
-    z.note.textContent = 'Loading …';
+    say(z, z.note, 'Loading …');
     z.busy = true;
     showButtons(z);
     const data = await loadFolder(library, folder);
@@ -671,7 +692,7 @@ async function goTo(z: Zen, folder: string, again = false): Promise<void> {
     z.busy = false;
     if (typeof data === 'string') {
         z.data = null;
-        z.note.textContent = '';
+        say(z, z.note, '');
         z.grid.innerHTML = `<div class="tp-zen-empty tp-zen-failed">Could not read the folder: ${esc(data)}</div>`;
         return void showButtons(z);
     }
@@ -714,10 +735,44 @@ function followSharepoint(z: Zen): void {
     if (!sameFile(now, z.folder)) void goTo(z, now);
 }
 
+// Folder line: its facts (items, of them folders and files, latest change), and a note (what was just done, or is going on)
 function showCount(z: Zen, extra = ''): void {
-    const n = z.data?.items.length ?? 0;
-    const count = `${n.toLocaleString()} item${n === 1 ? '' : 's'}`;
-    z.note.textContent = extra ? `${count} · ${extra}` : count;
+    const items = z.data?.items ?? [];
+    const plural = (n: number, word: string) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
+    const folders = items.filter((x) => x.folder).length;
+    const parts = [plural(items.length, 'item')];
+    if (items.length) parts[0] += ` (${plural(folders, 'folder')}, ${plural(items.length - folders, 'file')})`;
+    const latest = items.reduce<ZenItem | null>(
+        (a, x) => (String(x.raw.Modified ?? '') > String(a?.raw.Modified ?? '') ? x : a),
+        null,
+    );
+    if (latest?.text.Modified) parts.push(`latest change: ${latest.text.Modified}`);
+    z.facts.textContent = parts.join(' · ');
+    say(z, z.note, extra);
+}
+
+// A part of the folder line set (note, selection or progress), the line shown or hidden accordingly
+function say(z: Zen, part: HTMLElement, text: string): void {
+    part.textContent = text;
+    showMeta(z);
+}
+
+/**
+ * Folder line below the bar: on (setting of the properties, shared with the viewer) with all of it;
+ * off only while there is something to say (note, selection, progress), without the facts
+ */
+function showMeta(z: Zen): void {
+    z.propsBtn.setAttribute('aria-pressed', String(view.props));
+    z.meta.classList.toggle('tp-zen-meta-brief', !view.props);
+    const hidden = !view.props && !z.note.textContent && !z.picked.textContent;
+    if (z.meta.hidden === hidden) return;
+    z.meta.hidden = hidden;
+    placeTab(); // the header's height changed: the tab follows
+}
+
+/** Properties on or off (cf. toggleProps): the Zen list's folder line follows */
+export function zenProps(): void {
+    if (zenList) showMeta(zenList);
 }
 
 // Click on a row: a folder opens in the list, a file in the viewer
@@ -739,9 +794,9 @@ async function downloadSelected(z: Zen): Promise<void> {
     showButtons(z);
     const only = items.length === 1 ? items[0] : null;
     const name = (only?.folder ? only.name : data.folder.split('/').pop()) || data.title;
-    const why = await download(data.library, data.folder, items, name, fetching.signal, (text) => {
-        z.picked.textContent = text;
-    });
+    const why = await download(data.library, data.folder, items, name, fetching.signal, (text) =>
+        say(z, z.picked, text),
+    );
     z.fetching = null;
     showButtons(z);
     if (why && why !== 'stopped') alert(`Not downloaded: ${why}`);
@@ -759,14 +814,7 @@ async function deleteSelected(z: Zen, purge = false): Promise<void> {
     if (!confirm(deleteQuestion(items, purge))) return;
     z.busy = true;
     showButtons(z);
-    const failed = await deleteItems(
-        data.library,
-        items,
-        (text) => {
-            z.picked.textContent = text;
-        },
-        purge,
-    );
+    const failed = await deleteItems(data.library, items, (text) => say(z, z.picked, text), purge);
     if (zenList !== z) return;
     z.busy = false;
     closeDeleted(items.filter((x) => !failed.some((f) => f.item === x)));
@@ -874,7 +922,7 @@ async function upload(z: Zen): Promise<void> {
     if (!data || z.busy || z.dirty || !z.pending.size) return;
     z.busy = true;
     showButtons(z);
-    z.note.textContent = 'Uploading …';
+    say(z, z.note, 'Uploading …');
     let saved = 0;
     let failed = 0;
     const renamed: { from: string; to: string; name: string }[] = [];

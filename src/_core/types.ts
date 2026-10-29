@@ -121,6 +121,8 @@ export type Viewer = {
     loadMoreBtn: HTMLButtonElement;
     splitter: HTMLDivElement;
     removeListeners?: () => void;
+    /** properties line shown or hidden as the setting says */
+    showProps: () => void;
     applyColour?: () => void;
     // Layout: mode; split modes: list region and its parts, as they were before (restored on close)
     mode: Layout;
@@ -228,6 +230,9 @@ export type Zen = {
     el: HTMLDivElement;
     bar: HTMLDivElement;
     crumbs: HTMLElement;
+    /** line below the bar (cf. the viewer's properties): facts of the folder, note, selection */
+    meta: HTMLElement;
+    facts: HTMLElement;
     note: HTMLElement;
     /** items selected (or the progress of a download or delete) */
     picked: HTMLElement;
@@ -236,6 +241,7 @@ export type Zen = {
     grid: HTMLDivElement;
     pane: ZenPane | null;
     eyeBtn: HTMLButtonElement;
+    propsBtn: HTMLButtonElement;
     downloadBtn: HTMLButtonElement;
     deleteBtn: HTMLButtonElement;
     editBtn: HTMLButtonElement;
