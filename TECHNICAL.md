@@ -373,7 +373,7 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
 - **Purge** (same module, red flame button; Shift + Delete or ⌘ + ⌥ + Backspace in the list, as Explorer and Finder):
   as Delete, but for good: `POST …/items(<id>)/deleteObject()`, not to the recycle bin;
   the question says so plainly (cannot be restored, cannot be undone).
-- **Bar:** eye, crumbs, note; selection (or progress), Download, Delete; Edit, Cancel, Save, Upload (Save and Cancel: of the mode on); columns; ⋯; ✕.
+- **Bar:** eye, crumbs, note; selection (or progress), Download, Delete, Purge; Edit, Cancel, Save, Upload (Save and Cancel: of the mode on); columns; ⋯; ✕.
   ⋯ (`/src/zen/menu.ts`): full settings, dark mode (shared with the viewer: `toggleTheme` in `/src/viewer/panel.ts`), reload of the folder, about (last).
   ✕: Zen mode off.
   Narrow (less than 200 px left beside the buttons, `MIN_CRUMBS`): the crumbs on a second row, full width, as the file name in the viewer's header.

@@ -19,6 +19,10 @@ describe('about', () => {
             CONTROLS.some(([key]: [string]) => /Delete/.test(key)),
             'delete named',
         );
+        assert.ok(
+            CONTROLS.some(([key, what]: [string, string]) => /Shift \+ Delete/.test(key) && /purge/.test(what)),
+            'purge named',
+        );
     });
 
     it('links: none (empty) -> no section at all; given -> shown, new tab, escaped', () => {
