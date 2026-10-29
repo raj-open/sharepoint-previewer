@@ -18,6 +18,10 @@ import { POPUP_POS_KEY } from '../_core/settings-form.ts';
 import { POPUP_SIZE_KEY } from '../_core/settings-form.ts';
 import { LARGE_FILE_BYTES } from '../_core/settings.ts';
 import { formatBytes } from '../_core/util.ts';
+import { barButton } from '../ui/bar.ts';
+import { closeButton } from '../ui/bar.ts';
+import { createBar } from '../ui/bar.ts';
+import { placeBelow } from '../ui/bar.ts';
 import { bindBrand } from '../ui/brand.ts';
 import { brandHtml } from '../ui/brand.ts';
 import { brandTitle } from '../ui/brand.ts';
@@ -109,28 +113,8 @@ const VIEW_KEYS: Record<string, string> = {
     markdown: 'tp-preview-markdown',
 };
 
-// Header widths: below NARROW the file name moves to a second row (room for at least 200 px of it beside
-// the buttons: 232 px left, 256 px right); below TIGHT also the version and logo are left out (buttons only)
-const HEADER_TIGHT = 232 + 256;
-const HEADER_NARROW = HEADER_TIGHT + 200;
-const ROW2 = 36; // height the second row adds (title well and gap)
-
 const ZOOM_STEP = 0.1;
 const WHEEL_STEP = 40; // wheel distance per zoom step (mouse notch ~100, touchpad pinch: small steps)
-
-const SQUARE_BTN_CSS = `
-  position: absolute;
-  z-index: 1;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-`;
 
 // ===========================================================================
 // METHODS
@@ -150,42 +134,23 @@ export function createViewer(): Viewer {
     const box = document.createElement('div');
     box.className = `tp-viewer tp-${view.theme}`;
 
-    // Header bar
+    // Header: bar (cf. /src/ui/bar.ts), properties below it
     const header = document.createElement('div');
-    header.className = 'tp-header';
-    header.style.cssText = `
-    position: relative;
-    flex: none;
-    height: 94px;
-  `;
+    header.className = 'tp-header tp-viewer-header';
 
-    // Header buttons
-    const ROW1 = 8;
-    const button = (
-        svg: string,
-        title: string,
-        left: number,
-        top: number = ROW1,
-        { disabled = false, pressed }: { disabled?: boolean; pressed?: boolean } = {},
-    ) => {
-        const btn = document.createElement('button');
-        btn.className = 'tp-mode-btn';
-        btn.innerHTML = svg;
-        btn.title = title;
-        btn.disabled = disabled;
-        if (pressed !== undefined) btn.setAttribute('aria-pressed', String(pressed));
-        btn.style.cssText = `${SQUARE_BTN_CSS} left: ${left}px; top: ${top}px;`;
+    // Bar: [layout ▾] [edit] [cache all] [stop] [save] [upload] [(i) link File: name] [version] [⋯] [copy] [✕]
+    const button = (svg: string, title: string, disabled = true) => {
+        const btn = barButton(svg, title);
+        btn.disabled = disabled; // off until a file is shown
         return btn;
     };
-    // Main row: [layout ▾] [edit] [cache all] [stop] [save] [upload] (i) File: name [table] [3D] … [⋯] [copy] [✕]
-    const layoutBtn = button(SPLIT_H_SVG, 'Layout: below the list / right of the list / popup', 10);
-    const writeBtn = button(WRITE_SVG, 'Edit (text files only)', 46, ROW1, { disabled: true, pressed: false });
-    const loadAllBtn = button(LOAD_ALL_SVG, 'Cache the whole file', 82, ROW1, { disabled: true });
-    const stopBtn = button(STOP_SVG, 'Stop caching', 118, ROW1, { disabled: true }); // also: cancel changes
-    const saveBtn = button(SAVE_SVG, 'Save: keep the changes, ready for upload (Ctrl+S)', 154, ROW1, {
-        disabled: true,
-    });
-    const uploadBtn = button(UPLOAD_SVG, 'Upload the saved changes to Sharepoint', 190, ROW1, { disabled: true });
+    const layoutBtn = button(SPLIT_H_SVG, 'Layout: below the list / right of the list / popup', false);
+    const writeBtn = button(WRITE_SVG, 'Edit (text files only)');
+    writeBtn.setAttribute('aria-pressed', 'false');
+    const loadAllBtn = button(LOAD_ALL_SVG, 'Cache the whole file');
+    const stopBtn = button(STOP_SVG, 'Stop caching'); // also: cancel changes
+    const saveBtn = button(SAVE_SVG, 'Save: keep the changes, ready for upload (Ctrl+S)');
+    const uploadBtn = button(UPLOAD_SVG, 'Upload the saved changes to Sharepoint');
     // View switch (status bar, bottom right): Text | Preview (Table, 3D or Markdown, by file type)
     const viewBtn = (svg: string, label: string, title: string) => {
         const b = document.createElement('button');
@@ -199,16 +164,21 @@ export function createViewer(): Viewer {
     };
     const textBtn = viewBtn(TEXT_SVG, 'Text', 'Text view');
     const previewBtn = viewBtn('', 'Preview', ''); // look set per file (setPreview)
-    const moreBtn = button(MORE_SVG, 'More', 0);
-    moreBtn.style.left = '';
-    moreBtn.style.right = '86px';
+    const moreBtn = barButton(MORE_SVG, 'More');
 
     // Menu entries (icon + label); toggles show check mark when on
-    const item = (svg: string, label: string, opts?: { disabled?: boolean; pressed?: boolean }) => {
-        const b = button(svg, label, 0, 0, opts);
+    const item = (
+        svg: string,
+        label: string,
+        { disabled = false, pressed }: { disabled?: boolean; pressed?: boolean } = {},
+    ) => {
+        const b = document.createElement('button');
+        b.type = 'button';
         b.className = 'tp-menu-item';
-        b.style.cssText = '';
         b.innerHTML = `${svg}<span>${label}</span>`;
+        b.title = label;
+        b.disabled = disabled;
+        if (pressed !== undefined) b.setAttribute('aria-pressed', String(pressed));
         return b;
     };
     const hBtn = item(SPLIT_H_SVG, 'Below the list');
@@ -246,10 +216,8 @@ export function createViewer(): Viewer {
         };
         anchor.onclick = () => {
             if (!m.hidden) return close();
-            m.style.top = `${anchor.offsetTop + anchor.offsetHeight + 4}px`;
-            if (alignRight) m.style.right = anchor.style.right;
-            else m.style.left = `${anchor.offsetLeft}px`;
-            m.hidden = false;
+            m.hidden = false; // shown first: measured
+            placeBelow(m, anchor, alignRight);
             document.addEventListener('pointerdown', outside, true);
         };
         m.addEventListener('click', (e) => {
@@ -276,49 +244,18 @@ export function createViewer(): Viewer {
         true,
     );
 
-    // Title: file name, with small note below it
+    // Well: (i) link File: name (new file: a button)
     const title = document.createElement('div');
     title.className = 'tp-title tp-well';
-    title.style.cssText = `
-    position: absolute;
-    top: 8px;
-    height: 30px;
-    left: 232px;
-    right: 256px;
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    text-align: left;
-    font-family: sans-serif;
-  `;
     title.innerHTML = `
     <div style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; line-height:18px; margin-right:4px">
       <strong>File:</strong> <span class="tp-title-name"></span><span class="tp-title-sheet" hidden></span>
     </div>
   `;
-    // Small buttons in the title well, left of "File:": properties on/off (i), link (copied on click)
-    const wellBtn = (btn: HTMLButtonElement, margin: number) => {
-        btn.style.cssText = `
-    flex: none;
-    width: 24px;
-    height: 24px;
-    margin-left: ${margin}px;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-  `;
-        return btn;
-    };
-    const propsBtn = wellBtn(
-        button(PROPS_SVG, 'Display file metadata and properties', 0, 0, { pressed: view.props }),
-        -6,
-    );
-    const linkBtn = wellBtn(button(LINK_SVG, 'Copy the link', 0, 0), -6);
+    // Small buttons in the well, left of "File:": properties on/off (i), link (copied on click)
+    const propsBtn = barButton(PROPS_SVG, 'Display file metadata and properties', 'tp-well-btn');
+    propsBtn.setAttribute('aria-pressed', String(view.props));
+    const linkBtn = barButton(LINK_SVG, 'Copy the link', 'tp-well-btn');
     title.prepend(propsBtn, linkBtn);
     // New file: in the title well while no file is open (also in the ⋯ menu)
     const newBtn = document.createElement('button');
@@ -336,61 +273,21 @@ export function createViewer(): Viewer {
     titleName.onclick = () => startRename(v); // text: write mode only; read-only files: a copy
     const titleSheet = title.querySelector('.tp-title-sheet') as HTMLElement;
 
-    // Metadata (second line, full width): dates, size, format, table shape, ...
+    // Metadata (below the bar, full width): dates, size, format, table shape, ...
     const metaLine = document.createElement('div');
-    metaLine.className = 'tp-title';
-    metaLine.style.cssText = `
-    position: absolute;
-    top: 44px;
-    left: 12px;
-    right: 12px;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-box-orient: vertical; /* wraps, cut off with "…" after the lines shown */
-    line-height: 15px;
-    white-space: normal;
-    font: 12px/15px sans-serif;
-    opacity: .85;
-  `;
+    metaLine.className = 'tp-title tp-bar-meta';
 
-    // Version and logo (top right, left of copy button)
+    // Version and logo (info of the bar)
     const brand = document.createElement('div');
-    brand.className = 'tp-title';
-    brand.style.cssText = `
-    position: absolute;
-    top: 8px;
-    height: 30px;
-    right: 124px;
-    max-width: 124px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font: 11px sans-serif;
-    opacity: .75;
-    white-space: nowrap;
-  `;
+    brand.className = 'tp-bar-info tp-brand';
     brand.innerHTML = brandHtml();
     brand.title = brandTitle();
     bindBrand(brand);
 
-    // Copy button (left of X)
-    const copyBtn = document.createElement('button');
-    copyBtn.innerHTML = COPY_SVG;
-    copyBtn.title = 'Copy';
-    copyBtn.style.cssText = `${SQUARE_BTN_CSS} top: 8px; right: 48px; background: #0078d4; color: #fff;`;
-
-    // Close button (red X, top right)
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = '✕';
-    closeBtn.title = 'Close (Esc)';
-    closeBtn.style.cssText = `
-    ${SQUARE_BTN_CSS}
-    top: 8px;
-    right: 10px;
-    background: #d13438;
-    color: #fff;
-    font: bold 15px sans-serif;
-  `;
+    // Copy (blue) and close (red ✕), right end
+    const copyBtn = barButton(COPY_SVG, 'Copy', 'tp-bar-copy');
+    copyBtn.classList.remove('tp-mode-btn'); // own colours, as the close button
+    const closeBtn = closeButton('Close (Esc)');
 
     // Metadata height: one line at first; drag grip below it to show more lines
     const metaGrip = document.createElement('div');
@@ -400,7 +297,7 @@ export function createViewer(): Viewer {
         view.metaLines = Math.max(1, Math.min(6, n));
         savePref('tp-preview-meta-lines', String(view.metaLines));
         const h = view.props ? view.metaLines * 15 : -4; // hidden: header ends under buttons
-        const top = 44 + (header.classList.contains('tp-narrow') ? ROW2 : 0); // below the title well
+        const top = (bar.offsetHeight || 46) - 2; // below the bar (one row or two; not shown yet: one)
         metaLine.style.display = view.props ? '' : 'none';
         metaGrip.style.display = view.props ? '' : 'none';
         propsBtn.setAttribute('aria-pressed', String(view.props));
@@ -411,21 +308,6 @@ export function createViewer(): Viewer {
         const lintShown = lint.style.display !== 'none' && lint.style.display !== '';
         header.style.height = `${top + h + 6 + (lintShown ? 18 : 0)}px`; // room for check line only when shown
     };
-    // Narrow header: file name on a second row (full width); very narrow: no version and logo either
-    const fitHeader = () => {
-        const w = header.clientWidth;
-        if (!w) return; // not shown yet
-        const narrow = w < HEADER_NARROW;
-        brand.style.display = w < HEADER_TIGHT ? 'none' : 'flex';
-        if (narrow === header.classList.contains('tp-narrow')) return;
-        header.classList.toggle('tp-narrow', narrow);
-        title.style.top = narrow ? '44px' : '8px';
-        title.style.left = narrow ? '12px' : '232px';
-        title.style.right = narrow ? '12px' : '256px';
-        setMetaLines(view.metaLines);
-    };
-    const headerObserver = new ResizeObserver(fitHeader);
-    headerObserver.observe(header);
     metaGrip.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         const startY = e.clientY;
@@ -445,23 +327,15 @@ export function createViewer(): Viewer {
     });
     metaGrip.ondblclick = () => setMetaLines(view.metaLines > 1 ? 1 : 6); // quick open / close
 
-    header.append(
-        layoutBtn,
-        writeBtn,
-        loadAllBtn,
-        stopBtn,
-        saveBtn,
-        uploadBtn,
-        title,
-        metaLine,
-        metaGrip,
-        brand,
-        moreBtn,
-        copyBtn,
-        closeBtn,
-        layoutMenu,
-        moreMenu,
+    const { bar, stop: stopBar } = createBar(
+        {
+            start: [layoutBtn, writeBtn, loadAllBtn, stopBtn, saveBtn, uploadBtn],
+            well: title,
+            end: [brand, moreBtn, copyBtn, closeBtn],
+        },
+        () => setMetaLines(view.metaLines), // properties below the bar's rows
     );
+    header.append(bar, metaLine, metaGrip, layoutMenu, moreMenu);
 
     // Lint bar (only for xml / json / yaml / ifc)
     const lint = document.createElement('div');
@@ -673,7 +547,7 @@ export function createViewer(): Viewer {
     v.removeListeners = () => {
         document.removeEventListener('keydown', onEscape, true);
         window.removeEventListener('resize', onResize);
-        headerObserver.disconnect();
+        stopBar();
         sizeObserver.disconnect();
     };
 
@@ -933,7 +807,7 @@ export function createViewer(): Viewer {
         setTimeout(() => {
             copyBtn.innerHTML = COPY_SVG;
             copyBtn.title = 'Copy';
-            copyBtn.style.background = '#0078d4';
+            copyBtn.style.background = '';
         }, 2000);
     };
 

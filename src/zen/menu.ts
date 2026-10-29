@@ -7,6 +7,7 @@
 import { view } from '../_core/prefs.ts';
 import { openSettingsForm } from '../_core/settings-form.ts';
 import { esc } from '../_core/util.ts';
+import { placeBelow } from '../ui/bar.ts';
 import { ABOUT_SVG } from '../ui/icons.ts';
 import { REFRESH_SVG } from '../ui/icons.ts';
 import { SETTINGS_SVG } from '../ui/icons.ts';
@@ -53,8 +54,7 @@ export function toggleMore(z: Zen, anchor: HTMLElement, reload: () => void): voi
         item(REFRESH_SVG, 'Reload the folder', reload),
         item(ABOUT_SVG, 'About …', () => openSettingsForm('about')),
     );
-    menu.style.top = `${anchor.offsetTop + anchor.offsetHeight + 4}px`;
-    menu.style.right = `${z.el.clientWidth - anchor.offsetLeft - anchor.offsetWidth}px`;
     z.el.append(menu);
+    placeBelow(menu, anchor, true);
     closeOutside(menu, anchor);
 }

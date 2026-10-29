@@ -163,9 +163,10 @@ How the parts communicate: [NOTES.md, §3](NOTES.md#3-communication).
   - below the list
   - right of the list
   - as a movable pop-up, resizable at its lower right corner (position and size kept)
-- **Header:**
-  - layout, edit, cache whole file, stop / cancel, save, upload
-  - when narrow: the file name on a second row; very narrow: without version and logo
+- **Header:** a bar as the Zen list's (`/src/ui/bar.ts`: start, well, end), the properties below it
+  - start: layout, edit, cache whole file, stop / cancel, save, upload
+  - end: version and logo, ⋯, copy, ✕
+  - when narrow (less than 200 px left for the well): the file name on a second row; very narrow: without version and logo
   - file name, with (i) for the properties and a chain icon:
     a click copies the clean link (not encoded, no query) of the file shown
     (a link file or search result: where it leads),
@@ -381,10 +382,11 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
   The drag ends at the drop, or once no `dragover` came for 300 ms (drags from outside fire no `dragend`).
   Dropped on the Zen list: Sharepoint's list is watched (own eyes ignored);
   once it has changed and settled (1 s), the folder is read anew; watched until quiet for 2 minutes.
-- **Bar:** eye, crumbs, note; selection (or progress), Download, Delete, Purge; Edit, Cancel, Save, Upload (Save and Cancel: of the mode on); columns; ⋯; ✕.
+- **Bar:** as the viewer's (`/src/ui/bar.ts`): eye, Download, Delete, Purge, Edit, Cancel, Save, Upload (Save and Cancel: of the mode on), columns; crumbs (the well); ⋯, ✕.
+  Below it, as the viewer's properties: the count of items, the note, the selection (or progress).
   ⋯ (`/src/zen/menu.ts`): full settings, dark mode (shared with the viewer: `toggleTheme` in `/src/viewer/panel.ts`), reload of the folder, about (last).
   ✕: Zen mode off.
-  Narrow (less than 200 px left beside the buttons, `MIN_CRUMBS`): the crumbs on a second row, full width, as the file name in the viewer's header.
+  Narrow (as the viewer's): the crumbs on a second row, full width.
 - **Editing:**
   editable are fields of type Text, Note, Number, Currency, Choice, MultiChoice, Boolean, DateTime
   that are not read only and not system fields (`ContentType`, names starting with `_`, …);

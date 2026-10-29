@@ -123,6 +123,67 @@ const CSS = `
     background: var(--tp-well-bg);
     box-shadow: var(--tp-well-shadow);
   }
+  /* Bar of the viewer and of the Zen list (cf. /src/ui/bar.ts): start (toggle, tools), well, end (info, ⋯, extras, ✕);
+     narrow: the well on a second row, full width; tight: the info left out */
+  .tp-bar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 46px;
+    padding: 8px;
+    box-sizing: border-box;
+  }
+  .tp-bar-start, .tp-bar-end { flex: none; display: flex; align-items: center; gap: 4px; }
+  .tp-bar-end { margin-left: auto; }
+  .tp-bar-start > :first-child { margin-right: 4px; } /* toggle (layout, eye) apart from the tools */
+  .tp-bar > .tp-well {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 30px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .tp-bar.tp-bar-narrow { flex-wrap: wrap; row-gap: 6px; }
+  .tp-bar.tp-bar-narrow > .tp-well { order: 1; flex-basis: 100%; }
+  .tp-bar.tp-bar-tight .tp-bar-info { display: none; }
+  .tp-bar-info { display: flex; align-items: center; gap: 8px; padding: 0 4px; white-space: nowrap; }
+  .tp-bar-btn {
+    flex: none;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .tp-bar-btn.tp-well-btn { width: 24px; height: 24px; margin-left: -4px; } /* in the well: (i), link */
+  .tp-bar-close { margin-left: 4px; background: #d13438; color: #fff; font: bold 15px sans-serif; }
+  .tp-bar-close:hover { background: #a4262c; }
+  .tp-bar-copy { background: #0078d4; color: #fff; }
+  .tp-bar-copy:disabled { opacity: .4; cursor: default; }
+  /* Line below the bar: the viewer's properties, the Zen list's count and selection */
+  .tp-bar-meta { font: 12px/15px sans-serif; opacity: .85; }
+  .tp-viewer-header { position: relative; flex: none; height: 46px; }
+  .tp-viewer-header .tp-title { font-family: sans-serif; }
+  .tp-viewer-header .tp-bar-meta {
+    position: absolute;
+    top: 44px;
+    left: 12px;
+    right: 12px;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical; /* wraps, cut off with "…" after the lines shown */
+    white-space: normal;
+  }
+  .tp-brand { font: 11px sans-serif; opacity: .75; }
   /* Name in write mode: click to save under another name (box in its place); new file: marked */
   .tp-title-name.tp-renamable { cursor: text; border-bottom: 1px dashed currentColor; }
   .tp-title-name.tp-new-name::after { content: ' (new file)'; font-style: italic; opacity: .7; }
@@ -774,64 +835,25 @@ const CSS = `
     color: #fff;
     white-space: nowrap;
   }
-  .tp-zen-bar {
-    flex: none;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    min-height: 46px;
-    padding: 0 8px;
-    box-sizing: border-box;
-  }
-  .tp-zen-crumbs {
-    flex: 0 1 auto;
-    min-width: 0;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    overflow: hidden;
-    white-space: nowrap;
-    color: var(--tp-title);
-  }
-  /* narrow: the crumbs on a second row, full width (as the file name in the viewer's header) */
-  .tp-zen-bar.tp-zen-narrow { flex-wrap: wrap; row-gap: 6px; padding-top: 8px; padding-bottom: 8px; }
-  .tp-zen-bar.tp-zen-narrow .tp-zen-crumbs { order: 1; flex: 1 0 100%; }
+  .tp-zen-crumbs { gap: 4px; color: var(--tp-title); }
   .tp-zen-crumbs a { cursor: pointer; color: var(--tp-accent); }
   .tp-zen-crumbs a:hover { text-decoration: underline; }
   .tp-zen-sep { opacity: .6; }
   .tp-zen-path { display: contents; }
-  .tp-zen .tp-zen-btn.tp-zen-link { width: 24px; height: 24px; margin-left: -4px; }
   /* menu of the site's libraries: right after the library's crumb */
   .tp-zen-libs { flex: none; margin-left: -2px; padding: 0 4px; border: none; border-radius: 4px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
   .tp-zen-libs:hover { background: var(--tp-btn-bg); }
   .tp-zen-libraries { max-height: 60vh; overflow-y: auto; }
-  .tp-zen-note { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; opacity: .8; padding: 0 6px; }
-  .tp-zen-btn {
-    flex: none;
-    width: 30px;
-    height: 30px;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-  }
   .tp-zen .tp-mode-btn:not([aria-pressed="true"]) { background: transparent; color: var(--tp-btn-fg); }
   .tp-zen .tp-mode-btn:not([aria-pressed="true"]):not(:disabled):hover { background: var(--tp-btn-bg); }
   .tp-zen .tp-mode-btn:disabled { opacity: .35; cursor: default; }
   /* top left, as on Sharepoint's list: eye (previewer on / off), Zen (filled: on; off by a click) */
-  .tp-zen .tp-zen-btn.tp-zen-eye { color: #0078d4; margin-right: 4px; }
-  .tp-zen .tp-zen-btn.tp-zen-delete:not(:disabled):hover { color: #d13438; } /* delete: red on hover, as the close button */
-  .tp-zen .tp-zen-btn.tp-zen-purge { color: #d13438; } /* purge (for good): red throughout */
-  .tp-zen .tp-zen-btn.tp-zen-purge:not(:disabled):hover { background: #d13438; color: #fff; }
+  .tp-zen .tp-bar-btn.tp-zen-eye { color: #0078d4; }
+  .tp-zen .tp-bar-btn.tp-zen-delete:not(:disabled):hover { color: #d13438; } /* delete: red on hover, as the close button */
+  .tp-zen .tp-bar-btn.tp-zen-purge { color: #d13438; } /* purge (for good): red throughout */
+  .tp-zen .tp-bar-btn.tp-zen-purge:not(:disabled):hover { background: #d13438; color: #fff; }
   /* Upload: saved changes waiting for it */
-  .tp-zen .tp-zen-btn.tp-zen-ready { color: var(--tp-accent); box-shadow: inset 0 0 0 1px var(--tp-accent); }
-  /* close (top right), as on the viewer: Zen mode off */
-  .tp-zen .tp-zen-btn.tp-zen-close { margin-left: 4px; background: #d13438; color: #fff; font: bold 15px sans-serif; }
-  .tp-zen .tp-zen-btn.tp-zen-close:hover { background: #a4262c; }
+  .tp-zen .tp-bar-btn.tp-zen-ready { color: var(--tp-accent); box-shadow: inset 0 0 0 1px var(--tp-accent); }
   /* Zen toggle: a tab out of the list's left edge, as on a folder: its outline (SVG) in the list's
      colours, open towards the list and over its border (joined); the icon in the outer part */
   .tp-zen-tab {
@@ -909,8 +931,9 @@ const CSS = `
   .tp-zen-table td.tp-zen-pick { z-index: 1; cursor: default; }
   .tp-zen-table th.tp-zen-pick { z-index: 3; background: linear-gradient(var(--tp-thead-bg), var(--tp-thead-bg)), var(--tp-bg); }
   .tp-zen-pick input { margin: 0; vertical-align: middle; cursor: pointer; accent-color: var(--tp-accent); }
-  .tp-zen-picked { flex: none; font-size: 12px; opacity: .8; padding: 0 4px; white-space: nowrap; }
-  .tp-zen-picked:empty { display: none; }
+  .tp-zen-header { flex: none; }
+  .tp-zen-meta { padding: 0 12px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tp-zen-picked:not(:empty)::before { content: " · "; }
   /* Name: frozen at the left (after the checkboxes), like the column titles at the top */
   .tp-zen-table .tp-zen-name {
     position: sticky;

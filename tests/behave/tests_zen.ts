@@ -70,7 +70,7 @@ async function cell(z: Locator, name: string, title: string): Promise<Locator> {
 }
 
 /** @returns a button of the Zen bar (by the start of its title) */
-const btn = (z: Locator, title: string): Locator => z.locator(`.tp-zen-btn[title^="${title}"]`);
+const btn = (z: Locator, title: string): Locator => z.locator(`.tp-bar-btn[title^="${title}"]`);
 
 /** @returns dialogues so far (confirm answers "yes") */
 const dialogues = (page: Page): Promise<{ alerts: string[]; confirms: string[] }> =>
@@ -132,8 +132,8 @@ describe('zen mode', () => {
     it("crumbs: link (clean URL of the folder), library with a menu of the site's other libraries (Sharepoint's own left out)", async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);
-        await z.locator('.tp-zen-link').hover();
-        assert.equal(await z.locator('.tp-zen-link').getAttribute('title'), `Copy the link:\n${h.ORIGIN}${DATA}`);
+        await z.locator('.tp-well-btn').hover();
+        assert.equal(await z.locator('.tp-well-btn').getAttribute('title'), `Copy the link:\n${h.ORIGIN}${DATA}`);
         await z.locator('.tp-zen-libs').click();
         const menu = z.locator('.tp-zen-libraries');
         assert.deepEqual(
@@ -299,7 +299,7 @@ describe('zen mode', () => {
         assert.equal(await status(`${h.LIBRARY}/Logs/app.log`), 404, 'folder: with all in it');
         // the button; typing in a field: the Delete key is the field's
         await box('README.md').click();
-        await z.locator('.tp-zen-btn[title^="Edit"]').click();
+        await z.locator('.tp-bar-btn[title^="Edit"]').click();
         const priority = (await cell(z, 'README.md', 'Priority')).locator('.tp-zen-text');
         await priority.click();
         await page.keyboard.press('Delete');
@@ -511,7 +511,7 @@ describe('zen mode', () => {
     it('narrow: the crumbs on a second row (full width), as the file name in the viewer', async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);
-        const bar = z.locator('.tp-zen-bar');
+        const bar = z.locator('.tp-bar');
         const rowOfCrumbs = () =>
             bar.evaluate((b) => {
                 const c = b.querySelector('.tp-zen-crumbs') as HTMLElement;
@@ -522,14 +522,16 @@ describe('zen mode', () => {
         await z.evaluate((el) => {
             el.style.width = '420px';
         });
-        await page.waitForFunction(() => document.querySelector('.tp-zen-bar')?.classList.contains('tp-zen-narrow'));
+        await page.waitForFunction(() =>
+            document.querySelector('.tp-zen .tp-bar')?.classList.contains('tp-bar-narrow'),
+        );
         assert.deepEqual(await rowOfCrumbs(), { below: true, wide: true });
     });
 
     it("edit: saved in the view, uploaded as Sharepoint's form does (form digest), refused ones marked; system fields read only", async () => {
         const { page, requests } = await openFolder(DATA);
         const z = await zen(page);
-        await z.locator('.tp-zen-btn[title^="Edit"]').click();
+        await z.locator('.tp-bar-btn[title^="Edit"]').click();
         await z.locator('td.tp-zen-ro').first().waitFor();
         const modified = await cell(z, 'prices.csv', 'Modified');
         assert.equal(await modified.evaluate((el) => el.classList.contains('tp-zen-ro')), true);
@@ -540,7 +542,7 @@ describe('zen mode', () => {
         await priority.click();
         await page.keyboard.press('ControlOrMeta+a');
         await page.keyboard.type('high'); // not a number: refused
-        const upload = z.locator('.tp-zen-btn[title^="Upload"]');
+        const upload = z.locator('.tp-bar-btn[title^="Upload"]');
         assert.equal(await upload.isDisabled(), true, 'not saved yet: no upload');
         await page.keyboard.press('Control+s'); // kept in the view: nothing sent yet
         assert.equal(await upload.isDisabled(), false);
@@ -554,7 +556,7 @@ describe('zen mode', () => {
         assert.ok(posts.includes(`${h.SITE}/_api/contextinfo`));
         assert.ok(posts.some((p) => /\/items\(\d+\)\/ValidateUpdateListItem$/.test(p)));
         // cancel drops the rest (asks first); uploaded values stay
-        await z.locator('.tp-zen-btn[title^="Cancel"]').click();
+        await z.locator('.tp-bar-btn[title^="Cancel"]').click();
         assert.match((await dialogues(page)).confirms.join('\n'), /not been uploaded/);
         await z.locator('td.tp-zen-ro').first().waitFor({ state: 'detached' });
         assert.equal(await h.text(await cell(z, 'prices.csv', 'Status')), status);
@@ -563,18 +565,18 @@ describe('zen mode', () => {
     it('edit: leaving edit mode keeps the changes in the view (said, upload marked); kept across folders and page loads', async () => {
         const { page, requests } = await openFolder(DATA);
         const z = await zen(page);
-        await z.locator('.tp-zen-btn[title^="Edit"]').click();
+        await z.locator('.tp-bar-btn[title^="Edit"]').click();
         const priority = (await cell(z, 'orders.ods', 'Priority')).locator('.tp-zen-text');
         await priority.click();
         await page.keyboard.press('ControlOrMeta+a');
         await page.keyboard.type('5');
-        await z.locator('.tp-zen-btn[title^="Edit"]').click(); // edit mode off, not saved: allowed, said
+        await z.locator('.tp-bar-btn[title^="Edit"]').click(); // edit mode off, not saved: allowed, said
         assert.match(
             await h.text(z.locator('.tp-zen-note')),
             /kept in the viewer but won't take effect until uploaded/,
         );
         assert.equal(await z.locator('td.tp-zen-ro').count(), 0, 'edit mode off');
-        const upload = z.locator('.tp-zen-btn[title^="Upload"]');
+        const upload = z.locator('.tp-bar-btn[title^="Upload"]');
         assert.equal(await upload.isDisabled(), false);
         assert.equal(await upload.evaluate((b) => b.classList.contains('tp-zen-ready')), true, 'upload marked');
         assert.ok(!requests.some((r) => /ValidateUpdateListItem/.test(r.url)), 'nothing sent');
@@ -591,7 +593,7 @@ describe('zen mode', () => {
         assert.equal(await kept.evaluate((td) => td.classList.contains('tp-zen-changed')), true);
         assert.match(await h.text(again.locator('.tp-zen-note')), /1 change not uploaded/);
         // upload: applied
-        await again.locator('.tp-zen-btn[title^="Upload"]').click();
+        await again.locator('.tp-bar-btn[title^="Upload"]').click();
         await again.locator('.tp-zen-note', { hasText: '1 change uploaded' }).waitFor();
         assert.equal(
             await (await cell(again, 'orders.ods', 'Priority')).evaluate((td) =>
@@ -599,7 +601,7 @@ describe('zen mode', () => {
             ),
             false,
         );
-        assert.equal(await again.locator('.tp-zen-btn[title^="Upload"]').isDisabled(), true);
+        assert.equal(await again.locator('.tp-bar-btn[title^="Upload"]').isDisabled(), true);
     });
 
     it('edit: names longer than their column stay shown, cut at their end (not left out as "…")', async () => {
@@ -635,14 +637,14 @@ describe('zen mode', () => {
         await z.locator('td.tp-zen-name', { hasText: 'harvest.ods' }).click();
         const v = page.locator('.tp-viewer');
         await v.locator('.tp-title-name', { hasText: 'harvest.ods' }).waitFor();
-        await z.locator('.tp-zen-btn[title^="Edit"]').click();
+        await z.locator('.tp-bar-btn[title^="Edit"]').click();
         const name = z.locator('td.tp-zen-name', { hasText: 'harvest.ods' }).locator('.tp-zen-text');
         await name.click();
         await page.keyboard.press('ControlOrMeta+a');
         await page.keyboard.type('harvest-2026.ods');
         await page.keyboard.press('Enter');
-        await z.locator('.tp-zen-btn[title^="Save"]').click();
-        await z.locator('.tp-zen-btn[title^="Upload"]').click();
+        await z.locator('.tp-bar-btn[title^="Save"]').click();
+        await z.locator('.tp-bar-btn[title^="Upload"]').click();
         await z.locator('td.tp-zen-name', { hasText: 'harvest-2026.ods' }).waitFor();
         assert.ok(!(await names(z)).includes('harvest.ods'));
         await v.locator('.tp-title-name', { hasText: 'harvest-2026.ods' }).waitFor();
@@ -732,7 +734,7 @@ describe('zen mode', () => {
         const after = await tab.boundingBox();
         assert.ok(after && Math.abs(after.x - before.x) <= 1 && Math.abs(after.y - before.y) <= 1, 'same place');
         // the Zen list: its eye at the top left
-        const first = await z.locator('.tp-zen-bar > *').first().getAttribute('class');
+        const first = await z.locator('.tp-bar-start > *').first().getAttribute('class');
         assert.match(first ?? '', /tp-zen-eye/);
         await tab.click();
         await page.locator('.tp-zen').waitFor({ state: 'detached' });

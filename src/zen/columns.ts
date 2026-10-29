@@ -8,6 +8,7 @@
 import { loadPref } from '../_core/prefs.ts';
 import { savePref } from '../_core/prefs.ts';
 import { esc } from '../_core/util.ts';
+import { placeBelow } from '../ui/bar.ts';
 import { wireReorder } from '../view/reorder.ts';
 import { NAME } from './data.ts';
 
@@ -185,9 +186,8 @@ export function openColumnsMenu(z: Zen, changed: () => void): void {
             changed();
         },
     });
-    menu.style.top = `${z.columnsBtn.offsetTop + z.columnsBtn.offsetHeight + 4}px`;
-    menu.style.right = '8px';
     z.el.append(menu);
+    placeBelow(menu, z.columnsBtn); // the button: among the tools, left
     drawColumnsMenu(z);
 }
 

@@ -18,6 +18,9 @@ import { apiAllowed } from '../readers/api.ts';
 import { libraryOfPage } from '../readers/api.ts';
 import { siteOf } from '../readers/api.ts';
 import { cleanUrl } from '../readers/links.ts';
+import { barButton } from '../ui/bar.ts';
+import { closeButton } from '../ui/bar.ts';
+import { createBar } from '../ui/bar.ts';
 import { COLUMNS_SVG } from '../ui/icons.ts';
 import { DELETE_SVG } from '../ui/icons.ts';
 import { DOWNLOAD_SVG } from '../ui/icons.ts';
@@ -100,11 +103,6 @@ const ZEN_TAB_TITLE = ZEN_TITLE;
 const TAB_WIDTH = 30; // px, out of the list to the left
 const TAB_HEIGHT = 44; // px at the list's edge (the outer edge: 12 px less, shoulders sloping)
 const TAB_TOP = 8; // px below the top of the list
-// Narrow bar: the crumbs on a second row (full width) once less than this is left for them beside the buttons
-// (as the file name in the viewer's header)
-const MIN_CRUMBS = 200; // px
-const BAR_SPACE = 8 + 8 + 4 + 4; // px: padding of the bar, margins of the eye and the close button (cf. the styles)
-const BAR_GAP = 4; // px between the items of the bar
 // The tab: flush with the top of the list (its top edge continues the list's, whose top left corner is made square),
 // the Zen button, below it room for the header eye of Sharepoint's list: there while the list is scrolled sideways
 // (the header scrolls away), back in the header otherwise
@@ -433,27 +431,17 @@ function zenRect(v: Viewer | null): { left: number; top: number; right: number; 
 }
 
 // ---------------------------------------------------------------------------
-// The list: bar (eye and Zen at the top left, as on Sharepoint's list; folder, note, buttons) and grid
+// The list: bar (cf. /src/ui/bar.ts; eye at the top left, as on Sharepoint's list), its note line, grid
 // ---------------------------------------------------------------------------
 
 function createZen(library: string): Zen {
     const el = document.createElement('div');
     el.className = `tp-zen tp-${view.theme}`;
-    const button = (svg: string, title: string, cls = '') => {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = `tp-mode-btn tp-zen-btn ${cls}`.trim();
-        b.innerHTML = svg;
-        b.title = title;
-        return b;
-    };
-    const bar = document.createElement('div');
-    bar.className = 'tp-zen-bar tp-header';
-    const eyeBtn = button(EYE_CLOSED_SVG, 'Open the previewer (no file)', 'tp-zen-eye');
+    const eyeBtn = barButton(EYE_CLOSED_SVG, 'Open the previewer (no file)', 'tp-zen-eye');
     // crumbs: link (clean URL of the folder), then the path
     const nav = document.createElement('nav');
     nav.className = 'tp-zen-crumbs tp-well';
-    const linkBtn = button(LINK_SVG, 'Copy the link', 'tp-zen-link');
+    const linkBtn = barButton(LINK_SVG, 'Copy the link', 'tp-well-btn');
     const crumbs = document.createElement('span');
     crumbs.className = 'tp-zen-path';
     nav.append(linkBtn, crumbs);
@@ -461,53 +449,34 @@ function createZen(library: string): Zen {
     note.className = 'tp-zen-note';
     const picked = document.createElement('span');
     picked.className = 'tp-zen-picked';
-    const downloadBtn = button(DOWNLOAD_SVG, DOWNLOAD);
-    const deleteBtn = button(DELETE_SVG, DELETE, 'tp-zen-delete');
-    const purgeBtn = button(PURGE_SVG, PURGE, 'tp-zen-purge');
-    const editBtn = button(WRITE_SVG, 'Edit properties and names (non-system fields)');
+    const downloadBtn = barButton(DOWNLOAD_SVG, DOWNLOAD);
+    const deleteBtn = barButton(DELETE_SVG, DELETE, 'tp-zen-delete');
+    const purgeBtn = barButton(PURGE_SVG, PURGE, 'tp-zen-purge');
+    const editBtn = barButton(WRITE_SVG, 'Edit properties and names (non-system fields)');
     editBtn.setAttribute('aria-pressed', 'false');
-    const saveBtn = button(SAVE_SVG, 'Save: keep the changes in the view, ready for upload (Ctrl+S)');
-    const uploadBtn = button(UPLOAD_SVG, 'Upload the saved changes to Sharepoint (as its properties form does)');
-    const cancelBtn = button(STOP_SVG, 'Cancel: drop the changes not uploaded, end editing');
-    const columnsBtn = button(COLUMNS_SVG, COLUMNS_ON);
+    const saveBtn = barButton(SAVE_SVG, 'Save: keep the changes in the view, ready for upload (Ctrl+S)');
+    const uploadBtn = barButton(UPLOAD_SVG, 'Upload the saved changes to Sharepoint (as its properties form does)');
+    const cancelBtn = barButton(STOP_SVG, 'Cancel: drop the changes not uploaded, end editing');
+    const columnsBtn = barButton(COLUMNS_SVG, COLUMNS_ON);
     columnsBtn.setAttribute('aria-pressed', 'false');
-    const moreBtn = button(MORE_SVG, 'More');
-    // close (red ✕, top right), as on the viewer: Zen mode off
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.className = 'tp-zen-btn tp-zen-close';
-    closeBtn.textContent = '✕';
-    closeBtn.title = "Zen mode off (back to Sharepoint's list)";
-    bar.append(
-        eyeBtn,
-        nav,
-        note,
-        picked,
-        downloadBtn,
-        deleteBtn,
-        purgeBtn,
-        editBtn,
-        cancelBtn,
-        saveBtn,
-        uploadBtn,
-        columnsBtn,
-        moreBtn,
-        closeBtn,
-    );
-    const fitBar = () => {
-        const w = bar.clientWidth;
-        if (!w) return; // not shown yet
-        const fixed = [...bar.children]
-            .filter((c) => c !== nav && c !== note && c !== picked)
-            .reduce((sum, c) => sum + (c as HTMLElement).offsetWidth + BAR_GAP, BAR_SPACE);
-        bar.classList.toggle('tp-zen-narrow', w - fixed < MIN_CRUMBS);
-    };
-    const barObserver = new ResizeObserver(fitBar);
-    barObserver.observe(bar);
+    const moreBtn = barButton(MORE_SVG, 'More');
+    const closeBtn = closeButton("Zen mode off (back to Sharepoint's list)");
+    // bar as the viewer's: [eye] [tools] [crumbs] [⋯] [✕]; below it, as the viewer's properties: count, selection, progress
+    const { bar, stop: stopBar } = createBar({
+        start: [eyeBtn, downloadBtn, deleteBtn, purgeBtn, editBtn, cancelBtn, saveBtn, uploadBtn, columnsBtn],
+        well: nav,
+        end: [moreBtn, closeBtn],
+    });
+    const meta = document.createElement('div');
+    meta.className = 'tp-title tp-bar-meta tp-zen-meta';
+    meta.append(note, picked);
     const grid = document.createElement('div');
     grid.className = 'tp-zen-grid tp-content';
     grid.tabIndex = 0;
-    el.append(bar, grid);
+    const head = document.createElement('div');
+    head.className = 'tp-header tp-zen-header';
+    head.append(bar, meta);
+    el.append(head, grid);
 
     // Events stay away from Sharepoint's handlers (split modes: inside its page)
     for (const type of ['click', 'dblclick', 'mousedown', 'pointerdown', 'keydown', 'keyup', 'contextmenu', 'wheel']) {
@@ -556,7 +525,7 @@ function createZen(library: string): Zen {
         stop: () => {
             z.fetching?.abort();
             window.removeEventListener('resize', onResize);
-            barObserver.disconnect();
+            stopBar();
             stopGrid(z);
             stopDrop();
         },

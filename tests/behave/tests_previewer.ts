@@ -223,7 +223,7 @@ describe('layouts', () => {
     it('wide header: file name between the buttons, one row', async () => {
         const page = await openFolder(h.LIBRARY);
         const v = await h.preview(page, 'notes.txt');
-        assert.equal(await v.locator('.tp-header.tp-narrow').count(), 0);
+        assert.equal(await v.locator('.tp-bar-narrow').count(), 0);
         assert.ok((await nameTop(v)) < 40);
     });
 
@@ -231,7 +231,7 @@ describe('layouts', () => {
         const page = await openFolder(h.LIBRARY, { layout: 'vertical' });
         await h.eye(page, 'notes.txt').click();
         const v = page.locator('.tp-viewer');
-        await v.locator('.tp-header.tp-narrow').waitFor();
+        await v.locator('.tp-bar-narrow').waitFor();
         assert.ok((await nameTop(v)) > 40);
         assert.equal(await v.locator('.tp-title-name').isVisible(), true);
         await v.locator('.tp-mode-btn[title^="Display file metadata"]').click();
