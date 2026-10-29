@@ -1,10 +1,10 @@
-// Zen list delete: the question (number, names, folders warned of), the keys, each item to the recycle bin
+// Zen list delete: the question (number, names, folders warned of), the keys, each item to the recycle bin (purge: for good)
 import assert from 'node:assert/strict';
 import { describe } from 'node:test';
 import { it } from 'node:test';
 import { load } from '../helpers.ts';
 
-const { deleteItems, deleteQuestion, isDeleteKey, recycleItem } = await load('zen/delete.ts');
+const { deleteItems, deleteQuestion, isDeleteKey, isPurgeKey, removeItem } = await load('zen/delete.ts');
 
 const LIB = '/sites/A/Docs';
 const item = (id: number, name: string, folder = false) => ({
@@ -51,6 +51,25 @@ describe('zen/delete', () => {
         assert.match(q, /… and 5 more/);
     });
 
+    it('question of a purge: said so (for good), warned it cannot be restored; folders: purged with all in them', () => {
+        const q = deleteQuestion([item(1, 'a.txt'), item(2, 'Sub', true)], true);
+        assert.match(q, /^PURGE 2 items for good\?/);
+        assert.match(q, /• Sub \(folder\)/);
+        assert.match(q, /The folder is purged with everything in them/);
+        assert.match(q, /do NOT go to the site's recycle bin: they cannot be restored/);
+        assert.doesNotMatch(deleteQuestion([item(1, 'a.txt')]), /PURGE|cannot be restored/);
+    });
+
+    it('purge keys: Shift + Delete, Cmd + Alt + Backspace; not the delete keys', () => {
+        const key = (key: string, more = {}) => ({ key, metaKey: false, shiftKey: false, altKey: false, ...more });
+        assert.equal(isPurgeKey(key('Delete', { shiftKey: true })), true);
+        assert.equal(isPurgeKey(key('Backspace', { metaKey: true, altKey: true })), true);
+        assert.equal(isPurgeKey(key('Delete')), false);
+        assert.equal(isPurgeKey(key('Backspace', { metaKey: true })), false);
+        assert.equal(isPurgeKey(key('Backspace', { shiftKey: true })), false);
+        assert.equal(isDeleteKey(key('Delete', { shiftKey: true })), false, 'a purge is no delete');
+    });
+
     it('keys: Delete, Cmd + Backspace; not Backspace alone, nor with Shift or Alt', () => {
         const key = (key: string, more = {}) => ({ key, metaKey: false, shiftKey: false, altKey: false, ...more });
         assert.equal(isDeleteKey(key('Delete')), true);
@@ -63,12 +82,22 @@ describe('zen/delete', () => {
 
     it("recycle(): POST of the list item (by id, the library as @list), with the site's form digest", async () => {
         const seen = serve(() => Response.json({ value: '00000000-0000-4000-8000-000000000007' }));
-        assert.equal(await recycleItem(LIB, 7), '');
+        assert.equal(await removeItem(LIB, 7), '');
         const last = seen[seen.length - 1];
         assert.equal(last.method, 'POST');
         const url = new URL(last.url, 'https://acme.sharepoint.com');
         assert.equal(url.pathname, '/sites/A/_api/web/GetList(@list)/items(7)/recycle()');
         assert.equal(url.searchParams.get('@list'), `'${LIB}'`);
+    });
+
+    it('purge: deleteObject() of the list item; an empty answer is done', async () => {
+        const seen = serve(() => new Response('', { status: 200 }));
+        assert.equal(await removeItem(LIB, 7, true), '');
+        const url = new URL(seen[seen.length - 1].url, 'https://acme.sharepoint.com');
+        assert.equal(url.pathname, '/sites/A/_api/web/GetList(@list)/items(7)/deleteObject()');
+        const said: string[] = [];
+        assert.deepEqual(await deleteItems(LIB, [item(1, 'a.txt')], (t: string) => said.push(t), true), []);
+        assert.deepEqual(said, ['Purging 1 / 1 …']);
     });
 
     it('items one by one, progress said; refused ones returned with why (the others deleted)', async () => {

@@ -810,6 +810,8 @@ const CSS = `
   /* top left, as on Sharepoint's list: eye (previewer on / off), Zen (filled: on; off by a click) */
   .tp-zen .tp-zen-btn.tp-zen-eye { color: #0078d4; margin-right: 4px; }
   .tp-zen .tp-zen-btn.tp-zen-delete:not(:disabled):hover { color: #d13438; } /* delete: red on hover, as the close button */
+  .tp-zen .tp-zen-btn.tp-zen-purge { color: #d13438; } /* purge (for good): red throughout */
+  .tp-zen .tp-zen-btn.tp-zen-purge:not(:disabled):hover { background: #d13438; color: #fff; }
   /* Upload: saved changes waiting for it */
   .tp-zen .tp-zen-btn.tp-zen-ready { color: var(--tp-accent); box-shadow: inset 0 0 0 1px var(--tp-accent); }
   /* close (top right), as on the viewer: Zen mode off */

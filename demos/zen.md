@@ -70,7 +70,8 @@ As in Sharepoint's view, each row has a checkbox; the one in the head selects al
 - **Download**: one file as it is; several, or folders with everything in them, as a ZIP named after the folder
   (made in the browser; the button stops it while it runs);
 - **Delete** (bin, or the Delete key / ⌘ + Backspace in the list): after asking, with the number and names of the items
-  (folders: with everything in them), to the site's recycle bin, as Sharepoint's own Delete.
+  (folders: with everything in them), to the site's recycle bin, as Sharepoint's own Delete;
+- **Purge** (red flame, or Shift + Delete / ⌘ + ⌥ + Backspace): the same, but for good (not to the recycle bin), after a warning.
 
 The rows start in the order of Sharepoint's view (its sort, or the one chosen there), else folders first, then files, each by name.
 

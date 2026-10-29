@@ -62,7 +62,11 @@ async function request<T>(url: string, init: RequestInit): Promise<T | string> {
     try {
         const headers = { Accept: JSON_TYPE, ...(init.headers as Record<string, string>) };
         const res = await fetch(url, { ...init, headers, credentials: 'same-origin' });
-        if (res.ok) return (await res.json()) as T;
+        // an empty answer (e.g. deleteObject()): null
+        if (res.ok) {
+            const text = await res.text();
+            return (text ? JSON.parse(text) : null) as T;
+        }
         return `HTTP ${res.status}${await errorText(res)}`;
     } catch (e) {
         return `failed (${e instanceof Error ? e.message : e})`;

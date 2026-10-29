@@ -309,6 +309,33 @@ describe('zen mode', () => {
         assert.match((await dialogues(page)).confirms[1], /^Delete 1 item\?\n\n {4}• README\.md\n/);
     });
 
+    it('purge: for good after a warning (not to the recycle bin); its button red, Shift + Delete as well', async () => {
+        // in the library's top folder: items no other test here uses (after the delete test: what is left of it)
+        const { page, requests } = await openFolder(h.LIBRARY);
+        const z = await zen(page);
+        const box = (name: string) => rowOf(z, name).locator('.tp-zen-pick-one');
+        const purge = btn(z, 'Purge');
+        assert.equal(await purge.isDisabled(), true, 'nothing selected');
+        await box('Empty folder').click();
+        await purge.click();
+        await rowOf(z, 'Empty folder').waitFor({ state: 'detached' });
+        const asked = (await dialogues(page)).confirms.join('\n');
+        assert.match(asked, /^PURGE 1 item for good\?/);
+        for (const part of ['• Empty folder (folder)', 'purged with everything in them', 'cannot be restored'])
+            assert.ok(asked.includes(part), part);
+        assert.match(await h.text(z.locator('.tp-zen-note')), /1 purged \(for good\)/);
+        const posts = requests.filter((r) => r.method === 'POST').map((r) => new URL(r.url).pathname);
+        assert.equal(posts.filter((p) => /\/items\(\d+\)\/deleteObject\(\)$/.test(p)).length, 1);
+        assert.equal(posts.filter((p) => /\/recycle\(\)$/.test(p)).length, 0, 'not to the recycle bin');
+        // Shift + Delete (focus on a checkbox: in the list)
+        await box('Models').click();
+        await page.keyboard.press('Shift+Delete');
+        await rowOf(z, 'Models').waitFor({ state: 'detached' });
+        assert.match((await dialogues(page)).confirms[1], /^PURGE 1 item for good\?/);
+        const status = await page.evaluate(async (url) => (await fetch(url)).status, `${h.LIBRARY}/Models/wall.ifc`);
+        assert.equal(status, 404);
+    });
+
     it('columns: shown and hidden from the menu (layout mode), kept for the library once saved', async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);

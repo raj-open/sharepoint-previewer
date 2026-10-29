@@ -159,6 +159,14 @@ export const DELETE_SVG = `
   </svg>
 `;
 
+// Flame: purge (deleted for good, not to the recycle bin)
+export const PURGE_SVG = `
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M12 3c.5 3 4.5 5 4.5 10a4.5 4.5 0 0 1-9 0c0-2.2 1-3.6 2-4.5 0 1.8.9 3 2 3.3C11 9 11 6 12 3z"/>
+  </svg>
+`;
+
 // Sheet with folded corner and plus: new file
 export const NEW_FILE_SVG = `
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
