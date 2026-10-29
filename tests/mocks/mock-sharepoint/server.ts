@@ -20,6 +20,9 @@
 //                                                                        other filters of items refused (list view threshold)
 //   <site>/_api/contextinfo, …/items(<id>)/ValidateUpdateListItem     form digest (POST); properties and names changed (POST,
 //                                                                        simulated: kept with the session's uploads)
+//   <site>/_api/web, <site>/_api/web/lists                             site title; its lists (libraries, plus Sharepoint's
+//                                                                        own: Site Assets, a hidden one; $filter Hidden eq false)
+//   <site>/_layouts/15/viewlsts.aspx                                     site contents (links to the libraries)
 //
 // The list view mimics what the userscript reads: ARIA grid rows (selection column first), name fields,
 // folder icons, the scroll card and Sharepoint's `display: contents` wrapper;
@@ -597,6 +600,35 @@ function listItems(libs: Libraries, params: URLSearchParams, uploads?: string): 
     return json({ value: paths.map((p) => ({ FileRef: p })) });
 }
 
+// Lists of the site, as Sharepoint's REST API: the libraries, plus Sharepoint's own (system, hidden)
+function siteLists(libs: Libraries, params: URLSearchParams): Reply {
+    const own = Object.entries(libs).map(([key, lib]) => ({ title: lib.title, key, hidden: false }));
+    const system = [
+        { title: 'Site Assets', key: 'SiteAssets', hidden: false },
+        { title: 'Preservation Hold Library', key: 'PreservationHoldLibrary', hidden: true },
+    ];
+    const shown = /Hidden eq false/.test(params.get('$filter') ?? '');
+    const lists = [...own, ...system]
+        .filter((list) => !(shown && list.hidden))
+        .map((list) => ({
+            Title: list.title,
+            DefaultViewUrl: listPageOf(`${SITE}/${list.key}`),
+            RootFolder: { ServerRelativeUrl: `${SITE}/${list.key}` },
+        }));
+    return json({ value: lists });
+}
+
+// Site contents: a link per library
+function siteContents(libs: Libraries): Reply {
+    const links = Object.entries(libs)
+        .map(([key, lib]) => `<li><a href="${esc(encodeURI(listPageOf(`${SITE}/${key}`)))}">${esc(lib.title)}</a></li>`)
+        .join('');
+    return html(
+        `<!doctype html><title>Site contents - ${TENANT}</title><link rel="icon" href="${ICON}">` +
+            `<h1>Site contents</h1><ul>${links}</ul>`,
+    );
+}
+
 // Search index: files of that name below the path given, over all libraries (as Sharepoint's search REST API);
 // files the index does not read have a form as Path (the file: ParentLink + Filename)
 function searchQuery(libs: Libraries, params: URLSearchParams, origin: string, uploads?: string): Reply {
@@ -671,6 +703,9 @@ export function handle(
         const t = tree(libs, list, uploads);
         return answer(validateUpdate(t, Number(listPart[2]), body, headers['x-requestdigest'], uploads));
     }
+    if (pathname === `${SITE}/_api/web`) return json({ Title: TENANT });
+    if (pathname === `${SITE}/_api/web/lists`) return siteLists(libs, u.searchParams);
+    if (pathname === `${SITE}/_layouts/15/viewlsts.aspx`) return siteContents(libs);
     if (pathname === `${SITE}/_api/search/query`) return searchQuery(libs, u.searchParams, u.origin, uploads);
     if (library && pathname === listPageOf(library)) return listPage(libs, library, uploads);
     if (library && pathname === `${library}/_api/tree`) return json(tree(libs, library, uploads));
