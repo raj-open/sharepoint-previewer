@@ -22,9 +22,6 @@ import { barButton } from '../ui/bar.ts';
 import { closeButton } from '../ui/bar.ts';
 import { createBar } from '../ui/bar.ts';
 import { placeBelow } from '../ui/bar.ts';
-import { bindBrand } from '../ui/brand.ts';
-import { brandHtml } from '../ui/brand.ts';
-import { brandTitle } from '../ui/brand.ts';
 import { ABOUT_SVG } from '../ui/icons.ts';
 import { CHECK_SVG } from '../ui/icons.ts';
 import { CLEAR_SVG } from '../ui/icons.ts';
@@ -138,7 +135,7 @@ export function createViewer(): Viewer {
     const header = document.createElement('div');
     header.className = 'tp-header tp-viewer-header';
 
-    // Bar: [layout ▾] [edit] [stop] [save] [upload] [cache all] [(i) link File: name] [version] [⋯] [copy] [✕]
+    // Bar: [layout ▾] [edit] [stop] [save] [upload] [cache all] [(i) link File: name] [⋯] [copy] [✕] (version: About, settings)
     const button = (svg: string, title: string, disabled = true) => {
         const btn = barButton(svg, title);
         btn.disabled = disabled; // off until a file is shown
@@ -277,13 +274,6 @@ export function createViewer(): Viewer {
     const metaLine = document.createElement('div');
     metaLine.className = 'tp-title tp-bar-meta';
 
-    // Version and logo (info of the bar)
-    const brand = document.createElement('div');
-    brand.className = 'tp-bar-info tp-brand';
-    brand.innerHTML = brandHtml();
-    brand.title = brandTitle();
-    bindBrand(brand);
-
     // Copy (blue) and close (red ✕), right end
     const copyBtn = barButton(COPY_SVG, 'Copy', 'tp-bar-copy');
     copyBtn.classList.remove('tp-mode-btn'); // own colours, as the close button
@@ -331,7 +321,7 @@ export function createViewer(): Viewer {
         {
             start: [layoutBtn, writeBtn, stopBtn, saveBtn, uploadBtn, loadAllBtn], // edit … upload: as the Zen list's
             well: title,
-            end: [brand, moreBtn, copyBtn, closeBtn],
+            end: [moreBtn, copyBtn, closeBtn],
         },
         () => setMetaLines(view.metaLines), // properties below the bar's rows
     );

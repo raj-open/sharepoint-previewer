@@ -1,6 +1,6 @@
 // Bar on top of the viewer and of the Zen list, one structure for both:
-// [start: toggle, tools] [well: what is shown] [end: info, ⋯, extras, ✕];
-// narrow: the well on a second row (full width); narrower still: the info left out
+// [start: toggle, tools] [well: what is shown] [end: ⋯, extras, ✕];
+// narrow: the well on a second row (full width)
 
 // ===========================================================================
 // CONSTANTS
@@ -58,7 +58,7 @@ export function placeBelow(menu: HTMLElement, anchor: HTMLElement, right = false
 // ---------------------------------------------------------------------------
 
 /**
- * @param parts start (toggle, tools), well, end (info: class `tp-bar-info`; then ⋯, extras, ✕)
+ * @param parts start (toggle, tools), well, end (⋯, extras, ✕)
  * @param fitted called once the well moved to its own row or back
  * @returns the bar, and a stop for watching its width
  */
@@ -81,10 +81,8 @@ export function createBar(
         const w = bar.clientWidth;
         if (!w) return; // not shown yet
         alignBars();
-        bar.classList.remove('tp-bar-tight'); // info measured as well
         const rest = BAR_PAD + start.offsetWidth + end.offsetWidth + 2 * BAR_GAP;
         const narrow = w - rest < MIN_WELL;
-        bar.classList.toggle('tp-bar-tight', rest > w);
         if (narrow === bar.classList.contains('tp-bar-narrow')) return;
         bar.classList.toggle('tp-bar-narrow', narrow);
         fitted?.();

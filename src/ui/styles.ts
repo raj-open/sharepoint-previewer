@@ -124,7 +124,7 @@ const CSS = `
     box-shadow: var(--tp-well-shadow);
   }
   /* Bar of the viewer and of the Zen list (cf. /src/ui/bar.ts): start (toggle, tools), well, end (info, ⋯, extras, ✕);
-     narrow: the well on a second row, full width; tight: the info left out */
+     narrow: the well on a second row, full width */
   .tp-bar {
     flex: none;
     display: flex;
@@ -135,7 +135,7 @@ const CSS = `
     box-sizing: border-box;
   }
   .tp-bar-start, .tp-bar-end { flex: none; display: flex; align-items: center; gap: 4px; }
-  .tp-bar-end { margin-left: auto; }
+  .tp-bar-end { margin-left: auto; justify-content: flex-end; } /* widened to line up: buttons stay right */
   .tp-bar-start > :first-child { margin-right: 4px; } /* toggle (layout, eye) apart from the tools */
   .tp-bar > .tp-well {
     flex: 1 1 0;
@@ -150,8 +150,6 @@ const CSS = `
   }
   .tp-bar.tp-bar-narrow { flex-wrap: wrap; row-gap: 6px; }
   .tp-bar.tp-bar-narrow > .tp-well { order: 1; flex-basis: 100%; }
-  .tp-bar.tp-bar-tight .tp-bar-info { display: none; }
-  .tp-bar-info { display: flex; align-items: center; gap: 8px; padding: 0 4px; white-space: nowrap; }
   .tp-bar-btn {
     flex: none;
     width: 30px;
@@ -184,7 +182,6 @@ const CSS = `
     -webkit-box-orient: vertical; /* wraps, cut off with "…" after the lines shown */
     white-space: normal;
   }
-  .tp-brand { font-size: 11px; opacity: .75; }
   /* Name in write mode: click to save under another name (box in its place); new file: marked */
   .tp-title-name.tp-renamable { cursor: text; border-bottom: 1px dashed currentColor; }
   .tp-title-name.tp-new-name::after { content: ' (new file)'; font-style: italic; opacity: .7; }

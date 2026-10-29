@@ -1,4 +1,4 @@
-// Logo (setting `logo`) and version of the script, top right in the viewer and in the settings form;
+// Logo (setting `logo`) and version of the script, top right in the settings form;
 // the version links to Tampermonkey's editor of the script
 
 // ===========================================================================

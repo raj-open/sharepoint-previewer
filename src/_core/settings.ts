@@ -75,7 +75,7 @@ export const DEFAULTS = {
     // 'dark' or 'light' (start value)
     'theme': 'light',
 
-    // Logo (top right) as data: URI; empty = none. No network request.
+    // Logo (top right of the settings form) as data: URI; empty = none. No network request.
     'logo': '',
 };
 

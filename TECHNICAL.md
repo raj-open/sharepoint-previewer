@@ -165,8 +165,8 @@ How the parts communicate: [NOTES.md, §3](NOTES.md#3-communication).
   - as a movable pop-up, resizable at its lower right corner (position and size kept)
 - **Header:** a bar as the Zen list's (`/src/ui/bar.ts`: start, well, end), the properties below it
   - start: layout, edit, stop / cancel, save, upload (same places as in the Zen list), cache whole file
-  - end: version and logo, ⋯, copy, ✕
-  - when narrow (less than 200 px left for the well): the file name on a second row; very narrow: without version and logo
+  - end: ⋯, copy, ✕ (version and logo: in the settings form, version also on About)
+  - when narrow (less than 200 px left for the well): the file name on a second row
   - file name, with (i) for the properties and a chain icon:
     a click copies the clean link (not encoded, no query) of the file shown
     (a link file or search result: where it leads),
@@ -500,7 +500,7 @@ The anonymous build empties it (cf. Artefacts).
 | `sharepoint-api` | `true` | Allow features that use Sharepoint's REST API (Zen mode, finding files of search results); off: no API request at all |
 | `viewer-3d-folder` | *(empty)* | Folder with the 3D files: relative to the site, or from the top with a leading `/` |
 | `viewer-3d-max-bytes` | 25 MB | 3D view asks first (each time) above this IFC size |
-| `logo` | *(empty)* | `data:image/…` URI shown in the header |
+| `logo` | *(empty)* | `data:image/…` URI shown in the header of the settings form |
 
 Settings that are start values (layout, size, theme, colours, wrap)
 are then overridden by the user's last choice in the viewer.
