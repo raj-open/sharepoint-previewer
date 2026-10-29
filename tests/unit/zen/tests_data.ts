@@ -6,8 +6,20 @@ import type { Fake } from '../helpers.ts';
 import { load } from '../helpers.ts';
 import { setLocation } from '../helpers.ts';
 
-const { formValue, loadFolder, NAME, rawText, saveItem, textKeyOf, toField, toItem, viewFields } =
-    await load('zen/data.ts');
+const {
+    formValue,
+    loadEntries,
+    loadFolder,
+    NAME,
+    rawText,
+    saveItem,
+    sortItems,
+    textKeyOf,
+    toField,
+    toItem,
+    viewFields,
+    viewOrder,
+} = await load('zen/data.ts');
 
 const LIB = '/sites/A/Shared Documents';
 const FIELDS = [
@@ -159,5 +171,65 @@ describe('zen/data', () => {
                 ? Response.json({ FormDigestValue: 'D' })
                 : new Response('', { status: 423 })) as typeof fetch;
         assert.deepEqual(await saveItem(LIB, 7, { Status: 'A' }, fields), { Status: 'Not saved: HTTP 423' });
+    });
+
+    it("order of the items: sort in the address, else the view's (OrderBy), else by name", () => {
+        const views = [
+            {
+                DefaultView: true,
+                ViewQuery:
+                    '<OrderBy><FieldRef Name="Modified" Ascending="FALSE" /><FieldRef Name="LinkFilename"/></OrderBy>',
+            },
+        ];
+        const page = `${LIB}/Forms/AllItems.aspx`;
+        assert.deepEqual(viewOrder(views, page, ''), [
+            { col: 'Modified', dir: -1 },
+            { col: NAME, dir: 1 },
+        ]);
+        assert.deepEqual(viewOrder(views, page, '?sortField=Status&isAscending=false'), [{ col: 'Status', dir: -1 }]);
+        assert.deepEqual(viewOrder([{ DefaultView: true, ViewQuery: '' }], page, ''), [{ col: NAME, dir: 1 }]);
+        assert.deepEqual(viewOrder([], page, ''), [{ col: NAME, dir: 1 }]);
+    });
+
+    it('items sorted as Sharepoint: numbers and dates as such, text any case (10 before 2); ties as sent', () => {
+        const fields = [
+            toField({ InternalName: NAME, TypeAsString: 'File' }),
+            toField({ InternalName: 'N', TypeAsString: 'Number' }),
+        ];
+        const it = (id: number, name: string, n: number) =>
+            toItem({ Id: id, FileLeafRef: name, FileRef: name, N: n }, fields);
+        const items = [it(1, 'b2', 2), it(2, 'B10', 2), it(3, 'a', 10)];
+        assert.deepEqual(
+            sortItems(items, [{ col: NAME, dir: 1 }], fields).map((x: { name: string }) => x.name),
+            ['a', 'B10', 'b2'],
+        );
+        assert.deepEqual(
+            sortItems(items, [{ col: 'N', dir: -1 }], fields).map((x: { id: number }) => x.id),
+            [3, 1, 2],
+        );
+        assert.deepEqual(
+            sortItems(items, [{ col: 'Unknown', dir: 1 }], fields).map((x: { id: number }) => x.id),
+            [1, 2, 3],
+        );
+    });
+
+    it('entries of a folder (download): names, paths, folders; no properties read', async () => {
+        const urls: string[] = [];
+        globalThis.fetch = (async (url: string | URL) => {
+            const u = decodeURIComponent(String(url));
+            urls.push(u);
+            if (u.endsWith('/_api/contextinfo')) return Response.json({ FormDigestValue: 'D' });
+            return Response.json({
+                value: [
+                    { Id: 4, FileLeafRef: 'S', FileRef: `${LIB}/S`, FSObjType: 1 },
+                    { Id: 5, FileLeafRef: 'x.txt', FileRef: `${LIB}/x.txt`, FSObjType: 0 },
+                ],
+            });
+        }) as typeof fetch;
+        assert.deepEqual(await loadEntries(LIB, LIB), [
+            { name: 'S', path: `${LIB}/S`, folder: true },
+            { name: 'x.txt', path: `${LIB}/x.txt`, folder: false },
+        ]);
+        assert.ok(urls.some((u) => u.includes('GetItems?$select=Id,FileLeafRef,FileRef,FSObjType&@list=')));
     });
 });

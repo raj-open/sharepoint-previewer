@@ -15,6 +15,7 @@ const {
     moveColumn,
     saveColumns,
     saveLayout,
+    saveWidths,
     setColumns,
     ZEN_COLUMNS_KEY,
 } = await load('zen/columns.ts');
@@ -83,10 +84,14 @@ describe('zen/columns', () => {
         assert.equal(layoutDirty(z), false);
         assert.equal(loadColumns(data.library).order[0], 'Status', 'kept');
         z.columns.widths.Status = 90;
-        assert.equal(layoutDirty(z), true, 'width');
+        assert.equal(layoutDirty(z), false, 'widths: no part of the draft');
+        setColumns(z, moveColumn(z.columns.order, 'Modified', 'Status'), new Set(z.columns.hidden));
+        saveWidths(z); // kept at once, the draft not
+        assert.deepEqual(loadColumns(data.library).widths, { Status: 90 });
+        assert.equal(loadColumns(data.library).order[0], 'Status', 'draft not kept');
         endLayout(z);
         assert.equal(z.layout, null);
-        assert.equal(z.columns.widths.Status, undefined, 'dropped');
+        assert.equal(z.columns.widths.Status, 90, 'width stays');
         assert.equal(z.columns.order[0], 'Status', 'saved ones stay');
     });
 });

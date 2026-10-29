@@ -2,6 +2,7 @@
 // on the mock Sharepoint (its REST API: cf. /tests/mocks/mock-sharepoint/properties.ts)
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { after } from 'node:test';
 import { before } from 'node:test';
 import { describe } from 'node:test';
@@ -51,13 +52,21 @@ const names = async (z: Locator): Promise<string[]> =>
 
 /** @returns row of an item */
 const rowOf = (z: Locator, name: string): Locator =>
-    z.locator('tr.tp-zen-row').filter({ has: z.page().locator('td.tp-zen-name', { hasText: name }) });
+    z.locator('tr.tp-zen-row').filter({ has: z.page().locator('td.tp-zen-name', { hasText: exact(name) }) });
+
+/** @returns pattern of exactly this text (spaces around allowed) */
+function exact(s: string): RegExp {
+    const escaped = s.replace(/[.*+?^$|()[\]{}\\]/g, '\\$&');
+    return new RegExp(`^\\s*${escaped}\\s*$`);
+}
 
 /** @returns cell of an item in a column (by title) */
 async function cell(z: Locator, name: string, title: string): Promise<Locator> {
     const i = (await titles(z)).indexOf(title);
     assert.ok(i >= 0, `column ${title}`);
-    return rowOf(z, name).locator('td').nth(i);
+    return rowOf(z, name)
+        .locator('td')
+        .nth(i + 1); // after the checkbox
 }
 
 /** @returns a button of the Zen bar (by the start of its title) */
@@ -178,6 +187,89 @@ describe('zen mode', () => {
         assert.deepEqual(await names(z), ['prices.csv']);
     });
 
+    it("order as Sharepoint's view (its OrderBy: by name), not as the API sends the items (by id); folders first", async () => {
+        const { page } = await openFolder(DATA);
+        const z = await zen(page);
+        const shown = await names(z);
+        const files = shown.slice(1);
+        const cmp = new Intl.Collator(undefined, { sensitivity: 'base' });
+        assert.equal(shown[0], 'Reports');
+        assert.deepEqual(
+            files,
+            [...files].sort((a, b) => cmp.compare(a, b)),
+        );
+        assert.equal(await z.locator('th .tp-sort', { hasText: /[▲▼]/ }).count(), 0); // no own sort
+    });
+
+    it('select: checkboxes (Shift: a range), rows by Ctrl / Cmd (not opened), the head: all shown or none', async () => {
+        const { page } = await openFolder(DATA);
+        const z = await zen(page);
+        const shown = await names(z);
+        const box = (name: string) => rowOf(z, name).locator('.tp-zen-pick-one');
+        const picked = async () =>
+            (await z.locator('tr.tp-zen-selected td.tp-zen-name').allTextContents()).map((t) => t.trim());
+        await box(shown[1]).click();
+        await box(shown[3]).click({ modifiers: ['Shift'] });
+        assert.deepEqual(await picked(), shown.slice(1, 4));
+        assert.equal(await z.locator('.tp-zen-picked').textContent(), '3 selected');
+        assert.equal(
+            await z.locator('.tp-zen-pick-all').evaluate((el) => (el as HTMLInputElement).indeterminate),
+            true,
+        );
+        // Ctrl / Cmd + click on a row: one more, the viewer shows no file
+        await rowOf(z, shown[5])
+            .locator('td.tp-zen-name')
+            .click({ modifiers: ['ControlOrMeta'] });
+        assert.deepEqual(await picked(), [...shown.slice(1, 4), shown[5]]);
+        await rowOf(z, shown[2])
+            .locator('td.tp-zen-name')
+            .click({ modifiers: ['ControlOrMeta'] });
+        assert.deepEqual(await picked(), [shown[1], shown[3], shown[5]]);
+        assert.equal(await z.locator('tr.tp-zen-shown').count(), 0, 'no file opened');
+        // Shift + click on a row: the range from the last one clicked
+        await rowOf(z, shown[4])
+            .locator('td.tp-zen-name')
+            .click({ modifiers: ['Shift'] });
+        assert.deepEqual(await picked(), shown.slice(1, 6));
+        // the head: all, then none
+        await z.locator('.tp-zen-pick-all').click();
+        assert.equal((await picked()).length, shown.length);
+        assert.equal(await z.locator('.tp-zen-pick-all').isChecked(), true);
+        await z.locator('.tp-zen-pick-all').click();
+        assert.deepEqual(await picked(), []);
+        assert.equal(await btn(z, 'Download').isDisabled(), true);
+        // another folder: nothing selected there
+        await box(shown[1]).click();
+        await z.locator('td.tp-zen-name', { hasText: 'Reports' }).click();
+        await z.locator('td.tp-zen-name', { hasText: '2025.csv' }).waitFor();
+        assert.deepEqual(await picked(), []);
+    });
+
+    it('download: one file as it is; several, or a folder with all in it: a ZIP named after the folder', async () => {
+        const { page } = await openFolder(DATA);
+        const z = await zen(page);
+        const box = (name: string) => rowOf(z, name).locator('.tp-zen-pick-one');
+        await box('prices.csv').click();
+        let wait = page.waitForEvent('download');
+        await btn(z, 'Download').click();
+        let file = await wait;
+        assert.equal(file.suggestedFilename(), 'prices.csv');
+        assert.equal(
+            fs.readFileSync(await file.path(), 'utf8'),
+            fs.readFileSync(`${import.meta.dirname}/../mocks/mock-sharepoint/library/Data/prices.csv`, 'utf8'),
+        );
+        await box('Reports').click();
+        wait = page.waitForEvent('download');
+        await btn(z, 'Download').click();
+        file = await wait;
+        assert.equal(file.suggestedFilename(), 'Data.zip');
+        const zip = fs.readFileSync(await file.path());
+        assert.equal(zip.readUInt32LE(0), 0x04034b50);
+        const names = zip.toString('latin1');
+        for (const n of ['Reports/', 'Reports/2025.csv', 'prices.csv']) assert.ok(names.includes(n), n);
+        assert.equal(await z.locator('.tp-zen-picked').textContent(), '2 selected'); // progress gone
+    });
+
     it('columns: shown and hidden from the menu (layout mode), kept for the library once saved', async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);
@@ -226,12 +318,28 @@ describe('zen mode', () => {
         assert.equal((await titles(await filled(page)))[1], 'File Size'); // kept
     });
 
-    it('layout mode: columns moved and sized only there, not while editing (nor the other way round)', async () => {
+    it('layout mode: columns moved only there, not while editing (nor the other way round); widths: any mode', async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);
-        // read mode: titles not movable, no width handles
+        // read mode: titles not movable; widths changed, kept at once (no Save), double-click: as it fits
         assert.equal(await z.locator('th.tp-movable').count(), 0);
-        assert.equal(await z.locator('th .tp-resize').count(), 0);
+        const handle = z.locator('th[title="Status"] .tp-resize');
+        const b = await handle.boundingBox();
+        assert.ok(b);
+        await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(b.x + 150, b.y + b.height / 2, { steps: 5 });
+        await page.mouse.up();
+        const wide = (await z.locator('th[title="Status"]').boundingBox())?.width ?? 0;
+        assert.ok(wide > 150, `wider: ${wide}`);
+        await page.reload();
+        const again = await filled(page);
+        assert.ok(
+            Math.abs(((await again.locator('th[title="Status"]').boundingBox())?.width ?? 0) - wide) <= 1,
+            'kept',
+        );
+        await again.locator('th[title="Status"] .tp-resize').dblclick();
+        assert.ok(((await again.locator('th[title="Status"]').boundingBox())?.width ?? 0) < wide, 'as it fits');
         await z.locator('th[title="Status"] .tp-sort').dragTo(z.locator('th[title="Modified"] .tp-sort'));
         assert.equal((await titles(z))[1], 'Modified', 'not moved');
         // edit mode: no layout mode
@@ -391,8 +499,7 @@ describe('zen mode', () => {
     it('edit: names longer than their column stay shown, cut at their end (not left out as "…")', async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);
-        // name column made narrow (its edge dragged to the left; layout mode, saved, ended)
-        await btn(z, 'Columns').click();
+        // name column made narrow (its edge dragged to the left; any mode, kept at once)
         const handle = z.locator('th.tp-zen-name .tp-resize');
         const b = await handle.boundingBox();
         assert.ok(b);
@@ -400,8 +507,6 @@ describe('zen mode', () => {
         await page.mouse.down();
         await page.mouse.move(b.x - 400, b.y + b.height / 2, { steps: 5 });
         await page.mouse.up();
-        await btn(z, 'Save').click();
-        await btn(z, 'Columns').click();
         await btn(z, 'Edit').click();
         await z.locator('td.tp-zen-name .tp-zen-text[contenteditable]').first().waitFor();
         const cells = await z.locator('td.tp-zen-name').evaluateAll((tds) =>

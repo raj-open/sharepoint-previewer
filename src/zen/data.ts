@@ -10,6 +10,7 @@ import { quote } from '../readers/api.ts';
 import { siteOf } from '../readers/api.ts';
 
 import type { ZenData } from '../_core/types.ts';
+import type { ZenEntry } from '../_core/types.ts';
 import type { ZenField } from '../_core/types.ts';
 import type { ZenItem } from '../_core/types.ts';
 
@@ -27,7 +28,14 @@ type FieldJson = {
     ReadOnlyField?: boolean;
     Choices?: Many<string>;
 };
-type ViewJson = { ServerRelativeUrl?: string; DefaultView?: boolean; ViewFields?: { Items?: Many<string> } };
+type ViewJson = {
+    ServerRelativeUrl?: string;
+    DefaultView?: boolean;
+    ViewQuery?: string;
+    ViewFields?: { Items?: Many<string> };
+};
+/** sort of a column: ascending (1) or descending (-1) */
+type Order = { col: string; dir: number };
 type ItemJson = Record<string, unknown> & { FieldValuesAsText?: Record<string, unknown> };
 type FieldResult = { FieldName?: string; HasException?: boolean; ErrorMessage?: string | null };
 
@@ -120,17 +128,66 @@ export function toItem(x: ItemJson, fields: ZenField[]): ZenItem {
     };
 }
 
+/** @returns view of `page`, else the default one */
+const viewOf = (views: ViewJson[], page: string): ViewJson | undefined =>
+    views.find((v) => (v.ServerRelativeUrl ?? '').toLowerCase() === page.toLowerCase()) ??
+    views.find((v) => v.DefaultView);
+
 /** @returns fields of the view (name fields left out), the view of `page` or else the default one */
 export function viewFields(views: ViewJson[], page: string, fields: ZenField[]): string[] {
-    const lower = page.toLowerCase();
-    const view =
-        views.find((v) => (v.ServerRelativeUrl ?? '').toLowerCase() === lower) ?? views.find((v) => v.DefaultView);
+    const view = viewOf(views, page);
     const known = new Set(fields.map((f) => f.name));
     return many(view?.ViewFields?.Items).filter((n) => !NAME_FIELDS.has(n) && known.has(n));
 }
 
 /**
- * Reads fields (not hidden), views and the items of a folder.
+ * Order of the items as in Sharepoint's list: the sort chosen there (address: sortField, isAscending),
+ * else the view's (its query: OrderBy), else by name
+ * @param search query of the page's address
+ */
+export function viewOrder(views: ViewJson[], page: string, search: string): Order[] {
+    const col = (name: string) => (NAME_FIELDS.has(name) ? NAME : name);
+    const params = new URLSearchParams(search);
+    const field = params.get('sortField');
+    if (field) return [{ col: col(field), dir: params.get('isAscending') === 'false' ? -1 : 1 }];
+    const query = viewOf(views, page)?.ViewQuery ?? '';
+    const orderBy = query.match(/<OrderBy[^>]*>([\s\S]*?)<\/OrderBy>/i)?.[1] ?? '';
+    const order = [...orderBy.matchAll(/<FieldRef\b([^>]*)\/?>/gi)].flatMap((m) => {
+        const name = m[1].match(/\bName\s*=\s*"([^"]+)"/i)?.[1];
+        const desc = /\bAscending\s*=\s*"(false|0)"/i.test(m[1]);
+        return name ? [{ col: col(name), dir: desc ? -1 : 1 }] : [];
+    });
+    return order.length ? order : [{ col: NAME, dir: 1 }];
+}
+
+/** @returns sort key of a value as Sharepoint orders it: numbers and dates as such, else the text shown */
+function orderKey(item: ZenItem, col: string): string | number {
+    const raw = item.raw[col];
+    if (typeof raw === 'number') return raw;
+    if (typeof raw === 'string' && /^\d{4}-\d\d-\d\dT/.test(raw)) return Date.parse(raw);
+    return item.text[col] ?? '';
+}
+
+/** @returns items in the order given (columns not known: left out; ties: as Sharepoint sent them) */
+export function sortItems(items: ZenItem[], order: Order[], fields: ZenField[]): ZenItem[] {
+    const known = order.filter((o) => fields.some((f) => f.name === o.col));
+    const text = new Intl.Collator(undefined, { sensitivity: 'base' }); // as Sharepoint: 10 before 2
+    const cmp = (a: string | number, b: string | number) =>
+        typeof a === 'number' && typeof b === 'number' ? a - b : text.compare(String(a), String(b));
+    return items
+        .map((item, i) => ({ item, i }))
+        .sort((a, b) => {
+            for (const o of known) {
+                const c = cmp(orderKey(a.item, o.col), orderKey(b.item, o.col));
+                if (c) return o.dir * c;
+            }
+            return a.i - b.i;
+        })
+        .map((x) => x.item);
+}
+
+/**
+ * Reads fields (not hidden), views and the items of a folder (in the order of Sharepoint's list).
  * @param library server-relative @param folder server-relative, in the library
  * @returns data, or why not (refused, HTTP status, setting)
  */
@@ -141,7 +198,7 @@ export async function loadFolder(library: string, folder: string): Promise<ZenDa
     const fieldsUrl =
         `${list}/Fields?$filter=Hidden eq false` +
         `&$select=InternalName,EntityPropertyName,Title,TypeAsString,ReadOnlyField,Choices&${at}`;
-    const viewsUrl = `${list}/Views?$select=ServerRelativeUrl,DefaultView&$expand=ViewFields&${at}`;
+    const viewsUrl = `${list}/Views?$select=ServerRelativeUrl,DefaultView,ViewQuery&$expand=ViewFields&${at}`;
     const [listJson, fieldsJson, viewsJson] = await Promise.all([
         getJson<{ Title?: string }>(`${list}?$select=Title&${at}`),
         getJson<{ value?: FieldJson[] }>(fieldsUrl),
@@ -152,29 +209,57 @@ export async function loadFolder(library: string, folder: string): Promise<ZenDa
     const fields = (fieldsJson?.value ?? []).flatMap((f) => toField(f) ?? []);
     if (!fields.some((f) => f.name === NAME))
         fields.unshift(toField({ InternalName: NAME, Title: 'Name', TypeAsString: 'File' }) as ZenField);
-    const view =
-        typeof viewsJson === 'string'
-            ? []
-            : viewFields(viewsJson?.value ?? [], decodeURIComponent(location.pathname), fields);
+    const views = typeof viewsJson === 'string' ? [] : (viewsJson?.value ?? []);
+    const page = decodeURIComponent(location.pathname);
+    const view = viewFields(views, page, fields);
 
-    // Items of the folder: a query scoped to the folder (as Sharepoint's own list), not a filter on the list
-    // (a filter on FileDirRef is refused in libraries above the list view threshold of 5,000 items);
-    // pages by item id, in the default order (an order on a column could hit the threshold again)
-    const items: ZenItem[] = [];
-    const url = `${list}/GetItems?$select=*,Id,FileLeafRef,FileRef,FSObjType&$expand=FieldValuesAsText&${at}`;
+    const json = await folderItems(library, folder, '*,Id,FileLeafRef,FileRef,FSObjType', 'FieldValuesAsText');
+    if (typeof json === 'string') return `items: ${json}`;
+    const order = viewOrder(views, page, location.search);
+    const items = sortItems(
+        json.map((x) => toItem(x, fields)),
+        order,
+        fields,
+    );
+    return { library, title, folder, fields, view: view.length ? view : defaultView(fields), items };
+}
+
+/**
+ * Items of a folder (JSON as Sharepoint answers): a query scoped to the folder (as Sharepoint's own list),
+ * not a filter on the list (a filter on FileDirRef is refused in libraries above the list view threshold
+ * of 5,000 items); pages by item id, in the default order (an order on a column could hit the threshold again)
+ * @returns items, or why not
+ */
+async function folderItems(library: string, folder: string, select: string, expand = ''): Promise<ItemJson[] | string> {
+    const site = siteOf(library);
+    const at = `@list=${encodeURIComponent(quote(library))}`;
+    const more = expand ? `&$expand=${expand}` : '';
+    const url = `${site}/_api/web/GetList(@list)/GetItems?$select=${select}${more}&${at}`;
     const viewXml = `<View><RowLimit Paged="TRUE">${ITEMS_PAGE}</RowLimit></View>`;
+    const items: ItemJson[] = [];
     let paging = '';
     for (let page = 0; page < MAX_ITEM_PAGES; page++) {
         const position = paging ? { ListItemCollectionPosition: { PagingInfo: paging } } : {};
         const query = { ViewXml: viewXml, FolderServerRelativeUrl: folder, ...position };
         const data = await postJson<{ value?: ItemJson[] }>(site, url, { query });
-        if (typeof data === 'string') return `items: ${data}`;
+        if (typeof data === 'string') return data;
         const got = data?.value ?? [];
-        for (const x of got) items.push(toItem(x, fields));
+        items.push(...got);
         if (got.length < ITEMS_PAGE) break;
-        paging = `Paged=TRUE&p_ID=${items[items.length - 1].id}`;
+        paging = `Paged=TRUE&p_ID=${Number(got[got.length - 1].Id ?? got[got.length - 1].ID)}`;
     }
-    return { library, title, folder, fields, view: view.length ? view : defaultView(fields), items };
+    return items;
+}
+
+/** @returns files and folders of a folder (name, path, folder or not; no properties), or why not */
+export async function loadEntries(library: string, folder: string): Promise<ZenEntry[] | string> {
+    const json = await folderItems(library, folder, 'Id,FileLeafRef,FileRef,FSObjType');
+    if (typeof json === 'string') return json;
+    return json.map((x) => ({
+        name: String(x.FileLeafRef ?? ''),
+        path: String(x.FileRef ?? ''),
+        folder: Number(x.FSObjType) === 1,
+    }));
 }
 
 // No view found: the editable fields, then Modified and Modified By

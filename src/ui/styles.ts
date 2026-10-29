@@ -322,16 +322,17 @@ const CSS = `
     box-shadow: 0 1px 4px rgba(0,0,0,.3);
   }
   .tp-table [draggable="true"] { cursor: grab; }
+  /* inside its title (the next title, painted later, would cover a handle reaching into it) */
   .tp-resize {
     position: absolute;
     top: 40%;
     bottom: 0;
-    right: -3px;
-    width: 7px;
+    right: 0;
+    width: 6px;
     z-index: 3;
     cursor: col-resize;
   }
-  .tp-resize:hover { background: linear-gradient(90deg, transparent 2px, var(--tp-accent) 2px 5px, transparent 5px); }
+  .tp-resize:hover { background: linear-gradient(90deg, transparent 3px, var(--tp-accent) 3px); }
   .tp-col-delete {
     visibility: hidden; /* appears when hovering over the column title */
     margin-left: 2px;
@@ -875,10 +876,27 @@ const CSS = `
   .tp-zen-table th { background: linear-gradient(var(--tp-thead-bg), var(--tp-thead-bg)), var(--tp-bg); } /* rows don't show through */
   .tp-zen-table tr.tp-zen-row { cursor: pointer; }
   .tp-zen-editing .tp-zen-table tr.tp-zen-row { cursor: default; }
-  /* Name: frozen at the left, like the column titles at the top */
-  .tp-zen-table .tp-zen-name {
+  /* Selection: checkboxes frozen at the left (as in Sharepoint's view), the head's for all rows shown */
+  .tp-zen-table .tp-zen-pick {
     position: sticky;
     left: 0;
+    width: 30px;
+    min-width: 30px;
+    max-width: 30px;
+    box-sizing: border-box;
+    padding: 0;
+    text-align: center;
+    background: var(--tp-bg);
+  }
+  .tp-zen-table td.tp-zen-pick { z-index: 1; cursor: default; }
+  .tp-zen-table th.tp-zen-pick { z-index: 3; background: linear-gradient(var(--tp-thead-bg), var(--tp-thead-bg)), var(--tp-bg); }
+  .tp-zen-pick input { margin: 0; vertical-align: middle; cursor: pointer; accent-color: var(--tp-accent); }
+  .tp-zen-picked { flex: none; font-size: 12px; opacity: .8; padding: 0 4px; white-space: nowrap; }
+  .tp-zen-picked:empty { display: none; }
+  /* Name: frozen at the left (after the checkboxes), like the column titles at the top */
+  .tp-zen-table .tp-zen-name {
+    position: sticky;
+    left: 30px;
     min-width: 180px;
     max-width: 420px;
     background: var(--tp-bg);
@@ -886,10 +904,11 @@ const CSS = `
   }
   .tp-zen-table td.tp-zen-name { z-index: 1; }
   .tp-zen-table th.tp-zen-name { z-index: 3; background: linear-gradient(var(--tp-thead-bg), var(--tp-thead-bg)), var(--tp-bg); }
-  .tp-zen-table tr.tp-stripe td.tp-zen-name { background: linear-gradient(var(--tp-stripe), var(--tp-stripe)), var(--tp-bg); }
-  .tp-zen-table tbody tr.tp-zen-row:hover td.tp-zen-name { background: linear-gradient(var(--tp-hover), var(--tp-hover)), var(--tp-bg); }
+  .tp-zen-table tr.tp-stripe td.tp-zen-name, .tp-zen-table tr.tp-stripe td.tp-zen-pick { background: linear-gradient(var(--tp-stripe), var(--tp-stripe)), var(--tp-bg); }
+  .tp-zen-table tbody tr.tp-zen-row:hover td.tp-zen-name, .tp-zen-table tbody tr.tp-zen-row:hover td.tp-zen-pick { background: linear-gradient(var(--tp-hover), var(--tp-hover)), var(--tp-bg); }
   .tp-zen-table tr.tp-zen-shown td { background: var(--tp-well-bg); }
   .tp-zen-table tr.tp-zen-shown td.tp-zen-name { background: linear-gradient(var(--tp-well-bg), var(--tp-well-bg)), var(--tp-bg); box-shadow: inset 3px 0 0 var(--tp-accent); }
+  .tp-zen-table tr.tp-zen-selected td, .tp-zen-table tr.tp-zen-selected td.tp-zen-pick, .tp-zen-table tr.tp-zen-selected td.tp-zen-name { background: color-mix(in srgb, var(--tp-accent) 14%, var(--tp-bg)); }
   .tp-zen-icon { display: inline-flex; vertical-align: -3px; margin-right: 6px; color: var(--tp-ln-fg); }
   .tp-zen-folder .tp-zen-icon { color: #d9a400; }
   /* Edit mode: editable cells framed lightly, system fields greyed; changed: amber; refused: red */

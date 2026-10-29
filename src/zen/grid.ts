@@ -31,6 +31,8 @@ import type { ZenItem } from '../_core/types.ts';
 const ROW_HEIGHT = 27; // px, as in the styles (.tp-zen-table td)
 const MIN_WIDTH = 48;
 const MIN_NAME_WIDTH = 120; // name column: icon and some of the name
+const RESIZE = 'Drag to change the width (double-click: as it fits)';
+const LEAD = 2; // columns before the others: checkbox, name
 const MAX_CELL_TITLE = 2000; // characters of a cell's tooltip
 
 // Blocks of rows being watched (filled near the visible part), per Zen list
@@ -109,11 +111,10 @@ function headHtml(z: Zen, cols: string[]): string {
     const th = (col: string, title: string, cls: string) => {
         const sort = z.sort?.col === col ? (z.sort.dir > 0 ? ' ▲' : ' ▼') : '';
         const on = z.filters.has(col) ? ' tp-on' : '';
-        // layout mode: moved (not the name) and sized
+        // layout mode: moved (not the name)
         const move = z.layout && col !== NAME ? ' tp-movable' : '';
-        const resize = z.layout
-            ? `<span class="tp-resize" data-col="${esc(col)}" title="Drag to change the width"></span>`
-            : '';
+        // widths: in any mode
+        const resize = `<span class="tp-resize" data-col="${esc(col)}" title="${RESIZE}"></span>`;
         return (
             `<th data-col="${esc(col)}" class="${cls}${move}" title="${esc(title)}">` +
             `<span class="tp-sort">${esc(title)}${sort}</span>` +
@@ -122,7 +123,8 @@ function headHtml(z: Zen, cols: string[]): string {
     };
     const titles = new Map((z.data?.fields ?? []).map((f) => [f.name, f.title]));
     const cells = cols.map((c) => th(c, titles.get(c) ?? c, fieldOf(z, c)?.editable ? 'tp-zen-editable' : ''));
-    return `<thead><tr>${th(NAME, 'Name', 'tp-zen-name')}${cells.join('')}</tr></thead>`;
+    const pick = '<th class="tp-zen-pick"><input type="checkbox" class="tp-zen-pick-all" title="Select all"></th>';
+    return `<thead><tr>${pick}${th(NAME, 'Name', 'tp-zen-name')}${cells.join('')}</tr></thead>`;
 }
 
 function cellHtml(z: Zen, item: ZenItem, col: string): string {
@@ -156,23 +158,26 @@ function cellHtml(z: Zen, item: ZenItem, col: string): string {
 }
 
 function rowHtml(z: Zen, item: ZenItem, pos: number, cols: string[], shown: string | null): string {
+    const on = z.selected.has(item.id);
     const cls = [
         'tp-zen-row',
         pos % 2 ? 'tp-stripe' : '',
         item.folder ? 'tp-zen-folder' : '',
         shown && item.path.toLowerCase() === shown ? 'tp-zen-shown' : '',
+        on ? 'tp-zen-selected' : '',
     ];
+    const box = `<input type="checkbox" class="tp-zen-pick-one" title="Select"${on ? ' checked' : ''}>`;
     const cells = [NAME, ...cols].map((c) => cellHtml(z, item, c)).join('');
-    return `<tr data-id="${item.id}" class="${cls.filter(Boolean).join(' ')}">${cells}</tr>`;
+    return `<tr data-id="${item.id}" class="${cls.filter(Boolean).join(' ')}"><td class="tp-zen-pick">${box}</td>${cells}</tr>`;
 }
 
-/** Widths of the columns (name and each one shown): kept, else as the browser lays them out */
+/** Widths of the columns (name and each one shown; after the checkbox): kept, else as the browser lays them out */
 function widthCss(z: Zen, cols: string[]): string {
     return [NAME, ...cols]
         .map((c, i) => {
             const w = z.columns.widths[c];
             return w
-                ? `.tp-zen-table tr > :nth-child(${i + 1}) { width: ${w}px; min-width: ${w}px; max-width: ${w}px; }`
+                ? `.tp-zen-table tr > :nth-child(${i + LEAD}) { width: ${w}px; min-width: ${w}px; max-width: ${w}px; }`
                 : '';
         })
         .join('\n');
@@ -198,7 +203,7 @@ export function drawGrid(z: Zen, shown: string | null): void {
     const lower = shown?.toLowerCase() ?? null;
     const blocks: HTMLElement[] = [];
     const spacer = (h: number) =>
-        `<tr class="tp-spacer"><td colspan="${cols.length + 1}" style="height:${h}px"></td></tr>`;
+        `<tr class="tp-spacer"><td colspan="${cols.length + LEAD}" style="height:${h}px"></td></tr>`;
     for (let from = 0; from < items.length; from += CHUNK_LINES) {
         const body = document.createElement('tbody');
         body.dataset.from = String(from);
@@ -261,7 +266,8 @@ export function itemOf(z: Zen, el: HTMLElement): ZenItem | undefined {
  * @param redraw draws the list anew
  * @param open item clicked (read mode)
  * @param edited a value changed (edit mode)
- * @param arranged columns moved or sized (layout mode: a draft)
+ * @param arranged columns moved (layout mode: a draft)
+ * @param sized a column's width changed (any mode: kept at once)
  */
 export function wireGrid(
     z: Zen,
@@ -270,7 +276,14 @@ export function wireGrid(
         open,
         edited,
         arranged,
-    }: { redraw: () => void; open: (item: ZenItem) => void; edited: () => void; arranged: () => void },
+        sized,
+    }: {
+        redraw: () => void;
+        open: (item: ZenItem) => void;
+        edited: () => void;
+        arranged: () => void;
+        sized: () => void;
+    },
 ): void {
     const grid = z.grid;
     const colOf = (el: Element | null) => (el as HTMLElement | null)?.dataset.col ?? '';
@@ -294,6 +307,8 @@ export function wireGrid(
                 },
             );
         }
+        const modified = e.shiftKey || e.ctrlKey || e.metaKey;
+        if (t.closest('.tp-zen-pick') || (modified && t.closest('tr.tp-zen-row'))) return; // selection: select.ts
         const th = t.closest('th[data-col]');
         if (th) {
             z.sort = nextSort(z.sort, colOf(th));
@@ -339,10 +354,18 @@ export function wireGrid(
         }
     });
 
-    // Widths (layout mode): drag the lower right edge of a column title
+    // Widths (any mode): drag the right edge of a column title; double-click: back to as it fits
+    grid.addEventListener('dblclick', (e) => {
+        const handle = (e.target as HTMLElement).closest('.tp-resize') as HTMLElement | null;
+        if (!handle || !z.data) return;
+        delete z.columns.widths[colOf(handle)];
+        const style = grid.querySelector('style') as HTMLStyleElement | null;
+        if (style) style.textContent = widthCss(z, shownColumns(z));
+        sized();
+    });
     grid.addEventListener('pointerdown', (e) => {
         const handle = (e.target as HTMLElement).closest('.tp-resize') as HTMLElement | null;
-        if (!handle || !z.data || !z.layout) return;
+        if (!handle || !z.data) return;
         e.preventDefault();
         e.stopPropagation();
         const col = colOf(handle);
@@ -360,7 +383,7 @@ export function wireGrid(
             handle.removeEventListener('pointermove', move);
             handle.removeEventListener('pointerup', up);
             handle.removeEventListener('pointercancel', up);
-            arranged();
+            sized();
         };
         handle.addEventListener('pointermove', move);
         handle.addEventListener('pointerup', up);
