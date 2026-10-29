@@ -1,11 +1,11 @@
-// Site of the Zen list: title and document libraries (system ones left out, by title), read once per site
+// Document libraries of the Zen list's site: system ones left out, by title, read once per site
 import assert from 'node:assert/strict';
 import { describe } from 'node:test';
 import { it } from 'node:test';
 import { load } from '../helpers.ts';
 import { setLocation } from '../helpers.ts';
 
-const { loadSite, toLibraries } = await load('zen/site.ts');
+const { loadLibraries, toLibraries } = await load('zen/libraries.ts');
 
 const SITE = '/sites/A';
 const LISTS = [
@@ -21,7 +21,7 @@ const LISTS = [
     { Title: 'Broken' },
 ];
 
-describe('zen/site', () => {
+describe('zen/libraries', () => {
     it("libraries: by title, Sharepoint's own left out (by root folder, any title); default view, else AllItems", () => {
         assert.deepEqual(toLibraries(LISTS), [
             {
@@ -33,31 +33,26 @@ describe('zen/site', () => {
         ]);
     });
 
-    it('site: title and libraries, read once; refusal said and read again next time', async () => {
+    it('read once per site; refusal said and read again next time', async () => {
         setLocation(`${SITE}/Reports/Forms/AllItems.aspx`);
         const urls: string[] = [];
         let refuse = true;
         globalThis.fetch = (async (url: string | URL) => {
-            const u = decodeURIComponent(String(url));
-            urls.push(u);
-            if (refuse) return new Response('', { status: 403 });
-            if (u.includes('/_api/web/lists?')) return Response.json({ value: LISTS });
-            return Response.json({ Title: 'Team A' });
+            urls.push(decodeURIComponent(String(url)));
+            return refuse ? new Response('', { status: 403 }) : Response.json({ value: LISTS });
         }) as typeof fetch;
-        assert.match(await loadSite(SITE), /^libraries: HTTP 403/);
+        assert.match(await loadLibraries(SITE), /^libraries: HTTP 403/);
         refuse = false;
-        const site = await loadSite(SITE);
-        assert.equal(site.title, 'Team A');
-        assert.equal(site.url, `${SITE}/_layouts/15/viewlsts.aspx`);
+        const libraries = await loadLibraries(SITE);
         assert.deepEqual(
-            site.libraries.map((lib: { title: string }) => lib.title),
+            libraries.map((lib: { title: string }) => lib.title),
             ['Documents', 'Reports'],
         );
         assert.ok(
-            urls.some((u) => u.includes(`${SITE}/_api/web/lists?$filter=BaseTemplate eq 101 and Hidden eq false`)),
+            urls.every((u) => u.startsWith(`${SITE}/_api/web/lists?$filter=BaseTemplate eq 101 and Hidden eq false`)),
         );
         const n = urls.length;
-        assert.equal(await loadSite(SITE), site);
+        assert.equal(await loadLibraries(SITE), libraries);
         assert.equal(urls.length, n, 'read once');
     });
 });

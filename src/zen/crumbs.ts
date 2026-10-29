@@ -1,4 +1,4 @@
-// Crumbs of the Zen list: site (its contents), library (with a menu of the site's libraries), the folders below it
+// Crumbs of the Zen list: library (with a menu of the site's libraries), the folders below it
 
 // ===========================================================================
 // IMPORTS
@@ -23,8 +23,8 @@ const CRUMB_SEP = '<span class="tp-zen-sep">›</span>';
 const hrefOf = (path: string): string => esc(encodeURI(path));
 
 /**
- * Folder path as links: site (once read), library (its title, once known; menu if the site has others),
- * then each folder below it. Site and libraries are ordinary links (new tab as usual), folders stay in the list.
+ * Folder path as links: library (its title, once known; menu if the site has others), then each folder below it.
+ * Folders open in the list; other libraries are ordinary links (Sharepoint opens them; new tab as usual).
  */
 export function showCrumbs(z: Zen, library: string): void {
     const parts = z.folder.slice(library.length).split('/').filter(Boolean);
@@ -35,15 +35,10 @@ export function showCrumbs(z: Zen, library: string): void {
             ? `<strong title="${esc(folder)}">${esc(name)}</strong>`
             : `<a data-folder="${esc(folder)}" title="${esc(folder)}">${esc(name)}</a>`;
     });
-    const site = z.site;
-    if (site?.libraries.some((lib) => !sameFile(lib.folder, library))) {
+    if (z.libraries?.some((lib) => !sameFile(lib.folder, library))) {
         crumbs[0] +=
             '<button type="button" class="tp-zen-libs" data-libraries aria-haspopup="menu" ' +
             'title="Other libraries of the site">▾</button>';
-    }
-    if (site) {
-        const link = `<a class="tp-zen-site" href="${hrefOf(site.url)}" title="Site contents">${esc(site.title)}</a>`;
-        crumbs.unshift(link);
     }
     z.crumbs.innerHTML = crumbs.join(CRUMB_SEP);
 }
@@ -52,10 +47,10 @@ export function showCrumbs(z: Zen, library: string): void {
 export function toggleLibraries(z: Zen, library: string, anchor: HTMLElement): void {
     const open = z.el.querySelector('.tp-zen-libraries');
     if (open) return void open.remove();
-    if (!z.site) return;
+    if (!z.libraries) return;
     const menu = document.createElement('nav');
     menu.className = 'tp-menu tp-zen-libraries';
-    menu.innerHTML = z.site.libraries
+    menu.innerHTML = z.libraries
         .map((lib) => {
             const current = sameFile(lib.folder, library) ? ' aria-current="page"' : '';
             const title = esc(lib.folder);

@@ -16,10 +16,12 @@ import { API_OFF } from '../readers/api.ts';
 import { apiAllowed } from '../readers/api.ts';
 import { libraryOfPage } from '../readers/api.ts';
 import { siteOf } from '../readers/api.ts';
+import { cleanUrl } from '../readers/links.ts';
 import { COLUMNS_SVG } from '../ui/icons.ts';
 import { EYE_CLOSED_SVG } from '../ui/icons.ts';
 import { EYE_FULL_SVG } from '../ui/icons.ts';
 import { EYE_HALF_SVG } from '../ui/icons.ts';
+import { LINK_SVG } from '../ui/icons.ts';
 import { REFRESH_SVG } from '../ui/icons.ts';
 import { SAVE_SVG } from '../ui/icons.ts';
 import { STOP_SVG } from '../ui/icons.ts';
@@ -27,6 +29,7 @@ import { UPLOAD_SVG } from '../ui/icons.ts';
 import { WRITE_SVG } from '../ui/icons.ts';
 import { ZEN_ON_SVG } from '../ui/icons.ts';
 import { ZEN_SVG } from '../ui/icons.ts';
+import { wireLink } from '../ui/link.ts';
 import { closeFilterPanel } from '../view/filter.ts';
 import { flash } from '../viewer/edit.ts';
 import { panelEdges } from '../viewer/layout.ts';
@@ -52,7 +55,7 @@ import { markShown } from './grid.ts';
 import { originalValue } from './grid.ts';
 import { stopGrid } from './grid.ts';
 import { wireGrid } from './grid.ts';
-import { loadSite } from './site.ts';
+import { loadLibraries } from './libraries.ts';
 
 import type { Viewer } from '../_core/types.ts';
 import type { Zen } from '../_core/types.ts';
@@ -124,7 +127,7 @@ export function enterZen(quiet = false): void {
     placeZen(); // the viewer's split as it is: nothing moves
     showZenState();
     void goTo(z, startFolder(library));
-    void showSite(z, library);
+    void showLibraries(z, library);
 }
 
 /** @returns Zen mode is off (changes not uploaded stay in the view: said) */
@@ -403,8 +406,13 @@ function createZen(library: string): Zen {
     const bar = document.createElement('div');
     bar.className = 'tp-zen-bar tp-header';
     const eyeBtn = button(EYE_CLOSED_SVG, 'Open the previewer (no file)', 'tp-zen-eye');
-    const crumbs = document.createElement('nav');
-    crumbs.className = 'tp-zen-crumbs tp-well';
+    // crumbs: link (clean URL of the folder), then the path
+    const nav = document.createElement('nav');
+    nav.className = 'tp-zen-crumbs tp-well';
+    const linkBtn = button(LINK_SVG, 'Copy the link', 'tp-zen-link');
+    const crumbs = document.createElement('span');
+    crumbs.className = 'tp-zen-path';
+    nav.append(linkBtn, crumbs);
     const note = document.createElement('span');
     note.className = 'tp-zen-note';
     const editBtn = button(WRITE_SVG, 'Edit properties and names (non-system fields)');
@@ -414,7 +422,7 @@ function createZen(library: string): Zen {
     const cancelBtn = button(STOP_SVG, 'Cancel: drop the changes not uploaded, end editing');
     const reloadBtn = button(REFRESH_SVG, 'Reload the folder');
     const columnsBtn = button(COLUMNS_SVG, 'Columns: show, hide, order');
-    bar.append(eyeBtn, crumbs, note, editBtn, cancelBtn, saveBtn, uploadBtn, reloadBtn, columnsBtn);
+    bar.append(eyeBtn, nav, note, editBtn, cancelBtn, saveBtn, uploadBtn, reloadBtn, columnsBtn);
     const grid = document.createElement('div');
     grid.className = 'tp-zen-grid tp-content';
     grid.tabIndex = 0;
@@ -446,7 +454,7 @@ function createZen(library: string): Zen {
         folder: library,
         urlFolder: '',
         data: null,
-        site: null,
+        libraries: null,
         columns: loadColumns(library),
         sort: null,
         filters: new Map(),
@@ -474,6 +482,7 @@ function createZen(library: string): Zen {
         const a = target.closest('[data-folder]') as HTMLElement | null;
         if (a) void goTo(z, a.dataset.folder as string);
     });
+    wireLink(linkBtn, () => cleanUrl(z.folder));
     // eye: the previewer on (empty, for the folder shown here) or off; Zen: off
     eyeBtn.onclick = () => (viewer ? closeViewer() : openFolder(z.folder));
     editBtn.onclick = () => (z.editing ? leaveEdit(z) : startEdit(z));
@@ -541,11 +550,11 @@ async function goTo(z: Zen, folder: string, again = false): Promise<void> {
     draw(z);
 }
 
-// Site crumb and the menu of its libraries, once the site is read (beside the folder; none if it cannot be read)
-async function showSite(z: Zen, library: string): Promise<void> {
-    const site = await loadSite(siteOf(library));
-    if (zenList !== z || typeof site === 'string') return;
-    z.site = site;
+// Menu of the site's libraries in the crumbs, once they are read (beside the folder; none if they cannot be read)
+async function showLibraries(z: Zen, library: string): Promise<void> {
+    const libraries = await loadLibraries(siteOf(library));
+    if (zenList !== z || typeof libraries === 'string') return;
+    z.libraries = libraries;
     showCrumbs(z, libraryOfPage() ?? library);
 }
 

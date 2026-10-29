@@ -1,4 +1,4 @@
-// Site of the Zen list: its title and document libraries (Sharepoint API, read once per site)
+// Document libraries of the Zen list's site (Sharepoint API, read once per site)
 
 // ===========================================================================
 // IMPORTS
@@ -7,7 +7,6 @@
 import { getJson } from '../readers/api.ts';
 
 import type { ZenLibrary } from '../_core/types.ts';
-import type { ZenSite } from '../_core/types.ts';
 
 // ===========================================================================
 // TYPES
@@ -23,36 +22,31 @@ export type ListJson = { Title?: string; DefaultViewUrl?: string; RootFolder?: {
 // Libraries Sharepoint makes for itself, by the name of their root folder (not translated): left out
 const SYSTEM_LIBRARIES = new Set(['siteassets', 'style library', 'formservertemplates']);
 
-// Sites read (or being read), by server-relative URL
-const sites: Map<string, Promise<ZenSite | string>> = new Map();
+// Libraries read (or being read), by site (server-relative)
+const sites: Map<string, Promise<ZenLibrary[] | string>> = new Map();
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
-/** @param site server-relative ('' = root site) @returns its title and document libraries, or why not */
-export function loadSite(site: string): Promise<ZenSite | string> {
+/** @param site server-relative ('' = root site) @returns its document libraries (system ones left out), or why not */
+export function loadLibraries(site: string): Promise<ZenLibrary[] | string> {
     const kept = sites.get(site);
     if (kept) return kept;
-    const read = readSite(site).then((data) => {
-        if (typeof data === 'string') sites.delete(site); // read again next time
-        return data;
+    const read = readLibraries(site).then((libraries) => {
+        if (typeof libraries === 'string') sites.delete(site); // read again next time
+        return libraries;
     });
     sites.set(site, read);
     return read;
 }
 
-async function readSite(site: string): Promise<ZenSite | string> {
-    const listsUrl =
+async function readLibraries(site: string): Promise<ZenLibrary[] | string> {
+    const lists = await getJson<{ value?: ListJson[] }>(
         `${site}/_api/web/lists?$filter=BaseTemplate eq 101 and Hidden eq false` +
-        '&$select=Title,DefaultViewUrl,RootFolder/ServerRelativeUrl&$expand=RootFolder';
-    const [web, lists] = await Promise.all([
-        getJson<{ Title?: string }>(`${site}/_api/web?$select=Title`),
-        getJson<{ value?: ListJson[] }>(listsUrl),
-    ]);
-    if (typeof lists === 'string') return `libraries: ${lists}`;
-    const title = (typeof web === 'string' ? '' : web?.Title) || site.split('/').pop() || 'Site';
-    return { title, url: `${site}/_layouts/15/viewlsts.aspx`, libraries: toLibraries(lists?.value ?? []) };
+            '&$select=Title,DefaultViewUrl,RootFolder/ServerRelativeUrl&$expand=RootFolder',
+    );
+    return typeof lists === 'string' ? `libraries: ${lists}` : toLibraries(lists?.value ?? []);
 }
 
 /** @returns libraries of the lists read (system ones left out), by title */
