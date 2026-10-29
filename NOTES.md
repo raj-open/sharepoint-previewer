@@ -42,7 +42,7 @@ Development: [TECHNICAL.md](TECHNICAL.md).
 - **Zen mode** (optional, setting `sharepoint-api`):
   an own list of the folder in place of Sharepoint's, beside the viewer,
   with the columns (properties) of the library:
-  sort, filter, columns shown or hidden (view only, nothing changes on Sharepoint);
+  sort, filter; in its layout mode columns shown, hidden, moved and sized (view only, kept in the browser, nothing changes on Sharepoint);
   in its edit mode, properties of non-system columns and names can be changed,
   saved through Sharepoint's REST API as its own edit form does (§3, §4).
 - **Sharepoint's own UI is not changed,**
