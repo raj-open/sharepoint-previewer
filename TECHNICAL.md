@@ -9,7 +9,7 @@ For reviewing the script (permissions, network, storage, security, deployment): 
 | :--- | :------- |
 | `/src/main.ts` | entry: imports the modules, then starts up |
 | `/src/_core` | Tampermonkey header (`header.ts`), settings, preferences, list view, shared types (`types.ts`) |
-| `/src/{readers,text,ui,view,viewer}` | the other modules (TypeScript) |
+| `/src/{readers,text,ui,view,viewer,zen}` | the other modules (TypeScript); `zen`: Zen mode |
 | `/src/@apis/ifc-lite/main.ts` | entry of the ifc-lite bundle for the optional 3D view |
 | `/scripts` | build and demo scripts (`bundle.ts`, `demos.ts`, `hero.ts`) |
 | `/demos` | demos with screenshots (`/demos/img`, written by `just demos`) |
@@ -114,6 +114,7 @@ Sharepoint page (DOM)
      │   ├─ table view: CSV / Parquet / spreadsheets / logs, sort, filter, column widths, CSV editing
      │   ├─ Markdown view: own small renderer (no library), raw HTML escaped
      │   └─ 3D view: ifc-lite (optional, loaded from your Sharepoint on first use)
+     ├─ Zen mode: own list of the folder in place of Sharepoint's (REST API: read, ValidateUpdateListItem)
      ├─ Sources: same-origin fetch with HTTP Range (chunks), in-memory cache (LRU)
      ├─ Decoders built in: Parquet (Thrift, RLE/bit-packing, dictionary, v1/v2 pages),
      │   Snappy, LZ4_RAW, ZSTD (RFC 8878); GZIP / ZIP via the browser's DecompressionStream;
@@ -134,6 +135,9 @@ How the parts communicate: [NOTES.md, §3](NOTES.md#3-communication).
   - the eye in the column header opens the viewer without a file,
     e.g. to change settings
   - the eye of a folder does the same for that folder (open eye = folder shown)
+  - frozen: while the list scrolls sideways, the row eyes stay at its left edge
+    (moved by the scroll offset, over the list's background);
+    the header eye (its header scrolls away) moves into the Zen tab meanwhile, below the Zen button
 - **Viewer** in three layouts:
   - below the list
   - right of the list
@@ -276,6 +280,96 @@ are detected from their first bytes and not shown.
   "Fully cached" only when every byte is present
   (percentages are rounded down).
 
+## Zen mode ##
+
+An own list of the folder (files, folders and their properties) in place of Sharepoint's list,
+on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
+
+- **On and off:**
+  the tab out of the left edge of the list (as on a folder; outline: off, filled: on),
+  at the same place for Sharepoint's list and the Zen list, joined to the one seen;
+  or ⋯ → Zen mode in the viewer.
+  The eye at the top left of either list opens or closes the viewer;
+  the splitter released with the viewer below 20 % of the space (`VIEWER_MIN`) closes it (Zen mode stays).
+  Kept (`tp-preview-zen`): on again after a page load, in any library.
+  Zen mode uses the same split as the viewer, and the viewer keeps its place (edges of the list measured before Zen mode, `panelEdges`): nothing moves when it is turned on or off.
+  Only in a library, and only if the setting `sharepoint-api` allows it (else no tab).
+- **Place:**
+  laid over Sharepoint's list: beside the viewer, what is left of it, with the viewer's edges
+  (below it: same left and right; right of it: same top and bottom; one gap apart);
+  without the viewer, or under the pop-up (no backdrop then): all of it.
+  Sharepoint's list stays untouched underneath and is seen again when Zen mode ends.
+- **Folder:** one for both lists.
+  A folder opened in the Zen list is opened in Sharepoint's as well
+  (address with `id=<folder>`, announced as Sharepoint's own navigation: `popstate`),
+  so Back and Forward work and Zen mode off shows that folder;
+  the other way round, a new folder in the address (Back, a link) is shown in the Zen list.
+- **Data** (`/src/zen/data.ts`), three reads in parallel, then the items:
+  - `GetList(@list)?$select=Title`, `…/Fields?$filter=Hidden eq false`,
+    `…/Views?$expand=ViewFields` (the view of the page, else the default view; its columns and its query)
+  - `POST …/GetItems?$expand=FieldValuesAsText` with a query scoped to the folder (`FolderServerRelativeUrl`),
+    as Sharepoint's own list reads a folder: no filter on the list, so libraries above the list view threshold
+    (5,000 items) work as long as the folder itself holds at most 5,000 items (pages of 5,000 by item id)
+  - text shown: `FieldValuesAsText` (as Sharepoint formats it); sort key: the raw value for numbers and dates
+  - order as in Sharepoint's list (`viewOrder`, `sortItems`): the sort in the address (`sortField`, `isAscending`),
+    else the view's (`<OrderBy>` of its query), else by name; text in any case, not numeric (as Sharepoint: 10 before 2);
+    the API itself sends the items by id.
+    This order holds as long as no column is sorted in the Zen list (sorted off again: back to it)
+- **List** (`/src/zen/grid.ts`):
+  checkbox column, name column and column titles sticky; folders first;
+  sort and filters as in the table view (`/src/view/filter.ts`, shared), on the values shown;
+  rows drawn in blocks near the visible part.
+- **Columns** (`/src/zen/columns.ts`):
+  the view's columns shown at first, all others (not hidden fields) hidden after them;
+  order, hidden ones and widths kept per library (`tp-preview-zen-columns`, at most 100 libraries).
+  Widths (they never go to Sharepoint) change in any mode, by the right edge of a column title, and are kept at once
+  (no Save, not part of the layout draft; `saveWidths`); a double-click on the edge: back to as it fits.
+- **Layout mode** (columns button; `/src/zen/columns.ts`):
+  the only mode in which columns are shown or hidden and moved; the columns menu stays open throughout.
+  Columns are moved by dragging their titles or the entries of the menu with the pointer
+  (`/src/view/reorder.ts`; no HTML drag and drop, which Sharepoint takes for its uploads).
+  Changes are a draft (`z.columns`, shown at once; the columns as saved in `z.layout`):
+  Save keeps them for the library, Cancel / Esc / the columns button drop what is not saved (after asking);
+  compared as shown (order, hidden ones), not as written out.
+  Layout and edit mode exclude each other (the other button disabled; Upload too in layout mode);
+  sort and filters work in every mode.
+- **Selection** (`/src/zen/select.ts`), as in Sharepoint's view: a checkbox per row, the head's for all rows shown (or none);
+  Shift + click: the range from the last one clicked (in the order shown); outside edit mode on a row as well,
+  Ctrl / ⌘ + click on a row picks it (or drops it) without opening it.
+  A selection belongs to its folder (another folder: none); rows filtered out are dropped from it.
+- **Download** (`/src/zen/download.ts`, download button; again while running: stop):
+  one file as it is; else a ZIP named after the folder shown (one folder alone: after it), paths inside the folder shown,
+  folders with everything below them (`loadEntries`: the same query scoped to each folder, no properties; depth first).
+  Files are fetched by the page (4 at a time, same origin only) and packed in the browser
+  (`/src/zen/pack.ts`: ZIP after PKWARE's APPNOTE, UTF-8 names, deflated where smaller, dates from `Last-Modified`; no ZIP64);
+  limits: 2 GB, 10,000 files (`MAX_DOWNLOAD`, `MAX_FILES`; Sharepoint's own download for more).
+- **Bar:** eye, crumbs, note; selection (or progress), Download; Edit, Cancel, Save, Upload (Save and Cancel: of the mode on); columns; ⋯; ✕.
+  ⋯ (`/src/zen/menu.ts`): full settings, dark mode (shared with the viewer: `toggleTheme` in `/src/viewer/panel.ts`), reload of the folder.
+  ✕: Zen mode off.
+  Narrow (less than 200 px left beside the buttons, `MIN_CRUMBS`): the crumbs on a second row, full width, as the file name in the viewer's header.
+- **Editing:**
+  editable are fields of type Text, Note, Number, Currency, Choice, MultiChoice, Boolean, DateTime
+  that are not read only and not system fields (`ContentType`, names starting with `_`, …);
+  the name (`FileLeafRef`) as a rename (checked against Sharepoint's rules first).
+  Values are typed as Sharepoint shows them (dates in the regional format of the site);
+  yes / no as `1` / `0`, several choices as `;#a;#b;#`.
+  As in write mode of the viewer, Save and Upload are two steps:
+  Save keeps the changes in the view (`/src/zen/changes.ts`: per folder, `tp-preview-zen-changes`, at most 50 folders;
+  also after another folder, Zen mode off or a page load), nothing is sent;
+  Upload applies them: per item one `POST …/items(<id>)/ValidateUpdateListItem` (`bNewDocumentUpdate: false`: a new version),
+  with a form digest (`POST _api/contextinfo`, kept until it runs out);
+  the reasons of refused values are shown per cell (they stay in the view), the rest is applied; then the folder is read anew.
+  Leaving edit mode (edit button, Esc), the folder or Zen mode without saving is allowed: the changes are kept in the view,
+  with the note that they take effect only once uploaded (the upload button marked).
+  A file in the viewer that was renamed is shown under its new name.
+- **Keys:** Ctrl / ⌘ + S saves (edit mode: kept in the view; layout mode: the columns);
+  Esc closes a menu, then ends layout mode (asks for unsaved columns) or edit mode, then closes the viewer.
+- **Changes not uploaded** (or columns not saved): Cancel drops them (after asking); leaving the page asks first;
+  Zen mode off with columns not saved asks first.
+- **Tab:** in Sharepoint's colours while Zen mode is off, in the theme of the Zen list while it is on.
+  Flush with the top of the list (the top left corner of Sharepoint's list and of the Zen list made square there),
+  with room below the Zen button for the header eye (while Sharepoint's list is scrolled sideways).
+
 ## Editing and upload ##
 
 - **Write mode** is available for plain-text files.
@@ -332,7 +426,8 @@ are detected from their first bytes and not shown.
 They are opened via the Tampermonkey menu → "Settings …",
 or the viewer's ⋯ → "Full settings …".
 There is a form view and a JSON view (with validation),
-plus "Reset to defaults".
+plus "Reset to defaults";
+Ctrl / ⌘ + S saves (as Save).
 The Tampermonkey menu → "Edit (v…)" and the version top right (viewer, settings form)
 open Tampermonkey's editor of the script (e.g. to upgrade).
 
@@ -354,6 +449,7 @@ open Tampermonkey's editor of the script (e.g. to upgrade).
 | `parquet-rows` | `100` | Table rows shown per step |
 | `max-line-chars` | `5000` | Longer lines are cut for display |
 | `follow-links` | `true` | Follow `.url` link files (same origin only) |
+| `sharepoint-api` | `true` | Allow features that use Sharepoint's REST API (Zen mode, finding files of search results); off: no API request at all |
 | `viewer-3d-folder` | *(empty)* | Folder with the 3D files: relative to the site, or from the top with a leading `/` |
 | `viewer-3d-max-bytes` | 25 MB | 3D view asks first (each time) above this IFC size |
 | `logo` | *(empty)* | `data:image/…` URI shown in the header |

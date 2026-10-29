@@ -22,13 +22,13 @@ users should _at bare minimum_ be able to preview plaintext files – regardless
 
 We set out to build a **previewer** that simply augments the Sharepoint experience to overcome just this issue.
 
-![The previewer on a mock Sharepoint: Parquet, Power BI, IFC in 3D with properties, logs, checks, clean links, editing, dark mode](demos/img/hero.webp)
+![The previewer on a mock Sharepoint: Parquet, Power BI, IFC in 3D with properties, logs, checks, editing, Zen mode with properties edited in place, clean links, dark mode](demos/img/hero.webp)
 
 ## Demonstration ##
 
 See the [demos](demos/README.md):
 screenshots and the logic of each part
-(list view, layouts, title bar, text, tables, 3D, editing, caching, settings).
+(list view, layouts, Zen mode, title bar, text, tables, 3D, editing, caching, settings).
 
 For reviewing the script (permissions, network, storage, security, deployment):
 see [NOTES.md](NOTES.md).
@@ -53,10 +53,12 @@ Our tool allows users to
 - read Markdown rendered and logs as tables (experimental)
 - view IFC models in 3D (optional)
 - edit plaintext files, or create new ones, and save them back through Sharepoint's own upload (also under another name)
+- work in **Zen mode**: an own list of the folder beside the viewer, with frozen names and column titles, sorting, filters, a layout mode to show, hide and move columns (widths: any time), files and folders selected and downloaded (a ZIP), and an edit mode for properties and names in place
 
 > [!NOTE]
-> Our tool involves no API calls and no third-party code,
-> except the optional 3D view built on [IFClite](https://ifclite.dev).
+> Our tool involves no third-party code, except the optional 3D view built on [IFClite](https://ifclite.dev).
+> Only Zen mode and the lookup of search results use Sharepoint's own REST API (same site, your session);
+> the setting `sharepoint-api` switches every use of the API off.
 
 ### For whom? ###
 

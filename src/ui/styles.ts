@@ -187,7 +187,8 @@ const CSS = `
   }
   .tp-menu-item:hover:not(:disabled, [aria-disabled="true"]) { background: var(--tp-hover); }
   .tp-menu-item:is(:disabled, [aria-disabled="true"]) { opacity: .4; cursor: default; }
-  .tp-menu-item[aria-pressed="true"]::after { content: '✓'; margin-left: auto; color: var(--tp-accent); font-weight: 700; }
+  .tp-menu-item:is([aria-pressed="true"], [aria-current="page"])::after { content: '✓'; margin-left: auto; color: var(--tp-accent); font-weight: 700; }
+  a.tp-menu-item { box-sizing: border-box; text-decoration: none; }
   .tp-attn { animation: tp-attn 3s ease-out; }
   @keyframes tp-attn {
     from { box-shadow: 0 0 0 4px rgba(0, 120, 212, .9); }
@@ -321,16 +322,17 @@ const CSS = `
     box-shadow: 0 1px 4px rgba(0,0,0,.3);
   }
   .tp-table [draggable="true"] { cursor: grab; }
+  /* inside its title (the next title, painted later, would cover a handle reaching into it) */
   .tp-resize {
     position: absolute;
     top: 40%;
     bottom: 0;
-    right: -3px;
-    width: 7px;
+    right: 0;
+    width: 6px;
     z-index: 3;
     cursor: col-resize;
   }
-  .tp-resize:hover { background: linear-gradient(90deg, transparent 2px, var(--tp-accent) 2px 5px, transparent 5px); }
+  .tp-resize:hover { background: linear-gradient(90deg, transparent 3px, var(--tp-accent) 3px); }
   .tp-col-delete {
     visibility: hidden; /* appears when hovering over the column title */
     margin-left: 2px;
@@ -738,6 +740,216 @@ const CSS = `
   .tp-lint-item b { display: inline-block; min-width: 6em; }
   .tp-lint-item.tp-sev-error b { color: var(--tp-sev-error); }
   .tp-lint-item.tp-sev-warning b { color: var(--tp-sev-warning); }
+  /* Splitter dragged past a threshold: what releasing it does (close the viewer) */
+  .tp-viewer.tp-split-close { opacity: .45; }
+
+  /* Zen mode: own list over Sharepoint's, card like the viewer; bar on top, grid below */
+  .tp-zen {
+    z-index: 10;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--tp-bg);
+    color: var(--tp-fg);
+    border: 1px solid var(--tp-edge);
+    border-radius: 8px;
+    border-top-left-radius: 0; /* the Zen tab joins it there, flush */
+    box-shadow: 0 1.6px 3.6px rgba(0,0,0,.13), 0 .3px .9px rgba(0,0,0,.11);
+    /* Sharepoint's own font (Fluent UI), regular weight */
+    font: 400 13px "Segoe UI", "Segoe UI Web (West European)", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", sans-serif;
+  }
+  .tp-zen-bar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 46px;
+    padding: 0 8px;
+    box-sizing: border-box;
+  }
+  .tp-zen-crumbs {
+    flex: 0 1 auto;
+    min-width: 0;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow: hidden;
+    white-space: nowrap;
+    color: var(--tp-title);
+  }
+  /* narrow: the crumbs on a second row, full width (as the file name in the viewer's header) */
+  .tp-zen-bar.tp-zen-narrow { flex-wrap: wrap; row-gap: 6px; padding-top: 8px; padding-bottom: 8px; }
+  .tp-zen-bar.tp-zen-narrow .tp-zen-crumbs { order: 1; flex: 1 0 100%; }
+  .tp-zen-crumbs a { cursor: pointer; color: var(--tp-accent); }
+  .tp-zen-crumbs a:hover { text-decoration: underline; }
+  .tp-zen-sep { opacity: .6; }
+  .tp-zen-path { display: contents; }
+  .tp-zen .tp-zen-btn.tp-zen-link { width: 24px; height: 24px; margin-left: -4px; }
+  /* menu of the site's libraries: right after the library's crumb */
+  .tp-zen-libs { flex: none; margin-left: -2px; padding: 0 4px; border: none; border-radius: 4px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+  .tp-zen-libs:hover { background: var(--tp-btn-bg); }
+  .tp-zen-libraries { max-height: 60vh; overflow-y: auto; }
+  .tp-zen-note { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; opacity: .8; padding: 0 6px; }
+  .tp-zen-btn {
+    flex: none;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .tp-zen .tp-mode-btn:not([aria-pressed="true"]) { background: transparent; color: var(--tp-btn-fg); }
+  .tp-zen .tp-mode-btn:not([aria-pressed="true"]):not(:disabled):hover { background: var(--tp-btn-bg); }
+  .tp-zen .tp-mode-btn:disabled { opacity: .35; cursor: default; }
+  /* top left, as on Sharepoint's list: eye (previewer on / off), Zen (filled: on; off by a click) */
+  .tp-zen .tp-zen-btn.tp-zen-eye { color: #0078d4; margin-right: 4px; }
+  /* Upload: saved changes waiting for it */
+  .tp-zen .tp-zen-btn.tp-zen-ready { color: var(--tp-accent); box-shadow: inset 0 0 0 1px var(--tp-accent); }
+  /* close (top right), as on the viewer: Zen mode off */
+  .tp-zen .tp-zen-btn.tp-zen-close { margin-left: 4px; background: #d13438; color: #fff; font: bold 15px sans-serif; }
+  .tp-zen .tp-zen-btn.tp-zen-close:hover { background: #a4262c; }
+  /* Zen toggle: a tab out of the list's left edge, as on a folder: its outline (SVG) in the list's
+     colours, open towards the list and over its border (joined); the icon in the outer part */
+  .tp-zen-tab {
+    position: fixed;
+    z-index: 11;
+    margin: 0;
+    padding: 0 3px 0 0;
+    appearance: none;
+    outline: none;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    font: inherit;
+    line-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    color: #0078d4;
+    cursor: pointer;
+  }
+  .tp-zen-tab > svg:not(.tp-zen-tab-shape) { position: relative; width: 17px; height: 17px; }
+  .tp-zen-tab-shape { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .tp-zen-tab-shape path {
+    fill: var(--tp-bg);
+    stroke: var(--tp-edge);
+    stroke-width: 1;
+    filter: drop-shadow(-1px 1px 1.5px rgba(0, 0, 0, .1));
+  }
+  .tp-zen-tab:hover .tp-zen-tab-shape path { fill: var(--tp-hover); }
+  .tp-zen-tab:focus-visible .tp-zen-tab-shape path { stroke: var(--tp-accent); stroke-width: 2; } /* keys only */
+  /* Header eye in the long tab (list scrolled sideways) */
+  .tp-zen-tab-eye {
+    position: fixed;
+    z-index: 12;
+    margin: 0 0 0 1px;
+    padding: 0;
+    appearance: none;
+    outline: none;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #0078d4;
+    cursor: pointer;
+    line-height: 0;
+  }
+  .tp-zen-tab-eye:hover { background: var(--tp-hover); }
+  .tp-zen-tab-eye:focus-visible { box-shadow: inset 0 0 0 2px var(--tp-accent); }
+  .tp-zen-grid { position: relative; font-family: inherit; }
+  .tp-zen-table { font-family: inherit; font-weight: 400; }
+  .tp-zen-table th { font-weight: 600; }
+  .tp-zen.tp-zen-editing { border-color: #d13438; }
+  .tp-zen.tp-zen-layout { border-color: var(--tp-accent); }
+  .tp-zen-table { min-width: 100%; }
+  .tp-zen-table td { height: 26px; box-sizing: border-box; padding: 2px 10px; }
+  .tp-zen-table th, .tp-zen-table td { text-align: left; }
+  .tp-zen-table th { background: linear-gradient(var(--tp-thead-bg), var(--tp-thead-bg)), var(--tp-bg); } /* rows don't show through */
+  .tp-zen-table tr.tp-zen-row { cursor: pointer; }
+  .tp-zen-editing .tp-zen-table tr.tp-zen-row { cursor: default; }
+  /* Selection: checkboxes frozen at the left (as in Sharepoint's view), the head's for all rows shown */
+  .tp-zen-table .tp-zen-pick {
+    position: sticky;
+    left: 0;
+    width: 30px;
+    min-width: 30px;
+    max-width: 30px;
+    box-sizing: border-box;
+    padding: 0;
+    text-align: center;
+    background: var(--tp-bg);
+  }
+  .tp-zen-table td.tp-zen-pick { z-index: 1; cursor: default; }
+  .tp-zen-table th.tp-zen-pick { z-index: 3; background: linear-gradient(var(--tp-thead-bg), var(--tp-thead-bg)), var(--tp-bg); }
+  .tp-zen-pick input { margin: 0; vertical-align: middle; cursor: pointer; accent-color: var(--tp-accent); }
+  .tp-zen-picked { flex: none; font-size: 12px; opacity: .8; padding: 0 4px; white-space: nowrap; }
+  .tp-zen-picked:empty { display: none; }
+  /* Name: frozen at the left (after the checkboxes), like the column titles at the top */
+  .tp-zen-table .tp-zen-name {
+    position: sticky;
+    left: 30px;
+    min-width: 180px;
+    max-width: 420px;
+    background: var(--tp-bg);
+    border-right: 1px solid var(--tp-border);
+  }
+  .tp-zen-table td.tp-zen-name { z-index: 1; }
+  .tp-zen-table th.tp-zen-name { z-index: 3; background: linear-gradient(var(--tp-thead-bg), var(--tp-thead-bg)), var(--tp-bg); }
+  .tp-zen-table tr.tp-stripe td.tp-zen-name, .tp-zen-table tr.tp-stripe td.tp-zen-pick { background: linear-gradient(var(--tp-stripe), var(--tp-stripe)), var(--tp-bg); }
+  .tp-zen-table tbody tr.tp-zen-row:hover td.tp-zen-name, .tp-zen-table tbody tr.tp-zen-row:hover td.tp-zen-pick { background: linear-gradient(var(--tp-hover), var(--tp-hover)), var(--tp-bg); }
+  .tp-zen-table tr.tp-zen-shown td { background: var(--tp-well-bg); }
+  .tp-zen-table tr.tp-zen-shown td.tp-zen-name { background: linear-gradient(var(--tp-well-bg), var(--tp-well-bg)), var(--tp-bg); box-shadow: inset 3px 0 0 var(--tp-accent); }
+  .tp-zen-table tr.tp-zen-selected td, .tp-zen-table tr.tp-zen-selected td.tp-zen-pick, .tp-zen-table tr.tp-zen-selected td.tp-zen-name { background: color-mix(in srgb, var(--tp-accent) 14%, var(--tp-bg)); }
+  .tp-zen-icon { display: inline-flex; vertical-align: -3px; margin-right: 6px; color: var(--tp-ln-fg); }
+  .tp-zen-folder .tp-zen-icon { color: #d9a400; }
+  /* Edit mode: editable cells framed lightly, system fields greyed; changed: amber; refused: red */
+  .tp-zen-table th.tp-zen-editable .tp-sort::before { content: '✎ '; opacity: .7; }
+  /* editable text: as wide as its cell at most, cut at its own end (an inline block wider than the cell
+     would be left out whole, as "…"); while typed in: scrolls, not cut */
+  .tp-zen-editing .tp-zen-text[contenteditable] {
+    display: inline-block;
+    min-width: min(3em, 100%);
+    max-width: 100%;
+    min-height: 1.2em;
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+    outline: none;
+    cursor: text;
+    border-bottom: 1px dashed var(--tp-ln-fg);
+  }
+  .tp-zen-editing td.tp-zen-name .tp-zen-text[contenteditable] { max-width: calc(100% - 22px); } /* room for the icon */
+  .tp-zen-editing .tp-zen-text[contenteditable]:focus { text-overflow: clip; border-bottom: 1px solid var(--tp-accent); }
+  .tp-zen-table td.tp-zen-ro { opacity: .55; }
+  .tp-zen-table td.tp-zen-changed { background: var(--tp-warn-bg) !important; }
+  .tp-zen-table td.tp-zen-error { background: var(--tp-err-bg) !important; box-shadow: inset 0 0 0 1px var(--tp-sev-error); }
+  .tp-zen-input { font: inherit; color: inherit; background: transparent; max-width: 100%; }
+  select.tp-zen-input { border: 1px solid var(--tp-border); border-radius: 4px; padding: 0 2px; background: var(--tp-bg); }
+  .tp-zen-empty { padding: 24px; text-align: center; opacity: .7; }
+  .tp-zen-failed { color: var(--tp-bad-fg); opacity: 1; white-space: pre-wrap; }
+  /* Columns menu (layout mode, open throughout): checkboxes, dragged to change the order */
+  .tp-zen-columns { max-height: 60%; display: flex; flex-direction: column; }
+  .tp-zen-columns-list { overflow: auto; }
+  .tp-zen-columns label { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 4px; cursor: grab; white-space: nowrap; }
+  .tp-zen-columns label:hover { background: var(--tp-hover); }
+  .tp-zen-grip { opacity: .5; }
+  /* Moving columns (titles, menu): dragged with the pointer */
+  .tp-zen th.tp-movable, .tp-zen-columns label { cursor: grab; user-select: none; -webkit-user-select: none; }
+  .tp-zen .tp-reordering, .tp-zen .tp-reordering * { cursor: grabbing; }
+  .tp-zen .tp-moving { opacity: .5; }
+  .tp-zen-columns .tp-drop-before { box-shadow: inset 0 2px 0 var(--tp-accent); }
+  .tp-zen-columns .tp-drop-after { box-shadow: inset 0 -2px 0 var(--tp-accent); }
 `;
 
 // ===========================================================================
