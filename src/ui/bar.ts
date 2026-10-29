@@ -10,8 +10,12 @@ const MIN_WELL = 200; // px left for the well beside the rest, else on a row of 
 const BAR_PAD = 2 * 8; // px: padding of the bar, left and right (cf. `.tp-bar`)
 const BAR_GAP = 4; // px between its parts (cf. `.tp-bar`)
 
-// Bars shown: their start and end groups (aligned where bars share their left edge)
-const bars = new Set<{ start: HTMLElement; end: HTMLElement }>();
+// Room of the groups in every bar, so the wells line up (Zen list over the viewer) and keep their width
+// whether or not the other bar is shown: the most buttons any bar has there (start: the Zen list's eye and 6 tools;
+// end: the viewer's ⋯, copy and ✕), each 30 px with gaps of BAR_GAP, plus 4 px after the toggle or before ✕
+const START_SLOTS = 7;
+const END_SLOTS = 3;
+const slots = (n: number): string => `${n * 30 + (n - 1) * BAR_GAP + 4}px`;
 
 // ===========================================================================
 // METHODS
@@ -74,13 +78,12 @@ export function createBar(
     };
     const start = group('tp-bar-start', parts.start);
     const end = group('tp-bar-end', parts.end);
+    start.style.minWidth = slots(START_SLOTS);
+    end.style.minWidth = slots(END_SLOTS);
     const bar = group('tp-bar', [start, parts.well, end]) as HTMLDivElement;
-    const own = { start, end };
-    bars.add(own);
     const fit = () => {
         const w = bar.clientWidth;
         if (!w) return; // not shown yet
-        alignBars();
         const rest = BAR_PAD + start.offsetWidth + end.offsetWidth + 2 * BAR_GAP;
         const narrow = w - rest < MIN_WELL;
         if (narrow === bar.classList.contains('tp-bar-narrow')) return;
@@ -88,40 +91,6 @@ export function createBar(
         fitted?.();
     };
     const observer = new ResizeObserver(fit);
-    for (const el of [bar, start, end]) observer.observe(el); // groups: buttons shown or hidden
-    const stop = () => {
-        observer.disconnect();
-        bars.delete(own);
-        alignBars();
-    };
-    return { bar, stop };
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Bars one above the other (same left edge, one row each: the Zen list over the viewer):
- * their start groups as wide as the widest, their end groups too, so the wells line up
- */
-function alignBars(): void {
-    const shown = [...bars].filter(({ start }) => start.isConnected);
-    for (const { start, end } of shown) start.style.minWidth = end.style.minWidth = ''; // natural widths
-    const rows = new Map<number, { start: HTMLElement; end: HTMLElement }[]>();
-    for (const b of shown) {
-        const bar = b.start.parentElement as HTMLElement;
-        if (bar.classList.contains('tp-bar-narrow') || !bar.clientWidth) continue;
-        const left = Math.round(bar.getBoundingClientRect().left);
-        rows.set(left, [...(rows.get(left) ?? []), b]);
-    }
-    for (const group of rows.values()) {
-        if (group.length < 2) continue;
-        const start = Math.max(...group.map((b) => b.start.offsetWidth));
-        const end = Math.max(...group.map((b) => b.end.offsetWidth));
-        for (const b of group) {
-            b.start.style.minWidth = `${start}px`;
-            b.end.style.minWidth = `${end}px`;
-        }
-    }
+    observer.observe(bar);
+    return { bar, stop: () => observer.disconnect() };
 }
