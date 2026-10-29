@@ -187,7 +187,8 @@ const CSS = `
   }
   .tp-menu-item:hover:not(:disabled, [aria-disabled="true"]) { background: var(--tp-hover); }
   .tp-menu-item:is(:disabled, [aria-disabled="true"]) { opacity: .4; cursor: default; }
-  .tp-menu-item[aria-pressed="true"]::after { content: '✓'; margin-left: auto; color: var(--tp-accent); font-weight: 700; }
+  .tp-menu-item:is([aria-pressed="true"], [aria-current="page"])::after { content: '✓'; margin-left: auto; color: var(--tp-accent); font-weight: 700; }
+  a.tp-menu-item { box-sizing: border-box; text-decoration: none; }
   .tp-attn { animation: tp-attn 3s ease-out; }
   @keyframes tp-attn {
     from { box-shadow: 0 0 0 4px rgba(0, 120, 212, .9); }
@@ -780,6 +781,10 @@ const CSS = `
   .tp-zen-crumbs a { cursor: pointer; color: var(--tp-accent); }
   .tp-zen-crumbs a:hover { text-decoration: underline; }
   .tp-zen-sep { opacity: .6; }
+  /* menu of the site's libraries: right after the library's crumb */
+  .tp-zen-libs { flex: none; margin-left: -2px; padding: 0 4px; border: none; border-radius: 4px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+  .tp-zen-libs:hover { background: var(--tp-btn-bg); }
+  .tp-zen-libraries { max-height: 60vh; overflow-y: auto; }
   .tp-zen-note { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; opacity: .8; padding: 0 6px; }
   .tp-zen-btn {
     flex: none;

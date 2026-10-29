@@ -15,6 +15,7 @@ import { esc } from '../_core/util.ts';
 import { API_OFF } from '../readers/api.ts';
 import { apiAllowed } from '../readers/api.ts';
 import { libraryOfPage } from '../readers/api.ts';
+import { siteOf } from '../readers/api.ts';
 import { COLUMNS_SVG } from '../ui/icons.ts';
 import { EYE_CLOSED_SVG } from '../ui/icons.ts';
 import { EYE_FULL_SVG } from '../ui/icons.ts';
@@ -40,6 +41,8 @@ import { keepChanges } from './changes.ts';
 import { loadChanges } from './changes.ts';
 import { loadColumns } from './columns.ts';
 import { toggleColumnsMenu } from './columns.ts';
+import { showCrumbs } from './crumbs.ts';
+import { toggleLibraries } from './crumbs.ts';
 import { loadFolder } from './data.ts';
 import { NAME } from './data.ts';
 import { saveItem } from './data.ts';
@@ -49,6 +52,7 @@ import { markShown } from './grid.ts';
 import { originalValue } from './grid.ts';
 import { stopGrid } from './grid.ts';
 import { wireGrid } from './grid.ts';
+import { loadSite } from './site.ts';
 
 import type { Viewer } from '../_core/types.ts';
 import type { Zen } from '../_core/types.ts';
@@ -120,6 +124,7 @@ export function enterZen(quiet = false): void {
     placeZen(); // the viewer's split as it is: nothing moves
     showZenState();
     void goTo(z, startFolder(library));
+    void showSite(z, library);
 }
 
 /** @returns Zen mode is off (changes not uploaded stay in the view: said) */
@@ -190,7 +195,7 @@ export function zenSave(): boolean {
 export function zenEscape(): boolean {
     const z = zenList;
     if (!z) return false;
-    const menu = z.el.querySelector('.tp-zen-columns, .tp-filter-panel');
+    const menu = z.el.querySelector('.tp-zen-columns, .tp-zen-libraries, .tp-filter-panel');
     if (menu) {
         menu.remove();
         closeFilterPanel();
@@ -441,6 +446,7 @@ function createZen(library: string): Zen {
         folder: library,
         urlFolder: '',
         data: null,
+        site: null,
         columns: loadColumns(library),
         sort: null,
         filters: new Map(),
@@ -462,7 +468,10 @@ function createZen(library: string): Zen {
     };
     wireGrid(z, { redraw, open: (item) => openItem(z, item), edited });
     crumbs.addEventListener('click', (e) => {
-        const a = (e.target as HTMLElement).closest('[data-folder]') as HTMLElement | null;
+        const target = e.target as HTMLElement;
+        const libs = target.closest('[data-libraries]') as HTMLElement | null;
+        if (libs) return toggleLibraries(z, library, libs);
+        const a = target.closest('[data-folder]') as HTMLElement | null;
         if (a) void goTo(z, a.dataset.folder as string);
     });
     // eye: the previewer on (empty, for the folder shown here) or off; Zen: off
@@ -491,20 +500,6 @@ function showButtons(z: Zen): void {
     z.uploadBtn.classList.toggle('tp-zen-ready', ready);
     z.cancelBtn.disabled = z.busy || (!z.editing && !z.pending.size);
     z.el.classList.toggle('tp-zen-editing', z.editing);
-}
-
-// Folder path as links: library (its title, once known), then each folder below it
-function showCrumbs(z: Zen, library: string): void {
-    const parts = z.folder.slice(library.length).split('/').filter(Boolean);
-    const top = z.data?.title || (library.split('/').pop() ?? library);
-    const links = [top, ...parts].map((name, i) => {
-        const folder = [library, ...parts.slice(0, i)].join('/');
-        const last = i === parts.length;
-        return last
-            ? `<strong title="${esc(folder)}">${esc(name)}</strong>`
-            : `<a data-folder="${esc(folder)}" title="${esc(folder)}">${esc(name)}</a>`;
-    });
-    z.crumbs.innerHTML = links.join('<span class="tp-zen-sep">›</span>');
 }
 
 /**
@@ -544,6 +539,14 @@ async function goTo(z: Zen, folder: string, again = false): Promise<void> {
     showCount(z, z.pending.size ? notUploaded(z) : '');
     showButtons(z);
     draw(z);
+}
+
+// Site crumb and the menu of its libraries, once the site is read (beside the folder; none if it cannot be read)
+async function showSite(z: Zen, library: string): Promise<void> {
+    const site = await loadSite(siteOf(library));
+    if (zenList !== z || typeof site === 'string') return;
+    z.site = site;
+    showCrumbs(z, libraryOfPage() ?? library);
 }
 
 // Sharepoint's list follows the Zen list (its address too: Back works, Zen mode off shows that folder):
