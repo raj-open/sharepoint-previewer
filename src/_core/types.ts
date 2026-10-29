@@ -206,6 +206,10 @@ export type ZenData = {
     view: string[];
     items: ZenItem[];
 };
+/** library of a site: title, list page (its default view), root folder (server-relative) */
+export type ZenLibrary = { title: string; url: string; folder: string };
+/** site of the Zen list: title, its contents page, document libraries (system ones left out) */
+export type ZenSite = { title: string; url: string; libraries: ZenLibrary[] };
 /** columns of the Zen list per library (kept): order, hidden ones, widths (px) */
 export type ZenColumns = { order: string[]; hidden: string[]; widths: Record<string, number> };
 /** Zen list: elements, folder shown, data, view state (sort, filters), edits (values by item id and field) */
@@ -224,6 +228,8 @@ export type Zen = {
     folder: string;
     urlFolder: string;
     data: ZenData | null;
+    /** site of the list, once read (crumbs) */
+    site: ZenSite | null;
     columns: ZenColumns;
     sort: { col: string; dir: number } | null;
     filters: Map<string, Filter>;
