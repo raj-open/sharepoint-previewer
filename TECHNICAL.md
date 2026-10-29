@@ -306,28 +306,44 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
   the other way round, a new folder in the address (Back, a link) is shown in the Zen list.
 - **Data** (`/src/zen/data.ts`), three reads in parallel, then the items:
   - `GetList(@list)?$select=Title`, `…/Fields?$filter=Hidden eq false`,
-    `…/Views?$expand=ViewFields` (the view of the page, else the default view)
+    `…/Views?$expand=ViewFields` (the view of the page, else the default view; its columns and its query)
   - `POST …/GetItems?$expand=FieldValuesAsText` with a query scoped to the folder (`FolderServerRelativeUrl`),
     as Sharepoint's own list reads a folder: no filter on the list, so libraries above the list view threshold
     (5,000 items) work as long as the folder itself holds at most 5,000 items (pages of 5,000 by item id)
   - text shown: `FieldValuesAsText` (as Sharepoint formats it); sort key: the raw value for numbers and dates
+  - order as in Sharepoint's list (`viewOrder`, `sortItems`): the sort in the address (`sortField`, `isAscending`),
+    else the view's (`<OrderBy>` of its query), else by name; text in any case, not numeric (as Sharepoint: 10 before 2);
+    the API itself sends the items by id.
+    This order holds as long as no column is sorted in the Zen list (sorted off again: back to it)
 - **List** (`/src/zen/grid.ts`):
-  name column and column titles sticky; folders first;
+  checkbox column, name column and column titles sticky; folders first;
   sort and filters as in the table view (`/src/view/filter.ts`, shared), on the values shown;
   rows drawn in blocks near the visible part.
 - **Columns** (`/src/zen/columns.ts`):
   the view's columns shown at first, all others (not hidden fields) hidden after them;
   order, hidden ones and widths kept per library (`tp-preview-zen-columns`, at most 100 libraries).
+  Widths (they never go to Sharepoint) change in any mode, by the right edge of a column title, and are kept at once
+  (no Save, not part of the layout draft; `saveWidths`); a double-click on the edge: back to as it fits.
 - **Layout mode** (columns button; `/src/zen/columns.ts`):
-  the only mode in which columns are shown or hidden, moved and sized; the columns menu stays open throughout.
+  the only mode in which columns are shown or hidden and moved; the columns menu stays open throughout.
   Columns are moved by dragging their titles or the entries of the menu with the pointer
   (`/src/view/reorder.ts`; no HTML drag and drop, which Sharepoint takes for its uploads).
   Changes are a draft (`z.columns`, shown at once; the columns as saved in `z.layout`):
   Save keeps them for the library, Cancel / Esc / the columns button drop what is not saved (after asking);
-  compared as shown (order, hidden ones, widths), not as written out.
+  compared as shown (order, hidden ones), not as written out.
   Layout and edit mode exclude each other (the other button disabled; Upload too in layout mode);
   sort and filters work in every mode.
-- **Bar:** eye, crumbs, note; Edit, Cancel, Save, Upload (Save and Cancel: of the mode on); columns; ⋯; ✕.
+- **Selection** (`/src/zen/select.ts`), as in Sharepoint's view: a checkbox per row, the head's for all rows shown (or none);
+  Shift + click: the range from the last one clicked (in the order shown); outside edit mode on a row as well,
+  Ctrl / ⌘ + click on a row picks it (or drops it) without opening it.
+  A selection belongs to its folder (another folder: none); rows filtered out are dropped from it.
+- **Download** (`/src/zen/download.ts`, download button; again while running: stop):
+  one file as it is; else a ZIP named after the folder shown (one folder alone: after it), paths inside the folder shown,
+  folders with everything below them (`loadEntries`: the same query scoped to each folder, no properties; depth first).
+  Files are fetched by the page (4 at a time, same origin only) and packed in the browser
+  (`/src/zen/pack.ts`: ZIP after PKWARE's APPNOTE, UTF-8 names, deflated where smaller, dates from `Last-Modified`; no ZIP64);
+  limits: 2 GB, 10,000 files (`MAX_DOWNLOAD`, `MAX_FILES`; Sharepoint's own download for more).
+- **Bar:** eye, crumbs, note; selection (or progress), Download; Edit, Cancel, Save, Upload (Save and Cancel: of the mode on); columns; ⋯; ✕.
   ⋯ (`/src/zen/menu.ts`): full settings, dark mode (shared with the viewer: `toggleTheme` in `/src/viewer/panel.ts`), reload of the folder.
   ✕: Zen mode off.
   Narrow (less than 200 px left beside the buttons, `MIN_CRUMBS`): the crumbs on a second row, full width, as the file name in the viewer's header.

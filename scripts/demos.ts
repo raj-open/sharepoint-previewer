@@ -188,6 +188,21 @@ const CASES: Record<string, Case> = {
         },
         pointer: (page) => page.locator('.tp-zen .tp-zen-btn[title^="Save"]'),
     },
+    // selection: a range by Shift, one more by Ctrl / Cmd; the download button
+    'zen-select': {
+        folder: '/Data',
+        file: 'prices.csv',
+        steps: async (page) => {
+            await zen(page);
+            const z = page.locator('.tp-zen');
+            const box = (name: string) =>
+                z.locator('tr.tp-zen-row', { hasText: name }).first().locator('.tp-zen-pick-one');
+            await box('Reports').click();
+            await box('harvest.ods').click({ modifiers: ['Shift'] });
+            await z.locator('td.tp-zen-name', { hasText: 'people.parquet' }).click({ modifiers: ['ControlOrMeta'] });
+        },
+        pointer: (page) => page.locator('.tp-zen .tp-zen-btn[title^="Download"]'),
+    },
     'zen-edit': {
         folder: '/Data',
         file: 'prices.csv',
