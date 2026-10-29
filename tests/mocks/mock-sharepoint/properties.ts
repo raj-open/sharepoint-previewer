@@ -1,7 +1,8 @@
 // Mock Sharepoint: properties of the library items (columns of a document library) and their REST API,
 // as far as the userscript's Zen mode uses it: fields, views, items of a folder (with FieldValuesAsText),
 // form digest, ValidateUpdateListItem (values checked as Sharepoint's form does; renames of files),
-// recycle (files and folders deleted: to the recycle bin, i.e. left out of all listings and requests).
+// recycle and deleteObject (files and folders deleted: to the recycle bin, or for good;
+// either way left out of all listings and requests for the session).
 // Values start made up (the same each time, from the path); changes are kept per session of simulated uploads
 // (<uploads>/.properties.json), as uploads are, and never touch the files on disk.
 
@@ -366,15 +367,18 @@ export function validateUpdate(
 }
 
 /**
- * recycle(): the item (a folder with all below it) to the recycle bin, i.e. gone for the session
+ * recycle() / deleteObject(): the item (a folder with all below it) to the recycle bin or for good,
+ * i.e. gone for the session
  * @param uploads session folder (none: refused, as uploads are)
- * @returns id of the recycle bin item (a GUID), as Sharepoint
+ * @param purge deleteObject() (for good)
+ * @returns id of the recycle bin item (a GUID); purged: odata.null, as Sharepoint
  */
 export function recycle(
     tree: Record<string, Entry[]>,
     id: number,
     digest: string | undefined,
     uploads: string | undefined,
+    purge = false,
 ): Answer {
     if (digest !== DIGEST)
         return spError(403, 'The security validation for this page is invalid and might be corrupted.');
@@ -384,6 +388,7 @@ export function recycle(
     if (!found) return spError(404, 'Item does not exist. It may have been deleted by another user.');
     store.deleted.push(`${found.folder}/${found.e.name}`);
     saveStore(uploads, store);
+    if (purge) return { status: 200, data: { 'odata.null': true } };
     const hex = id.toString(16).padStart(12, '0');
     return { status: 200, data: { value: `00000000-0000-4000-8000-${hex}` } };
 }

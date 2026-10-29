@@ -20,8 +20,9 @@
 //                                                                        other filters of items refused (list view threshold)
 //   <site>/_api/contextinfo, …/items(<id>)/ValidateUpdateListItem     form digest (POST); properties and names changed (POST,
 //                                                                        simulated: kept with the session's uploads)
-//   <site>/_api/web/GetList(@list)/items(<id>)/recycle()              item (folder: all below it) to the recycle bin (POST;
-//                                                                        simulated: gone for the session)
+//   <site>/_api/web/GetList(@list)/items(<id>)/recycle(), …/deleteObject()
+//                                                                        item (folder: all below it) to the recycle bin, or for good
+//                                                                        (POST; simulated: gone for the session)
 //   <site>/_api/web/lists                                                lists of the site (libraries, plus Sharepoint's own:
 //                                                                        Site Assets, a hidden one; $filter Hidden eq false)
 //
@@ -678,7 +679,7 @@ export function handle(
     if (pathname === `${SITE}/_api/web/GetList(@list)/items`) return listItems(libs, u.searchParams, uploads);
     if (pathname === `${SITE}/_api/contextinfo`) return method === 'POST' ? answer(contextAnswer()) : fail(405);
     const listPart =
-        /^\/_api\/web\/GetList\(@list\)\/(Fields|Views|GetItems|items\((\d+)\)\/(ValidateUpdateListItem|recycle\(\)))$/.exec(
+        /^\/_api\/web\/GetList\(@list\)\/(Fields|Views|GetItems|items\((\d+)\)\/(ValidateUpdateListItem|recycle\(\)|deleteObject\(\)))$/.exec(
             pathname.slice(SITE.length),
         );
     const list = listPart && listOf(libs, u.searchParams);
@@ -700,9 +701,11 @@ export function handle(
         }
         return answer(itemsAnswer(tree(libs, list, uploads), folder.replace(/\/+$/, ''), loadStore(uploads)));
     }
-    if (list && listPart?.[3] === 'recycle()') {
+    if (list && (listPart?.[3] === 'recycle()' || listPart?.[3] === 'deleteObject()')) {
         if (method !== 'POST') return fail(405);
-        return answer(recycle(tree(libs, list, uploads), Number(listPart[2]), headers['x-requestdigest'], uploads));
+        const purge = listPart[3] === 'deleteObject()';
+        const t = tree(libs, list, uploads);
+        return answer(recycle(t, Number(listPart[2]), headers['x-requestdigest'], uploads, purge));
     }
     if (list && listPart?.[2]) {
         if (method !== 'POST') return fail(405);

@@ -224,6 +224,7 @@ export type Zen = {
     eyeBtn: HTMLButtonElement;
     downloadBtn: HTMLButtonElement;
     deleteBtn: HTMLButtonElement;
+    purgeBtn: HTMLButtonElement;
     editBtn: HTMLButtonElement;
     saveBtn: HTMLButtonElement;
     uploadBtn: HTMLButtonElement;

@@ -31,6 +31,10 @@ export const CONTROLS: [string, string][] = [
     ['Checkbox, Shift + click', 'select; select a range'],
     ['Ctrl / ⌘ + click (Zen list)', 'select a row (or drop it) without opening it'],
     ['Delete, ⌘ + Backspace (Zen list)', "delete the items selected (asks first; to the site's recycle bin)"],
+    [
+        'Shift + Delete, ⌘ + ⌥ + Backspace (Zen list)',
+        'purge the items selected: for good, not to the recycle bin (warns first)',
+    ],
     ['Ctrl / ⌘ + A (text view)', 'select the whole text'],
     ['Ctrl / ⌘ + S', 'save (editing, Zen edit and layout mode, settings)'],
     ['Esc', 'leave editing; again: close the viewer'],
