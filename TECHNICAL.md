@@ -11,7 +11,7 @@ For reviewing the script (permissions, network, storage, security, deployment): 
 | `/src/_core` | Tampermonkey header (`header.ts`), settings, preferences, list view, shared types (`types.ts`) |
 | `/src/{readers,text,ui,view,viewer,zen}` | the other modules (TypeScript); `zen`: Zen mode |
 | `/src/@apis/ifc-lite/main.ts` | entry of the ifc-lite bundle for the optional 3D view |
-| `/scripts` | build and demo scripts (`bundle.ts`, `demos.ts`, `hero.ts`) |
+| `/scripts` | build and demo scripts (`bundle.ts`, `anon.ts`, `demos.ts`, `hero.ts`) |
 | `/demos` | demos with screenshots (`/demos/img`, written by `just demos`) |
 | `/.github/workflows` | qa (automatic, manual) and release (cf. [Workflows](#workflows)) |
 | `/tests/{unit,behave,integration}` | tests (`tests_*.ts`, run with `node --test`); unit tests mirror `/src` |
@@ -44,6 +44,7 @@ just setup              # local files (.env, ...) from /templates
 just build              # dependencies (per lock) + all artefacts in /dist
 just build-src          # /dist/userscript{,.min}.js from the modules (local only)
 just build-dist         # artefacts only (dependencies already installed)
+just build-anon         # build-dist, plus the anonymous release /dist/v<BUILD_VERSION>-anon (cf. Artefacts)
 just prettify           # format + lint with fixes (Biome)
 just lint-check         # same, dry run
 just tests              # all tests (tests-unit, tests-behave, tests-integration)
@@ -81,6 +82,25 @@ The build is deterministic (versions pinned),
 so such a release accepts the 3D files of the last release built with them,
 as long as the ifc-lite and esbuild versions are unchanged.
 The release workflow includes them only if its checkbox is ticked (default: off).
+
+### Anonymous build ###
+
+`just build-anon` writes, beside the release, the anonymous release `/dist/v<BUILD_VERSION>-anon` (same files),
+from the bundle without what is marked "anon" (`npm run build:anon`, cf. `/scripts/anon.ts`):
+
+- the regions marked "anon" are left out (marker lines included; other regions may nest inside):
+
+  ```js
+  // #region anon
+  // @copyright    …
+  // #endregion anon
+  ```
+
+- `ABOUT_LINKS` is emptied (`{}`: the tab "About" shows no links)
+
+Anything else that is to be left out of the anonymous build is simply marked the same way
+(in the header or in any module).
+The ordinary release keeps it, without the marker lines.
 
 ## Dependencies ##
 

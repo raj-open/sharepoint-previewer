@@ -18,6 +18,9 @@
         "tampermonkey",
         "sharepoint"
     ],
+    "scripts": {
+        "build:anon": "node --disable-warning=ExperimentalWarning scripts/anon.ts"
+    },
     "engines": {
         "node": ">=22.18"
     },
