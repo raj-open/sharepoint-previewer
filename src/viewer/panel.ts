@@ -18,9 +18,12 @@ import { POPUP_POS_KEY } from '../_core/settings-form.ts';
 import { POPUP_SIZE_KEY } from '../_core/settings-form.ts';
 import { LARGE_FILE_BYTES } from '../_core/settings.ts';
 import { formatBytes } from '../_core/util.ts';
-import { bindBrand } from '../ui/brand.ts';
-import { brandHtml } from '../ui/brand.ts';
-import { brandTitle } from '../ui/brand.ts';
+import { isSelectAllKey } from '../_core/util.ts';
+import { typing } from '../_core/util.ts';
+import { barButton } from '../ui/bar.ts';
+import { closeButton } from '../ui/bar.ts';
+import { createBar } from '../ui/bar.ts';
+import { placeBelow } from '../ui/bar.ts';
 import { ABOUT_SVG } from '../ui/icons.ts';
 import { CHECK_SVG } from '../ui/icons.ts';
 import { CLEAR_SVG } from '../ui/icons.ts';
@@ -44,17 +47,15 @@ import { THEME_SVG } from '../ui/icons.ts';
 import { UPLOAD_SVG } from '../ui/icons.ts';
 import { WRAP_SVG } from '../ui/icons.ts';
 import { WRITE_SVG } from '../ui/icons.ts';
-import { ZEN_SVG } from '../ui/icons.ts';
 import { FORMAT_LISTS } from '../readers/formats.ts';
 import { wireLink } from '../ui/link.ts';
 import { keepSize } from '../ui/move.ts';
 import { startMove } from '../ui/move.ts';
 import { createPicker } from '../ui/picker.ts';
 import { QUOTE_MODES } from '../view/table.ts';
-import { toggleZen } from '../zen/zen.ts';
-import { ZEN_TITLE } from '../zen/zen.ts';
+import { zenDropSelection } from '../zen/zen.ts';
 import { zenEscape } from '../zen/zen.ts';
-import { zenList } from '../zen/zen.ts';
+import { zenProps } from '../zen/zen.ts';
 import { zenTheme } from '../zen/zen.ts';
 import { cancelLoad } from './cache.ts';
 import { clearAllCached } from './cache.ts';
@@ -109,28 +110,8 @@ const VIEW_KEYS: Record<string, string> = {
     markdown: 'tp-preview-markdown',
 };
 
-// Header widths: below NARROW the file name moves to a second row (room for at least 200 px of it beside
-// the buttons: 232 px left, 256 px right); below TIGHT also the version and logo are left out (buttons only)
-const HEADER_TIGHT = 232 + 256;
-const HEADER_NARROW = HEADER_TIGHT + 200;
-const ROW2 = 36; // height the second row adds (title well and gap)
-
 const ZOOM_STEP = 0.1;
 const WHEEL_STEP = 40; // wheel distance per zoom step (mouse notch ~100, touchpad pinch: small steps)
-
-const SQUARE_BTN_CSS = `
-  position: absolute;
-  z-index: 1;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-`;
 
 // ===========================================================================
 // METHODS
@@ -150,42 +131,23 @@ export function createViewer(): Viewer {
     const box = document.createElement('div');
     box.className = `tp-viewer tp-${view.theme}`;
 
-    // Header bar
+    // Header: bar (cf. /src/ui/bar.ts), properties below it
     const header = document.createElement('div');
-    header.className = 'tp-header';
-    header.style.cssText = `
-    position: relative;
-    flex: none;
-    height: 94px;
-  `;
+    header.className = 'tp-header tp-viewer-header';
 
-    // Header buttons
-    const ROW1 = 8;
-    const button = (
-        svg: string,
-        title: string,
-        left: number,
-        top: number = ROW1,
-        { disabled = false, pressed }: { disabled?: boolean; pressed?: boolean } = {},
-    ) => {
-        const btn = document.createElement('button');
-        btn.className = 'tp-mode-btn';
-        btn.innerHTML = svg;
-        btn.title = title;
-        btn.disabled = disabled;
-        if (pressed !== undefined) btn.setAttribute('aria-pressed', String(pressed));
-        btn.style.cssText = `${SQUARE_BTN_CSS} left: ${left}px; top: ${top}px;`;
+    // Bar: [layout ▾] [edit] [stop] [save] [upload] [cache all] [(i) link File: name] [⋯] [copy] [✕] (version: About, settings)
+    const button = (svg: string, title: string, disabled = true) => {
+        const btn = barButton(svg, title);
+        btn.disabled = disabled; // off until a file is shown
         return btn;
     };
-    // Main row: [layout ▾] [edit] [cache all] [stop] [save] [upload] (i) File: name [table] [3D] … [⋯] [copy] [✕]
-    const layoutBtn = button(SPLIT_H_SVG, 'Layout: below the list / right of the list / popup', 10);
-    const writeBtn = button(WRITE_SVG, 'Edit (text files only)', 46, ROW1, { disabled: true, pressed: false });
-    const loadAllBtn = button(LOAD_ALL_SVG, 'Cache the whole file', 82, ROW1, { disabled: true });
-    const stopBtn = button(STOP_SVG, 'Stop caching', 118, ROW1, { disabled: true }); // also: cancel changes
-    const saveBtn = button(SAVE_SVG, 'Save: keep the changes, ready for upload (Ctrl+S)', 154, ROW1, {
-        disabled: true,
-    });
-    const uploadBtn = button(UPLOAD_SVG, 'Upload the saved changes to Sharepoint', 190, ROW1, { disabled: true });
+    const layoutBtn = button(SPLIT_H_SVG, 'Layout: below the list / right of the list / popup', false);
+    const writeBtn = button(WRITE_SVG, 'Edit (text files only)');
+    writeBtn.setAttribute('aria-pressed', 'false');
+    const loadAllBtn = button(LOAD_ALL_SVG, 'Cache the whole file');
+    const stopBtn = button(STOP_SVG, 'Stop caching'); // also: cancel changes
+    const saveBtn = button(SAVE_SVG, 'Save: keep the changes, ready for upload (Ctrl+S)');
+    const uploadBtn = button(UPLOAD_SVG, 'Upload the saved changes to Sharepoint');
     // View switch (status bar, bottom right): Text | Preview (Table, 3D or Markdown, by file type)
     const viewBtn = (svg: string, label: string, title: string) => {
         const b = document.createElement('button');
@@ -199,23 +161,26 @@ export function createViewer(): Viewer {
     };
     const textBtn = viewBtn(TEXT_SVG, 'Text', 'Text view');
     const previewBtn = viewBtn('', 'Preview', ''); // look set per file (setPreview)
-    const moreBtn = button(MORE_SVG, 'More', 0);
-    moreBtn.style.left = '';
-    moreBtn.style.right = '86px';
+    const moreBtn = barButton(MORE_SVG, 'More');
 
     // Menu entries (icon + label); toggles show check mark when on
-    const item = (svg: string, label: string, opts?: { disabled?: boolean; pressed?: boolean }) => {
-        const b = button(svg, label, 0, 0, opts);
+    const item = (
+        svg: string,
+        label: string,
+        { disabled = false, pressed }: { disabled?: boolean; pressed?: boolean } = {},
+    ) => {
+        const b = document.createElement('button');
+        b.type = 'button';
         b.className = 'tp-menu-item';
-        b.style.cssText = '';
         b.innerHTML = `${svg}<span>${label}</span>`;
+        b.title = label;
+        b.disabled = disabled;
+        if (pressed !== undefined) b.setAttribute('aria-pressed', String(pressed));
         return b;
     };
     const hBtn = item(SPLIT_H_SVG, 'Below the list');
     const vBtn = item(SPLIT_V_SVG, 'Right of the list');
     const pBtn = item(POPUP_SVG, 'Popup');
-    const zenBtn = item(ZEN_SVG, 'Zen mode', { pressed: !!zenList });
-    zenBtn.title = ZEN_TITLE;
     const themeBtn = item(THEME_SVG, 'Dark mode', { pressed: view.theme === 'dark' });
     themeBtn.dataset.themeToggle = ''; // pressed: dark (also if switched in the Zen list)
     const colourBtn = item(COLOUR_SVG, 'Syntax colours');
@@ -227,8 +192,6 @@ export function createViewer(): Viewer {
     const clearAllBtn = item(CLEAR_SVG, 'Clear all files from the cache', { disabled: memoryCache.size === 0 });
     const settingsBtn = item(SETTINGS_SVG, 'Full settings …');
     const aboutBtn = item(ABOUT_SVG, 'About …');
-    const newItem = item(NEW_FILE_SVG, 'New file …');
-    newItem.title = NEW_FILE_ON;
 
     // Small drop-down under its button; closes on any click outside or on entry
     const menu = (anchor: HTMLElement, entries: HTMLElement[], alignRight = false) => {
@@ -246,10 +209,8 @@ export function createViewer(): Viewer {
         };
         anchor.onclick = () => {
             if (!m.hidden) return close();
-            m.style.top = `${anchor.offsetTop + anchor.offsetHeight + 4}px`;
-            if (alignRight) m.style.right = anchor.style.right;
-            else m.style.left = `${anchor.offsetLeft}px`;
-            m.hidden = false;
+            m.hidden = false; // shown first: measured
+            placeBelow(m, anchor, alignRight);
             document.addEventListener('pointerdown', outside, true);
         };
         m.addEventListener('click', (e) => {
@@ -260,67 +221,24 @@ export function createViewer(): Viewer {
     const layoutMenu = menu(layoutBtn, [hBtn, vBtn, pBtn]);
     const moreMenu = menu(
         moreBtn,
-        [
-            newItem,
-            settingsBtn,
-            zenBtn,
-            themeBtn,
-            colourBtn,
-            wrapBtn,
-            refreshBtn,
-            reload3dBtn,
-            clearBtn,
-            clearAllBtn,
-            aboutBtn,
-        ],
+        [settingsBtn, themeBtn, colourBtn, wrapBtn, refreshBtn, reload3dBtn, clearBtn, clearAllBtn, aboutBtn],
         true,
     );
 
-    // Title: file name, with small note below it
+    // Well: (i) link File: name (new file: a button)
     const title = document.createElement('div');
     title.className = 'tp-title tp-well';
-    title.style.cssText = `
-    position: absolute;
-    top: 8px;
-    height: 30px;
-    left: 232px;
-    right: 256px;
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    text-align: left;
-    font-family: sans-serif;
-  `;
     title.innerHTML = `
     <div style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; line-height:18px; margin-right:4px">
       <strong>File:</strong> <span class="tp-title-name"></span><span class="tp-title-sheet" hidden></span>
     </div>
   `;
-    // Small buttons in the title well, left of "File:": properties on/off (i), link (copied on click)
-    const wellBtn = (btn: HTMLButtonElement, margin: number) => {
-        btn.style.cssText = `
-    flex: none;
-    width: 24px;
-    height: 24px;
-    margin-left: ${margin}px;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-  `;
-        return btn;
-    };
-    const propsBtn = wellBtn(
-        button(PROPS_SVG, 'Display file metadata and properties', 0, 0, { pressed: view.props }),
-        -6,
-    );
-    const linkBtn = wellBtn(button(LINK_SVG, 'Copy the link', 0, 0), -6);
+    // Small buttons in the well, left of "File:": properties on/off (i), link (copied on click)
+    const propsBtn = barButton(PROPS_SVG, 'Display file metadata and properties', 'tp-well-btn');
+    propsBtn.setAttribute('aria-pressed', String(view.props));
+    const linkBtn = barButton(LINK_SVG, 'Copy the link', 'tp-well-btn');
     title.prepend(propsBtn, linkBtn);
-    // New file: in the title well while no file is open (also in the ⋯ menu)
+    // New file: in the title well while no file is open
     const newBtn = document.createElement('button');
     newBtn.type = 'button';
     newBtn.className = 'tp-new-file';
@@ -336,61 +254,14 @@ export function createViewer(): Viewer {
     titleName.onclick = () => startRename(v); // text: write mode only; read-only files: a copy
     const titleSheet = title.querySelector('.tp-title-sheet') as HTMLElement;
 
-    // Metadata (second line, full width): dates, size, format, table shape, ...
+    // Metadata (below the bar, full width): dates, size, format, table shape, ...
     const metaLine = document.createElement('div');
-    metaLine.className = 'tp-title';
-    metaLine.style.cssText = `
-    position: absolute;
-    top: 44px;
-    left: 12px;
-    right: 12px;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-box-orient: vertical; /* wraps, cut off with "…" after the lines shown */
-    line-height: 15px;
-    white-space: normal;
-    font: 12px/15px sans-serif;
-    opacity: .85;
-  `;
+    metaLine.className = 'tp-title tp-bar-meta';
 
-    // Version and logo (top right, left of copy button)
-    const brand = document.createElement('div');
-    brand.className = 'tp-title';
-    brand.style.cssText = `
-    position: absolute;
-    top: 8px;
-    height: 30px;
-    right: 124px;
-    max-width: 124px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font: 11px sans-serif;
-    opacity: .75;
-    white-space: nowrap;
-  `;
-    brand.innerHTML = brandHtml();
-    brand.title = brandTitle();
-    bindBrand(brand);
-
-    // Copy button (left of X)
-    const copyBtn = document.createElement('button');
-    copyBtn.innerHTML = COPY_SVG;
-    copyBtn.title = 'Copy';
-    copyBtn.style.cssText = `${SQUARE_BTN_CSS} top: 8px; right: 48px; background: #0078d4; color: #fff;`;
-
-    // Close button (red X, top right)
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = '✕';
-    closeBtn.title = 'Close (Esc)';
-    closeBtn.style.cssText = `
-    ${SQUARE_BTN_CSS}
-    top: 8px;
-    right: 10px;
-    background: #d13438;
-    color: #fff;
-    font: bold 15px sans-serif;
-  `;
+    // Copy (blue) and close (red ✕), right end
+    const copyBtn = barButton(COPY_SVG, 'Copy', 'tp-bar-copy');
+    copyBtn.classList.remove('tp-mode-btn'); // own colours, as the close button
+    const closeBtn = closeButton('Close (Esc)');
 
     // Metadata height: one line at first; drag grip below it to show more lines
     const metaGrip = document.createElement('div');
@@ -400,7 +271,7 @@ export function createViewer(): Viewer {
         view.metaLines = Math.max(1, Math.min(6, n));
         savePref('tp-preview-meta-lines', String(view.metaLines));
         const h = view.props ? view.metaLines * 15 : -4; // hidden: header ends under buttons
-        const top = 44 + (header.classList.contains('tp-narrow') ? ROW2 : 0); // below the title well
+        const top = (bar.offsetHeight || 46) - 2; // below the bar (one row or two; not shown yet: one)
         metaLine.style.display = view.props ? '' : 'none';
         metaGrip.style.display = view.props ? '' : 'none';
         propsBtn.setAttribute('aria-pressed', String(view.props));
@@ -411,21 +282,6 @@ export function createViewer(): Viewer {
         const lintShown = lint.style.display !== 'none' && lint.style.display !== '';
         header.style.height = `${top + h + 6 + (lintShown ? 18 : 0)}px`; // room for check line only when shown
     };
-    // Narrow header: file name on a second row (full width); very narrow: no version and logo either
-    const fitHeader = () => {
-        const w = header.clientWidth;
-        if (!w) return; // not shown yet
-        const narrow = w < HEADER_NARROW;
-        brand.style.display = w < HEADER_TIGHT ? 'none' : 'flex';
-        if (narrow === header.classList.contains('tp-narrow')) return;
-        header.classList.toggle('tp-narrow', narrow);
-        title.style.top = narrow ? '44px' : '8px';
-        title.style.left = narrow ? '12px' : '232px';
-        title.style.right = narrow ? '12px' : '256px';
-        setMetaLines(view.metaLines);
-    };
-    const headerObserver = new ResizeObserver(fitHeader);
-    headerObserver.observe(header);
     metaGrip.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         const startY = e.clientY;
@@ -445,23 +301,15 @@ export function createViewer(): Viewer {
     });
     metaGrip.ondblclick = () => setMetaLines(view.metaLines > 1 ? 1 : 6); // quick open / close
 
-    header.append(
-        layoutBtn,
-        writeBtn,
-        loadAllBtn,
-        stopBtn,
-        saveBtn,
-        uploadBtn,
-        title,
-        metaLine,
-        metaGrip,
-        brand,
-        moreBtn,
-        copyBtn,
-        closeBtn,
-        layoutMenu,
-        moreMenu,
+    const { bar, stop: stopBar } = createBar(
+        {
+            start: [layoutBtn, writeBtn, stopBtn, saveBtn, uploadBtn, loadAllBtn], // edit … upload: as the Zen list's
+            well: title,
+            end: [moreBtn, copyBtn, closeBtn],
+        },
+        () => setMetaLines(view.metaLines), // properties below the bar's rows
     );
+    header.append(bar, metaLine, metaGrip, layoutMenu, moreMenu);
 
     // Lint bar (only for xml / json / yaml / ifc)
     const lint = document.createElement('div');
@@ -598,7 +446,6 @@ export function createViewer(): Viewer {
         hBtn,
         vBtn,
         pBtn,
-        zenBtn,
         refreshBtn,
         loadAllBtn,
         stopBtn,
@@ -608,7 +455,6 @@ export function createViewer(): Viewer {
         uploadBtn,
         writeBtn,
         newBtn,
-        newItem,
         linkBtn,
         textBtn,
         previewBtn,
@@ -639,6 +485,7 @@ export function createViewer(): Viewer {
         text: '',
         loadToken: 0,
         originalBodyStyle: document.body.getAttribute('style'),
+        showProps: () => setMetaLines(view.metaLines),
     };
     setPreview(v, null);
 
@@ -657,6 +504,11 @@ export function createViewer(): Viewer {
         if ((e.target as HTMLElement).classList?.contains('tp-name-input')) return; // name box: its own Esc
         e.stopPropagation();
         for (const p of [sheetPicker, formatPicker]) if (!p.menu.hidden) return void p.close();
+        // whatever is selected: the content's text (not in the editor: its own Esc), the Zen list's items; all of it at once
+        const s = getSelection();
+        const marked = !!s && !s.isCollapsed && content.contains(s.anchorNode);
+        if (marked) s?.removeAllRanges();
+        if (zenDropSelection() || marked) return;
         if (zenEscape()) return; // Zen list: its menus, then its edit mode
         if (v.writeMode) return void leaveWrite(); // only back to reading: Esc again closes
         closeViewer();
@@ -672,8 +524,9 @@ export function createViewer(): Viewer {
     const sizeObserver = keepSize(box, POPUP_SIZE_KEY, () => v.mode === 'popup');
     v.removeListeners = () => {
         document.removeEventListener('keydown', onEscape, true);
+        document.removeEventListener('keydown', onSelectAll, true);
         window.removeEventListener('resize', onResize);
-        headerObserver.disconnect();
+        stopBar();
         sizeObserver.disconnect();
     };
 
@@ -683,7 +536,6 @@ export function createViewer(): Viewer {
     hBtn.onclick = () => v.mode !== 'horizontal' && setMode('horizontal');
     vBtn.onclick = () => v.mode !== 'vertical' && setMode('vertical');
     pBtn.onclick = () => v.mode !== 'popup' && setMode('popup');
-    zenBtn.onclick = () => toggleZen();
     refreshBtn.onclick = () => v.file && showFile(v.file.name, v.file.url, true);
     reload3dBtn.onclick = () => void reload3d(v);
     stopBtn.onclick = () => {
@@ -698,7 +550,6 @@ export function createViewer(): Viewer {
     settingsBtn.onclick = () => openSettingsForm();
     aboutBtn.onclick = () => openSettingsForm('about');
     newBtn.onclick = () => newFile();
-    newItem.onclick = () => newFile();
     writeBtn.onclick = () => (v.writeMode ? leaveWrite() : enterWrite(v));
     // 3D choice remembered for next IFC files (also across reloads)
     const set3d = (on: boolean) => {
@@ -816,11 +667,7 @@ export function createViewer(): Viewer {
     };
     // Link: clean URL of the file shown (a link file: where it leads), else of the folder
     wireLink(linkBtn, () => shownUrl(v));
-    propsBtn.onclick = () => {
-        view.props = !view.props;
-        savePref(PROPS_KEY, view.props ? '1' : '0');
-        setMetaLines(view.metaLines);
-    };
+    propsBtn.onclick = () => toggleProps();
     wrapBtn.onclick = () => {
         view.wrap = !view.wrap;
         savePref(WRAP_KEY, view.wrap ? '1' : '0');
@@ -875,13 +722,24 @@ export function createViewer(): Viewer {
         { passive: false },
     );
 
-    // Text view: whole file selected (also lines not drawn yet), and copied as such
-    const selectAll = () => {
-        const lines = content.firstElementChild;
-        if (!lines?.classList.contains('tp-lines')) return false; // table, Markdown: as the browser does
-        getSelection()?.selectAllChildren(lines);
-        return true;
+    // Ctrl / ⌘ + A with the pointer over the content (wherever the focus is; not typing in a field, e.g. the editor
+    // or a table cell): all of the content selected (text view: the whole file, also lines not drawn yet, copied as such)
+    let overContent = false;
+    content.addEventListener('pointerenter', () => {
+        overContent = true;
+    });
+    content.addEventListener('pointerleave', () => {
+        overContent = false;
+    });
+    const onSelectAll = (e: KeyboardEvent) => {
+        if (!overContent || viewer !== v || !isSelectAllKey(e) || typing(document.activeElement)) return;
+        const shown = content.firstElementChild;
+        if (!shown) return;
+        e.preventDefault(); // not the page's text
+        e.stopPropagation();
+        getSelection()?.selectAllChildren(shown);
     };
+    document.addEventListener('keydown', onSelectAll, true);
     content.addEventListener('copy', (e) => {
         const lines = content.firstElementChild;
         const s = getSelection();
@@ -892,7 +750,7 @@ export function createViewer(): Viewer {
         e.preventDefault();
     });
 
-    // Keys in the content area (once clicked into) or editor: Ctrl / ⌘ with + − 0 (text size), A (select all)
+    // Keys in the content area (once clicked into) or editor: Ctrl / ⌘ with + − 0 (text size)
     box.addEventListener('keydown', (e) => {
         const t = e.target as Node;
         if (e.key === 'F2' && renamable(v)) {
@@ -903,7 +761,7 @@ export function createViewer(): Viewer {
         if (e.key === '+' || e.key === '=') zoomBy(1);
         else if (e.key === '-') zoomBy(-1);
         else if (e.key === '0') setZoom(1);
-        else if (e.key.toLowerCase() !== 'a' || t !== content || !selectAll()) return;
+        else return;
         e.preventDefault();
     });
 
@@ -933,7 +791,7 @@ export function createViewer(): Viewer {
         setTimeout(() => {
             copyBtn.innerHTML = COPY_SVG;
             copyBtn.title = 'Copy';
-            copyBtn.style.background = '#0078d4';
+            copyBtn.style.background = '';
         }, 2000);
     };
 
@@ -943,6 +801,14 @@ export function createViewer(): Viewer {
 }
 
 /** Light / dark (kept): the viewer, its menu entry and the Zen list */
+/** Properties on or off: the viewer's line (the file's) and the Zen list's (the folder's), one setting */
+export function toggleProps(): void {
+    view.props = !view.props;
+    savePref(PROPS_KEY, view.props ? '1' : '0');
+    viewer?.showProps();
+    zenProps();
+}
+
 export function toggleTheme(): void {
     view.theme = view.theme === 'dark' ? 'light' : 'dark';
     savePref(THEME_KEY, view.theme);

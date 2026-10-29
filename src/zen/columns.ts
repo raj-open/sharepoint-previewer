@@ -1,4 +1,4 @@
-// Zen list columns: order, hidden ones and widths per library (kept in the browser), layout mode, columns menu;
+// Zen list columns: order, hidden ones and widths per library (kept in the browser), layout mode, columns pane;
 // widths are changed in any mode and kept at once (they never go to Sharepoint)
 
 // ===========================================================================
@@ -8,6 +8,11 @@
 import { loadPref } from '../_core/prefs.ts';
 import { savePref } from '../_core/prefs.ts';
 import { esc } from '../_core/util.ts';
+import { barButton } from '../ui/bar.ts';
+import { SAVE_SVG } from '../ui/icons.ts';
+import { STOP_SVG } from '../ui/icons.ts';
+import { UPLOAD_SVG } from '../ui/icons.ts';
+import { WRITE_SVG } from '../ui/icons.ts';
 import { wireReorder } from '../view/reorder.ts';
 import { NAME } from './data.ts';
 
@@ -21,6 +26,10 @@ import type { ZenData } from '../_core/types.ts';
 
 export const ZEN_COLUMNS_KEY = 'tp-preview-zen-columns';
 const MAX_LIBRARIES = 100; // libraries whose columns are kept (most recent first)
+const PANE_KEY = 'tp-preview-zen-pane'; // width of the columns pane (px), kept
+const PANE_WIDTH = 260; // px at first
+const PANE_CLOSE = 200; // px: released narrower than this (its buttons no longer fit), the pane closes (as the viewer's splitter)
+const PANE_ROOM = 200; // px of the list left beside the pane at least
 
 // ===========================================================================
 // METHODS
@@ -142,26 +151,88 @@ export function saveLayout(z: Zen): void {
     z.layout = copyColumns(z.columns);
 }
 
-/** Layout mode off: changes not saved dropped (the columns as saved again), menu closed */
+/** Layout mode off: changes not saved dropped (the columns as saved again) */
 export function endLayout(z: Zen): void {
     if (z.layout) z.columns = z.layout;
     z.layout = null;
-    z.el.querySelector('.tp-zen-columns')?.remove();
 }
 
 // ---------------------------------------------------------------------------
-// Columns menu (layout mode, open throughout): a checkbox per column (shown / hidden), drag to change the order;
-// back to the view's columns
+// Columns pane (right of the list, its full height): the columns in order, shown or hidden;
+// read only until Edit (layout mode): then ticked, unticked and dragged here, or dragged by their titles in the list
 // ---------------------------------------------------------------------------
 
-/** Opens the columns menu below its button; `changed`: columns to be drawn anew */
-export function openColumnsMenu(z: Zen, changed: () => void): void {
-    if (z.el.querySelector('.tp-zen-columns')) return;
-    const menu = document.createElement('div');
-    menu.className = 'tp-menu tp-zen-columns';
-    menu.addEventListener('change', (e) => {
+/**
+ * Opens the columns pane (bar: Edit, Cancel, Save, Upload, as the list's own; ✕)
+ * @param acts what the buttons do; changed: columns to be drawn anew (layout mode)
+ */
+export function openColumnsPane(
+    z: Zen,
+    acts: { edit: () => void; cancel: () => void; save: () => void; upload: () => void; close: () => void },
+    changed: () => void,
+): void {
+    if (z.pane) return;
+    const el = document.createElement('aside');
+    el.className = 'tp-zen-pane tp-zen-columns';
+    const editBtn = barButton(WRITE_SVG, 'Edit the columns: show, hide and order them (here or by their titles)');
+    editBtn.setAttribute('aria-pressed', 'false');
+    const cancelBtn = barButton(STOP_SVG, 'Cancel: drop the changes of the columns not saved, end editing');
+    const saveBtn = barButton(SAVE_SVG, 'Save: keep the columns for this library, in this browser (Ctrl+S)');
+    const uploadBtn = barButton(
+        UPLOAD_SVG,
+        'Upload the columns saved to the Sharepoint view (for everyone; asks first)',
+    );
+    const closeBtn = barButton('✕', 'Close the columns');
+    const head = document.createElement('div');
+    head.className = 'tp-zen-pane-bar';
+    head.innerHTML = '<strong>Columns</strong>';
+    head.append(editBtn, cancelBtn, saveBtn, uploadBtn, closeBtn);
+    const list = document.createElement('div');
+    list.className = 'tp-zen-columns-list';
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'tp-menu-item';
+    reset.textContent = 'Columns of the Sharepoint view';
+    // left edge: dragged to change the width (kept); released below PANE_CLOSE: closed
+    const grip = document.createElement('div');
+    grip.className = 'tp-zen-pane-grip';
+    grip.title = 'Drag to change the width (narrow: closes it)';
+    el.style.width = `${Number(loadPref(PANE_KEY, String(PANE_WIDTH))) || PANE_WIDTH}px`;
+    grip.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        const x0 = e.clientX;
+        const w0 = el.offsetWidth;
+        const max = Math.max(PANE_WIDTH, z.body.clientWidth - PANE_ROOM);
+        let w = w0;
+        grip.setPointerCapture(e.pointerId);
+        const move = (ev: PointerEvent) => {
+            w = Math.min(max, w0 + x0 - ev.clientX);
+            el.style.width = `${Math.max(PANE_CLOSE / 2, w)}px`;
+            el.classList.toggle('tp-zen-pane-closing', w < PANE_CLOSE);
+        };
+        const up = () => {
+            grip.removeEventListener('pointermove', move);
+            grip.removeEventListener('pointerup', up);
+            grip.removeEventListener('pointercancel', up);
+            el.classList.remove('tp-zen-pane-closing');
+            if (w >= PANE_CLOSE) return void savePref(PANE_KEY, String(Math.round(w)));
+            el.style.width = `${w0}px`; // closed (or kept if changes are not dropped): as it was
+            acts.close();
+        };
+        grip.addEventListener('pointermove', move);
+        grip.addEventListener('pointerup', up);
+        grip.addEventListener('pointercancel', up);
+    });
+    el.append(grip, head, list, reset);
+    editBtn.onclick = acts.edit;
+    cancelBtn.onclick = acts.cancel;
+    saveBtn.onclick = acts.save;
+    uploadBtn.onclick = acts.upload;
+    closeBtn.onclick = acts.close;
+    list.addEventListener('change', (e) => {
         const label = (e.target as HTMLElement).closest('[data-col]') as HTMLElement | null;
-        if (!label || !z.data) return;
+        if (!label || !z.data || !z.layout) return;
         const { order, hidden } = columnOrder(z.data, z.columns);
         const col = label.dataset.col as string;
         if ((e.target as HTMLInputElement).checked) hidden.delete(col);
@@ -169,47 +240,77 @@ export function openColumnsMenu(z: Zen, changed: () => void): void {
         setColumns(z, order, hidden);
         changed();
     });
-    menu.addEventListener('click', (e) => {
-        if (!(e.target as HTMLElement).closest('[data-reset]')) return;
+    reset.onclick = () => {
+        if (!z.layout) return;
         z.columns = { order: [], hidden: [], widths: z.columns.widths }; // widths: kept apart
         changed();
-    });
-    wireReorder(menu, {
+    };
+    wireReorder(list, {
         item: 'label[data-col]',
         axis: 'y',
+        movable: () => !!z.layout,
         drop: (col, target, after) => {
-            if (!z.data) return;
+            if (!z.data || !z.layout) return;
             const { order, hidden } = columnOrder(z.data, z.columns);
             const i = order.indexOf(target) + (after ? 1 : 0);
             setColumns(z, moveColumn(order, col, order[i] ?? null), hidden);
             changed();
         },
     });
-    menu.style.top = `${z.columnsBtn.offsetTop + z.columnsBtn.offsetHeight + 4}px`;
-    menu.style.right = '8px';
-    z.el.append(menu);
-    drawColumnsMenu(z);
+    z.pane = { el, list, reset, editBtn, cancelBtn, saveBtn, uploadBtn };
+    z.body.append(el);
+    drawColumnsPane(z);
 }
 
-/** Draws the entries of the columns menu anew (if open; its scroll position kept) */
-export function drawColumnsMenu(z: Zen): void {
-    const menu = z.el.querySelector('.tp-zen-columns');
-    if (!menu) return;
-    const scrolled = menu.querySelector('.tp-zen-columns-list')?.scrollTop ?? 0;
+/** Closes the columns pane (layout mode: ended before, cf. endLayout) */
+export function closeColumnsPane(z: Zen): void {
+    z.pane?.el.remove();
+    z.pane = null;
+}
+
+/** @returns columns saved for the library (shown, in order) differ from the Sharepoint view's */
+export function differsFromView(z: Zen): boolean {
+    if (!z.data?.viewId) return false;
+    const saved = z.layout ?? z.columns;
+    const { order, hidden } = columnOrder(z.data, saved);
+    return JSON.stringify(order.filter((n) => !hidden.has(n))) !== JSON.stringify(z.data.view);
+}
+
+/** Draws the columns pane anew (if open; the list's scroll position kept): entries, buttons as the mode allows */
+export function drawColumnsPane(z: Zen): void {
+    const pane = z.pane;
+    if (!pane) return;
     const data = z.data;
+    const layout = !!z.layout;
     const { order, hidden } = data ? columnOrder(data, z.columns) : { order: [], hidden: new Set<string>() };
     const titleOf = new Map((data?.fields ?? []).map((f) => [f.name, f.title]));
-    menu.innerHTML =
-        '<div class="tp-zen-columns-list">' +
-        order
-            .map(
-                (n) =>
-                    `<label data-col="${esc(n)}" title="Drag to change the order">` +
-                    `<span class="tp-zen-grip">⠿</span><input type="checkbox"${hidden.has(n) ? '' : ' checked'}>` +
-                    `<span>${esc(titleOf.get(n) ?? n)}</span></label>`,
-            )
-            .join('') +
-        '</div><button type="button" class="tp-menu-item" data-reset>Columns of the Sharepoint view</button>';
-    const list = menu.querySelector('.tp-zen-columns-list');
-    if (list) list.scrollTop = scrolled;
+    const scrolled = pane.list.scrollTop;
+    const off = layout ? '' : ' disabled';
+    pane.list.innerHTML = order
+        .map((n) => {
+            const box = `<input type="checkbox"${hidden.has(n) ? '' : ' checked'}${off}>`;
+            const grip = layout ? '<span class="tp-zen-grip">⠿</span>' : '';
+            const tip = layout ? ' title="Drag to change the order"' : '';
+            const name = esc(titleOf.get(n) ?? n);
+            return `<label data-col="${esc(n)}"${tip}>${grip}${box}<span title="${name}">${name}</span></label>`;
+        })
+        .join('');
+    pane.list.scrollTop = scrolled;
+    showPaneButtons(z);
+}
+
+/** Buttons of the columns pane as the mode allows (layout mode and editing properties exclude each other) */
+export function showPaneButtons(z: Zen): void {
+    const pane = z.pane;
+    if (!pane) return;
+    const layout = !!z.layout;
+    pane.el.classList.toggle('tp-zen-pane-editing', layout);
+    pane.reset.disabled = !layout;
+    pane.editBtn.setAttribute('aria-pressed', String(layout));
+    pane.editBtn.disabled = !layout && (z.busy || !z.data || z.editing); // not while editing properties
+    pane.cancelBtn.disabled = !layout;
+    pane.saveBtn.disabled = !layoutDirty(z);
+    const ready = !z.busy && !layoutDirty(z) && differsFromView(z); // saved, not in the view yet
+    pane.uploadBtn.disabled = !ready;
+    pane.uploadBtn.classList.toggle('tp-zen-ready', ready);
 }

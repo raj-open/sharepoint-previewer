@@ -13,6 +13,7 @@ import { closeFilterPanel } from './filter.ts';
 import { nextSort } from './filter.ts';
 import { openFilterPanel } from './filter.ts';
 import { shownRows } from './filter.ts';
+import { wireReorder } from './reorder.ts';
 
 import type { LineView } from '../_core/types.ts';
 import type { TableState } from '../_core/types.ts';
@@ -134,19 +135,18 @@ export function mountTable(
             ? `<button class="tp-expand-all" title="${state.allOpen ? 'Collapse all rows shown' : 'Expand all rows shown (as filtered)'}">${state.allOpen ? '▾' : '▸'}</button>`
             : '';
         let cells = `<th class="tp-rn">${all}</th>`;
-        const drag = opts.editable ? ' draggable="true"' : '';
         for (let c = 0; c < cols; c++) {
             const sort = state.sort && state.sort.col === c ? (state.sort.dir > 0 ? ' ▲' : ' ▼') : '';
             const active = state.filters.has(c) ? ' tp-on' : '';
             const bin = opts.editable
-                ? `<button class="tp-col-delete" data-c="${c}" draggable="false" title="Delete this column">${BIN_SVG}</button>`
+                ? `<button class="tp-col-delete" data-c="${c}" title="Delete this column">${BIN_SVG}</button>`
                 : '';
             const line =
                 opts.colour && !opts.classOf
                     ? ` style="border-bottom-color: var(--tp-${CSV_COLOURS[c % CSV_COLOURS.length]})"`
                     : '';
             cells +=
-                `<th data-c="${c}"${drag}${line}><span class="tp-sort">${esc(header[c] ?? '')}${sort}</span>` +
+                `<th data-c="${c}"${line}><span class="tp-sort">${esc(header[c] ?? '')}${sort}</span>` +
                 `<button class="tp-filter${active}" data-c="${c}" title="Filter">▾</button>${bin}` +
                 `<span class="tp-resize" data-c="${c}" title="Drag to change the width"></span></th>`;
         }
@@ -167,11 +167,11 @@ export function mountTable(
             const title = t.length > MAX_TITLE ? `${t.slice(0, MAX_TITLE)} …` : t; // long cells: tooltip shortened
             cells += `<td data-r="${i}" data-c="${c}"${colourOf(c, r[c] ?? '')} title="${title}"${edit}>${t}</td>`;
         }
-        const drag = opts.editable ? ' draggable="true" title="Drag to move this row"' : '';
+        const tip = opts.editable ? ' title="Drag to move this row"' : '';
         const open = !!state.expanded?.has(i);
         const toggle = opts.expand?.can(i) ? toggleHtml(i, open) : '';
         const row =
-            `<tr${pos % 2 ? ' class="tp-stripe"' : ''}><td class="tp-rn" data-row="${i}"${drag}>` +
+            `<tr${pos % 2 ? ' class="tp-stripe"' : ''}><td class="tp-rn" data-row="${i}"${tip}>` +
             `${toggle}${(i + 1).toLocaleString()}</td>${cells}</tr>`;
         return open ? row + detailHtml(i) : row;
     };
@@ -307,61 +307,25 @@ export function mountTable(
             },
         );
 
-    // Write mode: drag row numbers / column titles to move; "+" at edges to insert
+    // Write mode: row numbers / column titles dragged to move them; "+" at edges to insert
     if (opts.editable) {
-        let dragging: { kind: 'row' | 'col'; from: number } | null = null; // { kind: 'row'|'col', from }
-        const dropTarget = (e: DragEvent) => {
-            if (!dragging) return null;
-            const el =
-                dragging.kind === 'row'
-                    ? (e.target as HTMLElement).closest('td.tp-rn[data-row]')
-                    : (e.target as HTMLElement).closest('th[data-c]');
-            if (!el) return null;
-            const r = el.getBoundingClientRect();
-            const i = dragging.kind === 'row' ? Number(el.dataset.row) : Number(el.dataset.c);
-            const after = dragging.kind === 'row' ? e.clientY > r.top + r.height / 2 : e.clientX > r.left + r.width / 2;
-            return { el, to: after ? i + 1 : i, after };
-        };
-        const clearMarks = () => {
-            for (const el of table.querySelectorAll('.tp-drop-before, .tp-drop-after')) {
-                el.classList.remove('tp-drop-before', 'tp-drop-after');
-            }
-        };
-        table.addEventListener('dragstart', (e) => {
-            const rn = (e.target as HTMLElement).closest?.('td.tp-rn[data-row]');
-            const th = (e.target as HTMLElement).closest?.('th[data-c]');
-            if (!rn && !th) return;
-            if ((e.target as HTMLElement).closest?.('.tp-col-delete, .tp-filter, .tp-resize'))
-                return void e.preventDefault();
-            dragging = rn
-                ? { kind: 'row', from: Number(rn.dataset.row) }
-                : { kind: 'col', from: Number((th as HTMLElement).dataset.c) };
-            const transfer = e.dataTransfer as DataTransfer; // always set on dragstart
-            transfer.effectAllowed = 'move';
-            transfer.setData('text/x-tp-move', '1');
-            e.stopPropagation();
+        // as the Zen list's columns (pointer, no HTML drag and drop): a lifted copy, the target shaded, a bar where it goes
+        const moveTo = (kind: 'row-move' | 'col-move') => (from: string, to: string, after: boolean) =>
+            structure(kind, Number(from), Number(to) + (after ? 1 : 0));
+        wireReorder(table, {
+            item: 'th[data-c]',
+            axis: 'x',
+            key: (el) => el.dataset.c ?? '',
+            skip: '.tp-col-delete, .tp-filter, .tp-resize',
+            span: content,
+            drop: moveTo('col-move'),
         });
-        table.addEventListener('dragover', (e) => {
-            const t = dropTarget(e);
-            if (!t) return;
-            e.preventDefault();
-            e.stopPropagation();
-            clearMarks();
-            t.el.classList.add(t.after ? 'tp-drop-after' : 'tp-drop-before');
-        });
-        table.addEventListener('drop', (e) => {
-            const t = dropTarget(e);
-            clearMarks();
-            if (!t) return;
-            e.preventDefault();
-            e.stopPropagation();
-            const { kind, from } = dragging as { kind: 'row' | 'col'; from: number }; // drop target found: dragging
-            dragging = null;
-            structure(kind === 'row' ? 'row-move' : 'col-move', from, t.to);
-        });
-        table.addEventListener('dragend', () => {
-            dragging = null;
-            clearMarks();
+        wireReorder(table, {
+            item: 'td.tp-rn[data-row]',
+            axis: 'y',
+            key: (el) => el.dataset.row ?? '',
+            span: content,
+            drop: moveTo('row-move'),
         });
 
         const plus = document.createElement('button');
@@ -379,7 +343,7 @@ export function mountTable(
             plusAt = { kind, at };
         };
         table.addEventListener('mousemove', (e) => {
-            if (dragging) return;
+            if (table.classList.contains('tp-reordering')) return; // moving a row or column
             const rn = (e.target as HTMLElement).closest('td.tp-rn[data-row]');
             const corner = (e.target as HTMLElement).closest('th.tp-rn');
             const th = (e.target as HTMLElement).closest('th[data-c]');

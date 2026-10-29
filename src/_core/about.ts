@@ -32,10 +32,12 @@ export const CONTROLS: [string, string][] = [
     ['Ctrl / ⌘ + click (Zen list)', 'select a row (or drop it) without opening it'],
     ['Delete, ⌘ + Backspace (Zen list)', "delete the items selected (asks first; to the site's recycle bin)"],
     [
-        'Shift + Delete, ⌘ + ⌥ + Backspace (Zen list)',
+        'Shift + Delete, ⌘ + ⌥ + Backspace, Shift + click on the bin (Zen list)',
         'purge the items selected: for good, not to the recycle bin (warns first)',
     ],
-    ['Ctrl / ⌘ + A (text view)', 'select the whole text'],
+    ['Files dragged in (Zen list)', 'uploaded into the folder shown, by Sharepoint itself'],
+    ['Ctrl / ⌘ + A, pointer over the Zen list', 'select all items shown; Esc or a click elsewhere: none'],
+    ['Ctrl / ⌘ + A, pointer over the viewer', 'select its whole text; Esc: none'],
     ['Ctrl / ⌘ + S', 'save (editing, Zen edit and layout mode, settings)'],
     ['Esc', 'leave editing; again: close the viewer'],
 ];

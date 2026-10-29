@@ -2,7 +2,8 @@
 // as far as the userscript's Zen mode uses it: fields, views, items of a folder (with FieldValuesAsText),
 // form digest, ValidateUpdateListItem (values checked as Sharepoint's form does; renames of files),
 // recycle and deleteObject (files and folders deleted: to the recycle bin, or for good;
-// either way left out of all listings and requests for the session).
+// either way left out of all listings and requests for the session), the view's fields written (removeAllViewFields,
+// addViewField: kept for the session).
 // Values start made up (the same each time, from the path); changes are kept per session of simulated uploads
 // (<uploads>/.properties.json), as uploads are, and never touch the files on disk.
 
@@ -16,11 +17,12 @@ import path from 'node:path';
 // Entry of a folder listing (cf. server.ts)
 export type Entry = { name: string; folder: boolean; size: number; author?: string; uploaded?: boolean };
 // Changes of a session: values per original path, renamed files (new path -> original path),
-// items deleted (paths as named then; folders with all below them)
+// items deleted (paths as named then; folders with all below them), fields of the views as written (per library)
 export type Store = {
     values: Record<string, Record<string, Value>>;
     renamed: Record<string, string>;
     deleted: string[];
+    views?: Record<string, string[]>;
 };
 type Value = string | number | boolean | null;
 type Field = {
@@ -90,6 +92,7 @@ export const VIEW_FIELDS = [
 ];
 
 export const DIGEST = '0x4D4F434B,28 Oct 2026 12:00:00 -0000'; // form digest of the mock (any session)
+export const VIEW_ID = '4d6f636b-0000-4000-8000-000000000001'; // id of the library's view (AllItems.aspx)
 const STORE = '.properties.json';
 const BAD_NAME = /["*:<>?/\\|]/;
 
@@ -220,15 +223,16 @@ function itemJson(store: Store, folder: string, e: Entry): Record<string, unknow
 
 export const fieldsAnswer = (): Answer => ({ status: 200, data: { value: FIELDS } });
 
-export const viewsAnswer = (library: string): Answer => ({
+export const viewsAnswer = (library: string, store: Store): Answer => ({
     status: 200,
     data: {
         value: [
             {
+                Id: VIEW_ID,
                 ServerRelativeUrl: `${library}/Forms/AllItems.aspx`,
                 DefaultView: true,
                 ViewQuery: '<OrderBy><FieldRef Name="FileLeafRef" /></OrderBy>', // as Sharepoint's All Documents
-                ViewFields: { Items: VIEW_FIELDS },
+                ViewFields: { Items: store.views?.[library.toLowerCase()] ?? VIEW_FIELDS },
             },
         ],
     },
@@ -391,4 +395,27 @@ export function recycle(
     if (purge) return { status: 200, data: { 'odata.null': true } };
     const hex = id.toString(16).padStart(12, '0');
     return { status: 200, data: { value: `00000000-0000-4000-8000-${hex}` } };
+}
+
+/**
+ * Fields of the view written: all removed (removeAllViewFields), or one added at the end (addViewField)
+ * @param add field to add (null: all removed) @param uploads session folder (none: refused, as uploads are)
+ */
+export function writeView(
+    library: string,
+    add: string | null,
+    digest: string | undefined,
+    uploads: string | undefined,
+): Answer {
+    if (digest !== DIGEST)
+        return spError(403, 'The security validation for this page is invalid and might be corrupted.');
+    if (!uploads) return spError(405, 'Changes are not simulated here.');
+    const store = loadStore(uploads);
+    if (add != null && !FIELDS.some((f) => f.InternalName === add) && !VIEW_FIELDS.includes(add))
+        return spError(400, `Column '${add}' does not exist.`);
+    const key = library.toLowerCase();
+    const now = store.views?.[key] ?? VIEW_FIELDS;
+    store.views = { ...store.views, [key]: add == null ? [] : [...now.filter((n) => n !== add), add] };
+    saveStore(uploads, store);
+    return { status: 200, data: { 'odata.null': true } };
 }

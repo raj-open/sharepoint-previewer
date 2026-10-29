@@ -1,9 +1,12 @@
-// Zen list selection: items picked by their checkboxes (one; all shown; a range by Shift), rows by Ctrl / Cmd
+// Zen list selection: items picked by their checkboxes (one; all shown; a range by Shift), rows by Ctrl / Cmd,
+// all shown by Ctrl / Cmd + A (the pointer over the list); dropped by Esc or a click elsewhere
 
 // ===========================================================================
 // IMPORTS
 // ===========================================================================
 
+import { isSelectAllKey } from '../_core/util.ts';
+import { typing } from '../_core/util.ts';
 import { itemOf } from './grid.ts';
 import { itemsShown } from './grid.ts';
 
@@ -44,6 +47,39 @@ export function pickAll(z: Zen): void {
         else z.selected.add(x.id);
     }
     z.anchor = null;
+}
+
+/** All items shown picked (those the list has, as filtered: nothing more is read) */
+export function pickShown(z: Zen): void {
+    for (const x of itemsShown(z)) z.selected.add(x.id);
+    z.anchor = null;
+}
+
+/** Selection dropped (nothing picked) @returns there was one */
+export function dropSelection(z: Zen): boolean {
+    if (!z.selected.size) return false;
+    z.selected.clear();
+    z.anchor = null;
+    showPicked(z);
+    return true;
+}
+
+/**
+ * @returns a click (pointer released) keeps the selection: on what acts on it (download, delete / purge),
+ * on a checkbox, a row by Shift or Ctrl / Cmd (they change it), or the list's scrollbars
+ */
+export function keepsSelection(z: Zen, e: PointerEvent): boolean {
+    const t = e.target as Element;
+    if (t === z.grid && onScrollbar(z.grid, e)) return true; // the list's empty space below the rows: not kept
+    if (z.downloadBtn.contains(t) || z.deleteBtn.contains(t)) return true;
+    if (t.closest?.('.tp-zen-pick')) return true;
+    return (e.shiftKey || e.ctrlKey || e.metaKey) && !!t.closest?.('tr.tp-zen-row');
+}
+
+/** @returns the pointer on a scrollbar of `el` (right of or below its content box) */
+function onScrollbar(el: HTMLElement, e: PointerEvent): boolean {
+    const r = el.getBoundingClientRect();
+    return e.clientX >= r.left + el.clientLeft + el.clientWidth || e.clientY >= r.top + el.clientTop + el.clientHeight;
 }
 
 /** Items no longer shown (filtered out, gone) dropped from the selection */
@@ -89,10 +125,40 @@ export function showPicked(z: Zen): void {
 /**
  * Checkboxes: a click picks (Shift: the range from the last one clicked); the head's: all shown or none.
  * Rows (not in edit mode): Ctrl / Cmd + click picks one more (or drops it), Shift + click the range.
+ * Ctrl / Cmd + A with the pointer over the list (the focus may be anywhere, e.g. in the viewer), not typing in a field:
+ * all items shown. A click elsewhere (cf. keepsSelection) drops the selection (Esc too: cf. zenEscape),
+ * not while a download or delete is under way.
  * @param changed selection changed
+ * @returns stops listening on the page
  */
-export function wireSelect(z: Zen, changed: () => void): void {
+export function wireSelect(z: Zen, changed: () => void): () => void {
     const grid = z.grid;
+    let over = false; // pointer over the list
+    grid.addEventListener('pointerenter', () => {
+        over = true;
+    });
+    grid.addEventListener('pointerleave', () => {
+        over = false;
+    });
+    const onKey = (e: KeyboardEvent) => {
+        if (!over || !z.data || !isSelectAllKey(e)) return;
+        // the pointer decides (not where the last click put the focus: a file shown in the viewer is no reason),
+        // unless typing in a field (its own Ctrl / Cmd + A), or the settings form is open
+        if (typing(document.activeElement) || document.querySelector('.tp-settings')) return;
+        e.preventDefault(); // not the page's text
+        e.stopPropagation();
+        pickShown(z);
+        showPicked(z);
+        changed();
+    };
+    document.addEventListener('keydown', onKey, true);
+    // on release, not on press: dropping it may change the header's height (folder line), and moving the rows
+    // between press and release would lose the click (e.g. on a folder to open)
+    const onUp = (e: PointerEvent) => {
+        if (z.fetching || z.busy || keepsSelection(z, e)) return;
+        if (dropSelection(z)) changed();
+    };
+    document.addEventListener('pointerup', onUp, true);
     grid.addEventListener('mousedown', (e) => {
         // Shift: a range of rows, not of text
         if (e.shiftKey && (e.target as HTMLElement).closest('tr.tp-zen-row, .tp-zen-pick')) e.preventDefault();
@@ -116,4 +182,8 @@ export function wireSelect(z: Zen, changed: () => void): void {
         showPicked(z);
         changed();
     });
+    return () => {
+        document.removeEventListener('keydown', onKey, true);
+        document.removeEventListener('pointerup', onUp, true);
+    };
 }

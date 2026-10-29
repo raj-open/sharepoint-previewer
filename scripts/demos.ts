@@ -110,7 +110,7 @@ const CASES: Record<string, Case> = {
         settings: { layout: 'vertical' },
         before: async (page) => {
             await h.eye(page, 'prices.csv').click();
-            await page.locator('.tp-viewer .tp-header.tp-narrow').waitFor();
+            await page.locator('.tp-viewer .tp-bar-narrow').waitFor();
             await page.locator('.tp-viewer .tp-mode-btn[title^="Display file metadata"]').click();
         },
         clip: async (page) => {
@@ -180,13 +180,15 @@ const CASES: Record<string, Case> = {
         steps: async (page) => {
             await zen(page);
             const z = page.locator('.tp-zen');
-            await z.locator('.tp-zen-btn[title^="Columns"]').click();
+            await z.locator('.tp-bar-btn[title="More"]').click();
+            await z.locator('.tp-zen-more .tp-menu-item', { hasText: 'Columns' }).click();
+            await z.locator('.tp-zen-pane .tp-bar-btn[title^="Edit"]').click(); // layout mode
             await z.locator('.tp-zen-columns label', { hasText: 'Notes' }).locator('input').check();
             await z.locator('th[title="Status"] .tp-sort').dragTo(z.locator('th[title="Modified"] .tp-sort'), {
                 targetPosition: { x: 2, y: 5 },
             });
         },
-        pointer: (page) => page.locator('.tp-zen .tp-zen-btn[title^="Save"]'),
+        pointer: (page) => page.locator('.tp-zen-pane .tp-bar-btn[title^="Save"]'),
     },
     // selection: a range by Shift, one more by Ctrl / Cmd; the download button
     'zen-select': {
@@ -201,7 +203,7 @@ const CASES: Record<string, Case> = {
             await box('harvest.ods').click({ modifiers: ['Shift'] });
             await z.locator('td.tp-zen-name', { hasText: 'people.parquet' }).click({ modifiers: ['ControlOrMeta'] });
         },
-        pointer: (page) => page.locator('.tp-zen .tp-zen-btn[title^="Download"]'),
+        pointer: (page) => page.locator('.tp-zen .tp-bar-btn[title^="Download"]'),
     },
     'zen-edit': {
         folder: '/Data',
@@ -209,7 +211,7 @@ const CASES: Record<string, Case> = {
         steps: async (page) => {
             await zen(page);
             const z = page.locator('.tp-zen');
-            await z.locator('.tp-zen-btn[title^="Edit"]').click();
+            await z.locator('.tp-bar-btn[title^="Edit"]').click();
             const row = z.locator('tr.tp-zen-row', { hasText: 'people.parquet' });
             await row.locator('select').first().selectOption('Draft');
             const priority = row.locator('.tp-zen-text[contenteditable]').nth(1); // after the name: Priority
@@ -217,8 +219,8 @@ const CASES: Record<string, Case> = {
             await page.keyboard.press('ControlOrMeta+a');
             await page.keyboard.type('urgent');
             await page.keyboard.press('Enter');
-            await z.locator('.tp-zen-btn[title^="Save"]').click();
-            await z.locator('.tp-zen-btn[title^="Upload"]').click();
+            await z.locator('.tp-bar-btn[title^="Save"]').click();
+            await z.locator('.tp-bar-btn[title^="Upload"]').click();
             await z.locator('td.tp-zen-error').waitFor();
             // a change not saved yet
             const due = z
@@ -774,7 +776,7 @@ const HERO: Story[] = [
             {
                 caption: 'Edit properties in place …',
                 act: async (page) => {
-                    await tap(page, page.locator('.tp-zen .tp-zen-btn[title^="Edit"]'));
+                    await tap(page, page.locator('.tp-zen .tp-bar-btn[title^="Edit"]'));
                     await page.locator('.tp-zen select.tp-zen-input').first().waitFor();
                 },
             },
@@ -802,21 +804,21 @@ const HERO: Story[] = [
             {
                 caption: '… save: kept in the view …',
                 act: async (page) => {
-                    await tap(page, page.locator('.tp-zen .tp-zen-btn[title^="Save"]'));
+                    await tap(page, page.locator('.tp-zen .tp-bar-btn[title^="Save"]'));
                     await page.locator('.tp-zen .tp-zen-note', { hasText: 'saved in the view' }).waitFor();
                 },
             },
             {
                 caption: "… upload: applied as with Sharepoint's own form",
                 act: async (page) => {
-                    await tap(page, page.locator('.tp-zen .tp-zen-btn[title^="Upload"]'));
+                    await tap(page, page.locator('.tp-zen .tp-bar-btn[title^="Upload"]'));
                     await page.locator('.tp-zen .tp-zen-note', { hasText: 'uploaded' }).waitFor();
                 },
             },
             {
                 caption: '… in dark mode, too',
                 act: async (page, v) => {
-                    await tap(page, page.locator('.tp-zen .tp-zen-btn[title^="Edit"]')); // edit mode off
+                    await tap(page, page.locator('.tp-zen .tp-bar-btn[title^="Edit"]')); // edit mode off
                     await tap(page, page.locator('.tp-zen td.tp-zen-name', { hasText: 'prices.csv' })); // into the viewer
                     await v.locator('.tp-title-name', { hasText: 'prices.csv' }).waitFor();
                     await tap(page, v.locator('.tp-mode-btn[title="More"]'));
@@ -980,11 +982,9 @@ async function editText(page: Page, v: Locator): Promise<void> {
 }
 
 /** Opens a file and caches all of it (button "Cache the whole file"), until fully cached. */
-/** Zen mode from the ⋯ menu of the viewer open; waits for the list */
+/** Zen mode by its tab; waits for the list */
 async function zen(page: Page): Promise<void> {
-    const v = page.locator('.tp-viewer');
-    await v.locator('.tp-mode-btn[title="More"]').click();
-    await v.locator('.tp-menu-item', { hasText: 'Zen mode' }).click();
+    await page.locator('.tp-zen-tab').click();
     await page.locator('.tp-zen .tp-zen-row').first().waitFor();
     await page.mouse.move(0, 0); // no hover marks
 }
