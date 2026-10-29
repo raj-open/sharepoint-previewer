@@ -4,8 +4,8 @@ import { describe } from 'node:test';
 import { it } from 'node:test';
 import { load } from '../helpers.ts';
 
-const { isSelectAllKey, pick, pickAll, pickShown, pickState, pruneSelection, selectedItems } =
-    await load('zen/select.ts');
+const { pick, pickAll, pickShown, pickState, pruneSelection, selectedItems } = await load('zen/select.ts');
+const { isSelectAllKey } = await load('_core/util.ts');
 
 const item = (id: number, name: string, folder = false) => ({
     id,

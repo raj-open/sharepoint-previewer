@@ -311,6 +311,32 @@ describe('zen mode', () => {
         assert.equal(await page.evaluate(() => String(window.getSelection()).trim()), '', 'no text marked');
     });
 
+    it('select all: the pointer decides, not the file shown (list: its items; viewer content: its text)', async () => {
+        const { page } = await openFolder(DATA);
+        const z = await zen(page);
+        const n = (await names(z)).length;
+        const picked = () => z.locator('tr.tp-zen-selected').count();
+        const text = () => page.evaluate(() => String(getSelection()));
+        await z.locator('td.tp-zen-name', { hasText: 'prices.csv' }).click(); // shown in the viewer (focus there)
+        const v = page.locator('.tp-viewer');
+        await v.locator('.tp-title-name', { hasText: 'prices.csv' }).waitFor();
+        await v.locator('.tp-view-btn', { hasText: 'Text' }).click();
+        await v.locator('.tp-content').click();
+        await z.locator('tr.tp-zen-row').nth(3).hover();
+        await page.keyboard.press('ControlOrMeta+a');
+        assert.equal(await picked(), n, 'the list: all its items');
+        assert.equal(await text(), '', 'no text marked');
+        await v.locator('.tp-content').hover();
+        await page.keyboard.press('ControlOrMeta+a');
+        assert.match(await text(), /banana, ripe/, 'the viewer: its text');
+        assert.equal(await picked(), n, 'the list as it was');
+        // Esc: whatever is selected dropped (text and items at once); the viewer stays
+        await page.keyboard.press('Escape');
+        assert.equal(await text(), '');
+        assert.equal(await picked(), 0);
+        assert.equal(await v.count(), 1, 'viewer still open');
+    });
+
     it('download: one file as it is; several, or a folder with all in it: a ZIP named after the folder', async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);

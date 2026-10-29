@@ -254,10 +254,7 @@ export function zenEscape(): boolean {
         closeFilterPanel();
         return true;
     }
-    if (!z.fetching && !z.busy && dropSelection(z)) {
-        showButtons(z);
-        return true;
-    }
+    if (zenDropSelection()) return true;
     if (z.layout) {
         leaveLayout(z);
         return true;
@@ -268,6 +265,14 @@ export function zenEscape(): boolean {
     }
     if (!z.editing || (viewer?.writeMode && !z.el.contains(document.activeElement))) return false;
     leaveEdit(z);
+    return true;
+}
+
+/** Selection of the Zen list dropped (Esc; not while a download or delete runs) @returns there was one */
+export function zenDropSelection(): boolean {
+    const z = zenList;
+    if (!z || z.fetching || z.busy || !dropSelection(z)) return false;
+    showButtons(z);
     return true;
 }
 

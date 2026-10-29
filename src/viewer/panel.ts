@@ -18,6 +18,8 @@ import { POPUP_POS_KEY } from '../_core/settings-form.ts';
 import { POPUP_SIZE_KEY } from '../_core/settings-form.ts';
 import { LARGE_FILE_BYTES } from '../_core/settings.ts';
 import { formatBytes } from '../_core/util.ts';
+import { isSelectAllKey } from '../_core/util.ts';
+import { typing } from '../_core/util.ts';
 import { barButton } from '../ui/bar.ts';
 import { closeButton } from '../ui/bar.ts';
 import { createBar } from '../ui/bar.ts';
@@ -51,6 +53,7 @@ import { keepSize } from '../ui/move.ts';
 import { startMove } from '../ui/move.ts';
 import { createPicker } from '../ui/picker.ts';
 import { QUOTE_MODES } from '../view/table.ts';
+import { zenDropSelection } from '../zen/zen.ts';
 import { zenEscape } from '../zen/zen.ts';
 import { zenProps } from '../zen/zen.ts';
 import { zenTheme } from '../zen/zen.ts';
@@ -501,6 +504,11 @@ export function createViewer(): Viewer {
         if ((e.target as HTMLElement).classList?.contains('tp-name-input')) return; // name box: its own Esc
         e.stopPropagation();
         for (const p of [sheetPicker, formatPicker]) if (!p.menu.hidden) return void p.close();
+        // whatever is selected: the content's text (not in the editor: its own Esc), the Zen list's items; all of it at once
+        const s = getSelection();
+        const marked = !!s && !s.isCollapsed && content.contains(s.anchorNode);
+        if (marked) s?.removeAllRanges();
+        if (zenDropSelection() || marked) return;
         if (zenEscape()) return; // Zen list: its menus, then its edit mode
         if (v.writeMode) return void leaveWrite(); // only back to reading: Esc again closes
         closeViewer();
@@ -516,6 +524,7 @@ export function createViewer(): Viewer {
     const sizeObserver = keepSize(box, POPUP_SIZE_KEY, () => v.mode === 'popup');
     v.removeListeners = () => {
         document.removeEventListener('keydown', onEscape, true);
+        document.removeEventListener('keydown', onSelectAll, true);
         window.removeEventListener('resize', onResize);
         stopBar();
         sizeObserver.disconnect();
@@ -713,13 +722,24 @@ export function createViewer(): Viewer {
         { passive: false },
     );
 
-    // Text view: whole file selected (also lines not drawn yet), and copied as such
-    const selectAll = () => {
-        const lines = content.firstElementChild;
-        if (!lines?.classList.contains('tp-lines')) return false; // table, Markdown: as the browser does
-        getSelection()?.selectAllChildren(lines);
-        return true;
+    // Ctrl / ⌘ + A with the pointer over the content (wherever the focus is; not typing in a field, e.g. the editor
+    // or a table cell): all of the content selected (text view: the whole file, also lines not drawn yet, copied as such)
+    let overContent = false;
+    content.addEventListener('pointerenter', () => {
+        overContent = true;
+    });
+    content.addEventListener('pointerleave', () => {
+        overContent = false;
+    });
+    const onSelectAll = (e: KeyboardEvent) => {
+        if (!overContent || viewer !== v || !isSelectAllKey(e) || typing(document.activeElement)) return;
+        const shown = content.firstElementChild;
+        if (!shown) return;
+        e.preventDefault(); // not the page's text
+        e.stopPropagation();
+        getSelection()?.selectAllChildren(shown);
     };
+    document.addEventListener('keydown', onSelectAll, true);
     content.addEventListener('copy', (e) => {
         const lines = content.firstElementChild;
         const s = getSelection();
@@ -730,7 +750,7 @@ export function createViewer(): Viewer {
         e.preventDefault();
     });
 
-    // Keys in the content area (once clicked into) or editor: Ctrl / ⌘ with + − 0 (text size), A (select all)
+    // Keys in the content area (once clicked into) or editor: Ctrl / ⌘ with + − 0 (text size)
     box.addEventListener('keydown', (e) => {
         const t = e.target as Node;
         if (e.key === 'F2' && renamable(v)) {
@@ -741,7 +761,7 @@ export function createViewer(): Viewer {
         if (e.key === '+' || e.key === '=') zoomBy(1);
         else if (e.key === '-') zoomBy(-1);
         else if (e.key === '0') setZoom(1);
-        else if (e.key.toLowerCase() !== 'a' || t !== content || !selectAll()) return;
+        else return;
         e.preventDefault();
     });
 

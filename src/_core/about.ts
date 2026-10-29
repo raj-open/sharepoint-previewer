@@ -36,8 +36,8 @@ export const CONTROLS: [string, string][] = [
         'purge the items selected: for good, not to the recycle bin (warns first)',
     ],
     ['Files dragged in (Zen list)', 'uploaded into the folder shown, by Sharepoint itself'],
-    ['Ctrl / ⌘ + A (Zen list, pointer over it)', 'select all items shown; Esc or a click elsewhere: none'],
-    ['Ctrl / ⌘ + A (text view)', 'select the whole text'],
+    ['Ctrl / ⌘ + A, pointer over the Zen list', 'select all items shown; Esc or a click elsewhere: none'],
+    ['Ctrl / ⌘ + A, pointer over the viewer', 'select its whole text; Esc: none'],
     ['Ctrl / ⌘ + S', 'save (editing, Zen edit and layout mode, settings)'],
     ['Esc', 'leave editing; again: close the viewer'],
 ];

@@ -367,8 +367,10 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
 - **Selection** (`/src/zen/select.ts`), as in Sharepoint's view: a checkbox per row, the head's for all rows shown (or none);
   Shift + click: the range from the last one clicked (in the order shown); outside edit mode on a row as well,
   Ctrl / ⌘ + click on a row picks it (or drops it) without opening it.
-  Ctrl / ⌘ + A with the pointer over the list picks all items it shows (all loaded, also those scrolled out of sight;
-  filtered out: not; nothing more read), unless the text cursor is in a field, the viewer, a bar or the columns pane.
+  Ctrl / ⌘ + A picks all items the list shows (all loaded, also those scrolled out of sight; filtered out: not;
+  nothing more read) when the pointer is over the list: the pointer decides, not the focus (a file shown in the viewer
+  is no reason); with the pointer over the viewer's content: its text; typing in a field: the field's.
+  Esc drops whatever is selected (the viewer's text and the list's items at once) before anything else it does.
   Esc or a click elsewhere drops the selection (not one on Download, Delete / Purge, a checkbox, a row by Shift or Ctrl / ⌘,
   the list's scrollbars; not while a download or delete runs); on release, so a click that shifts the rows still arrives.
   Any empty space counts as elsewhere (below the rows, the page around). Outside edit mode no text of the list is marked

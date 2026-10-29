@@ -5,6 +5,7 @@
 // IMPORTS
 // ===========================================================================
 
+import { isSelectAllKey } from '../_core/util.ts';
 import { typing } from '../_core/util.ts';
 import { itemOf } from './grid.ts';
 import { itemsShown } from './grid.ts';
@@ -81,10 +82,6 @@ function onScrollbar(el: HTMLElement, e: PointerEvent): boolean {
     return e.clientX >= r.left + el.clientLeft + el.clientWidth || e.clientY >= r.top + el.clientTop + el.clientHeight;
 }
 
-/** @returns Ctrl / Cmd + A (no Shift or Alt) */
-export const isSelectAllKey = (e: KeyboardEvent): boolean =>
-    !!(e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a';
-
 /** Items no longer shown (filtered out, gone) dropped from the selection */
 export function pruneSelection(z: Zen): void {
     const shown = new Set(itemsShown(z).map((x) => x.id));
@@ -128,7 +125,7 @@ export function showPicked(z: Zen): void {
 /**
  * Checkboxes: a click picks (Shift: the range from the last one clicked); the head's: all shown or none.
  * Rows (not in edit mode): Ctrl / Cmd + click picks one more (or drops it), Shift + click the range.
- * Ctrl / Cmd + A, the pointer over the list and the text cursor in no field (nor in the viewer, a bar or the pane):
+ * Ctrl / Cmd + A with the pointer over the list (the focus may be anywhere, e.g. in the viewer), not typing in a field:
  * all items shown. A click elsewhere (cf. keepsSelection) drops the selection (Esc too: cf. zenEscape),
  * not while a download or delete is under way.
  * @param changed selection changed
@@ -145,8 +142,9 @@ export function wireSelect(z: Zen, changed: () => void): () => void {
     });
     const onKey = (e: KeyboardEvent) => {
         if (!over || !z.data || !isSelectAllKey(e)) return;
-        const focus = document.activeElement;
-        if (typing(focus) || focus?.closest('.tp-viewer, .tp-bar, .tp-zen-pane, .tp-menu, .tp-settings')) return;
+        // the pointer decides (not where the last click put the focus: a file shown in the viewer is no reason),
+        // unless typing in a field (its own Ctrl / Cmd + A), or the settings form is open
+        if (typing(document.activeElement) || document.querySelector('.tp-settings')) return;
         e.preventDefault(); // not the page's text
         e.stopPropagation();
         pickShown(z);
