@@ -437,9 +437,20 @@ describe('zen mode', () => {
         assert.equal(before[1], 'Modified');
         await editColumns(z); // layout mode
         const status = z.locator('th[title="Status"] .tp-sort');
-        await status.dragTo(z.locator('th[title="Modified"] .tp-sort'), {
-            targetPosition: { x: 2, y: 5 },
-        });
+        // halfway: Modified shaded, a bar at its left edge down the whole list, a copy of Status lifted
+        const from = await status.boundingBox();
+        const to = await z.locator('th[title="Modified"]').boundingBox();
+        const grid = await z.locator('.tp-zen-grid').boundingBox();
+        assert.ok(from && to && grid);
+        await page.mouse.move(from.x + 5, from.y + 5);
+        await page.mouse.down();
+        await page.mouse.move(to.x + 4, to.y + 5, { steps: 8 });
+        assert.equal(await z.locator('th[title="Modified"].tp-drop-target').count(), 1, 'target shaded');
+        const bar = await page.locator('.tp-drop-bar').boundingBox();
+        assert.ok(bar && Math.abs(bar.x + bar.width / 2 - to.x) <= 3, 'bar at its left edge');
+        assert.ok(bar && bar.height >= grid.height - 2, 'across the whole list');
+        assert.match(await h.text(page.locator('.tp-lifted')), /Status/);
+        await page.mouse.up();
         const moved = await titles(z);
         assert.equal(moved[1], 'Status', moved.join(', '));
         assert.equal(await z.locator('th .tp-sort', { hasText: '▲' }).count(), 0, 'no sort after the drag');

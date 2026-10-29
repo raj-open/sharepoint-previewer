@@ -351,9 +351,10 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
   read only until its **Edit** (layout mode); its own bar: Edit, Cancel, Save, Upload (as the list's), ✕.
   Its left edge is dragged to change the width (kept: `tp-preview-zen-pane`); released narrower than 200 px, the pane closes.
 - **Layout mode** (Edit in the columns pane): the only mode in which columns are shown or hidden and moved.
-  Columns are moved by dragging their titles in the list or the entries of the pane with the pointer (a copy of the title or entry
-  lifted and moved along meanwhile)
-  (`/src/view/reorder.ts`; no HTML drag and drop, which Sharepoint takes for its uploads).
+  Columns are moved by dragging their titles in the list or the entries of the pane with the pointer
+  (`/src/view/reorder.ts`; no HTML drag and drop, which Sharepoint takes for its uploads); meanwhile a copy of the title
+  or entry is lifted and moved along, the target is shaded and a blue bar marks where it goes
+  (left or right of a column, down the whole list; above or below an entry).
   Changes are a draft (`z.columns`, shown at once; the columns as saved in `z.layout`):
   Save keeps them for the library (in this browser), Cancel / Edit again / ✕ / Esc drop what is not saved (after asking);
   compared as shown (order, hidden ones), not as written out.
@@ -430,7 +431,9 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
     above 16 MB the user is asked.
   - CSV can be edited in the table:
     cells, rows and columns can be inserted, moved and deleted,
-    and delimiter and quote style can be changed.
+    and delimiter and quote style can be changed;
+    rows (by their numbers) and columns (by their titles) are moved as the Zen list's columns
+    (`/src/view/reorder.ts`: a lifted copy, the target shaded, a bar where it goes).
 - **Another name** (click the file name, or F2):
   - Text files: in write mode; the name is saved with the text.
     The upload then creates a new file (or replaces the one of that name, after asking again).

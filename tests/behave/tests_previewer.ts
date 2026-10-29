@@ -567,6 +567,44 @@ describe('editing', () => {
         await v.locator('.tp-editor').waitFor();
     }
 
+    it('table (write mode): columns and rows moved by the pointer, the target shaded, a bar where it goes', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Data`);
+        const v = await h.preview(page, 'prices.csv');
+        await v.locator('.tp-mode-btn[title^="Edit"]').click();
+        const table = v.locator('.tp-table.tp-editing');
+        if (!(await table.count())) await v.locator('.tp-view-btn', { hasText: 'Table' }).click();
+        await table.waitFor();
+        const heads = () => table.locator('th[data-c] .tp-sort').allTextContents();
+        const firsts = () => table.locator('tbody tr td[data-c="0"]').allTextContents();
+        /** drags `from` to the near edge of `to` (before it), checks the marks halfway */
+        const drag = async (from: Locator, to: Locator, axis: 'x' | 'y') => {
+            const a = await from.boundingBox();
+            const b = await to.boundingBox();
+            assert.ok(a && b);
+            await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+            await page.mouse.down();
+            const x = axis === 'x' ? b.x + 4 : b.x + b.width / 2;
+            const y = axis === 'y' ? b.y + 3 : b.y + b.height / 2;
+            await page.mouse.move(x, y, { steps: 8 });
+            assert.equal(await page.locator('.tp-drop-bar:not([hidden])').count(), 1, 'bar shown');
+            assert.equal(await table.locator('.tp-drop-target').count(), 1, 'target shaded');
+            assert.equal(await page.locator('.tp-lifted').count(), 1, 'lifted copy');
+            const bar = await page.locator('.tp-drop-bar').boundingBox();
+            assert.ok(bar);
+            if (axis === 'x') assert.ok(Math.abs(bar.x + bar.width / 2 - b.x) <= 3, 'bar at the left edge');
+            else assert.ok(Math.abs(bar.y + bar.height / 2 - b.y) <= 3, 'bar at the top edge');
+            await page.mouse.up();
+            assert.equal(await page.locator('.tp-drop-bar, .tp-lifted').count(), 0, 'marks gone');
+        };
+        assert.deepEqual(await heads(), ['item', 'price', 'currency']);
+        await drag(table.locator('th[data-c="2"]'), table.locator('th[data-c="0"]'), 'x');
+        assert.deepEqual(await heads(), ['currency', 'item', 'price']);
+        const rows = table.locator('td.tp-rn[data-row]');
+        await drag(rows.nth(2), rows.nth(0), 'y');
+        assert.match((await firsts())[0] ?? '', /EUR/); // first column: currency
+        assert.match(await h.text(table.locator('tbody tr').first()), /cherry/);
+    });
+
     it('Esc: only back to reading (saved changes stay, asks for unsaved ones); Esc again: closed', async () => {
         const page = await openFolder(h.LIBRARY);
         const v = await h.preview(page, 'notes.txt');

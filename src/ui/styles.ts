@@ -380,7 +380,7 @@ const CSS = `
     cursor: pointer;
     box-shadow: 0 1px 4px rgba(0,0,0,.3);
   }
-  .tp-table [draggable="true"] { cursor: grab; }
+  .tp-table.tp-editing th[data-c], .tp-table.tp-editing td.tp-rn[data-row] { cursor: grab; user-select: none; -webkit-user-select: none; }
   /* inside its title (the next title, painted later, would cover a handle reaching into it) */
   .tp-resize {
     position: absolute;
@@ -409,10 +409,6 @@ const CSS = `
   /* Write mode: room on the left for the "+" between rows */
   .tp-table.tp-editing { margin-left: 14px; }
   .tp-table.tp-editing .tp-rn { left: 14px; }
-  .tp-table .tp-drop-before { box-shadow: inset 0 3px 0 var(--tp-accent); }
-  .tp-table .tp-drop-after { box-shadow: inset 0 -3px 0 var(--tp-accent); }
-  .tp-table th.tp-drop-before { box-shadow: inset 3px 0 0 var(--tp-accent); }
-  .tp-table th.tp-drop-after { box-shadow: inset -3px 0 0 var(--tp-accent); }
   .tp-table td[contenteditable] { cursor: text; outline: none; }
   .tp-statusbar {
     position: relative;
@@ -1011,9 +1007,20 @@ const CSS = `
   .tp-zen-grip { opacity: .5; }
   /* Moving columns (titles, pane): dragged with the pointer */
   .tp-zen th.tp-movable, .tp-zen-pane-editing label { cursor: grab; user-select: none; -webkit-user-select: none; }
-  .tp-zen .tp-reordering, .tp-zen .tp-reordering * { cursor: grabbing; }
-  .tp-zen .tp-moving { opacity: .5; }
-  /* the item dragged: a copy lifted under the pointer (cf. /src/view/reorder.ts) */
+  /* Moving columns and rows (cf. /src/view/reorder.ts), Zen list and table view alike:
+     the target shaded, a bar where the item goes (across the list), a copy of the item lifted under the pointer */
+  .tp-drop-target { box-shadow: inset 0 0 0 9999px rgba(0, 120, 212, .28) !important; }
+  .tp-drop-bar {
+    position: fixed;
+    z-index: 2147483646;
+    pointer-events: none;
+    border-radius: 2px;
+    background: #0078d4;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, .7), 0 0 6px rgba(0, 120, 212, .6);
+  }
+  .tp-drop-bar[hidden] { display: none; }
+  .tp-reordering, .tp-reordering * { cursor: grabbing !important; }
+  .tp-moving { opacity: .5; }
   .tp-lifted {
     position: fixed;
     z-index: 2147483647;
@@ -1024,11 +1031,9 @@ const CSS = `
     overflow: hidden;
     white-space: nowrap;
     border-radius: 4px;
-    opacity: .9;
+    opacity: .8;
     box-shadow: 0 6px 16px rgba(0, 0, 0, .3);
   }
-  .tp-zen-columns .tp-drop-before { box-shadow: inset 0 2px 0 var(--tp-accent); }
-  .tp-zen-columns .tp-drop-after { box-shadow: inset 0 -2px 0 var(--tp-accent); }
 `;
 
 // ===========================================================================
