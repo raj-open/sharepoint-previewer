@@ -173,6 +173,21 @@ const CASES: Record<string, Case> = {
             await page.locator('.tp-viewer .tp-title-sheet').waitFor();
         },
     },
+    // layout mode: columns menu open, one column hidden, one moved (a draft, not saved yet)
+    'zen-layout': {
+        folder: '/Data',
+        file: 'prices.csv',
+        steps: async (page) => {
+            await zen(page);
+            const z = page.locator('.tp-zen');
+            await z.locator('.tp-zen-btn[title^="Columns"]').click();
+            await z.locator('.tp-zen-columns label', { hasText: 'Notes' }).locator('input').check();
+            await z.locator('th[title="Status"] .tp-sort').dragTo(z.locator('th[title="Modified"] .tp-sort'), {
+                targetPosition: { x: 2, y: 5 },
+            });
+        },
+        pointer: (page) => page.locator('.tp-zen .tp-zen-btn[title^="Save"]'),
+    },
     'zen-edit': {
         folder: '/Data',
         file: 'prices.csv',
