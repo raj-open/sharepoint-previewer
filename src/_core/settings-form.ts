@@ -156,7 +156,7 @@ export function openSettingsForm(start = 'form'): void {
         `<button type="button" data-mode="${mode}" style="border:none; padding:4px 12px; font:12px ${font}; cursor:pointer">${text}</button>`;
     form.innerHTML = `<div data-drag title="Drag to move" style="display:flex; align-items:center; gap:12px; margin:0 0 14px; cursor:move">
       <div style="display:flex; border:1px solid ${c.border}; border-radius:6px; overflow:hidden">${tab('form', 'Form')}${tab('json', 'JSON')}${tab('about', 'About')}</div>
-      <h3 style="flex:1; margin:0; font:600 16px ${font}">${APP_NAME}: settings</h3>
+      <h3 data-title style="flex:1; margin:0; font:600 16px ${font}">${APP_NAME}: settings</h3>
       <div title="${esc(brandTitle())}" style="display:flex; align-items:center; gap:8px; font:11px ${font}; opacity:.75; white-space:nowrap">${brandHtml()}</div>
       <button type="button" data-act="close" title="Close" style="width:28px; height:28px; padding:0; border:none; border-radius:6px; background:transparent; color:${c.fg}; font:18px/1 ${font}; cursor:pointer">✕</button>
     </div>
@@ -319,6 +319,7 @@ export function openSettingsForm(start = 'form'): void {
             b.style.color = active ? '#fff' : c.fg;
         }
         part('[data-footer]').style.visibility = about ? 'hidden' : 'visible';
+        part('[data-title]').textContent = `${APP_NAME}: ${about ? 'about' : 'settings'}`;
     };
     // Form / JSON switch: other view takes over values entered so far; "About" leaves them as they are
     const setMode = (next: string) => {

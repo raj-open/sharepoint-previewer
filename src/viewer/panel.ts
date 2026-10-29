@@ -263,7 +263,6 @@ export function createViewer(): Viewer {
         [
             newItem,
             settingsBtn,
-            aboutBtn,
             zenBtn,
             themeBtn,
             colourBtn,
@@ -272,6 +271,7 @@ export function createViewer(): Viewer {
             reload3dBtn,
             clearBtn,
             clearAllBtn,
+            aboutBtn,
         ],
         true,
     );

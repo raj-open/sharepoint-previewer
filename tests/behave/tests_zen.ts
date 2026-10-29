@@ -416,14 +416,14 @@ describe('zen mode', () => {
         assert.deepEqual(await titles(await filled(page)), before, 'nothing kept');
     });
 
-    it('⋯ menu: settings, about, dark mode, reload of the folder; ✕: Zen mode off (the viewer stays)', async () => {
+    it('⋯ menu: settings, dark mode, reload of the folder, about (last); ✕: Zen mode off (the viewer stays)', async () => {
         const { page, requests } = await openFolder(DATA);
         const z = await zen(page);
         await btn(z, 'More').click();
         const items = await z.locator('.tp-zen-more .tp-menu-item').allTextContents();
         assert.deepEqual(
             items.map((t) => t.trim()),
-            ['Full settings …', 'About …', 'Dark mode', 'Reload the folder'],
+            ['Full settings …', 'Dark mode', 'Reload the folder', 'About …'],
         );
         await z.locator('.tp-zen-more .tp-menu-item', { hasText: 'Dark mode' }).click();
         assert.ok(await z.evaluate((el) => el.classList.contains('tp-dark')));
@@ -750,6 +750,7 @@ describe('settings form', () => {
                 'rgb(255, 255, 255)',
                 'its tab pressed',
             );
+            assert.equal(await h.text(settings.locator('[data-title]')), 'Sharepoint Previewer: about');
         };
         const close = () => settings.locator('[data-act="close"]').click();
         // the viewer's ⋯ menu
@@ -769,6 +770,7 @@ describe('settings form', () => {
         await settings.locator('[data-mode="form"]').click();
         assert.equal(await settings.locator('[data-pane="form"]').isVisible(), true);
         assert.equal(await settings.locator('[data-act="save"]').isVisible(), true);
+        assert.equal(await h.text(settings.locator('[data-title]')), 'Sharepoint Previewer: settings');
         await close();
         // the Zen list's ⋯ menu
         const z = await zen(page);

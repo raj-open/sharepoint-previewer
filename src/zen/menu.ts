@@ -1,4 +1,4 @@
-// Zen list menus: closed by a pointer down outside; the ⋯ menu (settings, about, dark mode, reload), as the viewer's
+// Zen list menus: closed by a pointer down outside; the ⋯ menu (settings, dark mode, reload, about: last), as the viewer's
 
 // ===========================================================================
 // IMPORTS
@@ -49,9 +49,9 @@ export function toggleMore(z: Zen, anchor: HTMLElement, reload: () => void): voi
     };
     menu.append(
         item(SETTINGS_SVG, 'Full settings …', () => openSettingsForm()),
-        item(ABOUT_SVG, 'About …', () => openSettingsForm('about')),
         item(THEME_SVG, 'Dark mode', toggleTheme, view.theme === 'dark'),
         item(REFRESH_SVG, 'Reload the folder', reload),
+        item(ABOUT_SVG, 'About …', () => openSettingsForm('about')),
     );
     menu.style.top = `${anchor.offsetTop + anchor.offsetHeight + 4}px`;
     menu.style.right = `${z.el.clientWidth - anchor.offsetLeft - anchor.offsetWidth}px`;
