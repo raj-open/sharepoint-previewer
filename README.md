@@ -79,6 +79,7 @@ Quick start:
 3. Open a Sharepoint library and click the eye next to a file.
 
 Details (requirements, the optional 3D view, settings, setup for developers): [INSTALL.md](INSTALL.md).
+The controls that are hard to discover are listed in the script itself: Tampermonkey menu → "About …" (or ⋯ → "About …").
 
 ## Notes ##
 
