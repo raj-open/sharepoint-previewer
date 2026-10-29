@@ -343,7 +343,13 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
   Files are fetched by the page (4 at a time, same origin only) and packed in the browser
   (`/src/zen/pack.ts`: ZIP after PKWARE's APPNOTE, UTF-8 names, deflated where smaller, dates from `Last-Modified`; no ZIP64);
   limits: 2 GB, 10,000 files (`MAX_DOWNLOAD`, `MAX_FILES`; Sharepoint's own download for more).
-- **Bar:** eye, crumbs, note; selection (or progress), Download; Edit, Cancel, Save, Upload (Save and Cancel: of the mode on); columns; ⋯; ✕.
+- **Delete** (`/src/zen/delete.ts`, bin button; Delete key or ⌘ + Backspace in the list, not while typing in a field):
+  asks first (`confirm`: number and names of the items, at most 20, folders marked and warned of: all in them go too);
+  then item by item `POST …/GetList(@list)/items(<id>)/recycle()`, as Sharepoint's own Delete:
+  to the site's recycle bin (restorable there), a folder with everything below it.
+  The folder is read anew; items refused are named with Sharepoint's reason;
+  a file shown in the viewer (or in a folder deleted) closes the viewer.
+- **Bar:** eye, crumbs, note; selection (or progress), Download, Delete; Edit, Cancel, Save, Upload (Save and Cancel: of the mode on); columns; ⋯; ✕.
   ⋯ (`/src/zen/menu.ts`): full settings, dark mode (shared with the viewer: `toggleTheme` in `/src/viewer/panel.ts`), reload of the folder.
   ✕: Zen mode off.
   Narrow (less than 200 px left beside the buttons, `MIN_CRUMBS`): the crumbs on a second row, full width, as the file name in the viewer's header.

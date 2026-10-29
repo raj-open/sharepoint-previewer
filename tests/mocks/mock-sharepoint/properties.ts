@@ -1,6 +1,7 @@
 // Mock Sharepoint: properties of the library items (columns of a document library) and their REST API,
 // as far as the userscript's Zen mode uses it: fields, views, items of a folder (with FieldValuesAsText),
-// form digest, ValidateUpdateListItem (values checked as Sharepoint's form does; renames of files).
+// form digest, ValidateUpdateListItem (values checked as Sharepoint's form does; renames of files),
+// recycle (files and folders deleted: to the recycle bin, i.e. left out of all listings and requests).
 // Values start made up (the same each time, from the path); changes are kept per session of simulated uploads
 // (<uploads>/.properties.json), as uploads are, and never touch the files on disk.
 
@@ -13,8 +14,13 @@ import path from 'node:path';
 
 // Entry of a folder listing (cf. server.ts)
 export type Entry = { name: string; folder: boolean; size: number; author?: string; uploaded?: boolean };
-// Changes of a session: values per original path, renamed files (new path -> original path)
-export type Store = { values: Record<string, Record<string, Value>>; renamed: Record<string, string> };
+// Changes of a session: values per original path, renamed files (new path -> original path),
+// items deleted (paths as named then; folders with all below them)
+export type Store = {
+    values: Record<string, Record<string, Value>>;
+    renamed: Record<string, string>;
+    deleted: string[];
+};
 type Value = string | number | boolean | null;
 type Field = {
     InternalName: string;
@@ -91,13 +97,14 @@ const BAD_NAME = /["*:<>?/\\|]/;
 // ----------------------------------------------------------------
 
 export function loadStore(uploads?: string): Store {
+    const empty: Store = { values: {}, renamed: {}, deleted: [] };
     try {
-        if (uploads) return JSON.parse(fs.readFileSync(path.join(uploads, STORE), 'utf8'));
+        if (uploads) return { ...empty, ...JSON.parse(fs.readFileSync(path.join(uploads, STORE), 'utf8')) };
     } catch {}
-    return { values: {}, renamed: {} };
+    return empty;
 }
 
-function saveStore(uploads: string, store: Store): void {
+export function saveStore(uploads: string, store: Store): void {
     fs.mkdirSync(uploads, { recursive: true });
     fs.writeFileSync(path.join(uploads, STORE), JSON.stringify(store, null, 2));
 }
@@ -107,6 +114,18 @@ export const originalOf = (store: Store, p: string): string => store.renamed[p] 
 
 /** @returns a file renamed away (its old path no longer exists) */
 export const renamedAway = (store: Store, p: string): boolean => Object.values(store.renamed).includes(p);
+
+/** @returns path deleted in this session (or in a folder deleted) */
+export const deletedAway = (store: Store, p: string): boolean =>
+    store.deleted.some((d) => p.toLowerCase() === d.toLowerCase() || p.toLowerCase().startsWith(`${d.toLowerCase()}/`));
+
+/** Folders and entries deleted in this session left out (cf. recycle) */
+export function applyDeletes(store: Store, tree: Record<string, Entry[]>): void {
+    for (const folder of Object.keys(tree)) {
+        if (deletedAway(store, folder)) delete tree[folder];
+        else tree[folder] = tree[folder].filter((e) => !deletedAway(store, `${folder}/${e.name}`));
+    }
+}
 
 /** Entries of a folder with the names given in this session */
 export function applyRenames(store: Store, folder: string, entries: Entry[]): void {
@@ -222,6 +241,21 @@ export function itemsAnswer(tree: Record<string, Entry[]>, folder: string, store
     return { status: 200, data: { value: items } };
 }
 
+/** @returns error as Sharepoint answers it */
+const spError = (status: number, message: string): Answer => ({
+    status,
+    data: {
+        'odata.error': { code: '-1, Microsoft.SharePoint.SPException', message: { lang: 'en-US', value: message } },
+    },
+});
+
+/** @returns item of that id: its folder and entry */
+function itemOf(tree: Record<string, Entry[]>, store: Store, id: number): { folder: string; e: Entry } | undefined {
+    return Object.entries(tree).flatMap(([folder, entries]) =>
+        entries.filter((e) => idOf(originalOf(store, `${folder}/${e.name}`)) === id).map((e) => ({ folder, e })),
+    )[0];
+}
+
 export const contextAnswer = (): Answer => ({
     status: 200,
     data: { FormDigestValue: DIGEST, FormDigestTimeoutSeconds: 1800 },
@@ -278,12 +312,7 @@ export function validateUpdate(
     digest: string | undefined,
     uploads: string | undefined,
 ): Answer {
-    const error = (status: number, message: string): Answer => ({
-        status,
-        data: {
-            'odata.error': { code: '-1, Microsoft.SharePoint.SPException', message: { lang: 'en-US', value: message } },
-        },
-    });
+    const error = spError;
     if (digest !== DIGEST)
         return error(403, 'The security validation for this page is invalid and might be corrupted.');
     if (!uploads) return error(405, 'Changes are not simulated here.');
@@ -294,9 +323,7 @@ export function validateUpdate(
         return error(400, 'Invalid JSON.');
     }
     const store = loadStore(uploads);
-    const found = Object.entries(tree).flatMap(([folder, entries]) =>
-        entries.filter((e) => idOf(originalOf(store, `${folder}/${e.name}`)) === id).map((e) => ({ folder, e })),
-    )[0];
+    const found = itemOf(tree, store, id);
     if (!found) return error(404, 'Item does not exist. It may have been deleted by another user.');
     const { folder, e } = found;
     const p = `${folder}/${e.name}`;
@@ -336,4 +363,27 @@ export function validateUpdate(
     }
     saveStore(uploads, store);
     return { status: 200, data: { value: results } };
+}
+
+/**
+ * recycle(): the item (a folder with all below it) to the recycle bin, i.e. gone for the session
+ * @param uploads session folder (none: refused, as uploads are)
+ * @returns id of the recycle bin item (a GUID), as Sharepoint
+ */
+export function recycle(
+    tree: Record<string, Entry[]>,
+    id: number,
+    digest: string | undefined,
+    uploads: string | undefined,
+): Answer {
+    if (digest !== DIGEST)
+        return spError(403, 'The security validation for this page is invalid and might be corrupted.');
+    if (!uploads) return spError(405, 'Changes are not simulated here.');
+    const store = loadStore(uploads);
+    const found = itemOf(tree, store, id);
+    if (!found) return spError(404, 'Item does not exist. It may have been deleted by another user.');
+    store.deleted.push(`${found.folder}/${found.e.name}`);
+    saveStore(uploads, store);
+    const hex = id.toString(16).padStart(12, '0');
+    return { status: 200, data: { value: `00000000-0000-4000-8000-${hex}` } };
 }

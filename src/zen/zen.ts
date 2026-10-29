@@ -12,12 +12,14 @@ import { savePref } from '../_core/prefs.ts';
 import { view } from '../_core/prefs.ts';
 import { SPLIT_GAP } from '../_core/settings.ts';
 import { esc } from '../_core/util.ts';
+import { typing } from '../_core/util.ts';
 import { API_OFF } from '../readers/api.ts';
 import { apiAllowed } from '../readers/api.ts';
 import { libraryOfPage } from '../readers/api.ts';
 import { siteOf } from '../readers/api.ts';
 import { cleanUrl } from '../readers/links.ts';
 import { COLUMNS_SVG } from '../ui/icons.ts';
+import { DELETE_SVG } from '../ui/icons.ts';
 import { DOWNLOAD_SVG } from '../ui/icons.ts';
 import { EYE_CLOSED_SVG } from '../ui/icons.ts';
 import { EYE_FULL_SVG } from '../ui/icons.ts';
@@ -52,8 +54,11 @@ import { openColumnsMenu } from './columns.ts';
 import { saveLayout } from './columns.ts';
 import { saveWidths } from './columns.ts';
 import { showCrumbs } from './crumbs.ts';
-import { download } from './download.ts';
 import { toggleLibraries } from './crumbs.ts';
+import { deleteItems } from './delete.ts';
+import { deleteQuestion } from './delete.ts';
+import { isDeleteKey } from './delete.ts';
+import { download } from './download.ts';
 import { loadFolder } from './data.ts';
 import { NAME } from './data.ts';
 import { saveItem } from './data.ts';
@@ -84,6 +89,7 @@ const DROP_LAYOUT = 'Drop the changes of the columns which have not been saved?'
 const COLUMNS_ON = 'Columns: show, hide and order them (layout mode; Save keeps them for the library)';
 const COLUMNS_OFF = 'Columns: end the layout mode (changes not saved are dropped)';
 const DOWNLOAD = 'Download the items selected (folders with all in them: as a ZIP)';
+const DELETE = "Delete the items selected (folders with all in them; to the site's recycle bin) (Del)";
 const KEPT = "Changes are kept in the viewer but won't take effect until uploaded (cloud button).";
 export const ZEN_KEY = 'tp-preview-zen'; // Zen mode on ('1') or off, kept
 const ZEN_TAB_TITLE = ZEN_TITLE;
@@ -452,6 +458,7 @@ function createZen(library: string): Zen {
     const picked = document.createElement('span');
     picked.className = 'tp-zen-picked';
     const downloadBtn = button(DOWNLOAD_SVG, DOWNLOAD);
+    const deleteBtn = button(DELETE_SVG, DELETE, 'tp-zen-delete');
     const editBtn = button(WRITE_SVG, 'Edit properties and names (non-system fields)');
     editBtn.setAttribute('aria-pressed', 'false');
     const saveBtn = button(SAVE_SVG, 'Save: keep the changes in the view, ready for upload (Ctrl+S)');
@@ -472,6 +479,7 @@ function createZen(library: string): Zen {
         note,
         picked,
         downloadBtn,
+        deleteBtn,
         editBtn,
         cancelBtn,
         saveBtn,
@@ -515,6 +523,7 @@ function createZen(library: string): Zen {
         grid,
         eyeBtn,
         downloadBtn,
+        deleteBtn,
         editBtn,
         saveBtn,
         uploadBtn,
@@ -556,6 +565,12 @@ function createZen(library: string): Zen {
     const sized = () => saveWidths(z);
     wireGrid(z, { redraw, open: (item) => openItem(z, item), edited, arranged, sized });
     wireSelect(z, () => showButtons(z));
+    // Delete key (Cmd + Backspace): the items selected, as the delete button (not while typing in a field)
+    grid.addEventListener('keydown', (e) => {
+        if (!isDeleteKey(e) || typing(e.target) || !z.selected.size) return;
+        e.preventDefault();
+        void deleteSelected(z);
+    });
     crumbs.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
         const libs = target.closest('[data-libraries]') as HTMLElement | null;
@@ -570,6 +585,7 @@ function createZen(library: string): Zen {
     saveBtn.onclick = () => (z.layout ? saveColumnsOf(z) : saveView(z));
     uploadBtn.onclick = () => void upload(z);
     downloadBtn.onclick = () => (z.fetching ? z.fetching.abort() : void downloadSelected(z));
+    deleteBtn.onclick = () => void deleteSelected(z);
     cancelBtn.onclick = () => (z.layout ? leaveLayout(z) : cancelEdit(z));
     columnsBtn.onclick = () => (z.layout ? leaveLayout(z) : startLayout(z, arranged));
     moreBtn.onclick = () => toggleMore(z, moreBtn, () => void goTo(z, z.folder, true));
@@ -596,6 +612,7 @@ function showButtons(z: Zen): void {
     z.downloadBtn.innerHTML = fetching ? STOP_SVG : DOWNLOAD_SVG;
     z.downloadBtn.title = fetching ? 'Stop the download' : DOWNLOAD;
     z.downloadBtn.setAttribute('aria-pressed', String(fetching));
+    z.deleteBtn.disabled = fetching || z.busy || !z.data || !n;
     if (!fetching) z.picked.textContent = n ? `${n.toLocaleString()} selected` : '';
     z.editBtn.setAttribute('aria-pressed', String(z.editing));
     z.editBtn.disabled = z.busy || !z.data || layout;
@@ -718,6 +735,43 @@ async function downloadSelected(z: Zen): Promise<void> {
     z.fetching = null;
     showButtons(z);
     if (why && why !== 'stopped') alert(`Not downloaded: ${why}`);
+}
+
+// ---------------------------------------------------------------------------
+// Delete: the items selected, after asking (to the recycle bin, as Sharepoint's own Delete); the folder read anew
+// ---------------------------------------------------------------------------
+
+async function deleteSelected(z: Zen): Promise<void> {
+    const data = z.data;
+    const items = selectedItems(z);
+    if (!data || !items.length || z.busy || z.fetching) return;
+    if (!confirm(deleteQuestion(items))) return;
+    z.busy = true;
+    showButtons(z);
+    const failed = await deleteItems(data.library, items, (text) => {
+        z.picked.textContent = text;
+    });
+    if (zenList !== z) return;
+    z.busy = false;
+    closeDeleted(items.filter((x) => !failed.some((f) => f.item === x)));
+    await goTo(z, z.folder, true); // as Sharepoint has the folder now (the selection: what is left of it)
+    const done = items.length - failed.length;
+    showCount(z, done ? `${done.toLocaleString()} deleted (in the recycle bin)` : '');
+    if (failed.length) alert(`Not deleted:\n${failed.map((f) => `${f.item.name}: ${f.why}`).join('\n')}`);
+}
+
+// File shown in the viewer deleted (or in a folder deleted): viewer closed
+function closeDeleted(items: ZenItem[]): void {
+    const url = viewer?.file?.url;
+    if (!url) return;
+    let path = url;
+    try {
+        path = decodeURIComponent(url);
+    } catch {}
+    const lower = path.toLowerCase();
+    const below = (x: ZenItem) => x.folder && lower.startsWith(`${x.path.toLowerCase()}/`);
+    const gone = items.some((x) => sameFile(url, x.path) || below(x));
+    if (gone) closeViewer();
 }
 
 // ---------------------------------------------------------------------------
