@@ -373,6 +373,14 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
 - **Purge** (same module, red flame button; Shift + Delete or ⌘ + ⌥ + Backspace in the list, as Explorer and Finder):
   as Delete, but for good: `POST …/items(<id>)/deleteObject()`, not to the recycle bin;
   the question says so plainly (cannot be restored, cannot be undone).
+- **Files dragged in** (`/src/zen/drop.ts`): uploaded by Sharepoint itself, not by the userscript.
+  While files are dragged over the page (`dataTransfer.types` has `Files`), the Zen list lets the pointer through
+  (class `tp-zen-drop`: `pointer-events: none`, dashed outline, a hint),
+  so the drag and the drop reach Sharepoint's list beneath (same folder: cf. `showInSharepoint`),
+  which uploads as usual (its progress, conflicts, rights).
+  The drag ends at the drop, or once no `dragover` came for 300 ms (drags from outside fire no `dragend`).
+  Dropped on the Zen list: Sharepoint's list is watched (own eyes ignored);
+  once it has changed and settled (1 s), the folder is read anew; watched until quiet for 2 minutes.
 - **Bar:** eye, crumbs, note; selection (or progress), Download, Delete, Purge; Edit, Cancel, Save, Upload (Save and Cancel: of the mode on); columns; ⋯; ✕.
   ⋯ (`/src/zen/menu.ts`): full settings, dark mode (shared with the viewer: `toggleTheme` in `/src/viewer/panel.ts`), reload of the folder, about (last).
   ✕: Zen mode off.
