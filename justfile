@@ -118,9 +118,13 @@ build-src:
 [group("build")]
 build-dist: build-src (_release PATH_BUNDLE PATH_RELEASE)
 
-# anonymous release /dist/v<BUILD_VERSION>-anon: as build-dist, from the bundle without the regions marked "anon" and with ABOUT_LINKS empty (npm script build:anon, cf. /scripts/anon.ts)
+# installs dependencies (per lock) and builds the userscript, plus the anonymous release (as build, cf. build-dist-anon)
 [group("build")]
-build-anon: build-dist _bundle-anon (_release PATH_BUNDLE_ANON PATH_RELEASE_ANON)
+build-anon: build-deps build-dist-anon
+
+# writes release (build-dist), plus the anonymous release /dist/v<BUILD_VERSION>-anon: from the bundle without the regions marked "anon" and with ABOUT_LINKS empty (npm script build:anon, cf. /scripts/anon.ts)
+[group("build")]
+build-dist-anon: build-dist _bundle-anon (_release PATH_BUNDLE_ANON PATH_RELEASE_ANON)
 
 _bundle-anon:
     @npm run --silent build:anon -- "{{PATH_BUNDLE}}" "{{PATH_BUNDLE_ANON}}"

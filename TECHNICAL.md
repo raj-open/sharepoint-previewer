@@ -44,7 +44,8 @@ just setup              # local files (.env, ...) from /templates
 just build              # dependencies (per lock) + all artefacts in /dist
 just build-src          # /dist/userscript{,.min}.js from the modules (local only)
 just build-dist         # artefacts only (dependencies already installed)
-just build-anon         # build-dist, plus the anonymous release /dist/v<BUILD_VERSION>-anon (cf. Artefacts)
+just build-anon         # as build, plus the anonymous release /dist/v<BUILD_VERSION>-anon (cf. Artefacts)
+just build-dist-anon    # as build-dist, plus the anonymous release (dependencies already installed)
 just prettify           # format + lint with fixes (Biome)
 just lint-check         # same, dry run
 just tests              # all tests (tests-unit, tests-behave, tests-integration)
@@ -85,7 +86,7 @@ The release workflow includes them only if its checkbox is ticked (default: off)
 
 ### Anonymous build ###
 
-`just build-anon` writes, beside the release, the anonymous release `/dist/v<BUILD_VERSION>-anon` (same files),
+`just build-anon` (dependencies installed first, as `just build`) or `just build-dist-anon` writes, beside the release, the anonymous release `/dist/v<BUILD_VERSION>-anon` (same files),
 from the bundle without what is marked "anon" (`npm run build:anon`, cf. `/scripts/anon.ts`):
 
 - the regions marked "anon" are left out (marker lines included; other regions may nest inside):
