@@ -1,4 +1,4 @@
-// Small shared helpers: HTML escaping, next frame, byte sizes, CSV cells, typing (keys meant for a field)
+// Small shared helpers: HTML escaping, next frame, byte sizes, CSV cells, typing (keys meant for a field), Ctrl / Cmd + A
 
 // ===========================================================================
 // CONSTANTS
@@ -35,3 +35,7 @@ export const csvCell = (s: string | null): string =>
 
 /** @returns target is a field typed into (text input, text area, choice, editable cell): keys belong to it */
 export const typing = (target: EventTarget | null): boolean => !!(target as Element | null)?.closest?.(TYPED);
+
+/** @returns Ctrl / Cmd + A (no Shift or Alt): select all (of what the pointer is over: Zen list, viewer's content) */
+export const isSelectAllKey = (e: KeyboardEvent): boolean =>
+    !!(e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a';

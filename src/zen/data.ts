@@ -29,6 +29,7 @@ type FieldJson = {
     Choices?: Many<string>;
 };
 type ViewJson = {
+    Id?: string;
     ServerRelativeUrl?: string;
     DefaultView?: boolean;
     ViewQuery?: string;
@@ -198,7 +199,7 @@ export async function loadFolder(library: string, folder: string): Promise<ZenDa
     const fieldsUrl =
         `${list}/Fields?$filter=Hidden eq false` +
         `&$select=InternalName,EntityPropertyName,Title,TypeAsString,ReadOnlyField,Choices&${at}`;
-    const viewsUrl = `${list}/Views?$select=ServerRelativeUrl,DefaultView,ViewQuery&$expand=ViewFields&${at}`;
+    const viewsUrl = `${list}/Views?$select=Id,ServerRelativeUrl,DefaultView,ViewQuery&$expand=ViewFields&${at}`;
     const [listJson, fieldsJson, viewsJson] = await Promise.all([
         getJson<{ Title?: string }>(`${list}?$select=Title&${at}`),
         getJson<{ value?: FieldJson[] }>(fieldsUrl),
@@ -212,6 +213,7 @@ export async function loadFolder(library: string, folder: string): Promise<ZenDa
     const views = typeof viewsJson === 'string' ? [] : (viewsJson?.value ?? []);
     const page = decodeURIComponent(location.pathname);
     const view = viewFields(views, page, fields);
+    const own = viewOf(views, page);
 
     const json = await folderItems(library, folder, '*,Id,FileLeafRef,FileRef,FSObjType', 'FieldValuesAsText');
     if (typeof json === 'string') return `items: ${json}`;
@@ -221,7 +223,16 @@ export async function loadFolder(library: string, folder: string): Promise<ZenDa
         order,
         fields,
     );
-    return { library, title, folder, fields, view: view.length ? view : defaultView(fields), items };
+    return {
+        library,
+        title,
+        folder,
+        fields,
+        view: view.length ? view : defaultView(fields),
+        viewId: own?.Id ?? null,
+        viewAll: many(own?.ViewFields?.Items),
+        items,
+    };
 }
 
 /**
@@ -318,4 +329,28 @@ export async function saveItem(
         if (r.HasException && r.FieldName) errors[r.FieldName] = r.ErrorMessage || 'Not saved';
     }
     return errors;
+}
+
+// ---------------------------------------------------------------------------
+// Columns of the Sharepoint view (Upload of the columns pane)
+// ---------------------------------------------------------------------------
+
+/**
+ * Writes the columns into the view (for everyone): its fields cleared, then added in order
+ * (the name fields first, as they were); needs the right to manage the list
+ * @param columns shown, in order (no name fields) @returns '' when done, else why not
+ */
+export async function uploadView(data: ZenData, columns: string[]): Promise<string> {
+    if (!data.viewId) return 'no Sharepoint view found for this page';
+    const site = siteOf(data.library);
+    const at = `@list=${encodeURIComponent(quote(data.library))}`;
+    const base = `${site}/_api/web/GetList(@list)/Views(guid'${data.viewId}')/ViewFields`;
+    const names = [...data.viewAll.filter((n) => NAME_FIELDS.has(n)), ...columns];
+    const cleared = await postJson<unknown>(site, `${base}/removeAllViewFields?${at}`, undefined);
+    if (typeof cleared === 'string') return cleared;
+    for (const n of names) {
+        const added = await postJson<unknown>(site, `${base}/addViewField(${quote(n)})?${at}`, undefined);
+        if (typeof added === 'string') return `${n}: ${added}`;
+    }
+    return '';
 }

@@ -123,6 +123,65 @@ const CSS = `
     background: var(--tp-well-bg);
     box-shadow: var(--tp-well-shadow);
   }
+  /* Bar of the viewer and of the Zen list (cf. /src/ui/bar.ts): start (toggle, tools), well, end (info, ⋯, extras, ✕);
+     narrow: the well on a second row, full width */
+  .tp-bar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 46px;
+    padding: 8px;
+    box-sizing: border-box;
+  }
+  .tp-bar-start, .tp-bar-end { flex: none; display: flex; align-items: center; gap: 4px; }
+  .tp-bar-end { margin-left: auto; justify-content: flex-end; } /* widened to line up: buttons stay right */
+  .tp-bar-start > :first-child { margin-right: 4px; } /* toggle (layout, eye) apart from the tools */
+  .tp-bar > .tp-well {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 30px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .tp-bar.tp-bar-narrow { flex-wrap: wrap; row-gap: 6px; }
+  .tp-bar.tp-bar-narrow > .tp-well { order: 1; flex-basis: 100%; }
+  .tp-bar-btn {
+    flex: none;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .tp-bar-btn.tp-well-btn { width: 24px; height: 24px; margin-left: -4px; } /* in the well: (i), link */
+  .tp-bar-close { margin-left: 4px; background: #d13438; color: #fff; font: bold 15px sans-serif; }
+  .tp-bar-close:hover { background: #a4262c; }
+  .tp-bar-copy { background: #0078d4; color: #fff; }
+  .tp-bar-copy:disabled { opacity: .4; cursor: default; }
+  /* Line below the bar: the viewer's properties, the Zen list's count and selection */
+  /* Sharepoint's own font (Fluent UI), as the Zen list */
+  .tp-bar, .tp-bar-meta { font-family: "Segoe UI", "Segoe UI Web (West European)", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", sans-serif; }
+  .tp-bar-meta { font-size: 12px; line-height: 15px; opacity: .85; }
+  .tp-viewer-header { position: relative; flex: none; height: 46px; }
+  .tp-viewer-header .tp-bar-meta {
+    position: absolute;
+    top: 44px;
+    left: 12px;
+    right: 12px;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical; /* wraps, cut off with "…" after the lines shown */
+    white-space: normal;
+  }
   /* Name in write mode: click to save under another name (box in its place); new file: marked */
   .tp-title-name.tp-renamable { cursor: text; border-bottom: 1px dashed currentColor; }
   .tp-title-name.tp-new-name::after { content: ' (new file)'; font-style: italic; opacity: .7; }
@@ -321,7 +380,7 @@ const CSS = `
     cursor: pointer;
     box-shadow: 0 1px 4px rgba(0,0,0,.3);
   }
-  .tp-table [draggable="true"] { cursor: grab; }
+  .tp-table.tp-editing th[data-c], .tp-table.tp-editing td.tp-rn[data-row] { cursor: grab; user-select: none; -webkit-user-select: none; }
   /* inside its title (the next title, painted later, would cover a handle reaching into it) */
   .tp-resize {
     position: absolute;
@@ -350,10 +409,6 @@ const CSS = `
   /* Write mode: room on the left for the "+" between rows */
   .tp-table.tp-editing { margin-left: 14px; }
   .tp-table.tp-editing .tp-rn { left: 14px; }
-  .tp-table .tp-drop-before { box-shadow: inset 0 3px 0 var(--tp-accent); }
-  .tp-table .tp-drop-after { box-shadow: inset 0 -3px 0 var(--tp-accent); }
-  .tp-table th.tp-drop-before { box-shadow: inset 3px 0 0 var(--tp-accent); }
-  .tp-table th.tp-drop-after { box-shadow: inset -3px 0 0 var(--tp-accent); }
   .tp-table td[contenteditable] { cursor: text; outline: none; }
   .tp-statusbar {
     position: relative;
@@ -759,64 +814,40 @@ const CSS = `
     /* Sharepoint's own font (Fluent UI), regular weight */
     font: 400 13px "Segoe UI", "Segoe UI Web (West European)", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", sans-serif;
   }
-  .tp-zen-bar {
-    flex: none;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    min-height: 46px;
-    padding: 0 8px;
-    box-sizing: border-box;
-  }
-  .tp-zen-crumbs {
-    flex: 0 1 auto;
-    min-width: 0;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    overflow: hidden;
+  /* Files dragged in from outside: through to Sharepoint's list beneath (it uploads them), the list marked meanwhile */
+  .tp-zen.tp-zen-drop, .tp-zen.tp-zen-drop * { pointer-events: none !important; }
+  .tp-zen.tp-zen-drop { outline: 2px dashed var(--tp-accent); outline-offset: -2px; }
+  .tp-zen.tp-zen-drop::after {
+    content: "Drop to upload into this folder (by Sharepoint)";
+    position: absolute;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: var(--tp-accent);
+    color: #fff;
     white-space: nowrap;
-    color: var(--tp-title);
   }
-  /* narrow: the crumbs on a second row, full width (as the file name in the viewer's header) */
-  .tp-zen-bar.tp-zen-narrow { flex-wrap: wrap; row-gap: 6px; padding-top: 8px; padding-bottom: 8px; }
-  .tp-zen-bar.tp-zen-narrow .tp-zen-crumbs { order: 1; flex: 1 0 100%; }
+  .tp-zen-crumbs { gap: 4px; color: var(--tp-title); }
   .tp-zen-crumbs a { cursor: pointer; color: var(--tp-accent); }
   .tp-zen-crumbs a:hover { text-decoration: underline; }
   .tp-zen-sep { opacity: .6; }
   .tp-zen-path { display: contents; }
-  .tp-zen .tp-zen-btn.tp-zen-link { width: 24px; height: 24px; margin-left: -4px; }
   /* menu of the site's libraries: right after the library's crumb */
   .tp-zen-libs { flex: none; margin-left: -2px; padding: 0 4px; border: none; border-radius: 4px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
   .tp-zen-libs:hover { background: var(--tp-btn-bg); }
   .tp-zen-libraries { max-height: 60vh; overflow-y: auto; }
-  .tp-zen-note { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; opacity: .8; padding: 0 6px; }
-  .tp-zen-btn {
-    flex: none;
-    width: 30px;
-    height: 30px;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-  }
   .tp-zen .tp-mode-btn:not([aria-pressed="true"]) { background: transparent; color: var(--tp-btn-fg); }
   .tp-zen .tp-mode-btn:not([aria-pressed="true"]):not(:disabled):hover { background: var(--tp-btn-bg); }
   .tp-zen .tp-mode-btn:disabled { opacity: .35; cursor: default; }
   /* top left, as on Sharepoint's list: eye (previewer on / off), Zen (filled: on; off by a click) */
-  .tp-zen .tp-zen-btn.tp-zen-eye { color: #0078d4; margin-right: 4px; }
-  .tp-zen .tp-zen-btn.tp-zen-delete:not(:disabled):hover { color: #d13438; } /* delete: red on hover, as the close button */
-  .tp-zen .tp-zen-btn.tp-zen-purge { color: #d13438; } /* purge (for good): red throughout */
-  .tp-zen .tp-zen-btn.tp-zen-purge:not(:disabled):hover { background: #d13438; color: #fff; }
+  .tp-zen .tp-bar-btn.tp-zen-eye { color: #0078d4; }
+  .tp-zen .tp-bar-btn.tp-zen-delete:not(:disabled):hover { color: #d13438; } /* delete: red on hover, as the close button */
+  .tp-zen .tp-bar-btn.tp-zen-purge { color: #d13438; } /* purge (for good): red throughout */
+  .tp-zen .tp-bar-btn.tp-zen-purge:not(:disabled):hover { background: #d13438; color: #fff; }
   /* Upload: saved changes waiting for it */
-  .tp-zen .tp-zen-btn.tp-zen-ready { color: var(--tp-accent); box-shadow: inset 0 0 0 1px var(--tp-accent); }
-  /* close (top right), as on the viewer: Zen mode off */
-  .tp-zen .tp-zen-btn.tp-zen-close { margin-left: 4px; background: #d13438; color: #fff; font: bold 15px sans-serif; }
-  .tp-zen .tp-zen-btn.tp-zen-close:hover { background: #a4262c; }
+  .tp-zen .tp-bar-btn.tp-zen-ready { color: var(--tp-accent); box-shadow: inset 0 0 0 1px var(--tp-accent); }
   /* Zen toggle: a tab out of the list's left edge, as on a folder: its outline (SVG) in the list's
      colours, open towards the list and over its border (joined); the icon in the outer part */
   .tp-zen-tab {
@@ -872,6 +903,8 @@ const CSS = `
   .tp-zen-table { font-family: inherit; font-weight: 400; }
   .tp-zen-table th { font-weight: 600; }
   .tp-zen.tp-zen-editing { border-color: #d13438; }
+  /* as a file explorer: rows picked, not their text marked (a click or Ctrl / ⌘ + A); editing: cells as text */
+  .tp-zen:not(.tp-zen-editing) .tp-zen-table { user-select: none; -webkit-user-select: none; }
   .tp-zen.tp-zen-layout { border-color: var(--tp-accent); }
   .tp-zen-table { min-width: 100%; }
   .tp-zen-table td { height: 26px; box-sizing: border-box; padding: 2px 10px; }
@@ -894,8 +927,14 @@ const CSS = `
   .tp-zen-table td.tp-zen-pick { z-index: 1; cursor: default; }
   .tp-zen-table th.tp-zen-pick { z-index: 3; background: linear-gradient(var(--tp-thead-bg), var(--tp-thead-bg)), var(--tp-bg); }
   .tp-zen-pick input { margin: 0; vertical-align: middle; cursor: pointer; accent-color: var(--tp-accent); }
-  .tp-zen-picked { flex: none; font-size: 12px; opacity: .8; padding: 0 4px; white-space: nowrap; }
-  .tp-zen-picked:empty { display: none; }
+  .tp-zen-header { flex: none; }
+  .tp-zen-meta { margin-top: -2px; padding: 0 12px 6px; /* as the viewer's properties */ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tp-zen-meta[hidden] { display: none; }
+  .tp-zen-note:not(:empty)::before, .tp-zen-picked:not(:empty)::before { content: " · "; }
+  /* properties off: only what there is to say (no label, no facts, no leading dot) */
+  .tp-zen-meta-brief strong, .tp-zen-meta-brief .tp-zen-facts { display: none; }
+  .tp-zen-facts:empty + .tp-zen-note::before,
+  .tp-zen-meta-brief .tp-zen-note::before, .tp-zen-meta-brief .tp-zen-note:empty + .tp-zen-picked::before { content: none; }
   /* Name: frozen at the left (after the checkboxes), like the column titles at the top */
   .tp-zen-table .tp-zen-name {
     position: sticky;
@@ -941,18 +980,62 @@ const CSS = `
   select.tp-zen-input { border: 1px solid var(--tp-border); border-radius: 4px; padding: 0 2px; background: var(--tp-bg); }
   .tp-zen-empty { padding: 24px; text-align: center; opacity: .7; }
   .tp-zen-failed { color: var(--tp-bad-fg); opacity: 1; white-space: pre-wrap; }
-  /* Columns menu (layout mode, open throughout): checkboxes, dragged to change the order */
-  .tp-zen-columns { max-height: 60%; display: flex; flex-direction: column; }
-  .tp-zen-columns-list { overflow: auto; }
-  .tp-zen-columns label { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 4px; cursor: grab; white-space: nowrap; }
-  .tp-zen-columns label:hover { background: var(--tp-hover); }
+  /* Below the header: the grid, and the columns pane beside it (full height) */
+  .tp-zen-body { flex: 1; min-height: 0; display: flex; }
+  .tp-zen-body > .tp-zen-grid { min-width: 0; }
+  /* Columns pane: read only until Edit (layout mode): then ticked, unticked and dragged to change the order */
+  .tp-zen-pane {
+    position: relative;
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--tp-edge);
+    background: var(--tp-bg);
+  }
+  /* left edge: dragged to change the width; released narrow: closes (dimmed meanwhile, as the viewer's splitter) */
+  .tp-zen-pane-grip { position: absolute; left: -3px; top: 0; bottom: 0; width: 6px; z-index: 2; cursor: col-resize; }
+  .tp-zen-pane-grip:hover { background: rgba(0, 120, 212, .35); }
+  .tp-zen-pane.tp-zen-pane-closing { opacity: .45; }
+  .tp-zen-pane-bar { flex: none; overflow: hidden; display: flex; align-items: center; gap: 4px; padding: 8px; border-bottom: 1px solid var(--tp-edge); }
+  .tp-zen-pane-bar strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding-left: 4px; color: var(--tp-title); }
+  .tp-zen-columns-list { flex: 1; min-height: 0; overflow: hidden auto; padding: 4px; } /* no sideways scroll: long names cut */
+  .tp-zen-columns label { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 4px; white-space: nowrap; }
+  .tp-zen-columns label > :not(span:last-child) { flex: none; }
+  .tp-zen-columns label > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .tp-zen-columns input:disabled { cursor: default; }
+  .tp-zen-pane-editing label:hover { background: var(--tp-hover); }
+  .tp-zen-pane > .tp-menu-item { flex: none; border-top: 1px solid var(--tp-edge); border-radius: 0; }
+  .tp-zen-pane > .tp-menu-item:disabled { opacity: .4; cursor: default; }
   .tp-zen-grip { opacity: .5; }
-  /* Moving columns (titles, menu): dragged with the pointer */
-  .tp-zen th.tp-movable, .tp-zen-columns label { cursor: grab; user-select: none; -webkit-user-select: none; }
-  .tp-zen .tp-reordering, .tp-zen .tp-reordering * { cursor: grabbing; }
-  .tp-zen .tp-moving { opacity: .5; }
-  .tp-zen-columns .tp-drop-before { box-shadow: inset 0 2px 0 var(--tp-accent); }
-  .tp-zen-columns .tp-drop-after { box-shadow: inset 0 -2px 0 var(--tp-accent); }
+  /* Moving columns (titles, pane): dragged with the pointer */
+  .tp-zen th.tp-movable, .tp-zen-pane-editing label { cursor: grab; user-select: none; -webkit-user-select: none; }
+  /* Moving columns and rows (cf. /src/view/reorder.ts), Zen list and table view alike:
+     the target shaded, a bar where the item goes (across the list), a copy of the item lifted under the pointer */
+  .tp-drop-target { box-shadow: inset 0 0 0 9999px rgba(0, 120, 212, .28) !important; }
+  .tp-drop-bar {
+    position: fixed;
+    z-index: 2147483646;
+    pointer-events: none;
+    border-radius: 2px;
+    background: #0078d4;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, .7), 0 0 6px rgba(0, 120, 212, .6);
+  }
+  .tp-drop-bar[hidden] { display: none; }
+  .tp-reordering, .tp-reordering * { cursor: grabbing !important; }
+  .tp-moving { opacity: .5; }
+  .tp-lifted {
+    position: fixed;
+    z-index: 2147483647;
+    pointer-events: none;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    white-space: nowrap;
+    border-radius: 4px;
+    opacity: .8;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .3);
+  }
 `;
 
 // ===========================================================================

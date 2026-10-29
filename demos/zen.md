@@ -8,8 +8,7 @@ written by `just demos`.
 
 Zen mode puts an own list of the folder in place of Sharepoint's,
 with or without the viewer (beside it: below or right of it; without it, or under the pop-up: over the full height).
-It is switched on and off by the tab out of the left edge of the list (as on a folder; filled while on),
-or by ⋯ → Zen mode in the viewer.
+It is switched on and off by the tab out of the left edge of the list (as on a folder; filled while on).
 The eye at the top left of the Zen list (as on Sharepoint's) opens or closes the viewer;
 dragging the edge of the viewer below 20 % of the space closes it too (Zen mode stays).
 Zen mode stays on until switched off, also after a page load.
@@ -29,8 +28,8 @@ The tab keeps Sharepoint's colours while Zen mode is off, and takes the theme of
   so it shows that folder once Zen mode is off.
 - Click a column title to sort (again: descending, again: off); ▾ filters by the values of a column.
 - The columns are those of the Sharepoint view at first;
-  the columns button (right) starts the layout mode (see below).
-- ⋯ (top right) holds the full settings, dark mode and a reload of the folder;
+  Columns in the ⋯ menu opens the columns pane (see below).
+- ⋯ (top right) holds the full settings, Columns, dark mode and a reload of the folder;
   ✕ ends Zen mode (as on the viewer).
 - In a narrow list the path moves to a second row, as the file name in the viewer.
 - Sorting, filters and columns change nothing on Sharepoint.
@@ -45,13 +44,17 @@ Also right of the list, under the pop-up, and in dark mode:
 
 ## Layout ##
 
-The columns button starts the layout mode (the list framed in blue), with the menu of all columns of the library open throughout:
+Columns (⋯ menu) opens a pane right of the list, over its full height, with all columns of the library in order.
+It is read only until its **Edit** starts the layout mode (the list framed in blue):
 
 - the checkboxes show or hide a column;
-- column titles (and the entries of the menu) are dragged to move a column;
+- column titles in the list, or the entries of the pane, are dragged to move a column;
 - the changes show at once, as a draft:
   **Save** (or Ctrl / ⌘ + S) keeps them for the library (in the browser),
-  **Cancel**, Esc or the columns button end the layout mode and drop what is not saved (after asking).
+  **Cancel**, Edit again, ✕ or Esc end the layout mode and drop what is not saved (after asking);
+- **Upload** writes the columns saved into the page's Sharepoint view, for everyone (after asking).
+
+✕ (or Columns again) closes the pane; its left edge changes its width, and released narrow, it closes.
 
 Widths change in any mode (the right edge of a column title; double-click: as it fits) and are kept at once.
 
@@ -59,7 +62,7 @@ Layout mode and edit mode exclude each other:
 columns are not changed while editing properties, nor the other way round.
 Sorting and filters work in every mode.
 
-![Zen mode, layout: columns menu open, Notes shown, Status moved before Modified (not saved yet)](img/zen-layout.png)
+![Zen mode, layout: columns pane open, Notes shown, Status moved before Modified (not saved yet)](img/zen-layout.png)
 
 ## Selecting and downloading ##
 
@@ -67,11 +70,13 @@ As in Sharepoint's view, each row has a checkbox; the one in the head selects al
 
 - Shift + click selects the range from the last one clicked;
 - Ctrl / ⌘ + click on a row adds it (or drops it) without opening it;
+- Ctrl / ⌘ + A, with the pointer over the list, selects all rows it shows (filtered out: not);
+- Esc, or a click anywhere but on Download, Delete or a checkbox, drops the selection;
 - **Download**: one file as it is; several, or folders with everything in them, as a ZIP named after the folder
   (made in the browser; the button stops it while it runs);
 - **Delete** (bin, or the Delete key / ⌘ + Backspace in the list): after asking, with the number and names of the items
   (folders: with everything in them), to the site's recycle bin, as Sharepoint's own Delete;
-- **Purge** (red flame, or Shift + Delete / ⌘ + ⌥ + Backspace): the same, but for good (not to the recycle bin), after a warning.
+- **Purge** (the bin with Shift held: a red flame; or Shift + Delete / ⌘ + ⌥ + Backspace): the same, but for good (not to the recycle bin), after a warning.
 
 The rows start in the order of Sharepoint's view (its sort, or the one chosen there), else folders first, then files, each by name.
 
