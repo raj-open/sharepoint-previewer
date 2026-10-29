@@ -270,6 +270,45 @@ describe('zen mode', () => {
         assert.equal(await z.locator('.tp-zen-picked').textContent(), '2 selected'); // progress gone
     });
 
+    it("delete: after asking (number, names, folders warned of), to the recycle bin as Sharepoint's own; the viewer follows", async () => {
+        // in the library's top folder: items no other test here uses (deletes last for the browser's session)
+        const { page, requests } = await openFolder(h.LIBRARY);
+        const z = await zen(page);
+        const box = (name: string) => rowOf(z, name).locator('.tp-zen-pick-one');
+        assert.equal(await btn(z, 'Delete').isDisabled(), true, 'nothing selected');
+        await z.locator('td.tp-zen-name', { hasText: 'notes.txt' }).click();
+        const v = page.locator('.tp-viewer');
+        await v.locator('.tp-title-name', { hasText: 'notes.txt' }).waitFor();
+        // the Delete key (focus on a checkbox: in the list, not typing)
+        await box('notes.txt').click();
+        await box('Logs').click();
+        await page.keyboard.press('Delete');
+        await rowOf(z, 'Logs').waitFor({ state: 'detached' });
+        const asked = (await dialogues(page)).confirms.join('\n');
+        assert.match(asked, /^Delete 2 items\?/);
+        for (const part of ['• notes.txt', '• Logs (folder)', 'everything in them', 'recycle bin'])
+            assert.ok(asked.includes(part), part);
+        assert.ok(!(await names(z)).includes('notes.txt'));
+        assert.match(await h.text(z.locator('.tp-zen-note')), /2 deleted/);
+        assert.equal(await z.locator('.tp-zen-picked').textContent(), '', 'nothing selected');
+        assert.equal(await v.locator('.tp-title-name', { hasText: 'notes.txt' }).count(), 0, 'viewer: file gone');
+        const posts = requests.filter((r) => r.method === 'POST').map((r) => new URL(r.url).pathname);
+        assert.equal(posts.filter((p) => /\/items\(\d+\)\/recycle\(\)$/.test(p)).length, 2);
+        const status = (p: string) => page.evaluate(async (url) => (await fetch(url)).status, p);
+        assert.equal(await status(`${h.LIBRARY}/notes.txt`), 404);
+        assert.equal(await status(`${h.LIBRARY}/Logs/app.log`), 404, 'folder: with all in it');
+        // the button; typing in a field: the Delete key is the field's
+        await box('README.md').click();
+        await z.locator('.tp-zen-btn[title^="Edit"]').click();
+        const priority = (await cell(z, 'README.md', 'Priority')).locator('.tp-zen-text');
+        await priority.click();
+        await page.keyboard.press('Delete');
+        assert.equal((await dialogues(page)).confirms.length, 1, 'not asked while typing');
+        await btn(z, 'Delete').click();
+        await rowOf(z, 'README.md').waitFor({ state: 'detached' });
+        assert.match((await dialogues(page)).confirms[1], /^Delete 1 item\?\n\n {4}• README\.md\n/);
+    });
+
     it('columns: shown and hidden from the menu (layout mode), kept for the library once saved', async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);
