@@ -16,6 +16,9 @@ import { SPLIT_H_SVG } from '../ui/icons.ts';
 import { SPLIT_V_SVG } from '../ui/icons.ts';
 import { placeMoved } from '../ui/move.ts';
 import { placeSized } from '../ui/move.ts';
+import { placeZen } from '../zen/zen.ts';
+import { zenList } from '../zen/zen.ts';
+import { closeViewer } from './open.ts';
 import { viewer } from './open.ts';
 
 import type { Layout } from '../_core/types.ts';
@@ -66,6 +69,9 @@ const BOX_CSS = {
   `,
 };
 
+// Splitter released with the viewer below VIEWER_MIN of the space: viewer closed
+export const VIEWER_MIN = 0.2;
+
 // ===========================================================================
 // METHODS
 // ===========================================================================
@@ -107,7 +113,7 @@ export function listRegion(): { card: HTMLElement; scroller: HTMLElement } | nul
 }
 
 // Visible right / bottom edge of list, incl. scrollbars drawn just outside it
-function listEdges(card: HTMLElement, scroller: HTMLElement): { right: number; bottom: number } {
+export function listEdges(card: HTMLElement, scroller: HTMLElement): { right: number; bottom: number } {
     const c = scroller.getBoundingClientRect();
     const REACH = 30;
     let right = c.right;
@@ -153,15 +159,21 @@ export function restorePage(v: Viewer): void {
     }
 }
 
-// List share of space (splitter); remembered, setting is start value
+// List share of space (splitter), per layout (the same in Zen mode: nothing moves); remembered, setting is start value
 const splitFraction = (() => {
-    const start: Record<string, number> = { vertical: 1 - DEFAULT_PREVIEW_SIZE, horizontal: 1 - DEFAULT_PREVIEW_SIZE };
+    const start: Record<string, number> = {
+        'vertical': 1 - DEFAULT_PREVIEW_SIZE,
+        'horizontal': 1 - DEFAULT_PREVIEW_SIZE,
+    };
     try {
         const kept = JSON.parse(loadPref('tp-preview-split', 'null'));
-        for (const m of ['vertical', 'horizontal']) if (kept?.[m] >= 0.1 && kept[m] <= 0.9) start[m] = kept[m];
+        for (const m of Object.keys(start)) if (kept?.[m] >= 0.1 && kept[m] <= 0.9) start[m] = kept[m];
     } catch {}
     return start;
 })();
+
+/** @returns key of the split in use: the layout */
+const splitKey = (v: Viewer): string => v.mode;
 
 // Element that really scrolls list vertically (prefers one that overflows)
 function verticalScroller(grid: Element): HTMLElement | null {
@@ -198,6 +210,26 @@ const px = (n: number): string => `${Math.max(0, Math.round(n))}px`;
 
 // Keep split panel next to (vertical) or below (horizontal) shrunk list
 export function syncPanel(): void {
+    placePanel();
+    placeZen(); // Zen list over Sharepoint's (what is left of it), lined up with the panel
+}
+
+// What Sharepoint shows beside its list (count line below, scrollbar), measured while Zen mode is off;
+// kept while it is on (Zen list over it, Sharepoint may drop such parts meanwhile): the viewer stays where it was
+const edgeExtra = { right: 0, bottom: 0, measured: false };
+
+/** @returns edges of the list for the panel (and the Zen list): measured, in Zen mode as last measured without it */
+export function panelEdges(region: HTMLElement, scroller: HTMLElement): { right: number; bottom: number } {
+    const c = scroller.getBoundingClientRect();
+    if (zenList && edgeExtra.measured) return { right: c.right + edgeExtra.right, bottom: c.bottom + edgeExtra.bottom };
+    const edge = listEdges(region, scroller);
+    edgeExtra.measured = true;
+    edgeExtra.right = edge.right - c.right;
+    edgeExtra.bottom = edge.bottom - c.bottom;
+    return edge;
+}
+
+function placePanel(): void {
     const v = viewer;
     if (!v || v.mode === 'popup') return;
     const s = v.box.style;
@@ -207,7 +239,7 @@ export function syncPanel(): void {
         // In page after list wrapper, below shortened list
         if (v.box.previousElementSibling !== anchor) anchor.after(v.box);
         const sr = scroller.getBoundingClientRect();
-        const edge = listEdges(region, scroller);
+        const edge = panelEdges(region, scroller);
         const pr = p.getBoundingClientRect();
         s.left = `${Math.round(sr.left - pr.left - p.clientLeft + p.scrollLeft)}px`;
         s.top = `${Math.round(edge.bottom + SPLIT_GAP - pr.top - p.clientTop + p.scrollTop)}px`;
@@ -232,7 +264,7 @@ export function syncPanel(): void {
     if (v.mode === 'vertical' && region && scroller && base) {
         // Align with visible list (scroll area + its scrollbars), not card frame around it
         const sr = scroller.getBoundingClientRect();
-        const edge = listEdges(region, scroller);
+        const edge = panelEdges(region, scroller);
 
         if (anchor && p) {
             // In page after list wrapper: moves with list
@@ -253,7 +285,7 @@ export function syncPanel(): void {
     }
 
     // Fallback (list not found): whole page was shrunk
-    const f = splitFraction[v.mode];
+    const f = splitFraction[splitKey(v)];
     s.left = v.mode === 'vertical' ? `calc(${f * 100}vw + ${SPLIT_GAP}px)` : `${SPLIT_GAP}px`;
     s.top = v.mode === 'horizontal' ? `calc(${f * 100}vh + ${SPLIT_GAP}px)` : `${SPLIT_GAP}px`;
     s.right = `${SPLIT_GAP}px`;
@@ -261,7 +293,7 @@ export function syncPanel(): void {
 }
 
 function applySplit(v: Viewer): void {
-    const f = splitFraction[v.mode];
+    const f = splitFraction[splitKey(v)];
     const vertical = v.mode === 'vertical';
     const { region, base, anchorSpace, dock, dockBase } = v;
     if (vertical && region && base) {
@@ -400,7 +432,8 @@ function watchContainer(v: Viewer): void {
     v.containerObserver.observe(el);
 }
 
-// Splitter drag (left edge in vertical mode, top edge in horizontal mode)
+// Splitter drag (left edge in vertical mode, top edge in horizontal mode); released with the viewer
+// below VIEWER_MIN: viewer closed
 export function startDrag(e: PointerEvent): void {
     const v = viewer;
     if (!v || v.mode === 'popup') return;
@@ -409,6 +442,8 @@ export function startDrag(e: PointerEvent): void {
     handle.setPointerCapture(e.pointerId);
     handle.classList.add('tp-drag');
     const vertical = v.mode === 'vertical';
+    const key = splitKey(v);
+    const before = splitFraction[key];
 
     let queued = false;
 
@@ -425,8 +460,8 @@ export function startDrag(e: PointerEvent): void {
         } else {
             f = vertical ? ev.clientX / window.innerWidth : ev.clientY / window.innerHeight;
         }
-        splitFraction[v.mode] = Math.min(0.9, Math.max(0.1, f));
-        savePref('tp-preview-split', JSON.stringify(splitFraction));
+        splitFraction[key] = Math.min(0.9, Math.max(0.1, f));
+        v.box.classList.toggle('tp-split-close', 1 - splitFraction[key] < VIEWER_MIN);
         if (!queued) {
             queued = true;
             requestAnimationFrame(() => {
@@ -441,7 +476,17 @@ export function startDrag(e: PointerEvent): void {
         handle.removeEventListener('pointermove', onMove);
         handle.removeEventListener('pointerup', onUp);
         handle.removeEventListener('pointercancel', onUp);
-        if (viewer === v) notifyResize(v);
+        v.box.classList.remove('tp-split-close');
+        if (viewer !== v) return;
+        const close = 1 - splitFraction[key] < VIEWER_MIN;
+        if (close) splitFraction[key] = before; // next time: as before the drag
+        savePref('tp-preview-split', JSON.stringify(splitFraction));
+        if (close) {
+            closeViewer();
+            if (viewer === v) applySplit(v); // kept open (unsaved changes): size as before
+            return;
+        }
+        notifyResize(v);
     };
     handle.addEventListener('pointermove', onMove);
     handle.addEventListener('pointerup', onUp);
@@ -463,7 +508,7 @@ export function setMode(mode: Layout): void {
     flex-direction: column;
     box-sizing: border-box;
   `;
-    v.backdrop.style.display = mode === 'popup' ? 'block' : 'none';
+    v.backdrop.style.display = mode === 'popup' && !zenList ? 'block' : 'none'; // Zen: its list stays usable
     v.header.style.cursor = mode === 'popup' ? 'move' : ''; // popup: drag header to move it
     if (mode === 'popup') {
         placeSized(v.box, POPUP_SIZE_KEY); // before the position: it keeps the window on screen

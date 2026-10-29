@@ -18,14 +18,14 @@ Development: [TECHNICAL.md](TECHNICAL.md).
 
 | Topic | Behaviour |
 | :---- | :-------- |
-| Form | One JavaScript file (userscript, ~530 KB; minified ~295 KB), runs in the user's browser via Tampermonkey. Built from TypeScript modules in the repository (types removed by the build) |
+| Form | One JavaScript file (userscript, ~600 KB; minified ~335 KB), runs in the user's browser via Tampermonkey. Built from TypeScript modules in the repository (types removed by the build) |
 | Scope | Only on `https://*.sharepoint.com/*/*/*`, and only inside a library's file list |
-| APIs | No Graph API. It reads the page's HTML and fetches the file itself, like opening its URL. Only for files found by the library search (their rows carry no path): two read-only Sharepoint REST queries by file name (library list, else search index) |
+| APIs | No Graph API. It reads the page's HTML and fetches the file itself, like opening its URL. Sharepoint's own REST API (same site, the user's session) only for: files found by the library search (their rows carry no path: two read-only queries by file name); Zen mode (reads the folder's items and columns; uploads properties and names as Sharepoint's own form does). The setting `sharepoint-api` (default: on) switches every use of the API off |
 | Third parties | **None.** No CDN, no analytics, no external servers. All requests go to the same Sharepoint origin |
 | External libraries | None loaded at runtime. The script contains a port of Microsoft's XPress9 decoder (MIT), to read the queries of newer Power BI files in the browser. Optional 3D view: two files (ifc-lite, MPL-2.0) that **you** host in your own Sharepoint |
 | Permissions | Those of the signed-in user, through the browser's normal session. No extra rights, no tokens |
-| Data leaving the browser | Only when the user explicitly uploads a file (edited, new, or a renamed copy), through Sharepoint's own upload (as if done by hand) |
-| Storage | Settings in Tampermonkey's script storage. View choices and window positions in the browser's `localStorage` for the Sharepoint origin. File contents only in memory, gone on reload |
+| Data leaving the browser | Only when the user explicitly uploads a file (edited, new, or a renamed copy), through Sharepoint's own upload (as if done by hand), or uploads properties or names in Zen mode (Sharepoint's own API, as its edit form) |
+| Storage | Settings in Tampermonkey's script storage. View choices, window positions and the columns of Zen mode in the browser's `localStorage` for the Sharepoint origin. File contents and properties only in memory, gone on reload |
 | Cookies | Not used |
 | Tampermonkey grants | `GM_getValue`, `GM_setValue`, `GM_registerMenuCommand` (settings, editor), `GM_openInTab` (editor only) |
 
@@ -39,8 +39,15 @@ Development: [TECHNICAL.md](TECHNICAL.md).
   in the browser, read from the file itself (formats: [TECHNICAL.md](TECHNICAL.md#supported-formats)).
 - **Editing:** plain-text files can be edited;
   an upload goes through Sharepoint's own upload, as the signed-in user (§3).
+- **Zen mode** (optional, setting `sharepoint-api`):
+  an own list of the folder in place of Sharepoint's, beside the viewer,
+  with the columns (properties) of the library:
+  sort, filter, columns shown or hidden (view only, nothing changes on Sharepoint);
+  in its edit mode, properties of non-system columns and names can be changed,
+  saved through Sharepoint's REST API as its own edit form does (§3, §4).
 - **Sharepoint's own UI is not changed,**
-  apart from the eye column and the room for the viewer.
+  apart from the eye column and the room for the viewer
+  (Zen mode: its own list laid over Sharepoint's, which stays as it is underneath).
   Lists inside dialogues and pop-ups (e.g. "Copy to") are left alone,
   and nothing depends on the UI language.
 - **File identification:**
@@ -48,8 +55,9 @@ Development: [TECHNICAL.md](TECHNICAL.md).
   - the folder comes from the browser URL (`id=` parameter or library path)
   - in search results, the path is taken from the row's own link,
     else looked up by name below the open folder (§4)
-- **Nothing else from the list is read.**
-  No column values, no hidden data.
+- **Nothing else from the list is read,**
+  unless Zen mode is used: it reads the items of the folder open in it and their column values
+  (fields not hidden, as Sharepoint's list shows them), through Sharepoint's REST API.
 
 What it looks like: [demos](demos/README.md).
 
@@ -114,6 +122,17 @@ sequenceDiagram
     end
     SP-->>US: changed: upload confirmed
 
+    Note over User,SP: Zen mode (setting sharepoint-api)
+    User->>US: Zen tab (left of the list) or ⋯ menu: Zen mode
+    US->>SP: GET _api/web/GetList(…), …/Fields, …/Views
+    US->>SP: POST _api/contextinfo (form digest, once), …/GetItems (query of the folder)
+    SP-->>US: columns, view, items with their values
+    US->>Page: own list over Sharepoint's (own elements, prefix tp-)
+    User->>US: Edit, change values or names, Save (kept in the browser)
+    User->>US: Upload
+    US->>SP: POST …/items(id)/ValidateUpdateListItem (per item)
+    SP-->>US: per value: saved, or why not
+
     Note over User,LS: Settings and view choices
     User->>TM: menu: Settings … (or viewer: ⋯ → Full settings …)
     TM->>US: opens the settings form
@@ -139,8 +158,12 @@ and are **refused by the script if the target is not the current Sharepoint orig
 | `GET <target>` | Opening a `.url` link file | Follows the link, same origin only, max. 5 hops |
 | `GET <site>/_api/web/GetList(…)/items`, if refused `GET <site>/_api/search/query` | Opening a file from search results in a library (rows there carry only the name) | Finds the file's path below the open folder, by name: library list first, search index as fallback |
 | `HEAD <file>` | After an upload | Checks that the file really changed (ETag / Last-Modified / size) |
+| `GET <site>/_api/web/GetList(…)`, `…/Fields`, `…/Views`; `POST <site>/_api/contextinfo`, `…/GetItems` (query scoped to the folder) | Zen mode: a folder shown (or read anew) | Title of the library, its columns (not hidden), the view's columns, the folder's items with their values (read only; the POST is Sharepoint's way to send a query, it changes nothing) |
+| `POST <site>/_api/contextinfo` | Zen mode: first folder (then when it runs out) | Form digest, required by Sharepoint for any POST |
+| `POST <site>/_api/web/GetList(…)/items(<id>)/ValidateUpdateListItem` | Zen mode: Upload, per item changed | Properties and name of the item, checked and saved by Sharepoint as its own edit form does (a new version) |
 | `GET <VIEWER_3D_FOLDER>/ifc-lite-3d.js`, `…/ifc-lite_bg.wasm` | First use of the 3D view only | 3D library from **your** Sharepoint; checked against fixed SHA-256 hashes before use |
 
+Every request to `_api` is left out if the setting `sharepoint-api` is off.
 There are no other requests:
 no telemetry,
 no update checks
@@ -155,7 +178,9 @@ The logo setting only accepts `data:` URIs.
 | :--- | :---- | :------- |
 | File contents (cached chunks) | JavaScript memory of the tab | Until reload, "Clear cache", or eviction at the cache limit |
 | Settings (cf. [TECHNICAL.md, Settings](TECHNICAL.md#settings)) | Tampermonkey storage for this script | Until changed / reset / script removed |
-| View choices (layout, split size, theme, colours, wrap, text size, table / Markdown / 3D on/off, properties lines, CSV format, sheets or tables per spreadsheet path) and window positions | `localStorage` of the Sharepoint origin, keys `tp-preview-*` | Until the user clears site data |
+| View choices (layout, split size, theme, colours, wrap, text size, table / Markdown / 3D on/off, properties lines, CSV format, sheets or tables per spreadsheet path, columns of Zen mode per library) and window positions | `localStorage` of the Sharepoint origin, keys `tp-preview-*` | Until the user clears site data |
+| Items and their values in Zen mode | Memory | Until another folder, Zen mode off, or reload |
+| Changes in Zen mode saved but not uploaded (values and names per item) | `localStorage`, key `tp-preview-zen-changes` (at most 50 folders) | Until uploaded or cancelled, or the user clears site data |
 | 3D camera per file | Memory | Until reload |
 
 - **Cache limit:**
@@ -175,7 +200,8 @@ The logo setting only accepts `data:` URIs.
 ### Risk reduction ###
 
 - **No new attack surface on the server side:**
-  - no API usage
+  - no API beyond Sharepoint's own REST API of the same site, as its own pages use it
+    (search results, Zen mode; off with the setting `sharepoint-api`)
   - no server component
   - no app registration
   - no extra permissions (only the user's existing session)
@@ -186,7 +212,10 @@ The logo setting only accepts `data:` URIs.
   the optional 3D library is hosted by you
   and verified by SHA-256 before it is executed.
 - **No data leaves the browser**
-  except through a user-initiated upload to the same Sharepoint.
+  except through a user-initiated upload, or a user-initiated upload in Zen mode, to the same Sharepoint.
+- **Writes through the API** (Zen mode) only change properties and names of items the user may edit anyway,
+  through the same request as Sharepoint's own edit form (values checked by Sharepoint, a new version kept);
+  nothing is deleted, moved or shared.
 - **HTML escaping:**
   file contents are always escaped before they are put into the page.
 
@@ -277,6 +306,8 @@ That is outside the scope of this script.
   - The UI was tested in Chromium against a mock of Sharepoint's markup
     and by hand in Sharepoint Online.
   - Upload and 3D rendering were tested by hand only.
+  - Zen mode was tested against the mock of Sharepoint's REST API (behavioural tests);
+    its requests follow Microsoft's documentation, a test in Sharepoint Online by hand is still due.
 
 ---
 

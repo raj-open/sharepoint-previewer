@@ -18,6 +18,11 @@ import { sameFile } from '../viewer/open.ts';
 import { showNewFile } from '../viewer/open.ts';
 import { shownFolder } from '../viewer/open.ts';
 import { viewer } from '../viewer/open.ts';
+import { placeTab } from '../zen/zen.ts';
+import { placeZen } from '../zen/zen.ts';
+import { restoreZen } from '../zen/zen.ts';
+import { zenList } from '../zen/zen.ts';
+import { zenRefresh } from '../zen/zen.ts';
 import { COL_WIDTH } from './settings.ts';
 
 // ===========================================================================
@@ -54,7 +59,7 @@ const OVERLAY =
 let headerDirty = true;
 
 // Changes inside script's own elements (viewer, eyes) don't need new scan
-const OWN = '.tp-viewer, .tp-cell, .tp-head';
+const OWN = '.tp-viewer, .tp-zen, .tp-zen-tab, .tp-zen-tab-eye, .tp-cell, .tp-head';
 
 // ===========================================================================
 // METHODS
@@ -135,16 +140,62 @@ function rowKind(row: HTMLElement): 'file' | 'folder' | 'none' {
 // Inject column
 // ---------------------------------------------------------------------------
 
+// Row eyes frozen at the left edge while the list scrolls sideways (as a frozen column): moved by the scroll offset,
+// over an opaque background then (that of the list, also a strip left of them: the row's own padding);
+// the header eye meanwhile in the Zen tab, below the Zen button (Sharepoint moves its header in its own ways)
+let rowShift = 0; // scroll offset sideways of the rows
+
+/** @returns how far the list is scrolled sideways (0: not) */
+export const listShift = (): number => rowShift;
+
+/** @returns scroll offset sideways of the list holding an element */
+function sideways(el: Element): number {
+    for (let e = el.parentElement; e && e !== document.body; e = e.parentElement) if (e.scrollLeft) return e.scrollLeft;
+    return 0;
+}
+
+// Background of the list (first opaque one up from an element)
+function listBg(el: Element | null): string {
+    for (let e = el; e; e = e.parentElement) {
+        const c = getComputedStyle(e).backgroundColor;
+        if (c && c !== 'transparent' && !/^rgba\(.*,\s*0\)$/.test(c)) return c;
+    }
+    return '#fff';
+}
+
+function freeze(el: HTMLElement, x: number): void {
+    if (Number(el.dataset.tpShift ?? 0) === x) return;
+    el.dataset.tpShift = String(x);
+    el.style.transform = x ? `translateX(${x}px)` : '';
+    const bg = x ? listBg(el.parentElement) : '';
+    el.style.background = bg;
+    el.style.boxShadow = x ? `-${COL_WIDTH}px 0 0 0 ${bg}` : ''; // the strip left of it too (cut at the list's edge)
+}
+
+/** Sideways scroll of the list: row eyes stay at the left edge, the header eye moves into the Zen tab */
+function onSideScroll(e: Event): void {
+    const scroller = e.target;
+    if (!(scroller instanceof Element)) return;
+    const cells = scroller.querySelectorAll<HTMLElement>('.tp-cell');
+    if (!cells.length) return;
+    const was = rowShift;
+    rowShift = scroller.scrollLeft;
+    for (const el of cells) freeze(el, sideways(el));
+    if (!was !== !rowShift) placeTab(); // header eye into the tab, or back
+}
+
 // Header eye: overlaid at x position of row eyes (other cell layout)
 function processHeader(row: HTMLElement): void {
     const rowEye = document.querySelector('.tp-cell');
     const ref = row.querySelector('[role="columnheader"]');
     if (!rowEye || !ref || document.querySelector('.tp-overlay')) return;
 
-    const target = rowEye.getBoundingClientRect();
+    const frozen = Number((rowEye as HTMLElement).dataset.tpShift ?? 0); // row eyes moved by it (sideways scroll)
+    const r = rowEye.getBoundingClientRect();
+    const target = { left: r.left - frozen, width: r.width }; // where the row eyes are when not scrolled
     let head = document.querySelector('.tp-head');
     if (head) {
-        if (Math.abs(head.getBoundingClientRect().left - target.left) < 1) return;
+        if (frozen || Math.abs(head.getBoundingClientRect().left - target.left) < 1) return; // scrolled: kept
         head.remove(); // layout changed -> reposition
     }
 
@@ -178,7 +229,7 @@ function processHeader(row: HTMLElement): void {
     z-index: 1;
   `;
     host.append(head);
-    refreshEyes();
+    refreshEyes(); // also places the Zen tab: header eye there while scrolled sideways (this one hidden then)
 }
 
 // Return true if row was (re)worked on
@@ -222,6 +273,7 @@ function processRow(row: HTMLElement): boolean {
       z-index: 1;
     `;
         target.prepend(cell);
+        freeze(cell, sideways(cell));
     }
 
     // Align with row's own icon (at top in tall rows)
@@ -302,6 +354,7 @@ export function refreshEyes(): void {
         }
     }
     if (viewer) viewer.clearAllBtn.disabled = memoryCache.size === 0;
+    zenRefresh(); // Zen list: row of the file shown, its eye
 }
 
 function scan() {
@@ -309,7 +362,9 @@ function scan() {
     // H-mode panel inside Sharepoint's container: put it back if Sharepoint re-rendered
     if (viewer?.anchor && !viewer.box.isConnected) syncPanel();
     if (viewer) showNewFile(viewer); // folder open in Sharepoint may have changed
+    restoreZen(); // Zen mode as last time (outside a library: none)
     if (!inLibrary()) {
+        placeTab(false);
         for (const el of document.querySelectorAll('.tp-cell, .tp-head')) el.remove(); // left from library page
         return;
     }
@@ -321,11 +376,14 @@ function scan() {
         if (el.closest(OVERLAY)) el.remove(); // added before grid moved into overlay
     });
     // Rows first (header eye aligns to them); header re-measured only on change
-    let changed = headerDirty;
+    // header anew also if its eye went missing (Sharepoint re-rendered the header)
+    let changed = headerDirty || !document.querySelector('.tp-head');
     for (const row of rows) if (processRow(row)) changed = true;
     headerDirty = false;
     const header = changed && rows.find((r) => r.querySelector('[role="columnheader"]'));
     if (header) processHeader(header);
+    if (zenList) placeZen(); // follows Sharepoint's list (re-rendered, resized)
+    placeTab(rows.length > 0); // Zen toggle: tab at the left edge of the list, if there is one
 }
 
 /** Watches the list: rescans on DOM changes and resize, plus a first scan. */
@@ -337,6 +395,7 @@ export function watchList(): void {
             requestAnimationFrame(scan);
         }
     }).observe(document.body, { childList: true, subtree: true });
+    document.addEventListener('scroll', onSideScroll, { capture: true, passive: true }); // eyes frozen sideways
     window.addEventListener('resize', () => {
         headerDirty = true; // re-align header eye
         requestAnimationFrame(scan);

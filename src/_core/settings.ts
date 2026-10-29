@@ -61,6 +61,10 @@ export const DEFAULTS = {
     // Follow link files (.url shortcuts) and show file they point to
     'follow-links': true,
 
+    // Features that use Sharepoint's REST API (same site, the user's session): Zen mode (reads the list,
+    // saves properties and names), files of search results found by name. Off: the script uses no API at all
+    'sharepoint-api': true,
+
     // Folder with ifc-lite-3d.js and ifc-lite_bg.wasm: relative to site, or from top
     // with leading '/'. Fetched on first use of 3D button, checked by SHA-256.
     'viewer-3d-folder': '',
@@ -129,6 +133,7 @@ export const {
     'powerbi-confirm-bytes': POWERBI_CONFIRM_BYTES,
     'max-line-chars': MAX_LINE_CHARS,
     'follow-links': FOLLOW_LINKS,
+    'sharepoint-api': SHAREPOINT_API,
     'viewer-3d-folder': VIEWER_3D_FOLDER,
     'viewer-3d-max-bytes': MAX_3D_BYTES,
     'theme': THEME,

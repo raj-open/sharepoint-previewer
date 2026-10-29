@@ -54,6 +54,8 @@ import { mountMarkdown } from '../view/markdown.ts';
 import { mountTable } from '../view/table.ts';
 import { parseCsv } from '../view/table.ts';
 import { QUOTE_MODES } from '../view/table.ts';
+import { placeZen } from '../zen/zen.ts';
+import { zenRefresh } from '../zen/zen.ts';
 import { cancelLoad } from './cache.ts';
 import { clearedUrls } from './cache.ts';
 import { keepInMemory } from './cache.ts';
@@ -135,6 +137,8 @@ export function closeViewer(): void {
     viewer.backdrop.remove();
     viewer.box.remove();
     viewer = null;
+    placeZen(); // Zen mode stays: its list over all of Sharepoint's again
+    zenRefresh();
 }
 
 // Opens a file (following .url links): { src } or { message }, plus final name and hops

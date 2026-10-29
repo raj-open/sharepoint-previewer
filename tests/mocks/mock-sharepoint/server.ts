@@ -15,6 +15,11 @@
 //                                                                        files of that name in a library (as Sharepoint)
 //   <site>/_api/search/query?querytext='(filename:"<name>" …) path:"<url of folder>"'
 //                                                                        search index (as Sharepoint; Parquet: a form as Path)
+//   <site>/_api/web/GetList(@list)[/Fields|/Views], …/GetItems (POST, query.FolderServerRelativeUrl)
+//                                                                        columns, view and items of a folder (cf. properties.ts);
+//                                                                        other filters of items refused (list view threshold)
+//   <site>/_api/contextinfo, …/items(<id>)/ValidateUpdateListItem     form digest (POST); properties and names changed (POST,
+//                                                                        simulated: kept with the session's uploads)
 //
 // The list view mimics what the userscript reads: ARIA grid rows (selection column first), name fields,
 // folder icons, the scroll card and Sharepoint's `display: contents` wrapper;
@@ -26,6 +31,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { Answer } from './properties.ts';
+import type { Entry } from './properties.ts';
+import { applyRenames } from './properties.ts';
+import { contextAnswer } from './properties.ts';
+import { DIGEST } from './properties.ts';
+import { fieldsAnswer } from './properties.ts';
+import { itemsAnswer } from './properties.ts';
+import { loadStore } from './properties.ts';
+import { originalOf } from './properties.ts';
+import { renamedAway } from './properties.ts';
+import { validateUpdate } from './properties.ts';
+import { viewsAnswer } from './properties.ts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
@@ -101,8 +118,6 @@ const ICONS: Record<string, string> = {
         '<path d="M4.5 1.5h7l4 4v13h-11z" fill="#fff" stroke="#8a8886"/><path d="M11.5 1.5v4h4" fill="none" stroke="#8a8886"/></svg>',
 };
 
-// Entry of a folder listing (uploaded: simulated upload)
-type Entry = { name: string; folder: boolean; size: number; author?: string; uploaded?: boolean };
 // Answer to a request
 export type Reply = { status: number; headers: Record<string, string>; body: Buffer | string };
 // Library: name shown (navigation, breadcrumb, title) and local folder
@@ -240,8 +255,14 @@ function tree(libs: Libraries, library: string, uploads?: string): Record<string
         }
         entries.sort(byName);
     }
+    // names changed in this session (Zen mode: renamed files)
+    const store = loadStore(uploads);
     for (const [folder, entries] of Object.entries(out)) {
-        for (const e of entries) e.author = e.uploaded ? UPLOADER : authorOf(`${folder}/${e.name}`);
+        applyRenames(store, folder, entries);
+        entries.sort(byName);
+        for (const e of entries) {
+            e.author = e.uploaded ? UPLOADER : authorOf(originalOf(store, `${folder}/${e.name}`));
+        }
     }
     return out;
 }
@@ -264,6 +285,10 @@ const json = (data: unknown): Reply => ({
     headers: { 'content-type': 'application/json; charset=utf-8' },
     body: JSON.stringify(data),
 });
+
+const THRESHOLD = 'The attempted operation is prohibited because it exceeds the list view threshold.';
+
+const answer = (a: Answer): Reply => ({ ...json(a.data), status: a.status });
 
 const fail = (status: number): Reply => ({
     status,
@@ -348,7 +373,7 @@ function listPage(libs: Libraries, library: string, uploads?: string): Reply {
               <div role="grid" aria-label="${esc(name)}" id="grid">
                 <div role="row" class="header">
                   <div role="columnheader" class="c-select" aria-label="Selection"></div>
-                  <div role="columnheader" class="c-icon" aria-label="File type"></div>
+                  <div role="columnheader" class="c-icon" aria-label="File type"><img alt="" src="/_layouts/15/images/itemtypegeneric.svg"></div>
                   <div role="columnheader" class="c-name">Name</div>
                   <div role="columnheader" class="c-author">Modified By</div>
                   <div role="columnheader" class="c-size">File size</div>
@@ -552,11 +577,21 @@ function upload(
 /** @returns OData string literal ('it''s') as text */
 const unquote = (s: string): string => s.replace(/^'|'$/g, '').replace(/''/g, "'");
 
-// Library items by file name (FileLeafRef, any case), as Sharepoint's list REST API
-function listItems(libs: Libraries, params: URLSearchParams, uploads?: string): Reply {
+/** @returns library of the request (@list), or null if there is none such */
+function listOf(libs: Libraries, params: URLSearchParams): string | null {
     const list = unquote(params.get('@list') ?? '').replace(/\/+$/, '');
+    return libraryName(libs, list) != null && libraryOf(list) === list ? list : null;
+}
+
+// Library items by file name (FileLeafRef, any case), as Sharepoint's list REST API;
+// other filters (e.g. FileDirRef) refused as in a library above the list view threshold
+function listItems(libs: Libraries, params: URLSearchParams, uploads?: string): Reply {
+    const list = listOf(libs, params);
+    if (list && !/FileLeafRef eq/.test(params.get('$filter') ?? '')) {
+        return answer({ status: 500, data: { 'odata.error': { message: { value: THRESHOLD } } } });
+    }
     const m = /FileLeafRef eq ('(?:[^']|'')*')/.exec(params.get('$filter') ?? '');
-    if (!m || libraryName(libs, list) == null || libraryOf(list) !== list) return fail(400);
+    if (!m || !list) return fail(400);
     const name = unquote(m[1]).toLowerCase();
     const paths = filesOf(libs, list, uploads).filter((p) => p.split('/').pop()?.toLowerCase() === name);
     return json({ value: paths.map((p) => ({ FileRef: p })) });
@@ -607,11 +642,47 @@ export function handle(
     const library = libraryName(libs, pathname) == null ? null : libraryOf(pathname);
 
     if (pathname === `${SITE}/_api/web/GetList(@list)/items`) return listItems(libs, u.searchParams, uploads);
+    if (pathname === `${SITE}/_api/contextinfo`) return method === 'POST' ? answer(contextAnswer()) : fail(405);
+    const listPart =
+        /^\/_api\/web\/GetList\(@list\)\/(Fields|Views|GetItems|items\((\d+)\)\/ValidateUpdateListItem)$/.exec(
+            pathname.slice(SITE.length),
+        );
+    const list = listPart && listOf(libs, u.searchParams);
+    if (listPart && !list) return fail(400);
+    if (pathname === `${SITE}/_api/web/GetList(@list)`) {
+        const lib = listOf(libs, u.searchParams);
+        return lib ? json({ Title: libs[urlNameOf(lib)].title }) : fail(400);
+    }
+    if (list && listPart?.[1] === 'Fields') return answer(fieldsAnswer());
+    if (list && listPart?.[1] === 'Views') return answer(viewsAnswer(list));
+    if (list && listPart?.[1] === 'GetItems') {
+        if (method !== 'POST') return fail(405);
+        if (headers['x-requestdigest'] !== DIGEST) return fail(403);
+        let folder = '';
+        try {
+            folder = String(JSON.parse(String(body ?? '{}')).query?.FolderServerRelativeUrl ?? list);
+        } catch {
+            return fail(400);
+        }
+        return answer(itemsAnswer(tree(libs, list, uploads), folder.replace(/\/+$/, ''), loadStore(uploads)));
+    }
+    if (list && listPart?.[2]) {
+        if (method !== 'POST') return fail(405);
+        const t = tree(libs, list, uploads);
+        return answer(validateUpdate(t, Number(listPart[2]), body, headers['x-requestdigest'], uploads));
+    }
     if (pathname === `${SITE}/_api/search/query`) return searchQuery(libs, u.searchParams, u.origin, uploads);
     if (library && pathname === listPageOf(library)) return listPage(libs, library, uploads);
     if (library && pathname === `${library}/_api/tree`) return json(tree(libs, library, uploads));
     if (library && pathname === `${library}/_api/upload`) {
         return upload(libs, library, uploads, u.searchParams, method, body);
+    }
+    // files renamed in this session: under the new name only
+    const store = loadStore(uploads);
+    if (library && renamedAway(store, pathname) && !store.renamed[pathname]) return fail(404);
+    if (library && store.renamed[pathname]) {
+        const original = new URL(encodeURI(store.renamed[pathname]), u).href;
+        return handle({ url: original, method, headers, body }, { libraries });
     }
     const uploaded = uploads ? uploadPath(uploads, pathname) : null;
     if (library && uploaded && fs.existsSync(uploaded) && fs.statSync(uploaded).isFile()) {
