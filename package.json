@@ -18,16 +18,19 @@
         "tampermonkey",
         "sharepoint"
     ],
+    "scripts": {
+        "build:anon": "node --disable-warning=ExperimentalWarning scripts/anon.ts"
+    },
     "engines": {
         "node": ">=22.18"
     },
     "devDependencies": {
-        "@biomejs/biome": "2.6.3",
+        "@biomejs/biome": "2.6.4",
         "@ifc-lite/geometry": "8.0.0",
         "@ifc-lite/parser": "9.7.0",
         "@ifc-lite/renderer": "6.5.1",
-        "@ifc-lite/wasm": "11.0.0",
-        "@types/node": "26.6.5",
+        "@ifc-lite/wasm": "11.0.1",
+        "@types/node": "26.6.6",
         "esbuild": "0.28.2",
         "playwright": "1.64.1",
         "typescript": "7.0.2"

@@ -32,6 +32,8 @@ PATH_SRC_3D := "src/@apis/ifc-lite/main.ts"
 PATH_DIST := "dist"
 PATH_BUNDLE := PATH_DIST / "userscript.js"
 PATH_BUNDLE_MIN := PATH_DIST / "userscript.min.js"
+# the bundle without the regions marked "anon" (cf. build-anon); local only
+PATH_BUNDLE_ANON := PATH_DIST / "userscript-anon.js"
 PATH_VERSION := "dist/VERSION"
 VERSION := trim(read(PATH_VERSION))
 # release tag: short pre-release forms in /dist/VERSION (1.1.0a1, 1.1.0b2, 1.1.0rc1), long in tags (v1.1.0-alpha.1, ...)
@@ -40,6 +42,8 @@ TAG := "v" + replace_regex(replace_regex(replace_regex(VERSION, '([0-9])a([0-9]+
 BUILD_VERSION := shell('if git rev-parse --git-dir >/dev/null 2>&1 && ! git tag --points-at HEAD 2>/dev/null | grep -qFx "$1"; then echo "$2-beta.$(git rev-parse --short HEAD)"; else echo "$2"; fi', TAG, VERSION)
 # release folder, flat: userscript, 3D files, NOTES.md; named after the version of the build
 PATH_RELEASE := PATH_DIST / "v" + BUILD_VERSION
+# anonymous release folder (cf. build-anon)
+PATH_RELEASE_ANON := PATH_RELEASE + "-anon"
 # 3D files (ifc-lite) in the release folder: true (default) or false (cf. .env);
 # if false, they are built in a temporary folder only, for their hashes in the userscript
 BUILD_3D := env("BUILD_3D", "true")
@@ -112,20 +116,30 @@ build-src:
 
 # writes release to /dist/v<BUILD_VERSION>: userscript with @version (BUILD_VERSION: <VERSION>, off the release tag <VERSION>-beta.<short commit>) and 3D hashes stamped, minified, 3D files (unless BUILD_3D=false), notes
 [group("build")]
-build-dist: build-src
+build-dist: build-src (_release PATH_BUNDLE PATH_RELEASE)
+
+# anonymous release /dist/v<BUILD_VERSION>-anon: as build-dist, from the bundle without the regions marked "anon" and with ABOUT_LINKS empty (npm script build:anon, cf. /scripts/anon.ts)
+[group("build")]
+build-anon: build-dist _bundle-anon (_release PATH_BUNDLE_ANON PATH_RELEASE_ANON)
+
+_bundle-anon:
+    @npm run --silent build:anon -- "{{PATH_BUNDLE}}" "{{PATH_BUNDLE_ANON}}"
+
+# release folder from a bundle: @version and 3D hashes stamped, marker lines of the regions "anon" removed (their contents kept), minified, 3D files, notes
+_release script path:
     #!/usr/bin/env bash
     set -euo pipefail
-    mkdir -p "{{PATH_RELEASE}}"
+    mkdir -p "{{path}}"
     # 3D files: in the release folder, or only in a temporary folder (for the hashes)
     case "{{BUILD_3D}}" in
         true)
-            path_3d="{{PATH_RELEASE}}"
+            path_3d="{{path}}"
             ;;
 
         false)
             path_3d="$(mktemp -d)"
             trap 'rm -rf "${path_3d}"' EXIT
-            rm -f "{{PATH_RELEASE}}/ifc-lite-3d.js" "{{PATH_RELEASE}}/ifc-lite_bg.wasm"
+            rm -f "{{path}}/ifc-lite-3d.js" "{{path}}/ifc-lite_bg.wasm"
             ;;
 
         *)
@@ -139,19 +153,20 @@ build-dist: build-src
     version="{{BUILD_VERSION}}"
     # quoted value: opening quote, then anything up to the closing quote
     quote='"'"'";
-    path="{{PATH_RELEASE}}/{{NAME}}.js"
+    file="{{path}}/{{NAME}}.js"
     sed -E \
         -e "s|^(// @version[[:space:]]+).*$|\1${version}|" \
         -e "s|(VIEWER_3D_JS_SHA256[[:space:]]*=[[:space:]]*[${quote}])[^${quote}]*|\1${hash_js}|" \
         -e "s|(VIEWER_3D_WASM_SHA256[[:space:]]*=[[:space:]]*[${quote}])[^${quote}]*|\1${hash_wasm}|" \
         -e "/^\/\/ Version and 3D checksums are dummies here/d" \
-        "{{PATH_BUNDLE}}" > "${path}"
-    node --check "${path}"
-    just _minify "${path}" "{{PATH_RELEASE}}/{{NAME}}.min.js"
-    just _size "{{PATH_RELEASE}}/{{NAME}}.min.js" "{{MAX_KB_MIN}}"
-    cp NOTES.md "{{PATH_RELEASE}}/NOTES.md"
-    built=$(sed -n 's|^// @version[[:space:]]*||p' "{{PATH_RELEASE}}/{{NAME}}.js")
-    echo "built {{PATH_RELEASE}} (${built}; 3D files: {{BUILD_3D}})"
+        -e '/^[[:space:]]*\/\/[[:space:]]*#(end)?region[[:space:]]+anon([[:space:]].*)?$/d' \
+        "{{script}}" > "${file}"
+    node --check "${file}"
+    just _minify "${file}" "{{path}}/{{NAME}}.min.js"
+    just _size "{{path}}/{{NAME}}.min.js" "{{MAX_KB_MIN}}"
+    cp NOTES.md "{{path}}/NOTES.md"
+    built=$(sed -n 's|^// @version[[:space:]]*||p' "{{path}}/{{NAME}}.js")
+    echo "built {{path}} (${built}; 3D files: {{BUILD_3D}})"
 
 # minified userscript; its ==UserScript== header is kept as is (Tampermonkey reads it).
 # NOTE: names are kept: the check worker is built from the script's own function sources
@@ -274,6 +289,6 @@ type-check:
 clean:
     @rm -rf node_modules
     @rm -rf "{{PATH_DIST}}"/v*/
-    @rm -f "{{PATH_BUNDLE}}" "{{PATH_BUNDLE_MIN}}"
+    @rm -f "{{PATH_BUNDLE}}" "{{PATH_BUNDLE_MIN}}" "{{PATH_BUNDLE_ANON}}"
     @rm -rf tests/mocks/mock-sharepoint/__uploads__
     @find . -name '.DS_Store' -not -path './__human__/*' -delete 2> /dev/null || true
