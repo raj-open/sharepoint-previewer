@@ -16,7 +16,6 @@ import { watchBlocks } from '../view/lines.ts';
 import { wireReorder } from '../view/reorder.ts';
 import { columnOrder } from './columns.ts';
 import { moveColumn } from './columns.ts';
-import { saveColumns } from './columns.ts';
 import { setColumns } from './columns.ts';
 import { shownColumns } from './columns.ts';
 import { NAME } from './data.ts';
@@ -110,12 +109,15 @@ function headHtml(z: Zen, cols: string[]): string {
     const th = (col: string, title: string, cls: string) => {
         const sort = z.sort?.col === col ? (z.sort.dir > 0 ? ' ▲' : ' ▼') : '';
         const on = z.filters.has(col) ? ' tp-on' : '';
-        const move = col === NAME ? '' : ' tp-movable';
+        // layout mode: moved (not the name) and sized
+        const move = z.layout && col !== NAME ? ' tp-movable' : '';
+        const resize = z.layout
+            ? `<span class="tp-resize" data-col="${esc(col)}" title="Drag to change the width"></span>`
+            : '';
         return (
             `<th data-col="${esc(col)}" class="${cls}${move}" title="${esc(title)}">` +
             `<span class="tp-sort">${esc(title)}${sort}</span>` +
-            `<button class="tp-filter${on}" data-col="${esc(col)}" title="Filter">▾</button>` +
-            `<span class="tp-resize" data-col="${esc(col)}" title="Drag to change the width"></span></th>`
+            `<button class="tp-filter${on}" data-col="${esc(col)}" title="Filter">▾</button>${resize}</th>`
         );
     };
     const titles = new Map((z.data?.fields ?? []).map((f) => [f.name, f.title]));
@@ -259,10 +261,16 @@ export function itemOf(z: Zen, el: HTMLElement): ZenItem | undefined {
  * @param redraw draws the list anew
  * @param open item clicked (read mode)
  * @param edited a value changed (edit mode)
+ * @param arranged columns moved or sized (layout mode: a draft)
  */
 export function wireGrid(
     z: Zen,
-    { redraw, open, edited }: { redraw: () => void; open: (item: ZenItem) => void; edited: () => void },
+    {
+        redraw,
+        open,
+        edited,
+        arranged,
+    }: { redraw: () => void; open: (item: ZenItem) => void; edited: () => void; arranged: () => void },
 ): void {
     const grid = z.grid;
     const colOf = (el: Element | null) => (el as HTMLElement | null)?.dataset.col ?? '';
@@ -331,10 +339,10 @@ export function wireGrid(
         }
     });
 
-    // Widths: drag the lower right edge of a column title
+    // Widths (layout mode): drag the lower right edge of a column title
     grid.addEventListener('pointerdown', (e) => {
         const handle = (e.target as HTMLElement).closest('.tp-resize') as HTMLElement | null;
-        if (!handle || !z.data) return;
+        if (!handle || !z.data || !z.layout) return;
         e.preventDefault();
         e.stopPropagation();
         const col = colOf(handle);
@@ -352,26 +360,26 @@ export function wireGrid(
             handle.removeEventListener('pointermove', move);
             handle.removeEventListener('pointerup', up);
             handle.removeEventListener('pointercancel', up);
-            if (z.data) saveColumns(z.data.library, z.columns);
+            arranged();
         };
         handle.addEventListener('pointermove', move);
         handle.addEventListener('pointerup', up);
         handle.addEventListener('pointercancel', up);
     });
 
-    // Order: drag a column title onto another (the name stays first)
+    // Order (layout mode): drag a column title onto another (the name stays first)
     wireReorder(grid, {
         item: 'th[data-col]',
         axis: 'x',
         skip: '.tp-filter, .tp-resize',
-        movable: (col) => col !== NAME,
+        movable: (col) => !!z.layout && col !== NAME,
         drop: (col, target, after) => {
             if (!z.data) return;
             const { order, hidden } = columnOrder(z.data, z.columns);
             const shown = order.filter((n) => !hidden.has(n));
             const at = shown.indexOf(target) + (after ? 1 : 0);
             setColumns(z, moveColumn(order, col, shown[at] ?? null), hidden);
-            redraw();
+            arranged();
         },
     });
 }

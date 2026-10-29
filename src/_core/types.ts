@@ -232,6 +232,8 @@ export type Zen = {
     sort: { col: string; dir: number } | null;
     filters: Map<string, Filter>;
     editing: boolean;
+    /** layout mode: the columns as saved (changed since: a draft, kept by Save, dropped by Cancel); null: off */
+    layout: ZenColumns | null;
     busy: boolean;
     /** changes not uploaded (kept in the view once saved) */
     pending: Map<number, Record<string, string>>;

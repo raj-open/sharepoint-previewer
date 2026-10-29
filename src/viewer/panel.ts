@@ -216,6 +216,7 @@ export function createViewer(): Viewer {
     const zenBtn = item(ZEN_SVG, 'Zen mode', { pressed: !!zenList });
     zenBtn.title = ZEN_TITLE;
     const themeBtn = item(THEME_SVG, 'Dark mode', { pressed: view.theme === 'dark' });
+    themeBtn.dataset.themeToggle = ''; // pressed: dark (also if switched in the Zen list)
     const colourBtn = item(COLOUR_SVG, 'Syntax colours');
     const wrapBtn = item(WRAP_SVG, 'Wrap long lines');
     const refreshBtn = item(REFRESH_SVG, 'Reload this file');
@@ -664,14 +665,7 @@ export function createViewer(): Viewer {
 
     backdrop.onclick = closeViewer;
     closeBtn.onclick = closeViewer;
-    themeBtn.onclick = () => {
-        view.theme = view.theme === 'dark' ? 'light' : 'dark';
-        savePref(THEME_KEY, view.theme);
-        box.classList.remove('tp-dark', 'tp-light');
-        box.classList.add(`tp-${view.theme}`);
-        themeBtn.setAttribute('aria-pressed', String(view.theme === 'dark'));
-        zenTheme();
-    };
+    themeBtn.onclick = () => toggleTheme();
     hBtn.onclick = () => v.mode !== 'horizontal' && setMode('horizontal');
     vBtn.onclick = () => v.mode !== 'vertical' && setMode('vertical');
     pBtn.onclick = () => v.mode !== 'popup' && setMode('popup');
@@ -931,4 +925,19 @@ export function createViewer(): Viewer {
     // Appended to <html>, not <body>: in split mode <body> is shrunk (see setMode)
     document.documentElement.append(backdrop, box);
     return v;
+}
+
+/** Light / dark (kept): the viewer, its menu entry and the Zen list */
+export function toggleTheme(): void {
+    view.theme = view.theme === 'dark' ? 'light' : 'dark';
+    savePref(THEME_KEY, view.theme);
+    const box = viewer?.box;
+    if (box) {
+        box.classList.remove('tp-dark', 'tp-light');
+        box.classList.add(`tp-${view.theme}`);
+        for (const b of box.querySelectorAll('[data-theme-toggle]')) {
+            b.setAttribute('aria-pressed', String(view.theme === 'dark'));
+        }
+    }
+    zenTheme();
 }
