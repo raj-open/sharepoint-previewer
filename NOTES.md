@@ -43,7 +43,8 @@ Development: [TECHNICAL.md](TECHNICAL.md).
   an own list of the folder in place of Sharepoint's, beside the viewer,
   with the columns (properties) of the library:
   sort, filter; in its layout mode columns shown, hidden and moved, widths at any time (view only, kept in the browser, nothing changes on Sharepoint);
-  files and folders selected and downloaded (one file as it is, else a ZIP made in the browser);
+  files and folders selected and downloaded (one file as it is, else a ZIP made in the browser),
+  or deleted after asking (to the site's recycle bin, as Sharepoint's own Delete), or purged for good after a warning (§3, §4);
   in its edit mode, properties of non-system columns and names can be changed,
   saved through Sharepoint's REST API as its own edit form does (§3, §4).
 - **Sharepoint's own UI is not changed,**
@@ -161,6 +162,8 @@ and are **refused by the script if the target is not the current Sharepoint orig
 | `HEAD <file>` | After an upload | Checks that the file really changed (ETag / Last-Modified / size) |
 | `GET <site>/_api/web/GetList(…)`, `…/Fields`, `…/Views`; `POST <site>/_api/contextinfo`, `…/GetItems` (query scoped to the folder) | Zen mode: a folder shown (or read anew) | Title of the library, its columns (not hidden), the view's columns, the folder's items with their values (read only; the POST is Sharepoint's way to send a query, it changes nothing) |
 | `POST <site>/_api/contextinfo`, `…/GetItems` (query scoped to each folder, names only); `GET <file>` (whole) | Zen mode: Download of the items selected | Lists the folders selected and all below them, fetches the files; packed into a ZIP in the browser and saved by it (nothing is sent anywhere) |
+| `POST <site>/_api/web/GetList(…)/items(<id>)/recycle()` | Zen mode: Delete of the items selected, after asking (number and names shown), per item | Moves the item (a folder with everything in it) to the site's recycle bin, as Sharepoint's own Delete does; restorable there |
+| `POST <site>/_api/web/GetList(…)/items(<id>)/deleteObject()` | Zen mode: Purge of the items selected, after a warning (number and names shown; not restorable), per item | Deletes the item (a folder with everything in it) for good: not to the recycle bin |
 | `POST <site>/_api/contextinfo` | Zen mode: first folder (then when it runs out) | Form digest, required by Sharepoint for any POST |
 | `POST <site>/_api/web/GetList(…)/items(<id>)/ValidateUpdateListItem` | Zen mode: Upload, per item changed | Properties and name of the item, checked and saved by Sharepoint as its own edit form does (a new version) |
 | `GET <VIEWER_3D_FOLDER>/ifc-lite-3d.js`, `…/ifc-lite_bg.wasm` | First use of the 3D view only | 3D library from **your** Sharepoint; checked against fixed SHA-256 hashes before use |
@@ -170,6 +173,8 @@ There are no other requests:
 no telemetry,
 no update checks
 and no fonts or images from outside.
+The links of the tab "About" (`ABOUT_LINKS`, e.g. the repository) are plain links:
+nothing is fetched unless the user clicks one (new tab); the anonymous build has none.
 The logo setting only accepts `data:` URIs.
 
 ---

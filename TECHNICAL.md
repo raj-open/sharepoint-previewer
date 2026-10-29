@@ -11,7 +11,7 @@ For reviewing the script (permissions, network, storage, security, deployment): 
 | `/src/_core` | Tampermonkey header (`header.ts`), settings, preferences, list view, shared types (`types.ts`) |
 | `/src/{readers,text,ui,view,viewer,zen}` | the other modules (TypeScript); `zen`: Zen mode |
 | `/src/@apis/ifc-lite/main.ts` | entry of the ifc-lite bundle for the optional 3D view |
-| `/scripts` | build and demo scripts (`bundle.ts`, `demos.ts`, `hero.ts`) |
+| `/scripts` | build and demo scripts (`bundle.ts`, `anon.ts`, `demos.ts`, `hero.ts`) |
 | `/demos` | demos with screenshots (`/demos/img`, written by `just demos`) |
 | `/.github/workflows` | qa (automatic, manual) and release (cf. [Workflows](#workflows)) |
 | `/tests/{unit,behave,integration}` | tests (`tests_*.ts`, run with `node --test`); unit tests mirror `/src` |
@@ -44,6 +44,8 @@ just setup              # local files (.env, ...) from /templates
 just build              # dependencies (per lock) + all artefacts in /dist
 just build-src          # /dist/userscript{,.min}.js from the modules (local only)
 just build-dist         # artefacts only (dependencies already installed)
+just build-anon         # as build, plus the anonymous release /dist/v<BUILD_VERSION>-anon (cf. Artefacts)
+just build-dist-anon    # as build-dist, plus the anonymous release (dependencies already installed)
 just prettify           # format + lint with fixes (Biome)
 just lint-check         # same, dry run
 just tests              # all tests (tests-unit, tests-behave, tests-integration)
@@ -81,6 +83,25 @@ The build is deterministic (versions pinned),
 so such a release accepts the 3D files of the last release built with them,
 as long as the ifc-lite and esbuild versions are unchanged.
 The release workflow includes them only if its checkbox is ticked (default: off).
+
+### Anonymous build ###
+
+`just build-anon` (dependencies installed first, as `just build`) or `just build-dist-anon` writes, beside the release, the anonymous release `/dist/v<BUILD_VERSION>-anon` (same files),
+from the bundle without what is marked "anon" (`npm run build:anon`, cf. `/scripts/anon.ts`):
+
+- the regions marked "anon" are left out (marker lines included; other regions may nest inside):
+
+  ```js
+  // #region anon
+  // @copyright    …
+  // #endregion anon
+  ```
+
+- `ABOUT_LINKS` is emptied (`{}`: the tab "About" shows no links)
+
+Anything else that is to be left out of the anonymous build is simply marked the same way
+(in the header or in any module).
+The ordinary release keeps it, without the marker lines.
 
 ## Dependencies ##
 
@@ -149,7 +170,7 @@ How the parts communicate: [NOTES.md, §3](NOTES.md#3-communication).
     a click copies the clean link (not encoded, no query) of the file shown
     (a link file or search result: where it leads),
     or of the folder in the viewer without a file
-  - ⋯ menu: new file, full settings, dark mode, syntax colours, line wrap, properties, reload, clear cache
+  - ⋯ menu: new file, full settings, dark mode, syntax colours, line wrap, properties, reload, clear cache, about (last)
 - **Properties line:**
   modified date (from the file's own HTTP response),
   size, format, encoding, indentation,
@@ -343,8 +364,17 @@ on its own: with or without the viewer; demos: [Zen mode](demos/zen.md).
   Files are fetched by the page (4 at a time, same origin only) and packed in the browser
   (`/src/zen/pack.ts`: ZIP after PKWARE's APPNOTE, UTF-8 names, deflated where smaller, dates from `Last-Modified`; no ZIP64);
   limits: 2 GB, 10,000 files (`MAX_DOWNLOAD`, `MAX_FILES`; Sharepoint's own download for more).
-- **Bar:** eye, crumbs, note; selection (or progress), Download; Edit, Cancel, Save, Upload (Save and Cancel: of the mode on); columns; ⋯; ✕.
-  ⋯ (`/src/zen/menu.ts`): full settings, dark mode (shared with the viewer: `toggleTheme` in `/src/viewer/panel.ts`), reload of the folder.
+- **Delete** (`/src/zen/delete.ts`, bin button; Delete key or ⌘ + Backspace in the list, not while typing in a field):
+  asks first (`confirm`: number and names of the items, at most 20, folders marked and warned of: all in them go too);
+  then item by item `POST …/GetList(@list)/items(<id>)/recycle()`, as Sharepoint's own Delete:
+  to the site's recycle bin (restorable there), a folder with everything below it.
+  The folder is read anew; items refused are named with Sharepoint's reason;
+  a file shown in the viewer (or in a folder deleted) closes the viewer.
+- **Purge** (same module, red flame button; Shift + Delete or ⌘ + ⌥ + Backspace in the list, as Explorer and Finder):
+  as Delete, but for good: `POST …/items(<id>)/deleteObject()`, not to the recycle bin;
+  the question says so plainly (cannot be restored, cannot be undone).
+- **Bar:** eye, crumbs, note; selection (or progress), Download, Delete, Purge; Edit, Cancel, Save, Upload (Save and Cancel: of the mode on); columns; ⋯; ✕.
+  ⋯ (`/src/zen/menu.ts`): full settings, dark mode (shared with the viewer: `toggleTheme` in `/src/viewer/panel.ts`), reload of the folder, about (last).
   ✕: Zen mode off.
   Narrow (less than 200 px left beside the buttons, `MIN_CRUMBS`): the crumbs on a second row, full width, as the file name in the viewer's header.
 - **Editing:**
@@ -430,6 +460,13 @@ plus "Reset to defaults";
 Ctrl / ⌘ + S saves (as Save).
 The Tampermonkey menu → "Edit (v…)" and the version top right (viewer, settings form)
 open Tampermonkey's editor of the script (e.g. to upgrade).
+
+The tab "About" (Tampermonkey menu → "About …", or ⋯ → "About …" of the viewer and of the Zen list;
+`/src/_core/about.ts`): name and version, installation in brief, the controls hard to discover, links.
+The links come from `ABOUT_LINKS` in `/src/_core/config.ts`, the first module of the userscript (at its very top),
+one line per link (label: URL, http(s) only); a line commented out drops its link,
+none left: no link section at all.
+The anonymous build empties it (cf. Artefacts).
 
 | Key | Default | Meaning |
 | :-- | :------ | :------ |

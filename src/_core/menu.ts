@@ -1,4 +1,4 @@
-// Tampermonkey menu: editor of the userscript, settings form, reset
+// Tampermonkey menu: editor of the userscript, settings form, reset, about (last)
 
 // ===========================================================================
 // IMPORTS
@@ -16,6 +16,7 @@ import { resetSettings } from './settings-form.ts';
 /** Tampermonkey menu: entries shown without folding out the script's own entry. */
 export function registerMenu(): void {
     GM_registerMenuCommand(`Edit (v${scriptVersion()})`, openEditor);
-    GM_registerMenuCommand('Settings …', openSettingsForm);
+    GM_registerMenuCommand('Settings …', () => openSettingsForm());
     GM_registerMenuCommand('Reset settings', resetSettings);
+    GM_registerMenuCommand('About …', () => openSettingsForm('about'));
 }

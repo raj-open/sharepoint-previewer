@@ -270,6 +270,72 @@ describe('zen mode', () => {
         assert.equal(await z.locator('.tp-zen-picked').textContent(), '2 selected'); // progress gone
     });
 
+    it("delete: after asking (number, names, folders warned of), to the recycle bin as Sharepoint's own; the viewer follows", async () => {
+        // in the library's top folder: items no other test here uses (deletes last for the browser's session)
+        const { page, requests } = await openFolder(h.LIBRARY);
+        const z = await zen(page);
+        const box = (name: string) => rowOf(z, name).locator('.tp-zen-pick-one');
+        assert.equal(await btn(z, 'Delete').isDisabled(), true, 'nothing selected');
+        await z.locator('td.tp-zen-name', { hasText: 'notes.txt' }).click();
+        const v = page.locator('.tp-viewer');
+        await v.locator('.tp-title-name', { hasText: 'notes.txt' }).waitFor();
+        // the Delete key (focus on a checkbox: in the list, not typing)
+        await box('notes.txt').click();
+        await box('Logs').click();
+        await page.keyboard.press('Delete');
+        await rowOf(z, 'Logs').waitFor({ state: 'detached' });
+        const asked = (await dialogues(page)).confirms.join('\n');
+        assert.match(asked, /^Delete 2 items\?/);
+        for (const part of ['• notes.txt', '• Logs (folder)', 'everything in them', 'recycle bin'])
+            assert.ok(asked.includes(part), part);
+        assert.ok(!(await names(z)).includes('notes.txt'));
+        assert.match(await h.text(z.locator('.tp-zen-note')), /2 deleted/);
+        assert.equal(await z.locator('.tp-zen-picked').textContent(), '', 'nothing selected');
+        assert.equal(await v.locator('.tp-title-name', { hasText: 'notes.txt' }).count(), 0, 'viewer: file gone');
+        const posts = requests.filter((r) => r.method === 'POST').map((r) => new URL(r.url).pathname);
+        assert.equal(posts.filter((p) => /\/items\(\d+\)\/recycle\(\)$/.test(p)).length, 2);
+        const status = (p: string) => page.evaluate(async (url) => (await fetch(url)).status, p);
+        assert.equal(await status(`${h.LIBRARY}/notes.txt`), 404);
+        assert.equal(await status(`${h.LIBRARY}/Logs/app.log`), 404, 'folder: with all in it');
+        // the button; typing in a field: the Delete key is the field's
+        await box('README.md').click();
+        await z.locator('.tp-zen-btn[title^="Edit"]').click();
+        const priority = (await cell(z, 'README.md', 'Priority')).locator('.tp-zen-text');
+        await priority.click();
+        await page.keyboard.press('Delete');
+        assert.equal((await dialogues(page)).confirms.length, 1, 'not asked while typing');
+        await btn(z, 'Delete').click();
+        await rowOf(z, 'README.md').waitFor({ state: 'detached' });
+        assert.match((await dialogues(page)).confirms[1], /^Delete 1 item\?\n\n {4}• README\.md\n/);
+    });
+
+    it('purge: for good after a warning (not to the recycle bin); its button red, Shift + Delete as well', async () => {
+        // in the library's top folder: items no other test here uses (after the delete test: what is left of it)
+        const { page, requests } = await openFolder(h.LIBRARY);
+        const z = await zen(page);
+        const box = (name: string) => rowOf(z, name).locator('.tp-zen-pick-one');
+        const purge = btn(z, 'Purge');
+        assert.equal(await purge.isDisabled(), true, 'nothing selected');
+        await box('Empty folder').click();
+        await purge.click();
+        await rowOf(z, 'Empty folder').waitFor({ state: 'detached' });
+        const asked = (await dialogues(page)).confirms.join('\n');
+        assert.match(asked, /^PURGE 1 item for good\?/);
+        for (const part of ['• Empty folder (folder)', 'purged with everything in them', 'cannot be restored'])
+            assert.ok(asked.includes(part), part);
+        assert.match(await h.text(z.locator('.tp-zen-note')), /1 purged \(for good\)/);
+        const posts = requests.filter((r) => r.method === 'POST').map((r) => new URL(r.url).pathname);
+        assert.equal(posts.filter((p) => /\/items\(\d+\)\/deleteObject\(\)$/.test(p)).length, 1);
+        assert.equal(posts.filter((p) => /\/recycle\(\)$/.test(p)).length, 0, 'not to the recycle bin');
+        // Shift + Delete (focus on a checkbox: in the list)
+        await box('Models').click();
+        await page.keyboard.press('Shift+Delete');
+        await rowOf(z, 'Models').waitFor({ state: 'detached' });
+        assert.match((await dialogues(page)).confirms[1], /^PURGE 1 item for good\?/);
+        const status = await page.evaluate(async (url) => (await fetch(url)).status, `${h.LIBRARY}/Models/wall.ifc`);
+        assert.equal(status, 404);
+    });
+
     it('columns: shown and hidden from the menu (layout mode), kept for the library once saved', async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);
@@ -377,14 +443,14 @@ describe('zen mode', () => {
         assert.deepEqual(await titles(await filled(page)), before, 'nothing kept');
     });
 
-    it('⋯ menu: settings, dark mode, reload of the folder; ✕: Zen mode off (the viewer stays)', async () => {
+    it('⋯ menu: settings, dark mode, reload of the folder, about (last); ✕: Zen mode off (the viewer stays)', async () => {
         const { page, requests } = await openFolder(DATA);
         const z = await zen(page);
         await btn(z, 'More').click();
         const items = await z.locator('.tp-zen-more .tp-menu-item').allTextContents();
         assert.deepEqual(
             items.map((t) => t.trim()),
-            ['Full settings …', 'Dark mode', 'Reload the folder'],
+            ['Full settings …', 'Dark mode', 'Reload the folder', 'About …'],
         );
         await z.locator('.tp-zen-more .tp-menu-item', { hasText: 'Dark mode' }).click();
         assert.ok(await z.evaluate((el) => el.classList.contains('tp-dark')));
@@ -697,6 +763,55 @@ describe('zen mode', () => {
 });
 
 describe('settings form', () => {
+    it('About: from the ⋯ menus (viewer, Zen list) and the Tampermonkey menu, the settings on its tab', async () => {
+        const { page } = await openFolder(DATA);
+        const settings = page.locator('.tp-settings');
+        const about = settings.locator('[data-pane="about"]');
+        const shownAbout = async () => {
+            await about.waitFor();
+            assert.equal(await about.isVisible(), true, 'tab About shown');
+            assert.equal(await settings.locator('[data-pane="form"]').isVisible(), false);
+            assert.equal(await settings.locator('[data-act="save"]').isVisible(), false, 'no Save under About');
+            assert.equal(
+                await settings.locator('[data-mode="about"]').evaluate((b) => (b as HTMLElement).style.color),
+                'rgb(255, 255, 255)',
+                'its tab pressed',
+            );
+            assert.equal(await h.text(settings.locator('[data-title]')), 'Sharepoint Previewer: about');
+        };
+        const close = () => settings.locator('[data-act="close"]').click();
+        // the viewer's ⋯ menu
+        await page.locator('.tp-head').dispatchEvent('click');
+        const v = page.locator('.tp-viewer');
+        await v.locator('.tp-mode-btn[title="More"]').click();
+        await v.locator('.tp-menu-item', { hasText: 'About' }).click();
+        await shownAbout();
+        const text = await h.text(about);
+        for (const part of ['Sharepoint Previewer v', 'Installation', 'Controls', 'Delete', 'Links', 'Repository'])
+            assert.ok(text.includes(part), part);
+        assert.equal(
+            await about.locator('a', { hasText: 'Repository' }).getAttribute('href'),
+            'https://github.com/raj-open/sharepoint-previewer',
+        );
+        // Form again: the settings, Save there
+        await settings.locator('[data-mode="form"]').click();
+        assert.equal(await settings.locator('[data-pane="form"]').isVisible(), true);
+        assert.equal(await settings.locator('[data-act="save"]').isVisible(), true);
+        assert.equal(await h.text(settings.locator('[data-title]')), 'Sharepoint Previewer: settings');
+        await close();
+        // the Zen list's ⋯ menu
+        const z = await zen(page);
+        await btn(z, 'More').click();
+        await z.locator('.tp-menu-item', { hasText: 'About' }).click();
+        await shownAbout();
+        await close();
+        // the Tampermonkey menu
+        await page.evaluate(() =>
+            (window as unknown as { __gm: { menu: Record<string, () => void> } }).__gm.menu['About …'](),
+        );
+        await shownAbout();
+    });
+
     it('Ctrl+S saves (as in write mode)', async () => {
         const { page } = await openFolder(h.LIBRARY);
         await page.evaluate(() =>

@@ -20,6 +20,9 @@
 //                                                                        other filters of items refused (list view threshold)
 //   <site>/_api/contextinfo, …/items(<id>)/ValidateUpdateListItem     form digest (POST); properties and names changed (POST,
 //                                                                        simulated: kept with the session's uploads)
+//   <site>/_api/web/GetList(@list)/items(<id>)/recycle(), …/deleteObject()
+//                                                                        item (folder: all below it) to the recycle bin, or for good
+//                                                                        (POST; simulated: gone for the session)
 //   <site>/_api/web/lists                                                lists of the site (libraries, plus Sharepoint's own:
 //                                                                        Site Assets, a hidden one; $filter Hidden eq false)
 //
@@ -35,14 +38,18 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Answer } from './properties.ts';
 import type { Entry } from './properties.ts';
+import { applyDeletes } from './properties.ts';
 import { applyRenames } from './properties.ts';
 import { contextAnswer } from './properties.ts';
+import { deletedAway } from './properties.ts';
 import { DIGEST } from './properties.ts';
 import { fieldsAnswer } from './properties.ts';
 import { itemsAnswer } from './properties.ts';
 import { loadStore } from './properties.ts';
 import { originalOf } from './properties.ts';
+import { recycle } from './properties.ts';
 import { renamedAway } from './properties.ts';
+import { saveStore } from './properties.ts';
 import { validateUpdate } from './properties.ts';
 import { viewsAnswer } from './properties.ts';
 
@@ -266,6 +273,7 @@ function tree(libs: Libraries, library: string, uploads?: string): Record<string
             e.author = e.uploaded ? UPLOADER : authorOf(originalOf(store, `${folder}/${e.name}`));
         }
     }
+    applyDeletes(store, out); // deleted in this session (Zen mode)
     return out;
 }
 
@@ -573,6 +581,13 @@ function upload(
     if (!dir || !name || /[\\/]/.test(name) || !(folder in tree(libs, library, uploads))) return fail(400);
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, name), body ?? Buffer.alloc(0));
+    // deleted earlier (same name, any case): there again
+    const store = loadStore(uploads);
+    const p = `${folder}/${name}`.toLowerCase();
+    if (store.deleted.some((d) => d.toLowerCase() === p)) {
+        store.deleted = store.deleted.filter((d) => d.toLowerCase() !== p);
+        saveStore(uploads, store);
+    }
     return json({ folder, name });
 }
 
@@ -664,7 +679,7 @@ export function handle(
     if (pathname === `${SITE}/_api/web/GetList(@list)/items`) return listItems(libs, u.searchParams, uploads);
     if (pathname === `${SITE}/_api/contextinfo`) return method === 'POST' ? answer(contextAnswer()) : fail(405);
     const listPart =
-        /^\/_api\/web\/GetList\(@list\)\/(Fields|Views|GetItems|items\((\d+)\)\/ValidateUpdateListItem)$/.exec(
+        /^\/_api\/web\/GetList\(@list\)\/(Fields|Views|GetItems|items\((\d+)\)\/(ValidateUpdateListItem|recycle\(\)|deleteObject\(\)))$/.exec(
             pathname.slice(SITE.length),
         );
     const list = listPart && listOf(libs, u.searchParams);
@@ -686,6 +701,12 @@ export function handle(
         }
         return answer(itemsAnswer(tree(libs, list, uploads), folder.replace(/\/+$/, ''), loadStore(uploads)));
     }
+    if (list && (listPart?.[3] === 'recycle()' || listPart?.[3] === 'deleteObject()')) {
+        if (method !== 'POST') return fail(405);
+        const purge = listPart[3] === 'deleteObject()';
+        const t = tree(libs, list, uploads);
+        return answer(recycle(t, Number(listPart[2]), headers['x-requestdigest'], uploads, purge));
+    }
     if (list && listPart?.[2]) {
         if (method !== 'POST') return fail(405);
         const t = tree(libs, list, uploads);
@@ -698,8 +719,9 @@ export function handle(
     if (library && pathname === `${library}/_api/upload`) {
         return upload(libs, library, uploads, u.searchParams, method, body);
     }
-    // files renamed in this session: under the new name only
+    // files deleted in this session: gone; renamed: under the new name only
     const store = loadStore(uploads);
+    if (library && deletedAway(store, pathname)) return fail(404);
     if (library && renamedAway(store, pathname) && !store.renamed[pathname]) return fail(404);
     if (library && store.renamed[pathname]) {
         const original = new URL(encodeURI(store.renamed[pathname]), u).href;

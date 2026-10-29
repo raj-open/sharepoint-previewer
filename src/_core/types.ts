@@ -218,11 +218,13 @@ export type Zen = {
     bar: HTMLDivElement;
     crumbs: HTMLElement;
     note: HTMLElement;
-    /** items selected (or the download's progress) */
+    /** items selected (or the progress of a download or delete) */
     picked: HTMLElement;
     grid: HTMLDivElement;
     eyeBtn: HTMLButtonElement;
     downloadBtn: HTMLButtonElement;
+    deleteBtn: HTMLButtonElement;
+    purgeBtn: HTMLButtonElement;
     editBtn: HTMLButtonElement;
     saveBtn: HTMLButtonElement;
     uploadBtn: HTMLButtonElement;

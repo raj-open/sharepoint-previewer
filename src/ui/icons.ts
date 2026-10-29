@@ -141,7 +141,7 @@ export const UPLOAD_SVG = `
   </svg>
 `;
 
-// Sheet with folded corner and plus: new file
+// Arrow down onto a line: download
 export const DOWNLOAD_SVG = `
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -150,11 +150,38 @@ export const DOWNLOAD_SVG = `
   </svg>
 `;
 
+// Bin with lid: delete (to the recycle bin)
+export const DELETE_SVG = `
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>
+    <path d="M10 11v5M14 11v5"/>
+  </svg>
+`;
+
+// Flame: purge (deleted for good, not to the recycle bin)
+export const PURGE_SVG = `
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M12 3c.5 3 4.5 5 4.5 10a4.5 4.5 0 0 1-9 0c0-2.2 1-3.6 2-4.5 0 1.8.9 3 2 3.3C11 9 11 6 12 3z"/>
+  </svg>
+`;
+
+// Sheet with folded corner and plus: new file
 export const NEW_FILE_SVG = `
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
     <path d="M14 3v6h6M12 12v6M9 15h6"/>
+  </svg>
+`;
+
+// Circle with a question mark: about (name, version, controls)
+export const ABOUT_SVG = `
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="9"/>
+    <path d="M9.5 9.5a2.5 2.5 0 0 1 4.9.7c0 1.7-2.4 2.2-2.4 3.8M12 17h.01"/>
   </svg>
 `;
 

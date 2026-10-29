@@ -53,7 +53,7 @@ Our tool allows users to
 - read Markdown rendered and logs as tables (experimental)
 - view IFC models in 3D (optional)
 - edit plaintext files, or create new ones, and save them back through Sharepoint's own upload (also under another name)
-- work in **Zen mode**: an own list of the folder beside the viewer, with frozen names and column titles, sorting, filters, a layout mode to show, hide and move columns (widths: any time), files and folders selected and downloaded (a ZIP), and an edit mode for properties and names in place
+- work in **Zen mode**: an own list of the folder beside the viewer, with frozen names and column titles, sorting, filters, a layout mode to show, hide and move columns (widths: any time), files and folders selected, downloaded (a ZIP) and deleted (to the recycle bin, or purged for good; after asking), and an edit mode for properties and names in place
 
 > [!NOTE]
 > Our tool involves no third-party code, except the optional 3D view built on [IFClite](https://ifclite.dev).
@@ -79,6 +79,7 @@ Quick start:
 3. Open a Sharepoint library and click the eye next to a file.
 
 Details (requirements, the optional 3D view, settings, setup for developers): [INSTALL.md](INSTALL.md).
+The controls that are hard to discover are listed in the script itself: Tampermonkey menu → "About …" (or ⋯ → "About …").
 
 ## Notes ##
 

@@ -4,6 +4,7 @@
 // IMPORTS
 // ===========================================================================
 
+import './_core/config.ts';
 import './_core/script.ts';
 import './_core/settings.ts';
 import './_core/settings-form.ts';
