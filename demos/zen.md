@@ -48,16 +48,31 @@ Also right of the list, under the pop-up, and in dark mode:
 The columns button starts the layout mode (the list framed in blue), with the menu of all columns of the library open throughout:
 
 - the checkboxes show or hide a column;
-- column titles (and the entries of the menu) are dragged to move a column, their right edge sets the width;
+- column titles (and the entries of the menu) are dragged to move a column;
 - the changes show at once, as a draft:
   **Save** (or Ctrl / ⌘ + S) keeps them for the library (in the browser),
   **Cancel**, Esc or the columns button end the layout mode and drop what is not saved (after asking).
+
+Widths change in any mode (the right edge of a column title; double-click: as it fits) and are kept at once.
 
 Layout mode and edit mode exclude each other:
 columns are not changed while editing properties, nor the other way round.
 Sorting and filters work in every mode.
 
 ![Zen mode, layout: columns menu open, Notes shown, Status moved before Modified (not saved yet)](img/zen-layout.png)
+
+## Selecting and downloading ##
+
+As in Sharepoint's view, each row has a checkbox; the one in the head selects all rows shown (or none):
+
+- Shift + click selects the range from the last one clicked;
+- Ctrl / ⌘ + click on a row adds it (or drops it) without opening it;
+- **Download**: one file as it is; several, or folders with everything in them, as a ZIP named after the folder
+  (made in the browser; the button stops it while it runs).
+
+The rows start in the order of Sharepoint's view (its sort, or the one chosen there), else folders first, then files, each by name.
+
+![Zen mode, selection: a folder and files picked, the download button](img/zen-select.png)
 
 ## Editing ##
 

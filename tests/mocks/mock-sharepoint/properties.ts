@@ -207,17 +207,19 @@ export const viewsAnswer = (library: string): Answer => ({
             {
                 ServerRelativeUrl: `${library}/Forms/AllItems.aspx`,
                 DefaultView: true,
+                ViewQuery: '<OrderBy><FieldRef Name="FileLeafRef" /></OrderBy>', // as Sharepoint's All Documents
                 ViewFields: { Items: VIEW_FIELDS },
             },
         ],
     },
 });
 
-/** @param tree folders -> entries (names as renamed) @returns items of the folder */
+/** @param tree folders -> entries (names as renamed) @returns items of the folder, by id (as Sharepoint: not sorted) */
 export function itemsAnswer(tree: Record<string, Entry[]>, folder: string, store: Store): Answer {
     const entries = tree[folder];
     if (!entries) return { status: 200, data: { value: [] } };
-    return { status: 200, data: { value: entries.map((e) => itemJson(store, folder, e)) } };
+    const items = entries.map((e) => itemJson(store, folder, e)).sort((a, b) => Number(a.Id) - Number(b.Id));
+    return { status: 200, data: { value: items } };
 }
 
 export const contextAnswer = (): Answer => ({

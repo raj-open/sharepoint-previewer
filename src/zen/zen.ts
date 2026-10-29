@@ -18,6 +18,7 @@ import { libraryOfPage } from '../readers/api.ts';
 import { siteOf } from '../readers/api.ts';
 import { cleanUrl } from '../readers/links.ts';
 import { COLUMNS_SVG } from '../ui/icons.ts';
+import { DOWNLOAD_SVG } from '../ui/icons.ts';
 import { EYE_CLOSED_SVG } from '../ui/icons.ts';
 import { EYE_FULL_SVG } from '../ui/icons.ts';
 import { EYE_HALF_SVG } from '../ui/icons.ts';
@@ -49,7 +50,9 @@ import { layoutDirty } from './columns.ts';
 import { loadColumns } from './columns.ts';
 import { openColumnsMenu } from './columns.ts';
 import { saveLayout } from './columns.ts';
+import { saveWidths } from './columns.ts';
 import { showCrumbs } from './crumbs.ts';
+import { download } from './download.ts';
 import { toggleLibraries } from './crumbs.ts';
 import { loadFolder } from './data.ts';
 import { NAME } from './data.ts';
@@ -62,6 +65,10 @@ import { stopGrid } from './grid.ts';
 import { wireGrid } from './grid.ts';
 import { loadLibraries } from './libraries.ts';
 import { toggleMore } from './menu.ts';
+import { pruneSelection } from './select.ts';
+import { selectedItems } from './select.ts';
+import { showPicked } from './select.ts';
+import { wireSelect } from './select.ts';
 
 import type { Viewer } from '../_core/types.ts';
 import type { Zen } from '../_core/types.ts';
@@ -74,8 +81,9 @@ import type { ZenItem } from '../_core/types.ts';
 export const ZEN_TITLE = 'Zen mode: own list of the folder, with its properties (sort, filter, columns, edit)';
 const DROP = 'Drop the changes of this folder which have not been uploaded to Sharepoint?';
 const DROP_LAYOUT = 'Drop the changes of the columns which have not been saved?';
-const COLUMNS_ON = 'Columns: show, hide, order and size them (layout mode; Save keeps them for the library)';
+const COLUMNS_ON = 'Columns: show, hide and order them (layout mode; Save keeps them for the library)';
 const COLUMNS_OFF = 'Columns: end the layout mode (changes not saved are dropped)';
+const DOWNLOAD = 'Download the items selected (folders with all in them: as a ZIP)';
 const KEPT = "Changes are kept in the viewer but won't take effect until uploaded (cloud button).";
 export const ZEN_KEY = 'tp-preview-zen'; // Zen mode on ('1') or off, kept
 const ZEN_TAB_TITLE = ZEN_TITLE;
@@ -441,6 +449,9 @@ function createZen(library: string): Zen {
     nav.append(linkBtn, crumbs);
     const note = document.createElement('span');
     note.className = 'tp-zen-note';
+    const picked = document.createElement('span');
+    picked.className = 'tp-zen-picked';
+    const downloadBtn = button(DOWNLOAD_SVG, DOWNLOAD);
     const editBtn = button(WRITE_SVG, 'Edit properties and names (non-system fields)');
     editBtn.setAttribute('aria-pressed', 'false');
     const saveBtn = button(SAVE_SVG, 'Save: keep the changes in the view, ready for upload (Ctrl+S)');
@@ -455,12 +466,25 @@ function createZen(library: string): Zen {
     closeBtn.className = 'tp-zen-btn tp-zen-close';
     closeBtn.textContent = '✕';
     closeBtn.title = "Zen mode off (back to Sharepoint's list)";
-    bar.append(eyeBtn, nav, note, editBtn, cancelBtn, saveBtn, uploadBtn, columnsBtn, moreBtn, closeBtn);
+    bar.append(
+        eyeBtn,
+        nav,
+        note,
+        picked,
+        downloadBtn,
+        editBtn,
+        cancelBtn,
+        saveBtn,
+        uploadBtn,
+        columnsBtn,
+        moreBtn,
+        closeBtn,
+    );
     const fitBar = () => {
         const w = bar.clientWidth;
         if (!w) return; // not shown yet
         const fixed = [...bar.children]
-            .filter((c) => c !== nav && c !== note)
+            .filter((c) => c !== nav && c !== note && c !== picked)
             .reduce((sum, c) => sum + (c as HTMLElement).offsetWidth + BAR_GAP, BAR_SPACE);
         bar.classList.toggle('tp-zen-narrow', w - fixed < MIN_CRUMBS);
     };
@@ -487,8 +511,10 @@ function createZen(library: string): Zen {
         bar,
         crumbs,
         note,
+        picked,
         grid,
         eyeBtn,
+        downloadBtn,
         editBtn,
         saveBtn,
         uploadBtn,
@@ -507,8 +533,12 @@ function createZen(library: string): Zen {
         pending: new Map(),
         dirty: false,
         errors: new Map(),
+        selected: new Set(),
+        anchor: null,
+        fetching: null,
         token: 0,
         stop: () => {
+            z.fetching?.abort();
             window.removeEventListener('resize', onResize);
             barObserver.disconnect();
             stopGrid(z);
@@ -523,7 +553,9 @@ function createZen(library: string): Zen {
         draw(z);
         showButtons(z);
     };
-    wireGrid(z, { redraw, open: (item) => openItem(z, item), edited, arranged });
+    const sized = () => saveWidths(z);
+    wireGrid(z, { redraw, open: (item) => openItem(z, item), edited, arranged, sized });
+    wireSelect(z, () => showButtons(z));
     crumbs.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
         const libs = target.closest('[data-libraries]') as HTMLElement | null;
@@ -537,6 +569,7 @@ function createZen(library: string): Zen {
     editBtn.onclick = () => (z.editing ? leaveEdit(z) : startEdit(z));
     saveBtn.onclick = () => (z.layout ? saveColumnsOf(z) : saveView(z));
     uploadBtn.onclick = () => void upload(z);
+    downloadBtn.onclick = () => (z.fetching ? z.fetching.abort() : void downloadSelected(z));
     cancelBtn.onclick = () => (z.layout ? leaveLayout(z) : cancelEdit(z));
     columnsBtn.onclick = () => (z.layout ? leaveLayout(z) : startLayout(z, arranged));
     moreBtn.onclick = () => toggleMore(z, moreBtn, () => void goTo(z, z.folder, true));
@@ -547,13 +580,23 @@ function createZen(library: string): Zen {
 }
 
 function draw(z: Zen): void {
+    pruneSelection(z); // what is picked is what is seen
     drawGrid(z, zenList === z ? shownPath() : null);
+    showPicked(z);
     drawColumnsMenu(z);
+    showButtons(z);
 }
 
 // Buttons as the mode allows: layout and edit mode exclude each other (Save and Cancel: of the mode on)
 function showButtons(z: Zen): void {
     const layout = !!z.layout;
+    const n = z.selected.size;
+    const fetching = !!z.fetching;
+    z.downloadBtn.disabled = !fetching && (!z.data || !n);
+    z.downloadBtn.innerHTML = fetching ? STOP_SVG : DOWNLOAD_SVG;
+    z.downloadBtn.title = fetching ? 'Stop the download' : DOWNLOAD;
+    z.downloadBtn.setAttribute('aria-pressed', String(fetching));
+    if (!fetching) z.picked.textContent = n ? `${n.toLocaleString()} selected` : '';
     z.editBtn.setAttribute('aria-pressed', String(z.editing));
     z.editBtn.disabled = z.busy || !z.data || layout;
     z.columnsBtn.setAttribute('aria-pressed', String(layout));
@@ -587,6 +630,8 @@ async function goTo(z: Zen, folder: string, again = false): Promise<void> {
     if (!sameFile(folder, z.folder)) {
         z.filters.clear(); // filters belong to a folder's values
         z.errors.clear();
+        z.selected.clear(); // as in Sharepoint: a selection belongs to its folder
+        z.anchor = null;
     }
     z.folder = folder;
     showInSharepoint(z, folder);
@@ -652,6 +697,27 @@ function showCount(z: Zen, extra = ''): void {
 function openItem(z: Zen, item: ZenItem): void {
     if (item.folder) return void goTo(z, item.path);
     void showFile(item.name, item.path, false);
+}
+
+// ---------------------------------------------------------------------------
+// Download: the items selected (one file as it is, else a ZIP named after the folder; the download button stops it)
+// ---------------------------------------------------------------------------
+
+async function downloadSelected(z: Zen): Promise<void> {
+    const data = z.data;
+    const items = selectedItems(z);
+    if (!data || !items.length || z.fetching) return;
+    const fetching = new AbortController();
+    z.fetching = fetching;
+    showButtons(z);
+    const only = items.length === 1 ? items[0] : null;
+    const name = (only?.folder ? only.name : data.folder.split('/').pop()) || data.title;
+    const why = await download(data.library, data.folder, items, name, fetching.signal, (text) => {
+        z.picked.textContent = text;
+    });
+    z.fetching = null;
+    showButtons(z);
+    if (why && why !== 'stopped') alert(`Not downloaded: ${why}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -786,7 +852,7 @@ async function upload(z: Zen): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Layout mode: columns shown, hidden, moved and sized (a draft, shown at once); Save keeps them for the library
+// Layout mode: columns shown, hidden and moved (a draft, shown at once); Save keeps them for the library
 // ---------------------------------------------------------------------------
 
 // Layout mode on (not while editing), with the columns menu open throughout; `arranged`: columns drawn anew

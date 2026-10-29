@@ -1,4 +1,5 @@
-// Zen list columns: order, hidden ones and widths per library (kept in the browser), layout mode, columns menu
+// Zen list columns: order, hidden ones and widths per library (kept in the browser), layout mode, columns menu;
+// widths are changed in any mode and kept at once (they never go to Sharepoint)
 
 // ===========================================================================
 // IMPORTS
@@ -97,8 +98,16 @@ export function moveColumn(order: string[], col: string, to: string | null): str
     return out;
 }
 
+/** Widths kept for the library at once (in layout mode: not part of the draft) */
+export function saveWidths(z: Zen): void {
+    if (!z.data) return;
+    const widths = { ...z.columns.widths };
+    saveColumns(z.data.library, { ...loadColumns(z.data.library), widths });
+    if (z.layout) z.layout.widths = { ...widths };
+}
+
 // ---------------------------------------------------------------------------
-// Layout mode: columns changed as a draft (shown at once); Save keeps them for the library, Cancel drops them
+// Layout mode: order and shown columns changed as a draft (shown at once); Save keeps them, Cancel drops them
 // ---------------------------------------------------------------------------
 
 const copyColumns = (c: ZenColumns): ZenColumns => ({
@@ -107,12 +116,11 @@ const copyColumns = (c: ZenColumns): ZenColumns => ({
     widths: { ...c.widths },
 });
 
-// Same columns shown, in the same order, with the same widths (however written out)
+// Same columns shown, in the same order (however written out; widths are kept apart)
 function sameColumns(data: ZenData, a: ZenColumns, b: ZenColumns): boolean {
     const key = (c: ZenColumns) => {
         const { order, hidden } = columnOrder(data, c);
-        const widths = Object.entries(c.widths).sort(([p], [q]) => (p < q ? -1 : p > q ? 1 : 0));
-        return JSON.stringify([order, order.filter((n) => hidden.has(n)), widths]);
+        return JSON.stringify([order, order.filter((n) => hidden.has(n))]);
     };
     return key(a) === key(b);
 }
@@ -163,7 +171,7 @@ export function openColumnsMenu(z: Zen, changed: () => void): void {
     });
     menu.addEventListener('click', (e) => {
         if (!(e.target as HTMLElement).closest('[data-reset]')) return;
-        z.columns = { order: [], hidden: [], widths: {} };
+        z.columns = { order: [], hidden: [], widths: z.columns.widths }; // widths: kept apart
         changed();
     });
     wireReorder(menu, {

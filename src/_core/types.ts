@@ -197,6 +197,8 @@ export type ZenItem = {
     text: Record<string, string>;
     raw: Record<string, unknown>;
 };
+/** file or folder below a folder (download): name, server-relative path */
+export type ZenEntry = { name: string; path: string; folder: boolean };
 /** contents of a folder: library (server-relative, its title), folder, fields (all), the view's columns, items */
 export type ZenData = {
     library: string;
@@ -216,8 +218,11 @@ export type Zen = {
     bar: HTMLDivElement;
     crumbs: HTMLElement;
     note: HTMLElement;
+    /** items selected (or the download's progress) */
+    picked: HTMLElement;
     grid: HTMLDivElement;
     eyeBtn: HTMLButtonElement;
+    downloadBtn: HTMLButtonElement;
     editBtn: HTMLButtonElement;
     saveBtn: HTMLButtonElement;
     uploadBtn: HTMLButtonElement;
@@ -240,6 +245,10 @@ export type Zen = {
     /** changes since the last save */
     dirty: boolean;
     errors: Map<number, Record<string, string>>;
+    /** items selected (ids; folder shown), the last one clicked (start of a range), the download running */
+    selected: Set<number>;
+    anchor: number | null;
+    fetching: AbortController | null;
     token: number;
     stop: () => void;
 };
