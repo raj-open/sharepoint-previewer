@@ -141,8 +141,8 @@ function startValues(orig: string, e: Entry): Record<string, Value> {
               Due: `2026-11-${String((h % 28) + 1).padStart(2, '0')}T00:00:00Z`,
               Reviewed: h % 3 === 0,
               Tags: h % 4 ? `;#${TAGS[h % TAGS.length]};#` : null,
-              Notes: h % 2 ? null : `Checked by ${OWNERS[(h >> 3) % OWNERS.length]}`,
-              Owner: OWNERS[(h >> 5) % OWNERS.length],
+              Notes: h % 2 ? null : `Checked by ${OWNERS[(h >>> 3) % OWNERS.length]}`,
+              Owner: OWNERS[(h >>> 5) % OWNERS.length],
           };
     return {
         Title: null,
