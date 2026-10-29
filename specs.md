@@ -74,6 +74,7 @@
   uploads are simulated: kept apart in `/tests/mocks/mock-sharepoint/__uploads__/<session>` (site paths mirrored),
   listed and served over the originals, removed when the server stops (behavioural tests: when their browser closes)
   and by `just clean`; never synchronised;
+  deletes (`recycle()`) are simulated the same way: kept with the session's uploads, the items gone from listings, search and requests;
   the 3D files of the release (`just build`) appear in `Mock Tools Library` as folder `Viewer`,
   empty settings `viewer-3d-folder` (pointing there, from the top: `/sites/MockSharepoint/MockToolsLibrary/Viewer`) and `logo` (a test logo) are filled in on each page load;
   not part of `just qa`.
