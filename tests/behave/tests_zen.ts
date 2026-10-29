@@ -117,6 +117,29 @@ describe('zen mode', () => {
         await z.locator('td.tp-zen-name', { hasText: 'prices.csv' }).waitFor();
     });
 
+    it("crumbs: site (its contents), library with a menu of the site's other libraries (Sharepoint's own left out)", async () => {
+        const { page } = await openFolder(DATA);
+        const z = await zen(page);
+        const site = z.locator('.tp-zen-crumbs a.tp-zen-site', { hasText: 'Mock Sharepoint' });
+        await site.waitFor();
+        assert.equal(await site.getAttribute('href'), `${h.SITE}/_layouts/15/viewlsts.aspx`);
+        await z.locator('.tp-zen-libs').click();
+        const menu = z.locator('.tp-zen-libraries');
+        assert.deepEqual(
+            (await menu.locator('.tp-menu-item').allTextContents()).map((t) => t.trim()),
+            ['Mock Library', 'Mock Tools Library'],
+        );
+        assert.equal(await menu.locator('[aria-current="page"]').textContent(), 'Mock Library');
+        await page.keyboard.press('Escape');
+        await menu.waitFor({ state: 'detached' });
+        // another library: Sharepoint opens it (page load), Zen mode again there
+        await z.locator('.tp-zen-libs').click();
+        await menu.locator('.tp-menu-item', { hasText: 'Mock Tools Library' }).click();
+        await page.waitForURL(/\/MockToolsLibrary\/Forms\/AllItems\.aspx/);
+        const again = await filled(page);
+        await again.locator('.tp-zen-crumbs strong', { hasText: 'Mock Tools Library' }).waitFor();
+    });
+
     it("folders: Sharepoint's list follows (Zen mode off: that folder); Back: the Zen list follows", async () => {
         const { page } = await openFolder(DATA);
         const z = await zen(page);
