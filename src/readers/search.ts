@@ -4,14 +4,16 @@
 // IMPORTS
 // ===========================================================================
 
-import { sameOrigin } from './request.ts';
+import { API_OFF } from './api.ts';
+import { apiAllowed } from './api.ts';
+import { getJson } from './api.ts';
+import { libraryOfPage } from './api.ts';
+import { quote } from './api.ts';
+import { siteOf } from './api.ts';
 
 // ===========================================================================
 // CONSTANTS
 // ===========================================================================
-
-const SITE_RE = /^\/(?:sites|teams)\/[^/]+/i; // site of a server-relative path ('' = root site)
-const JSON_HEADERS = { Accept: 'application/json;odata=nometadata' };
 
 /** path guessed from folder and name -> path found */
 export const foundPaths: Map<string, string> = new Map();
@@ -31,7 +33,11 @@ export async function findFile(folder: string, name: string): Promise<string | n
     const guess = `${folder}/${name}`;
     const known = foundPaths.get(guess);
     if (known) return known;
-    const site = folder.match(SITE_RE)?.[0] ?? '';
+    if (!apiAllowed()) {
+        lookupNotes.set(guess, `Not looked up by name: Sharepoint API ${API_OFF}`);
+        return null;
+    }
+    const site = siteOf(folder);
     const below = `${folder.toLowerCase()}/`;
     const pick = (paths: string[]) => {
         const inside = paths.filter((p) => p.split('/').pop() === name && p.toLowerCase().startsWith(below));
@@ -55,13 +61,11 @@ const summary = (paths: string[]): string =>
 
 // Paths of files named `name` in the library of the open view (FileLeafRef = file name)
 async function listPaths(site: string, name: string): Promise<{ paths: string[]; note: string }> {
-    const path = decodeURIComponent(location.pathname);
-    const i = path.toLowerCase().indexOf('/forms/');
-    if (i < 0) return { paths: [], note: 'not in a list view' };
-    const quote = (s: string) => `'${s.replace(/'/g, "''")}'`;
+    const library = libraryOfPage();
+    if (!library) return { paths: [], note: 'not in a list view' };
     const url =
         `${site}/_api/web/GetList(@list)/items?$select=FileRef&$top=50` +
-        `&$filter=FileLeafRef eq ${encodeURIComponent(quote(name))}&@list=${encodeURIComponent(quote(path.slice(0, i)))}`;
+        `&$filter=FileLeafRef eq ${encodeURIComponent(quote(name))}&@list=${encodeURIComponent(quote(library))}`;
     const data = await getJson<{ value?: { FileRef?: string }[] }>(url);
     if (typeof data === 'string') return { paths: [], note: data };
     const paths = (data?.value ?? []).flatMap((x) => (x.FileRef ? [x.FileRef] : []));
@@ -95,15 +99,4 @@ async function searchPaths(site: string, folder: string, name: string): Promise<
         return [pathOf(cell('Path')), parent && cell('Filename') ? `${parent}/${cell('Filename')}` : ''];
     });
     return { paths: paths.filter(Boolean), note: summary([...new Set(paths.filter(Boolean))]) };
-}
-
-/** @returns parsed JSON (of the shape the caller expects), or why not (refused, HTTP status, failed) */
-async function getJson<T>(url: string): Promise<T | string> {
-    if (!sameOrigin(url)) return 'refused (other origin)';
-    try {
-        const res = await fetch(url, { credentials: 'same-origin', headers: JSON_HEADERS });
-        return res.ok ? ((await res.json()) as T) : `HTTP ${res.status}`;
-    } catch (e) {
-        return `failed (${e instanceof Error ? e.message : e})`;
-    }
 }

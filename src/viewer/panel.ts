@@ -43,11 +43,17 @@ import { THEME_SVG } from '../ui/icons.ts';
 import { UPLOAD_SVG } from '../ui/icons.ts';
 import { WRAP_SVG } from '../ui/icons.ts';
 import { WRITE_SVG } from '../ui/icons.ts';
+import { ZEN_SVG } from '../ui/icons.ts';
 import { FORMAT_LISTS } from '../readers/formats.ts';
 import { keepSize } from '../ui/move.ts';
 import { startMove } from '../ui/move.ts';
 import { createPicker } from '../ui/picker.ts';
 import { QUOTE_MODES } from '../view/table.ts';
+import { toggleZen } from '../zen/zen.ts';
+import { ZEN_TITLE } from '../zen/zen.ts';
+import { zenEscape } from '../zen/zen.ts';
+import { zenList } from '../zen/zen.ts';
+import { zenTheme } from '../zen/zen.ts';
 import { cancelLoad } from './cache.ts';
 import { clearAllCached } from './cache.ts';
 import { clearCached } from './cache.ts';
@@ -206,6 +212,8 @@ export function createViewer(): Viewer {
     const hBtn = item(SPLIT_H_SVG, 'Below the list');
     const vBtn = item(SPLIT_V_SVG, 'Right of the list');
     const pBtn = item(POPUP_SVG, 'Popup');
+    const zenBtn = item(ZEN_SVG, 'Zen mode', { pressed: !!zenList });
+    zenBtn.title = ZEN_TITLE;
     const themeBtn = item(THEME_SVG, 'Dark mode', { pressed: view.theme === 'dark' });
     const colourBtn = item(COLOUR_SVG, 'Syntax colours');
     const wrapBtn = item(WRAP_SVG, 'Wrap long lines');
@@ -248,7 +256,7 @@ export function createViewer(): Viewer {
     const layoutMenu = menu(layoutBtn, [hBtn, vBtn, pBtn]);
     const moreMenu = menu(
         moreBtn,
-        [newItem, settingsBtn, themeBtn, colourBtn, wrapBtn, refreshBtn, reload3dBtn, clearBtn, clearAllBtn],
+        [newItem, settingsBtn, zenBtn, themeBtn, colourBtn, wrapBtn, refreshBtn, reload3dBtn, clearBtn, clearAllBtn],
         true,
     );
 
@@ -574,6 +582,7 @@ export function createViewer(): Viewer {
         hBtn,
         vBtn,
         pBtn,
+        zenBtn,
         refreshBtn,
         loadAllBtn,
         stopBtn,
@@ -632,6 +641,7 @@ export function createViewer(): Viewer {
         if ((e.target as HTMLElement).classList?.contains('tp-name-input')) return; // name box: its own Esc
         e.stopPropagation();
         for (const p of [sheetPicker, formatPicker]) if (!p.menu.hidden) return void p.close();
+        if (zenEscape()) return; // Zen list: its menus, then its edit mode
         if (v.writeMode) return void leaveWrite(); // only back to reading: Esc again closes
         closeViewer();
     };
@@ -659,10 +669,12 @@ export function createViewer(): Viewer {
         box.classList.remove('tp-dark', 'tp-light');
         box.classList.add(`tp-${view.theme}`);
         themeBtn.setAttribute('aria-pressed', String(view.theme === 'dark'));
+        zenTheme();
     };
     hBtn.onclick = () => v.mode !== 'horizontal' && setMode('horizontal');
     vBtn.onclick = () => v.mode !== 'vertical' && setMode('vertical');
     pBtn.onclick = () => v.mode !== 'popup' && setMode('popup');
+    zenBtn.onclick = () => toggleZen();
     refreshBtn.onclick = () => v.file && showFile(v.file.name, v.file.url, true);
     reload3dBtn.onclick = () => void reload3d(v);
     stopBtn.onclick = () => {
