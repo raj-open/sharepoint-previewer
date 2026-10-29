@@ -991,8 +991,10 @@ const CSS = `
   }
   .tp-zen-pane-bar { flex: none; display: flex; align-items: center; gap: 4px; padding: 8px; border-bottom: 1px solid var(--tp-edge); }
   .tp-zen-pane-bar strong { flex: 1; padding-left: 4px; color: var(--tp-title); }
-  .tp-zen-columns-list { flex: 1; min-height: 0; overflow: auto; padding: 4px; }
+  .tp-zen-columns-list { flex: 1; min-height: 0; overflow: hidden auto; padding: 4px; } /* no sideways scroll: long names cut */
   .tp-zen-columns label { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 4px; white-space: nowrap; }
+  .tp-zen-columns label > :not(span:last-child) { flex: none; }
+  .tp-zen-columns label > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .tp-zen-columns input:disabled { cursor: default; }
   .tp-zen-pane-editing label:hover { background: var(--tp-hover); }
   .tp-zen-pane > .tp-menu-item { flex: none; border-top: 1px solid var(--tp-edge); border-radius: 0; }

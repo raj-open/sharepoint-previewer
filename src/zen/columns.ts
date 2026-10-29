@@ -256,7 +256,8 @@ export function drawColumnsPane(z: Zen): void {
             const box = `<input type="checkbox"${hidden.has(n) ? '' : ' checked'}${off}>`;
             const grip = layout ? '<span class="tp-zen-grip">⠿</span>' : '';
             const tip = layout ? ' title="Drag to change the order"' : '';
-            return `<label data-col="${esc(n)}"${tip}>${grip}${box}<span>${esc(titleOf.get(n) ?? n)}</span></label>`;
+            const name = esc(titleOf.get(n) ?? n);
+            return `<label data-col="${esc(n)}"${tip}>${grip}${box}<span title="${name}">${name}</span></label>`;
         })
         .join('');
     pane.list.scrollTop = scrolled;
