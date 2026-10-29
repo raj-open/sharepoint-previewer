@@ -12,10 +12,13 @@ menu.registerMenu();
 
 describe('menu', () => {
     it('loading registers nothing, registerMenu does', () => assert.equal(before, 0));
-    it('entries: editor (with version), settings, reset (in this order)', () => {
-        assert.deepEqual(Object.keys(gm.menu), ['Edit (vtest)', 'Settings …', 'Reset settings']);
+    it('entries: editor (with version), settings, reset, about (in this order: about last)', () => {
+        assert.deepEqual(Object.keys(gm.menu), ['Edit (vtest)', 'Settings …', 'Reset settings', 'About …']);
         assert.equal(gm.menu['Edit (vtest)'], script.openEditor);
-        assert.equal(gm.menu['Settings …'], form.openSettingsForm);
         assert.equal(gm.menu['Reset settings'], form.resetSettings);
+        // settings and about: the form, on the tab "Form" or "About" (not on whatever Tampermonkey passes in)
+        for (const label of ['Settings …', 'About …']) assert.equal(typeof gm.menu[label], 'function', label);
+        assert.match(String(gm.menu['About …']), /openSettingsForm\('about'\)/);
+        assert.match(String(gm.menu['Settings …']), /openSettingsForm\(\)/);
     });
 });

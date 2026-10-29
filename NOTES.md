@@ -173,6 +173,8 @@ There are no other requests:
 no telemetry,
 no update checks
 and no fonts or images from outside.
+The links of the tab "About" (`ABOUT_LINKS`, e.g. the repository) are plain links:
+nothing is fetched unless the user clicks one (new tab); the anonymous build has none.
 The logo setting only accepts `data:` URIs.
 
 ---
