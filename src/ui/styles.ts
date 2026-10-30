@@ -953,7 +953,7 @@ const CSS = `
   .tp-zen-table tr.tp-zen-selected td, .tp-zen-table tr.tp-zen-selected td.tp-zen-pick, .tp-zen-table tr.tp-zen-selected td.tp-zen-name { background: color-mix(in srgb, var(--tp-accent) 14%, var(--tp-bg)); }
   .tp-zen-icon { display: inline-flex; vertical-align: -3px; margin-right: 6px; }
   /* Kinds of files (cf. /src/ui/kinds.ts): one muted colour each, legible on light and dark */
-  .tp-kind-folder { color: #8a94a6; }
+  .tp-kind-folder { color: #5f6368; }
   .tp-kind-table { color: #2f9e6e; }
   .tp-kind-data { color: #b8862b; }
   .tp-kind-code { color: #8a6fd1; }
@@ -964,8 +964,9 @@ const CSS = `
   .tp-kind-image { color: #1f9aa3; }
   .tp-kind-document { color: #3a7bd5; }
   .tp-kind-archive { color: #9a7b5c; }
-  .tp-kind-other { color: var(--tp-ln-fg); }
-  .tp-dark .tp-kind-folder { color: #a3adbd; }
+  .tp-kind-other { color: #5f6368; }
+  .tp-dark .tp-kind-folder { color: #c5c8cc; }
+  .tp-dark .tp-kind-other { color: #c5c8cc; }
   .tp-dark .tp-kind-document { color: #5f9bec; }
   .tp-dark .tp-kind-text { color: #93a3b8; }
   .tp-dark .tp-kind-archive { color: #c9a682; }

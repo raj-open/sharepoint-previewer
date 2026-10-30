@@ -57,12 +57,15 @@ const FORMAT_KINDS: Record<string, Kind> = {
     log: 'log',
 };
 
-// Tile behind each glyph (16 × 16): tinted with the kind's colour
+// Kinds drawn plain (outline only, full size, no tile): as in common file trees
+const PLAIN = new Set<Kind>(['folder', 'other']);
+
+// Tile behind each other glyph (16 × 16): tinted with the kind's colour
 const TILE = '<rect x=".5" y=".5" width="15" height="15" rx="4" fill="currentColor" fill-opacity=".16" stroke="none"/>';
 
 // Glyphs (16 × 16, lines in the kind's colour)
 const GLYPHS: Record<Kind, string> = {
-    folder: '<path d="M3.5 5.2a.7.7 0 0 1 .7-.7h2.4l1.1 1.2h4.1a.7.7 0 0 1 .7.7v4.9a.7.7 0 0 1-.7.7H4.2a.7.7 0 0 1-.7-.7z"/>',
+    folder: '<path d="M1.5 3.6a1 1 0 0 1 1-1h3.4l1.5 1.6h6.1a1 1 0 0 1 1 1v7.2a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1zM1.5 6.2h13"/>',
     table: '<rect x="3.5" y="4" width="9" height="8" rx="1"/><path d="M3.5 7h9M3.5 9.5h9M7 7v5"/>',
     data: '<path d="M6.5 4c-1.2 0-1.2.8-1.2 1.8S5 7.6 4 8c1 .4 1.3 1.2 1.3 2.2S5.3 12 6.5 12M9.5 4c1.2 0 1.2.8 1.2 1.8S11 7.6 12 8c-1 .4-1.3 1.2-1.3 2.2S10.7 12 9.5 12"/>',
     code: '<path d="M6 5 3.5 8 6 11M10 5l2.5 3L10 11M8.8 4.5l-1.6 7"/>',
@@ -73,7 +76,7 @@ const GLYPHS: Record<Kind, string> = {
     image: '<rect x="3.5" y="4.5" width="9" height="7" rx="1"/><path d="M4 11l2.6-2.8 2 2 1.2-1.2 2 2"/><circle cx="10" cy="6.6" r=".7"/>',
     document: '<path d="M5 3.5h3.8l2.2 2.2v6.8H5zM8.8 3.5v2.2H11M6.5 8.5h3M6.5 10.5h3"/>',
     archive: '<path d="M7 3.5h1M8 5h1M7 6.5h1M8 8h1"/><rect x="6.3" y="9.3" width="3.4" height="3.2" rx=".8"/>',
-    other: '<path d="M5 3.5h3.8l2.2 2.2v6.8H5zM8.8 3.5v2.2H11"/>',
+    other: '<path d="M3.5 1.5h6l3 3v10h-9zM9.5 1.5v3h3"/>',
 };
 
 // ===========================================================================
@@ -92,4 +95,4 @@ export function kindOf(name: string, folder = false): Kind {
 
 /** @returns icon of a kind: coloured by its class (tp-kind-<kind>, cf. styles) */
 export const kindIcon = (kind: Kind): string =>
-    `<svg class="tp-kind tp-kind-${kind}" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${TILE}${GLYPHS[kind]}</svg>`;
+    `<svg class="tp-kind tp-kind-${kind}" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PLAIN.has(kind) ? '' : TILE}${GLYPHS[kind]}</svg>`;
