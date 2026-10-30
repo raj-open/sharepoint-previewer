@@ -192,6 +192,16 @@ describe('zen/data', () => {
                 FolderServerRelativeUrl: `${LIB}/Sub`,
             },
         });
+        assert.ok(urls.some((u) => /GetItems\?\$select=[^&]*,OData__ColorHex&/.test(u))); // folder colours asked for
+        // colours refused (field unknown): read again without them
+        urls.length = 0;
+        const fine = globalThis.fetch;
+        globalThis.fetch = (async (url: string | URL, init: RequestInit = {}) =>
+            String(url).includes('OData__ColorHex')
+                ? new Response('', { status: 400 })
+                : fine(url, init)) as typeof fetch;
+        assert.equal((await loadFolder(LIB, `${LIB}/Sub`)).items.length, 1);
+        assert.ok(urls.some((u) => u.includes('GetItems?') && !u.includes('OData__ColorHex')));
         globalThis.fetch = (async () => new Response('', { status: 500 })) as typeof fetch;
         assert.equal(await loadFolder(LIB, LIB), 'fields: HTTP 500');
     });

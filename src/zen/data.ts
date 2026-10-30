@@ -61,6 +61,9 @@ const SYSTEM_FIELDS = new Set(['ContentType', 'ContentTypeId', 'FileLeafRef', 'C
 // both filled from the file's length (File/Length)
 const SIZE_FIELDS = new Set(['FileSizeDisplay', 'File_x0020_Size']);
 
+// Colour of a folder (Sharepoint's hidden field _ColorHex; its name over REST)
+const COLOUR_FIELD = 'OData__ColorHex';
+
 const ITEMS_PAGE = 5000; // items per request (the list view threshold)
 const MAX_ITEM_PAGES = 20;
 
@@ -246,12 +249,11 @@ export async function loadFolder(library: string, folder: string): Promise<ZenDa
     const view = viewFields(views, page, fields);
     const own = viewOf(views, page);
 
-    const json = await folderItems(
-        library,
-        folder,
-        '*,Id,FileLeafRef,FileRef,FSObjType,File/Length',
-        'FieldValuesAsText,File',
-    );
+    // folder colours (hidden field, not in *) asked for explicitly; refused (field unknown): read without them
+    const select = '*,Id,FileLeafRef,FileRef,FSObjType,File/Length';
+    const expand = 'FieldValuesAsText,File';
+    let json = await folderItems(library, folder, `${select},${COLOUR_FIELD}`, expand);
+    if (typeof json === 'string') json = await folderItems(library, folder, select, expand);
     if (typeof json === 'string') return `items: ${json}`;
     const order = viewOrder(views, page, location.search);
     const items = sortItems(
