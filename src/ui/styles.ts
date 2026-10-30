@@ -971,7 +971,7 @@ const CSS = `
   .tp-dark .tp-kind-text { color: #93a3b8; }
   .tp-dark .tp-kind-archive { color: #c9a682; }
   .tp-dark .tp-kind-log { color: #c9cdd3; }
-  /* Colour given in Sharepoint (folders; cf. colourOf in /src/zen/data.ts): a soft tint behind the name */
+  /* Colour given in Sharepoint (folders; cf. colourOf in /src/zen/data.ts): a soft tint behind the name, ... */
   .tp-zen-tint { border-radius: 4px; padding: 1px 5px; margin-left: -5px; }
   .tp-tint-1 { background: rgba(164, 38, 44, .22); }
   .tp-tint-2 { background: rgba(202, 80, 16, .22); }
@@ -988,6 +988,22 @@ const CSS = `
   .tp-tint-13 { background: rgba(0, 120, 212, .14); }
   .tp-tint-14 { background: rgba(135, 100, 184, .16); }
   .tp-tint-15 { background: rgba(227, 0, 140, .12); }
+  /* ... and the icon in that colour (over the kind's own) */
+  .tp-zen-icon.tp-fg-1 .tp-kind { color: #c23a40; }
+  .tp-zen-icon.tp-fg-2 .tp-kind { color: #d9661f; }
+  .tp-zen-icon.tp-fg-3 .tp-kind { color: #5c9a1c; }
+  .tp-zen-icon.tp-fg-4 .tp-kind { color: #1a9a9e; }
+  .tp-zen-icon.tp-fg-5 .tp-kind { color: #2a78c4; }
+  .tp-zen-icon.tp-fg-6 .tp-kind { color: #7d55b8; }
+  .tp-zen-icon.tp-fg-7 .tp-kind { color: #b8327f; }
+  .tp-zen-icon.tp-fg-8 .tp-kind { color: #8a8886; }
+  .tp-zen-icon.tp-fg-9 .tp-kind { color: #e0707a; }
+  .tp-zen-icon.tp-fg-10 .tp-kind { color: #ee9a5c; }
+  .tp-zen-icon.tp-fg-11 .tp-kind { color: #8cc152; }
+  .tp-zen-icon.tp-fg-12 .tp-kind { color: #3fbfae; }
+  .tp-zen-icon.tp-fg-13 .tp-kind { color: #5aa9e6; }
+  .tp-zen-icon.tp-fg-14 .tp-kind { color: #a98bd8; }
+  .tp-zen-icon.tp-fg-15 .tp-kind { color: #e47bb8; }
   /* Edit mode: editable cells framed lightly, system fields greyed; changed: amber; refused: red */
   .tp-zen-table th.tp-zen-editable .tp-sort::before { content: '✎ '; opacity: .7; }
   /* editable text: as wide as its cell at most, cut at its own end (an inline block wider than the cell

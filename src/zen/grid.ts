@@ -150,9 +150,11 @@ function cellHtml(z: Zen, item: ZenItem, col: string): string {
         inner = `<span class="tp-zen-text"${edit}>${esc(cellText(z, item, col))}</span>`;
     }
     if (isName) {
-        // colour given in Sharepoint: a tint behind the name (the icon stays as it is)
+        // colour given in Sharepoint: a tint behind the name; folders: their icon in that colour as well
+        // (files keep the colour of their kind)
         if (item.colour) inner = `<span class="tp-zen-tint tp-tint-${item.colour}">${inner}</span>`;
-        inner = `<span class="tp-zen-icon">${kindIcon(kindOf(item.name, item.folder))}</span>${inner}`;
+        const fg = item.colour && item.folder ? ` tp-fg-${item.colour}` : '';
+        inner = `<span class="tp-zen-icon${fg}">${kindIcon(kindOf(item.name, item.folder))}</span>${inner}`;
     }
     const shown = cellText(z, item, col);
     const tip = error ? `${error}\n\n${shown}` : shown;
