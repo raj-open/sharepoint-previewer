@@ -951,8 +951,25 @@ const CSS = `
   .tp-zen-table tr.tp-zen-shown td { background: var(--tp-well-bg); }
   .tp-zen-table tr.tp-zen-shown td.tp-zen-name { background: linear-gradient(var(--tp-well-bg), var(--tp-well-bg)), var(--tp-bg); box-shadow: inset 3px 0 0 var(--tp-accent); }
   .tp-zen-table tr.tp-zen-selected td, .tp-zen-table tr.tp-zen-selected td.tp-zen-pick, .tp-zen-table tr.tp-zen-selected td.tp-zen-name { background: color-mix(in srgb, var(--tp-accent) 14%, var(--tp-bg)); }
-  .tp-zen-icon { display: inline-flex; vertical-align: -3px; margin-right: 6px; color: var(--tp-ln-fg); }
-  .tp-zen-folder .tp-zen-icon { color: #d9a400; }
+  .tp-zen-icon { display: inline-flex; vertical-align: -3px; margin-right: 6px; }
+  /* Kinds of files (cf. /src/ui/kinds.ts): one muted colour each, legible on light and dark */
+  .tp-kind-folder { color: #8a94a6; }
+  .tp-kind-table { color: #2f9e6e; }
+  .tp-kind-data { color: #b8862b; }
+  .tp-kind-code { color: #8a6fd1; }
+  .tp-kind-text { color: #6f7f94; }
+  .tp-kind-log { color: #b8569a; }
+  .tp-kind-model { color: #d9773a; }
+  .tp-kind-report { color: #c9a227; }
+  .tp-kind-image { color: #1f9aa3; }
+  .tp-kind-document { color: #3a7bd5; }
+  .tp-kind-archive { color: #9a7b5c; }
+  .tp-kind-other { color: var(--tp-ln-fg); }
+  .tp-dark .tp-kind-folder { color: #a3adbd; }
+  .tp-dark .tp-kind-document { color: #5f9bec; }
+  .tp-dark .tp-kind-text { color: #93a3b8; }
+  .tp-dark .tp-kind-archive { color: #c9a682; }
+  .tp-dark .tp-kind-log { color: #d27bb6; }
   /* Edit mode: editable cells framed lightly, system fields greyed; changed: amber; refused: red */
   .tp-zen-table th.tp-zen-editable .tp-sort::before { content: '✎ '; opacity: .7; }
   /* editable text: as wide as its cell at most, cut at its own end (an inline block wider than the cell

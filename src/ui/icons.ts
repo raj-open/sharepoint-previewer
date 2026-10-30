@@ -295,15 +295,3 @@ export const COLUMNS_SVG = `
     <path d="M9 4v16M15 4v16"/>
   </svg>
 `;
-
-// Rows of the Zen list: folder, file (coloured by the styles)
-export const FOLDER_SVG = `
-  <svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true">
-    <path d="M1.5 4.5a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z" fill="currentColor" fill-opacity=".55" stroke="currentColor"/>
-  </svg>
-`;
-export const FILE_SVG = `
-  <svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true">
-    <path d="M4.5 1.5h7l4 4v13h-11z" fill="none" stroke="currentColor"/><path d="M11.5 1.5v4h4" fill="none" stroke="currentColor"/>
-  </svg>
-`;
