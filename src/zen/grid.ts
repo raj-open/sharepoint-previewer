@@ -149,7 +149,11 @@ function cellHtml(z: Zen, item: ZenItem, col: string): string {
         const edit = editable ? ' contenteditable="plaintext-only" spellcheck="false"' : '';
         inner = `<span class="tp-zen-text"${edit}>${esc(cellText(z, item, col))}</span>`;
     }
-    if (isName) inner = `<span class="tp-zen-icon">${kindIcon(kindOf(item.name, item.folder))}</span>${inner}`;
+    if (isName) {
+        // colour given in Sharepoint: a tint behind the name (the icon stays as it is)
+        if (item.colour) inner = `<span class="tp-zen-tint tp-tint-${item.colour}">${inner}</span>`;
+        inner = `<span class="tp-zen-icon">${kindIcon(kindOf(item.name, item.folder))}</span>${inner}`;
+    }
     const shown = cellText(z, item, col);
     const tip = error ? `${error}\n\n${shown}` : shown;
     const title = tip.length > MAX_CELL_TITLE ? `${tip.slice(0, MAX_CELL_TITLE)} …` : tip;

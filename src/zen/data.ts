@@ -120,6 +120,15 @@ export function sizeOf(x: ItemJson): number | null {
     return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * @returns colour given to an item in Sharepoint (field _ColorHex, built in: 1–15),
+ * none (0 or empty: Sharepoint's default) as undefined
+ */
+export function colourOf(x: ItemJson): number | undefined {
+    const n = Number(x.OData__ColorHex ?? x._ColorHex ?? 0);
+    return Number.isInteger(n) && n >= 1 && n <= 15 ? n : undefined;
+}
+
 /** @returns item as the Zen list uses it */
 export function toItem(x: ItemJson, fields: ZenField[]): ZenItem {
     const texts = x.FieldValuesAsText ?? {};
@@ -147,6 +156,7 @@ export function toItem(x: ItemJson, fields: ZenField[]): ZenItem {
         folder: Number(x.FSObjType) === 1,
         text,
         raw,
+        colour: colourOf(x),
     };
 }
 

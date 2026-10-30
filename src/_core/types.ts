@@ -196,6 +196,8 @@ export type ZenItem = {
     folder: boolean;
     text: Record<string, string>;
     raw: Record<string, unknown>;
+    /** colour given in Sharepoint (folders: 1–15, cf. colourOf in /src/zen/data.ts); none: undefined */
+    colour?: number;
 };
 /** file or folder below a folder (download): name, server-relative path */
 export type ZenEntry = { name: string; path: string; folder: boolean };

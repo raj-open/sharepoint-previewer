@@ -971,6 +971,23 @@ const CSS = `
   .tp-dark .tp-kind-text { color: #93a3b8; }
   .tp-dark .tp-kind-archive { color: #c9a682; }
   .tp-dark .tp-kind-log { color: #c9cdd3; }
+  /* Colour given in Sharepoint (folders; cf. colourOf in /src/zen/data.ts): a soft tint behind the name */
+  .tp-zen-tint { border-radius: 4px; padding: 1px 5px; margin-left: -5px; }
+  .tp-tint-1 { background: rgba(164, 38, 44, .22); }
+  .tp-tint-2 { background: rgba(202, 80, 16, .22); }
+  .tp-tint-3 { background: rgba(73, 130, 5, .22); }
+  .tp-tint-4 { background: rgba(3, 131, 135, .22); }
+  .tp-tint-5 { background: rgba(0, 90, 158, .22); }
+  .tp-tint-6 { background: rgba(92, 46, 145, .22); }
+  .tp-tint-7 { background: rgba(155, 0, 98, .22); }
+  .tp-tint-8 { background: rgba(138, 136, 134, .25); }
+  .tp-tint-9 { background: rgba(232, 17, 35, .14); }
+  .tp-tint-10 { background: rgba(247, 99, 12, .14); }
+  .tp-tint-11 { background: rgba(107, 183, 0, .16); }
+  .tp-tint-12 { background: rgba(0, 178, 148, .14); }
+  .tp-tint-13 { background: rgba(0, 120, 212, .14); }
+  .tp-tint-14 { background: rgba(135, 100, 184, .16); }
+  .tp-tint-15 { background: rgba(227, 0, 140, .12); }
   /* Edit mode: editable cells framed lightly, system fields greyed; changed: amber; refused: red */
   .tp-zen-table th.tp-zen-editable .tp-sort::before { content: '✎ '; opacity: .7; }
   /* editable text: as wide as its cell at most, cut at its own end (an inline block wider than the cell
