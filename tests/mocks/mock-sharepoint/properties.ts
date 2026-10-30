@@ -225,6 +225,8 @@ function itemJson(store: Store, folder: string, e: Entry): Record<string, unknow
         FSObjType: e.folder ? 1 : 0,
         _UIVersionString: store.values[orig] ? '2.0' : '1.0',
         File: e.folder ? null : { Length: String(e.size) }, // $expand=File (Edm.Int64 as text)
+        // folder colour (Sharepoint's hidden field _ColorHex; 0 or empty: default): one folder coloured
+        OData__ColorHex: e.folder ? (e.name === 'Reports' ? '11' : '0') : null,
     };
     const texts: Record<string, string> = {};
     for (const f of FIELDS) {

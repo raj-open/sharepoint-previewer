@@ -10,6 +10,7 @@ const {
     formValue,
     loadEntries,
     loadFolder,
+    colourOf,
     NAME,
     rawText,
     saveItem,
@@ -99,6 +100,15 @@ describe('zen/data', () => {
         assert.equal(toItem({ Id: 2, FileLeafRef: 'F', FSObjType: 1 }, fields).text.FileSizeDisplay, '');
     });
 
+    it('colour given in Sharepoint (_ColorHex): 1–15; 0, empty or other: none', () => {
+        assert.equal(colourOf({ OData__ColorHex: '11' }), 11);
+        assert.equal(colourOf({ _ColorHex: 3 }), 3);
+        for (const v of ['0', '', null, '16', 'x'])
+            assert.equal(colourOf({ OData__ColorHex: v }), undefined, String(v));
+        assert.equal(colourOf({}), undefined);
+        assert.equal(toItem({ Id: 1, FileLeafRef: 'F', FSObjType: 1, OData__ColorHex: '5' }, []).colour, 5);
+    });
+
     it('titles paired with internal names, which do not follow them (renamed, numbered)', () => {
         const fields: Fake[] = [
             { InternalName: 'Fileinformation', Title: 'Datei infos', TypeAsString: 'Text' },
@@ -182,6 +192,16 @@ describe('zen/data', () => {
                 FolderServerRelativeUrl: `${LIB}/Sub`,
             },
         });
+        assert.ok(urls.some((u) => /GetItems\?\$select=[^&]*,OData__ColorHex&/.test(u))); // folder colours asked for
+        // colours refused (field unknown): read again without them
+        urls.length = 0;
+        const fine = globalThis.fetch;
+        globalThis.fetch = (async (url: string | URL, init: RequestInit = {}) =>
+            String(url).includes('OData__ColorHex')
+                ? new Response('', { status: 400 })
+                : fine(url, init)) as typeof fetch;
+        assert.equal((await loadFolder(LIB, `${LIB}/Sub`)).items.length, 1);
+        assert.ok(urls.some((u) => u.includes('GetItems?') && !u.includes('OData__ColorHex')));
         globalThis.fetch = (async () => new Response('', { status: 500 })) as typeof fetch;
         assert.equal(await loadFolder(LIB, LIB), 'fields: HTTP 500');
     });

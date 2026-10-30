@@ -951,8 +951,59 @@ const CSS = `
   .tp-zen-table tr.tp-zen-shown td { background: var(--tp-well-bg); }
   .tp-zen-table tr.tp-zen-shown td.tp-zen-name { background: linear-gradient(var(--tp-well-bg), var(--tp-well-bg)), var(--tp-bg); box-shadow: inset 3px 0 0 var(--tp-accent); }
   .tp-zen-table tr.tp-zen-selected td, .tp-zen-table tr.tp-zen-selected td.tp-zen-pick, .tp-zen-table tr.tp-zen-selected td.tp-zen-name { background: color-mix(in srgb, var(--tp-accent) 14%, var(--tp-bg)); }
-  .tp-zen-icon { display: inline-flex; vertical-align: -3px; margin-right: 6px; color: var(--tp-ln-fg); }
-  .tp-zen-folder .tp-zen-icon { color: #d9a400; }
+  .tp-zen-icon { display: inline-flex; vertical-align: -3px; margin-right: 6px; }
+  /* Kinds of files (cf. /src/ui/kinds.ts): one muted colour each, legible on light and dark */
+  .tp-kind-folder { color: #5f6368; }
+  .tp-kind-table { color: #2f9e6e; }
+  .tp-kind-data { color: #b8862b; }
+  .tp-kind-code { color: #8a6fd1; }
+  .tp-kind-text { color: #6f7f94; }
+  .tp-kind-log { color: #55595f; }
+  .tp-kind-model { color: #d9773a; }
+  .tp-kind-report { color: #c9a227; }
+  .tp-kind-image { color: #1f9aa3; }
+  .tp-kind-document { color: #3a7bd5; }
+  .tp-kind-archive { color: #9a7b5c; }
+  .tp-kind-other { color: #5f6368; }
+  .tp-dark .tp-kind-folder { color: #c5c8cc; }
+  .tp-dark .tp-kind-other { color: #c5c8cc; }
+  .tp-dark .tp-kind-document { color: #5f9bec; }
+  .tp-dark .tp-kind-text { color: #93a3b8; }
+  .tp-dark .tp-kind-archive { color: #c9a682; }
+  .tp-dark .tp-kind-log { color: #c9cdd3; }
+  /* Colour given in Sharepoint (folders; cf. colourOf in /src/zen/data.ts): a soft tint behind the name, ... */
+  .tp-zen-tint { border-radius: 4px; padding: 1px 5px; margin-left: -5px; }
+  .tp-tint-1 { background: rgba(164, 38, 44, .22); }
+  .tp-tint-2 { background: rgba(202, 80, 16, .22); }
+  .tp-tint-3 { background: rgba(73, 130, 5, .22); }
+  .tp-tint-4 { background: rgba(3, 131, 135, .22); }
+  .tp-tint-5 { background: rgba(0, 90, 158, .22); }
+  .tp-tint-6 { background: rgba(92, 46, 145, .22); }
+  .tp-tint-7 { background: rgba(155, 0, 98, .22); }
+  .tp-tint-8 { background: rgba(138, 136, 134, .25); }
+  .tp-tint-9 { background: rgba(232, 17, 35, .14); }
+  .tp-tint-10 { background: rgba(247, 99, 12, .14); }
+  .tp-tint-11 { background: rgba(107, 183, 0, .16); }
+  .tp-tint-12 { background: rgba(0, 178, 148, .14); }
+  .tp-tint-13 { background: rgba(0, 120, 212, .14); }
+  .tp-tint-14 { background: rgba(135, 100, 184, .16); }
+  .tp-tint-15 { background: rgba(227, 0, 140, .12); }
+  /* ... and the icon in that colour (over the kind's own) */
+  .tp-zen-icon.tp-fg-1 .tp-kind { color: #c23a40; }
+  .tp-zen-icon.tp-fg-2 .tp-kind { color: #d9661f; }
+  .tp-zen-icon.tp-fg-3 .tp-kind { color: #5c9a1c; }
+  .tp-zen-icon.tp-fg-4 .tp-kind { color: #1a9a9e; }
+  .tp-zen-icon.tp-fg-5 .tp-kind { color: #2a78c4; }
+  .tp-zen-icon.tp-fg-6 .tp-kind { color: #7d55b8; }
+  .tp-zen-icon.tp-fg-7 .tp-kind { color: #b8327f; }
+  .tp-zen-icon.tp-fg-8 .tp-kind { color: #8a8886; }
+  .tp-zen-icon.tp-fg-9 .tp-kind { color: #e0707a; }
+  .tp-zen-icon.tp-fg-10 .tp-kind { color: #ee9a5c; }
+  .tp-zen-icon.tp-fg-11 .tp-kind { color: #8cc152; }
+  .tp-zen-icon.tp-fg-12 .tp-kind { color: #3fbfae; }
+  .tp-zen-icon.tp-fg-13 .tp-kind { color: #5aa9e6; }
+  .tp-zen-icon.tp-fg-14 .tp-kind { color: #a98bd8; }
+  .tp-zen-icon.tp-fg-15 .tp-kind { color: #e47bb8; }
   /* Edit mode: editable cells framed lightly, system fields greyed; changed: amber; refused: red */
   .tp-zen-table th.tp-zen-editable .tp-sort::before { content: '✎ '; opacity: .7; }
   /* editable text: as wide as its cell at most, cut at its own end (an inline block wider than the cell

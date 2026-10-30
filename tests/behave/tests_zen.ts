@@ -114,6 +114,10 @@ describe('zen mode', () => {
         assert.match((await cell('FileSizeDisplay').textContent()) ?? '', /^\d+(\.\d)? (B|KB|MB)$/); // computed: from File/Length
         const shown = await names(z);
         assert.equal(shown[0], 'Reports');
+        // colour given in Sharepoint: the icon in that colour, a tint behind the name
+        assert.equal(await rowOf(z, 'Reports').locator('.tp-zen-tint.tp-tint-11').count(), 1);
+        assert.equal(await rowOf(z, 'Reports').locator('.tp-zen-icon.tp-fg-11').count(), 1);
+        assert.equal(await rowOf(z, 'prices.csv').locator('.tp-zen-tint').count(), 0);
         assert.ok(shown.includes('prices.csv'));
         assert.equal(await z.locator('th.tp-zen-name').evaluate((el) => getComputedStyle(el).position), 'sticky');
         // over Sharepoint's list (what is left of it), lined up with the viewer below it: same edges, one gap between

@@ -587,6 +587,9 @@ type Story = { folder: string; settings?: Record<string, unknown>; skip?: () => 
 // pop-up layout: viewer large, page dimmed behind it
 const POPUP = { layout: 'popup' };
 
+// dark mode for a few stories (3D, logs): light stays dominant, as Sharepoint itself
+const DARK = { theme: 'dark' };
+
 // Hero animation (README): formats Sharepoint does not preview, then editing, Zen mode, the title bar, dark mode
 const HERO: Story[] = [
     {
@@ -642,7 +645,7 @@ const HERO: Story[] = [
     },
     {
         folder: '/Models',
-        settings: { ...SETTINGS_3D, ...POPUP },
+        settings: { ...SETTINGS_3D, ...POPUP, ...DARK },
         skip: () => (h.has3dRelease() ? '' : 'no 3D files: run `just build` first'),
         beats: [
             {
@@ -672,7 +675,7 @@ const HERO: Story[] = [
     },
     {
         folder: '/Logs',
-        settings: POPUP,
+        settings: { ...POPUP, ...DARK },
         beats: [
             {
                 caption: 'Logs …',
@@ -758,6 +761,15 @@ const HERO: Story[] = [
                 },
             },
             {
+                caption: '… in their pane …',
+                act: async (page) => {
+                    await tap(page, page.locator('.tp-zen .tp-bar .tp-bar-btn[title^="More"]'));
+                    await tap(page, page.locator('.tp-zen-more .tp-menu-item', { hasText: 'Columns' }));
+                    await tap(page, page.locator('.tp-zen-pane .tp-bar-btn[title^="Edit"]')); // layout mode
+                    await page.locator('.tp-zen th.tp-movable').first().waitFor();
+                },
+            },
+            {
                 caption: '… and move them by their titles',
                 act: async (page) => {
                     const from = await spot(page.locator('.tp-zen th[title="Priority"] .tp-sort'));
@@ -770,13 +782,16 @@ const HERO: Story[] = [
                     await page.mouse.move(drop.x, drop.y, { steps: 12 });
                     await page.mouse.up();
                     clicked = drop;
-                    await page.locator('.tp-zen th:nth-child(2)[title="Priority"]').waitFor();
+                    await page.locator('.tp-zen th:nth-child(3)[title="Priority"]').waitFor(); // after the selection and the name
                 },
             },
             {
                 caption: 'Edit properties in place …',
                 act: async (page) => {
-                    await tap(page, page.locator('.tp-zen .tp-bar-btn[title^="Edit"]'));
+                    await page.locator('.tp-zen-pane .tp-bar-btn[title^="Save"]').click(); // columns kept
+                    await page.locator('.tp-zen-pane .tp-bar-btn[title^="Close"]').click(); // layout mode off
+                    await page.locator('.tp-zen-pane').waitFor({ state: 'detached' });
+                    await tap(page, page.locator('.tp-zen .tp-bar .tp-bar-btn[title^="Edit"]'));
                     await page.locator('.tp-zen select.tp-zen-input').first().waitFor();
                 },
             },
