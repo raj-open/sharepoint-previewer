@@ -4,6 +4,7 @@
 // IMPORTS
 // ===========================================================================
 
+import { formatBytes } from '../_core/util.ts';
 import { getJson } from '../readers/api.ts';
 import { postJson } from '../readers/api.ts';
 import { quote } from '../readers/api.ts';
@@ -56,6 +57,10 @@ const EDITABLE_TYPES = new Set(['Text', 'Note', 'Number', 'Currency', 'Choice', 
 // System fields: never changed here, even if Sharepoint lets them be written
 const SYSTEM_FIELDS = new Set(['ContentType', 'ContentTypeId', 'FileLeafRef', 'CheckoutUser', 'ComplianceAssetId']);
 
+// Fields of a file's size: Sharepoint's column (computed: no value over REST) and its source (a lookup);
+// both filled from the file's length (File/Length)
+const SIZE_FIELDS = new Set(['FileSizeDisplay', 'File_x0020_Size']);
+
 const ITEMS_PAGE = 5000; // items per request (the list view threshold)
 const MAX_ITEM_PAGES = 20;
 
@@ -105,6 +110,16 @@ export function rawText(value: unknown): string {
     return String(value);
 }
 
+/** @returns size of a file in bytes (File/Length, else File_x0020_Size), null for folders or if not known */
+export function sizeOf(x: ItemJson): number | null {
+    if (Number(x.FSObjType) === 1) return null;
+    const file = x.File as { Length?: unknown } | null | undefined;
+    const value = file?.Length ?? x.File_x0020_Size;
+    if (value == null || value === '') return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+}
+
 /** @returns item as the Zen list uses it */
 export function toItem(x: ItemJson, fields: ZenField[]): ZenItem {
     const texts = x.FieldValuesAsText ?? {};
@@ -115,6 +130,12 @@ export function toItem(x: ItemJson, fields: ZenField[]): ZenItem {
         raw[f.name] = value;
         const shown = texts[f.textKey] ?? texts[f.name];
         text[f.name] = typeof shown === 'string' ? shown : rawText(value);
+    }
+    const bytes = sizeOf(x);
+    for (const f of fields) {
+        if (!SIZE_FIELDS.has(f.name)) continue;
+        raw[f.name] = bytes ?? undefined;
+        text[f.name] = bytes == null ? '' : formatBytes(bytes);
     }
     const name = String(x.FileLeafRef ?? text[NAME] ?? '');
     text[NAME] = name;
@@ -215,7 +236,12 @@ export async function loadFolder(library: string, folder: string): Promise<ZenDa
     const view = viewFields(views, page, fields);
     const own = viewOf(views, page);
 
-    const json = await folderItems(library, folder, '*,Id,FileLeafRef,FileRef,FSObjType', 'FieldValuesAsText');
+    const json = await folderItems(
+        library,
+        folder,
+        '*,Id,FileLeafRef,FileRef,FSObjType,File/Length',
+        'FieldValuesAsText,File',
+    );
     if (typeof json === 'string') return `items: ${json}`;
     const order = viewOrder(views, page, location.search);
     const items = sortItems(

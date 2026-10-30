@@ -66,7 +66,7 @@ export const FIELDS: Field[] = [
     field('Title', 'Title', 'Text'),
     field('Modified', 'Modified', 'DateTime', true),
     field('Editor', 'Modified By', 'User', true),
-    field('File_x0020_Size', 'File Size', 'Lookup', true),
+    field('FileSizeDisplay', 'File Size', 'Computed', true), // as Sharepoint: no value over REST (cf. File/Length)
     field('Status', 'Status', 'Choice', false, STATUS),
     field('Priority', 'Priority', 'Number'),
     field('Due', 'Due', 'DateTime'),
@@ -84,7 +84,7 @@ export const VIEW_FIELDS = [
     'LinkFilename',
     'Modified',
     'Editor',
-    'File_x0020_Size',
+    'FileSizeDisplay',
     'Status',
     'Priority',
     'Due',
@@ -171,7 +171,6 @@ function startValues(orig: string, e: Entry): Record<string, Value> {
         Title: null,
         Modified: MODIFIED,
         Editor: e.author ?? '',
-        File_x0020_Size: e.folder ? null : e.size,
         ...own,
     };
 }
@@ -207,12 +206,13 @@ function itemJson(store: Store, folder: string, e: Entry): Record<string, unknow
         FileDirRef: folder,
         FSObjType: e.folder ? 1 : 0,
         _UIVersionString: store.values[orig] ? '2.0' : '1.0',
+        File: e.folder ? null : { Length: String(e.size) }, // $expand=File (Edm.Int64 as text)
     };
     const texts: Record<string, string> = {};
     for (const f of FIELDS) {
         const v = f.InternalName in raw ? (raw[f.InternalName] as Value) : (values[f.InternalName] ?? null);
         if (!['Editor', 'Owner'].includes(f.InternalName)) raw[f.EntityPropertyName] = v;
-        texts[textKey(f.InternalName)] = textOf(f, v);
+        if (f.TypeAsString !== 'Computed') texts[textKey(f.InternalName)] = textOf(f, v);
     }
     return { ...raw, FieldValuesAsText: texts };
 }

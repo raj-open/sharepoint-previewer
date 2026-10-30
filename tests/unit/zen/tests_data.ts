@@ -13,6 +13,7 @@ const {
     NAME,
     rawText,
     saveItem,
+    sizeOf,
     sortItems,
     textKeyOf,
     toField,
@@ -83,6 +84,19 @@ describe('zen/data', () => {
         assert.equal(item.text.My_x0020_Size, '12');
         assert.equal(item.raw.My_x0020_Size, 12);
         assert.equal(toItem({ Id: 1, FileLeafRef: 'F', FSObjType: 1 }, fields).folder, true);
+    });
+
+    it("file size: from File/Length (Sharepoint's column computed, no value), else the lookup; folders none", () => {
+        const fields = [
+            { InternalName: 'FileSizeDisplay', Title: 'File Size', TypeAsString: 'Computed', ReadOnlyField: true },
+        ].map(toField);
+        const item = toItem({ Id: 1, FileLeafRef: 'a.csv', FSObjType: 0, File: { Length: '81000' } }, fields);
+        assert.equal(item.raw.FileSizeDisplay, 81000);
+        assert.equal(item.text.FileSizeDisplay, '79.1 KB');
+        assert.equal(sizeOf({ FSObjType: 0, File_x0020_Size: 12 }), 12);
+        assert.equal(sizeOf({ FSObjType: 0, File: null }), null);
+        assert.equal(sizeOf({ FSObjType: 1, File: { Length: '0' } }), null);
+        assert.equal(toItem({ Id: 2, FileLeafRef: 'F', FSObjType: 1 }, fields).text.FileSizeDisplay, '');
     });
 
     it("view's columns: of the page's view, else the default one; name fields left out", () => {
