@@ -5,8 +5,8 @@
 // ===========================================================================
 
 import { esc } from '../_core/util.ts';
-import { FILE_SVG } from '../ui/icons.ts';
-import { FOLDER_SVG } from '../ui/icons.ts';
+import { kindIcon } from '../ui/kinds.ts';
+import { kindOf } from '../ui/kinds.ts';
 import { closeFilterPanel } from '../view/filter.ts';
 import { nextSort } from '../view/filter.ts';
 import { openFilterPanel } from '../view/filter.ts';
@@ -149,7 +149,13 @@ function cellHtml(z: Zen, item: ZenItem, col: string): string {
         const edit = editable ? ' contenteditable="plaintext-only" spellcheck="false"' : '';
         inner = `<span class="tp-zen-text"${edit}>${esc(cellText(z, item, col))}</span>`;
     }
-    if (isName) inner = `<span class="tp-zen-icon">${item.folder ? FOLDER_SVG : FILE_SVG}</span>${inner}`;
+    if (isName) {
+        // colour given in Sharepoint: a tint behind the name; folders: their icon in that colour as well
+        // (files keep the colour of their kind)
+        if (item.colour) inner = `<span class="tp-zen-tint tp-tint-${item.colour}">${inner}</span>`;
+        const fg = item.colour && item.folder ? ` tp-fg-${item.colour}` : '';
+        inner = `<span class="tp-zen-icon${fg}">${kindIcon(kindOf(item.name, item.folder))}</span>${inner}`;
+    }
     const shown = cellText(z, item, col);
     const tip = error ? `${error}\n\n${shown}` : shown;
     const title = tip.length > MAX_CELL_TITLE ? `${tip.slice(0, MAX_CELL_TITLE)} …` : tip;

@@ -10,9 +10,11 @@ const {
     formValue,
     loadEntries,
     loadFolder,
+    colourOf,
     NAME,
     rawText,
     saveItem,
+    sizeOf,
     sortItems,
     textKeyOf,
     toField,
@@ -85,6 +87,55 @@ describe('zen/data', () => {
         assert.equal(toItem({ Id: 1, FileLeafRef: 'F', FSObjType: 1 }, fields).folder, true);
     });
 
+    it("file size: from File/Length (Sharepoint's column computed, no value), else the lookup; folders none", () => {
+        const fields = [
+            { InternalName: 'FileSizeDisplay', Title: 'File Size', TypeAsString: 'Computed', ReadOnlyField: true },
+        ].map(toField);
+        const item = toItem({ Id: 1, FileLeafRef: 'a.csv', FSObjType: 0, File: { Length: '81000' } }, fields);
+        assert.equal(item.raw.FileSizeDisplay, 81000);
+        assert.equal(item.text.FileSizeDisplay, '79.1 KB');
+        assert.equal(sizeOf({ FSObjType: 0, File_x0020_Size: 12 }), 12);
+        assert.equal(sizeOf({ FSObjType: 0, File: null }), null);
+        assert.equal(sizeOf({ FSObjType: 1, File: { Length: '0' } }), null);
+        assert.equal(toItem({ Id: 2, FileLeafRef: 'F', FSObjType: 1 }, fields).text.FileSizeDisplay, '');
+    });
+
+    it('colour given in Sharepoint (_ColorHex): 1–15; 0, empty or other: none', () => {
+        assert.equal(colourOf({ OData__ColorHex: '11' }), 11);
+        assert.equal(colourOf({ _ColorHex: 3 }), 3);
+        for (const v of ['0', '', null, '16', 'x'])
+            assert.equal(colourOf({ OData__ColorHex: v }), undefined, String(v));
+        assert.equal(colourOf({}), undefined);
+        assert.equal(toItem({ Id: 1, FileLeafRef: 'F', FSObjType: 1, OData__ColorHex: '5' }, []).colour, 5);
+    });
+
+    it('titles paired with internal names, which do not follow them (renamed, numbered)', () => {
+        const fields: Fake[] = [
+            { InternalName: 'Fileinformation', Title: 'Datei infos', TypeAsString: 'Text' },
+            { InternalName: 'Fileinformation2', Title: 'File information', TypeAsString: 'Text' },
+        ].map(toField);
+        assert.deepEqual(
+            fields.map((f) => [f.name, f.title]),
+            [
+                ['Fileinformation', 'Datei infos'],
+                ['Fileinformation2', 'File information'],
+            ],
+        );
+        const item = toItem(
+            {
+                Id: 3,
+                FileLeafRef: 'a.txt',
+                FSObjType: 0,
+                Fileinformation: 'x',
+                Fileinformation2: 'y',
+                FieldValuesAsText: { Fileinformation: 'x', Fileinformation2: 'y' },
+            },
+            fields,
+        );
+        assert.equal(item.text.Fileinformation, 'x');
+        assert.equal(item.text.Fileinformation2, 'y');
+    });
+
     it("view's columns: of the page's view, else the default one; name fields left out", () => {
         const fields = FIELDS.map(toField);
         const views = [
@@ -141,6 +192,16 @@ describe('zen/data', () => {
                 FolderServerRelativeUrl: `${LIB}/Sub`,
             },
         });
+        assert.ok(urls.some((u) => /GetItems\?\$select=[^&]*,OData__ColorHex&/.test(u))); // folder colours asked for
+        // colours refused (field unknown): read again without them
+        urls.length = 0;
+        const fine = globalThis.fetch;
+        globalThis.fetch = (async (url: string | URL, init: RequestInit = {}) =>
+            String(url).includes('OData__ColorHex')
+                ? new Response('', { status: 400 })
+                : fine(url, init)) as typeof fetch;
+        assert.equal((await loadFolder(LIB, `${LIB}/Sub`)).items.length, 1);
+        assert.ok(urls.some((u) => u.includes('GetItems?') && !u.includes('OData__ColorHex')));
         globalThis.fetch = (async () => new Response('', { status: 500 })) as typeof fetch;
         assert.equal(await loadFolder(LIB, LIB), 'fields: HTTP 500');
     });

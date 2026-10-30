@@ -66,7 +66,7 @@ export const FIELDS: Field[] = [
     field('Title', 'Title', 'Text'),
     field('Modified', 'Modified', 'DateTime', true),
     field('Editor', 'Modified By', 'User', true),
-    field('File_x0020_Size', 'File Size', 'Lookup', true),
+    field('FileSizeDisplay', 'File Size', 'Computed', true), // as Sharepoint: no value over REST (cf. File/Length)
     field('Status', 'Status', 'Choice', false, STATUS),
     field('Priority', 'Priority', 'Number'),
     field('Due', 'Due', 'DateTime'),
@@ -76,6 +76,10 @@ export const FIELDS: Field[] = [
     field('Owner', 'Owner', 'User'),
     field('ID', 'ID', 'Counter', true),
     field('_UIVersionString', 'Version', 'Text', true),
+    // Internal names do not follow the titles: created as "File information", renamed "Datei infos";
+    // then another "File information" (Sharepoint: a number appended)
+    field('Fileinformation', 'Datei infos', 'Text'),
+    field('Fileinformation2', 'File information', 'Text'),
 ];
 
 // Columns of the library's view (AllItems.aspx), as Sharepoint lists them (icon and name first)
@@ -84,11 +88,13 @@ export const VIEW_FIELDS = [
     'LinkFilename',
     'Modified',
     'Editor',
-    'File_x0020_Size',
+    'FileSizeDisplay',
     'Status',
     'Priority',
     'Due',
     'Reviewed',
+    'Fileinformation',
+    'Fileinformation2',
 ];
 
 export const DIGEST = '0x4D4F434B,28 Oct 2026 12:00:00 -0000'; // form digest of the mock (any session)
@@ -157,7 +163,17 @@ export const idOf = (orig: string): number => (hash(orig) % 900000) + 100;
 function startValues(orig: string, e: Entry): Record<string, Value> {
     const h = hash(orig);
     const own = e.folder
-        ? { Status: null, Priority: null, Due: null, Reviewed: false, Tags: null, Notes: null, Owner: null }
+        ? {
+              Status: null,
+              Priority: null,
+              Due: null,
+              Reviewed: false,
+              Tags: null,
+              Notes: null,
+              Owner: null,
+              Fileinformation: null,
+              Fileinformation2: null,
+          }
         : {
               Status: STATUS[h % STATUS.length],
               Priority: (h % 5) + 1,
@@ -166,12 +182,13 @@ function startValues(orig: string, e: Entry): Record<string, Value> {
               Tags: h % 4 ? `;#${TAGS[h % TAGS.length]};#` : null,
               Notes: h % 2 ? null : `Checked by ${OWNERS[(h >>> 3) % OWNERS.length]}`,
               Owner: OWNERS[(h >>> 5) % OWNERS.length],
+              Fileinformation: `Info ${e.name}`,
+              Fileinformation2: `Ref ${e.name}`,
           };
     return {
         Title: null,
         Modified: MODIFIED,
         Editor: e.author ?? '',
-        File_x0020_Size: e.folder ? null : e.size,
         ...own,
     };
 }
@@ -207,12 +224,15 @@ function itemJson(store: Store, folder: string, e: Entry): Record<string, unknow
         FileDirRef: folder,
         FSObjType: e.folder ? 1 : 0,
         _UIVersionString: store.values[orig] ? '2.0' : '1.0',
+        File: e.folder ? null : { Length: String(e.size) }, // $expand=File (Edm.Int64 as text)
+        // folder colour (Sharepoint's hidden field _ColorHex; 0 or empty: default): one folder coloured
+        OData__ColorHex: e.folder ? (e.name === 'Reports' ? '11' : '0') : null,
     };
     const texts: Record<string, string> = {};
     for (const f of FIELDS) {
         const v = f.InternalName in raw ? (raw[f.InternalName] as Value) : (values[f.InternalName] ?? null);
         if (!['Editor', 'Owner'].includes(f.InternalName)) raw[f.EntityPropertyName] = v;
-        texts[textKey(f.InternalName)] = textOf(f, v);
+        if (f.TypeAsString !== 'Computed') texts[textKey(f.InternalName)] = textOf(f, v);
     }
     return { ...raw, FieldValuesAsText: texts };
 }
