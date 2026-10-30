@@ -958,7 +958,7 @@ const CSS = `
   .tp-kind-data { color: #b8862b; }
   .tp-kind-code { color: #8a6fd1; }
   .tp-kind-text { color: #6f7f94; }
-  .tp-kind-log { color: #b8569a; }
+  .tp-kind-log { color: #55595f; }
   .tp-kind-model { color: #d9773a; }
   .tp-kind-report { color: #c9a227; }
   .tp-kind-image { color: #1f9aa3; }
@@ -969,7 +969,7 @@ const CSS = `
   .tp-dark .tp-kind-document { color: #5f9bec; }
   .tp-dark .tp-kind-text { color: #93a3b8; }
   .tp-dark .tp-kind-archive { color: #c9a682; }
-  .tp-dark .tp-kind-log { color: #d27bb6; }
+  .tp-dark .tp-kind-log { color: #c9cdd3; }
   /* Edit mode: editable cells framed lightly, system fields greyed; changed: amber; refused: red */
   .tp-zen-table th.tp-zen-editable .tp-sort::before { content: '✎ '; opacity: .7; }
   /* editable text: as wide as its cell at most, cut at its own end (an inline block wider than the cell
