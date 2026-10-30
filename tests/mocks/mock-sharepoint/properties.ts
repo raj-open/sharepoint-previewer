@@ -76,6 +76,10 @@ export const FIELDS: Field[] = [
     field('Owner', 'Owner', 'User'),
     field('ID', 'ID', 'Counter', true),
     field('_UIVersionString', 'Version', 'Text', true),
+    // Internal names do not follow the titles: created as "File information", renamed "Datei infos";
+    // then another "File information" (Sharepoint: a number appended)
+    field('Fileinformation', 'Datei infos', 'Text'),
+    field('Fileinformation2', 'File information', 'Text'),
 ];
 
 // Columns of the library's view (AllItems.aspx), as Sharepoint lists them (icon and name first)
@@ -89,6 +93,8 @@ export const VIEW_FIELDS = [
     'Priority',
     'Due',
     'Reviewed',
+    'Fileinformation',
+    'Fileinformation2',
 ];
 
 export const DIGEST = '0x4D4F434B,28 Oct 2026 12:00:00 -0000'; // form digest of the mock (any session)
@@ -157,7 +163,17 @@ export const idOf = (orig: string): number => (hash(orig) % 900000) + 100;
 function startValues(orig: string, e: Entry): Record<string, Value> {
     const h = hash(orig);
     const own = e.folder
-        ? { Status: null, Priority: null, Due: null, Reviewed: false, Tags: null, Notes: null, Owner: null }
+        ? {
+              Status: null,
+              Priority: null,
+              Due: null,
+              Reviewed: false,
+              Tags: null,
+              Notes: null,
+              Owner: null,
+              Fileinformation: null,
+              Fileinformation2: null,
+          }
         : {
               Status: STATUS[h % STATUS.length],
               Priority: (h % 5) + 1,
@@ -166,6 +182,8 @@ function startValues(orig: string, e: Entry): Record<string, Value> {
               Tags: h % 4 ? `;#${TAGS[h % TAGS.length]};#` : null,
               Notes: h % 2 ? null : `Checked by ${OWNERS[(h >>> 3) % OWNERS.length]}`,
               Owner: OWNERS[(h >>> 5) % OWNERS.length],
+              Fileinformation: `Info ${e.name}`,
+              Fileinformation2: `Ref ${e.name}`,
           };
     return {
         Title: null,

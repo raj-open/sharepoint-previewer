@@ -99,6 +99,33 @@ describe('zen/data', () => {
         assert.equal(toItem({ Id: 2, FileLeafRef: 'F', FSObjType: 1 }, fields).text.FileSizeDisplay, '');
     });
 
+    it('titles paired with internal names, which do not follow them (renamed, numbered)', () => {
+        const fields: Fake[] = [
+            { InternalName: 'Fileinformation', Title: 'Datei infos', TypeAsString: 'Text' },
+            { InternalName: 'Fileinformation2', Title: 'File information', TypeAsString: 'Text' },
+        ].map(toField);
+        assert.deepEqual(
+            fields.map((f) => [f.name, f.title]),
+            [
+                ['Fileinformation', 'Datei infos'],
+                ['Fileinformation2', 'File information'],
+            ],
+        );
+        const item = toItem(
+            {
+                Id: 3,
+                FileLeafRef: 'a.txt',
+                FSObjType: 0,
+                Fileinformation: 'x',
+                Fileinformation2: 'y',
+                FieldValuesAsText: { Fileinformation: 'x', Fileinformation2: 'y' },
+            },
+            fields,
+        );
+        assert.equal(item.text.Fileinformation, 'x');
+        assert.equal(item.text.Fileinformation2, 'y');
+    });
+
     it("view's columns: of the page's view, else the default one; name fields left out", () => {
         const fields = FIELDS.map(toField);
         const views = [
