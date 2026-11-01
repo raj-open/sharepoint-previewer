@@ -47,6 +47,9 @@ PATH_RELEASE_ANON := PATH_RELEASE + "-anon"
 # 3D files (ifc-lite) in the release folder: true (default) or false (cf. .env);
 # if false, they are built in a temporary folder only, for their hashes in the userscript
 BUILD_3D := env("BUILD_3D", "true")
+# diagram file (mermaid.js, cf. build-mermaid) in the release folder: true (default) or false (cf. .env);
+# if false, it is built in a temporary folder only, for its hash in the userscript
+BUILD_DIAGRAMS := env("BUILD_DIAGRAMS", "true")
 BIOME := "node_modules/.bin/biome"
 ESBUILD := "node_modules/.bin/esbuild"
 TSC := "node_modules/.bin/tsc"
@@ -129,20 +132,21 @@ build-dist-anon: build-dist _bundle-anon (_release PATH_BUNDLE_ANON PATH_RELEASE
 _bundle-anon:
     @npm run --silent build:anon -- "{{PATH_BUNDLE}}" "{{PATH_BUNDLE_ANON}}"
 
-# release folder from a bundle: @version and 3D hashes stamped, marker lines of the regions "anon" removed (their contents kept), minified, 3D files, notes
+# release folder from a bundle: @version and hashes of the optional files stamped, marker lines of the regions "anon" removed (their contents kept), minified, optional files (3D, diagrams), notes
 _release script path:
     #!/usr/bin/env bash
     set -euo pipefail
     mkdir -p "{{path}}"
-    # 3D files: in the release folder, or only in a temporary folder (for the hashes)
+    # optional files: in the release folder, or only in a temporary folder (for the hashes)
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "${tmp}"' EXIT
     case "{{BUILD_3D}}" in
         true)
             path_3d="{{path}}"
             ;;
 
         false)
-            path_3d="$(mktemp -d)"
-            trap 'rm -rf "${path_3d}"' EXIT
+            path_3d="${tmp}"
             rm -f "{{path}}/ifc-lite-3d.js" "{{path}}/ifc-lite_bg.wasm"
             ;;
 
@@ -151,9 +155,26 @@ _release script path:
             exit 1
             ;;
     esac
+    case "{{BUILD_DIAGRAMS}}" in
+        true)
+            path_diagrams="{{path}}"
+            ;;
+
+        false)
+            path_diagrams="${tmp}"
+            rm -f "{{path}}/mermaid.js"
+            ;;
+
+        *)
+            echo "error: BUILD_DIAGRAMS must be true or false (is: {{BUILD_DIAGRAMS}})"
+            exit 1
+            ;;
+    esac
     just build-3d "${path_3d}"
+    just build-mermaid "${path_diagrams}"
     hash_js="$(just _sha256 "${path_3d}/ifc-lite-3d.js")"
     hash_wasm="$(just _sha256 "${path_3d}/ifc-lite_bg.wasm")"
+    hash_diagrams="$(just _sha256 "${path_diagrams}/mermaid.js")"
     version="{{BUILD_VERSION}}"
     # quoted value: opening quote, then anything up to the closing quote
     quote='"'"'";
@@ -162,6 +183,7 @@ _release script path:
         -e "s|^(// @version[[:space:]]+).*$|\1${version}|" \
         -e "s|(VIEWER_3D_JS_SHA256[[:space:]]*=[[:space:]]*[${quote}])[^${quote}]*|\1${hash_js}|" \
         -e "s|(VIEWER_3D_WASM_SHA256[[:space:]]*=[[:space:]]*[${quote}])[^${quote}]*|\1${hash_wasm}|" \
+        -e "s|(DIAGRAMS_JS_SHA256[[:space:]]*=[[:space:]]*[${quote}])[^${quote}]*|\1${hash_diagrams}|" \
         -e "/^\/\/ Version and 3D checksums are dummies here/d" \
         -e '/^[[:space:]]*\/\/[[:space:]]*#(end)?region[[:space:]]+anon([[:space:]].*)?$/d' \
         "{{script}}" > "${file}"
@@ -170,17 +192,14 @@ _release script path:
     just _size "{{path}}/{{NAME}}.min.js" "{{MAX_KB_MIN}}"
     cp NOTES.md "{{path}}/NOTES.md"
     built=$(sed -n 's|^// @version[[:space:]]*||p' "{{path}}/{{NAME}}.js")
-    echo "built {{path}} (${built}; 3D files: {{BUILD_3D}})"
+    echo "built {{path}} (${built}; 3D files: {{BUILD_3D}}; diagram file: {{BUILD_DIAGRAMS}})"
 
-# minified userscript; its ==UserScript== header is kept as is (Tampermonkey reads it).
-# NOTE: names are kept: the check worker is built from the script's own function sources
+# minified userscript: local names shortened, CSS minified; its ==UserScript== header is kept as is (Tampermonkey reads it).
+# NOTE: top-level names are kept: the check worker is built from the script's own function sources (cf. /scripts/minify.ts)
 _minify path_in path_out:
     #!/usr/bin/env bash
     set -euo pipefail
-    header=$(sed -n '\|^// ==UserScript==|,\|^// ==/UserScript==|p' "{{path_in}}")
-    header+=$'\n// @ts-nocheck: built file'
-    "{{ESBUILD}}" "{{path_in}}" --minify-whitespace --minify-syntax --charset=utf8 --legal-comments=none --line-limit=1000 \
-        --log-level=warning --banner:js="${header}" --outfile="{{path_out}}"
+    node --disable-warning=ExperimentalWarning scripts/minify.ts "{{path_in}}" "{{path_out}}"
     node --check "{{path_out}}"
 
 # warns if file is above size limit (KB)
@@ -205,6 +224,12 @@ build-3d path=PATH_RELEASE:
         --banner:js="/* ifc-lite library bundle for Sharepoint Previewer: ${banner} (MPL-2.0, source: https://github.com/LTplus-AG/ifc-lite). Engine binary: ifc-lite_bg.wasm from @ifc-lite/wasm. */" \
         --outfile="{{path}}/ifc-lite-3d.js"
     cp node_modules/@ifc-lite/wasm/pkg/ifc-lite_bg.wasm "{{path}}/ifc-lite_bg.wasm"
+
+# copies Mermaid (https://mermaid.js.org; pinned in manifest: @mermaid-js/tiny, one file, no lazy loading) for the optional diagrams into a folder (default: release folder) as mermaid.js
+[group("build")]
+build-mermaid path=PATH_RELEASE:
+    @mkdir -p "{{path}}"
+    @cp node_modules/@mermaid-js/tiny/dist/mermaid.tiny.js "{{path}}/mermaid.js"
 
 # prints the release tag of /dist/VERSION (cf. TAG)
 [group("build")]
