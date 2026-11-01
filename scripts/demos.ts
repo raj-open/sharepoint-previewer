@@ -40,6 +40,7 @@ const POINTER_SVG =
     '<path d="M1 1v20l5-5 4 9 3-1.5-4-8.5h7z" fill="#fff" stroke="#000" stroke-width="1.4" stroke-linejoin="round"/></svg>';
 
 // settings for the 3D view: release folder of the mock Sharepoint (as `just tests-explore` fills it in)
+const SETTINGS_RULES = { 'viewer-share': 0.75 }; // taller viewer: navigator and a rule with its diagram
 const SETTINGS_3D = { 'viewer-3d-folder': RELEASE_SETTING, 'viewer-share': 0.7 }; // taller viewer: the model large
 
 // Link as Sharepoint's own "Copy link" gives it (typical form: sharing prefix, encoded, query), for comparison
@@ -536,6 +537,50 @@ const CASES: Record<string, Case> = {
         },
         clip: async (_page, v) => box(v),
     },
+    // ---- Solibri rulesets: rules in a navigator, a diagram each (own drawing, Mermaid); hints ----
+    rulesets: {
+        folder: '/Rules',
+        file: 'workshop.cset',
+        settings: SETTINGS_RULES,
+        steps: async (_page, v) => {
+            await rule(v, 'Doors keep shelves at a distance');
+            await v.locator('.tp-nav-main .tp-flow-node').first().waitFor();
+        },
+        clip: async (_page, v) => box(v),
+    },
+    'rulesets-errors': {
+        folder: '/Rules',
+        file: 'workshop.cset',
+        settings: SETTINGS_RULES,
+        steps: async (_page, v) => {
+            await v.locator('.tp-nav-only').click();
+            await rule(v, 'Cable trays keep 300 mm apart');
+            await v.locator('.tp-nav-main .tp-md-caution').waitFor();
+        },
+        pointer: (_page, v) => v.locator('.tp-nav-only'),
+        clip: async (_page, v) => box(v),
+    },
+    'rulesets-hints': {
+        folder: '/Rules',
+        file: 'workshop.cset',
+        settings: SETTINGS_RULES,
+        steps: async (_page, v) => {
+            await rule(v, 'Ladders keep 900 mm from cables (min)');
+            await v.locator('.tp-nav-main .tp-md-warning').waitFor();
+        },
+        clip: async (_page, v) => box(v),
+    },
+    'rulesets-mermaid': {
+        folder: '/Rules',
+        file: 'workshop.cset',
+        settings: { ...SETTINGS_RULES, 'viewer-3d-folder': RELEASE_SETTING, 'theme': 'dark' },
+        skip: () => (h.hasDiagramsRelease() ? '' : 'no diagram file: run `just build` first'),
+        steps: async (_page, v) => {
+            await rule(v, 'Doors keep shelves at a distance');
+            await v.locator('.tp-nav-main .tp-md-diagram-mermaid svg').waitFor({ timeout: 20000 });
+        },
+        clip: async (_page, v) => box(v),
+    },
     '3d': {
         folder: '/Models',
         file: 'flat.ifc',
@@ -1024,6 +1069,12 @@ async function openSettings(page: Page): Promise<void> {
 }
 
 /** Switches the viewer to a view (Text, Table, Markdown, 3D, ...) unless already on it. */
+// Rule of a ruleset chosen in the navigator
+async function rule(v: Locator, name: string): Promise<void> {
+    await v.locator('.tp-nav-item', { hasText: name }).click();
+    await v.locator('.tp-nav-main h2', { hasText: name }).waitFor();
+}
+
 async function view(v: Locator, name: string): Promise<void> {
     const btn = v.locator('.tp-view-btn', { hasText: name });
     if ((await btn.getAttribute('aria-pressed')) !== 'true') await btn.click();
