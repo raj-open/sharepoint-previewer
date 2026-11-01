@@ -8,6 +8,7 @@ import { colourPrefs } from '../_core/prefs.ts';
 import { view } from '../_core/prefs.ts';
 import { esc } from '../_core/util.ts';
 import { FORMAT_LISTS } from '../readers/formats.ts';
+import { formatLabel } from '../readers/formats.ts';
 import { formatName } from '../readers/formats.ts';
 import { CUBE_SVG } from '../ui/icons.ts';
 import { EYE_FULL_SVG } from '../ui/icons.ts';
@@ -61,8 +62,10 @@ export const tableView = (v: Viewer): boolean =>
 export const viewKey = (v: Viewer, key: 'table' | 'markdown'): 'table' | 'logTable' | 'markdown' =>
     key === 'table' && v.lang === 'log' ? 'logTable' : key;
 
-// Markdown shown rendered (not while edited: the editor shows its text)
-export const markdownView = (v: Viewer): boolean => v.lang === 'md' && view.markdown && !v.writeMode;
+// Markdown shown rendered (not while edited: the editor shows its text); Markdown files: as last chosen;
+// Markdown made by the viewer (parts of Power BI files, rulesets): rendered unless Text was pressed for this file
+export const markdownView = (v: Viewer): boolean =>
+    v.lang === 'md' && (v.source?.parts ? !v.partsText : view.markdown) && !v.writeMode;
 
 // Preview button for a file type: icon, label, tooltip; `reason` (or no preview): disabled
 export function setPreview(v: Viewer, kind: PreviewKind | null, reason = ''): void {
@@ -105,14 +108,15 @@ export function showFormat(v: Viewer, format: string | null, recognised: string 
     }
     const lists = FORMAT_LISTS.map(([label, keys]) => ({
         label,
-        items: keys.map((k) => ({ text: k === recognised ? `${formatName(k)} (recognised)` : formatName(k) })),
+        items: keys.map((k) => {
+            const name = label === 'Text' ? formatLabel(k) : formatName(k); // file formats: with their extension there
+            return { text: k === recognised ? `${name} (recognised)` : name };
+        }),
         empty: '',
         start: Math.max(0, keys.indexOf(recognised)),
     }));
-    const list = Math.max(
-        0,
-        FORMAT_LISTS.findIndex(([, keys]) => keys.includes(format)),
-    );
+    // file formats: their own list (the last one holding the format)
+    const list = Math.max(0, FORMAT_LISTS.map(([, keys]) => keys.includes(format)).lastIndexOf(true));
     const item = FORMAT_LISTS[list][1].indexOf(format);
     const chosen = format !== recognised;
     const name = formatName(format);

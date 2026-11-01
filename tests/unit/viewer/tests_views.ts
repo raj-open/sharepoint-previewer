@@ -66,7 +66,7 @@ describe('viewer/views', () => {
         assert.match(v.previewBtn.innerHTML, /<span>Preview<\/span>/);
         assert.equal(v.previewBtn.disabled, true);
     });
-    it('Markdown view: while chosen, not while edited; Text or Preview pressed', () => {
+    it('Markdown view: while chosen, not while edited; Text or Preview pressed; generated Markdown per file', () => {
         view.markdown = true;
         const v = fakeViewer({ lang: 'md', source: { text: '' }, busy: true });
         assert.equal(markdownView(v), true);
@@ -82,6 +82,10 @@ describe('viewer/views', () => {
         assert.equal(v.textBtn.getAttribute('aria-pressed'), 'true');
         view.markdown = false;
         assert.equal(markdownView({ lang: 'md' }), false);
+        // Markdown made by the viewer (parts: Power BI, rulesets): rendered whatever Markdown files last chose
+        const parts = { text: '', parts: [] };
+        assert.equal(markdownView({ lang: 'md', source: parts }), true);
+        assert.equal(markdownView({ lang: 'md', source: parts, partsText: true }), false); // Text for this file
     });
     it('colour choice: text, table, sheet, log table', () => {
         view.table = true;
@@ -108,6 +112,10 @@ describe('viewer/views', () => {
         assert.match(title, /recognised from the file name/);
         assert.equal(v.formatPicker.button.classList.contains('tp-chosen'), false);
 
+        // file formats in both lists (the first: with their extension); shown in their own list
+        assert.ok(lists[0].items.some((i: { text: string }) => i.text === 'Solibri ruleset (.cset)'));
+        assert.ok(lists[0].items.some((i: { text: string }) => i.text === 'Power BI (.pbix)'));
+        assert.equal(lists[0].items[0].text, 'Text');
         showFormat(v, 'sheet', 'log');
         const [, chosen, , chosenTitle] = v.formatPicker.last;
         assert.deepEqual([chosen.list, lists[1].items[chosen.item].text], [1, 'Spreadsheet']);

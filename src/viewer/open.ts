@@ -612,6 +612,7 @@ export async function showFile(name: string, url: string, reload: boolean, keep 
     }
 
     // Copy gets whole file: rest is cached first if needed
+    if (v.fileName !== fileName || v.source?.parts !== src.parts) v.partsText = false; // another file: rendered again
     v.source = src;
     v.fileName = fileName;
     const format = chosen || formatOf(fileName);

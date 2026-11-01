@@ -584,8 +584,12 @@ export function createViewer(): Viewer {
         }
         close3d(v); // back to text / table / Markdown
         const k = viewKey(v, key); // logs: own choice
-        view[k] = on;
-        savePref(VIEW_KEYS[k], on ? '1' : '0');
+        if (k === 'markdown' && v.source?.parts)
+            v.partsText = !on; // generated Markdown: this file only
+        else {
+            view[k] = on;
+            savePref(VIEW_KEYS[k], on ? '1' : '0');
+        }
         applyColour(); // each view has its own colour choice
         if (!v.writeMode) return void v.rerender?.();
         exitWriteView(v); // Markdown, log table: shown from saved text, edit ends

@@ -187,9 +187,11 @@ How the parts communicate: [NOTES.md, §3](NOTES.md#3-communication).
     (blue while caching, neutral when idle or complete),
     with a "click to fully cache" hint
   - right: format of the file (recognised from its name);
-    its menu lists text formats and file formats (Parquet, spreadsheet, IFCZIP, Power BI) side by side,
+    its menu lists all formats (the file formats too, with their extension, e.g. "Power BI (.pbix)")
+    and the file formats alone (Parquet, spreadsheet, IFCZIP, Power BI, Solibri ruleset) side by side;
+    an entry means the same in either list;
     any of them can be chosen (also a wrong one: the file is then read as that format, or a message says why not;
-    a chosen format is marked and kept while the page is open);
+    a chosen format is marked and kept while the page is open; names are not guessed, e.g. `.cset_old`: choose it);
     text size **− 100 % +**
     (also Ctrl / ⌘ with + − 0, or Ctrl / ⌘ + wheel, in the content area);
     view switch **Text | Preview**,
@@ -283,6 +285,10 @@ the table's rows below its header row (totals rows left out), its column names a
 `.xls` files show sheets only.
 The text view of a sheet shows the column letters as first line and the row numbers as first column,
 as Excel does (`,A,B,C`, then `1,…`).
+
+Text / Preview is remembered per kind of view (`tp-preview-table`, `tp-preview-markdown`);
+the Markdown the viewer makes itself (overviews and rules of Power BI files and rulesets) always opens rendered:
+Text there applies to that file only.
 
 Log files (experimental) open as text; their table view is chosen separately (`tp-preview-log-table`).
 It guesses the fields from the start of the lines

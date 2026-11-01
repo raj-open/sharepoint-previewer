@@ -4,7 +4,7 @@ import { describe } from 'node:test';
 import { it } from 'node:test';
 import { load } from '../helpers.ts';
 
-const { FORMAT_LISTS, formatName, formatOf, langOfFormat, readerOf } = await load('readers/formats.ts');
+const { FORMAT_LISTS, formatLabel, formatName, formatOf, langOfFormat, readerOf } = await load('readers/formats.ts');
 
 describe('readers/formats', () => {
     it('recognised from the file name: file formats first, then languages, else plain text', () => {
@@ -45,12 +45,22 @@ describe('readers/formats', () => {
             null,
         ]);
     });
-    it('picker lists: plain text first, every format once, each with a name', () => {
+    it('picker lists: plain text first, then all formats by name (file formats too), file formats alone', () => {
         const [[text, texts], [files, binaries]] = FORMAT_LISTS;
         assert.deepEqual([text, files, texts[0]], ['Text', 'Files', 'text']);
         assert.deepEqual(binaries, ['parquet', 'sheet', 'ifczip', 'pbix', 'cset']);
-        const all = texts.concat(binaries);
-        assert.equal(new Set(all).size, all.length);
+        assert.equal(new Set(texts).size, texts.length);
+        assert.ok(binaries.every((b: string) => texts.includes(b))); // the same formats in the first list
+        const names = texts.slice(1).map(formatName);
+        assert.deepEqual(
+            names,
+            [...names].sort((a, b) => a.localeCompare(b)),
+        );
         assert.deepEqual(['text', 'csv', 'sheet', 'xyz'].map(formatName), ['Text', 'CSV', 'Spreadsheet', 'Text']);
+        assert.deepEqual(['pbix', 'cset', 'csv'].map(formatLabel), [
+            'Power BI (.pbix)',
+            'Solibri ruleset (.cset)',
+            'CSV',
+        ]);
     });
 });

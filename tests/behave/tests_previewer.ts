@@ -598,6 +598,31 @@ describe('preview per file type', () => {
         assert.equal(await h.text(v.locator('.tp-nav-count')), '8 sections');
     });
 
+    it('Solibri rulesets: Text for this file only; chosen as a format (left list too): rules as usual', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Rules`);
+        let v = await h.preview(page, 'workshop.cset');
+        await v.locator('.tp-nav').waitFor();
+        await v.locator('.tp-view-btn', { hasText: 'Text' }).click(); // raw Markdown, this file only
+        await v.locator('.tp-code', { hasText: '```mermaid' }).first().waitFor();
+        v = await h.preview(page, 'rules.cset');
+        await v.locator('.tp-md h2').first().waitFor(); // rendered again
+        v = await h.preview(page, 'workshop.cset');
+        await v.locator('.tp-nav').waitFor();
+
+        const choose = async (name: string) => {
+            await v.locator(FORMAT_PICKER).click();
+            const menu = v.locator('.tp-picker-menu:not([hidden])');
+            await menu.locator('.tp-picker-tab', { hasText: 'Text' }).click();
+            await menu.locator('.tp-picker-item', { hasText: name }).first().click();
+        };
+        await choose('Text');
+        await v.locator('.tp-code').first().waitFor();
+        assert.equal(await v.locator('.tp-nav').count(), 0);
+        await choose('Solibri ruleset (.cset)'); // same as Files → Solibri ruleset
+        await v.locator('.tp-nav').waitFor();
+        assert.equal(await v.locator('.tp-view-btn[aria-pressed="true"]', { hasText: 'Markdown' }).count(), 1);
+    });
+
     it('Solibri rulesets: diagrams drawn by Mermaid from the viewer files folder', {
         skip: h.hasDiagramsRelease() ? false : 'no diagram file: run `just build` first',
     }, async () => {

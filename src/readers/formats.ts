@@ -31,9 +31,27 @@ const FILE_FORMATS: Record<string, string> = {
     cset: 'Solibri ruleset',
 };
 
-// Lists of the format picker: text formats (plain text first, then by name), file formats
+// Their usual extension (shown with them in the list of text formats)
+const FILE_EXTENSIONS: Record<string, string> = {
+    parquet: '.parquet',
+    sheet: '.xlsx',
+    ifczip: '.ifczip',
+    pbix: '.pbix',
+    cset: '.cset',
+};
+
+// Lists of the format picker: all formats (plain text first, then by name; file formats too, with their extension),
+// file formats alone; an entry means the same format in either list
 export const FORMAT_LISTS: [string, string[]][] = [
-    ['Text', ['text', ...Object.keys(LANG_NAMES).sort((a, b) => LANG_NAMES[a].localeCompare(LANG_NAMES[b]))]],
+    [
+        'Text',
+        [
+            'text',
+            ...[...Object.keys(LANG_NAMES), ...Object.keys(FILE_FORMATS)].sort((a, b) =>
+                formatName(a).localeCompare(formatName(b)),
+            ),
+        ],
+    ],
     ['Files', Object.keys(FILE_FORMATS)],
 ];
 
@@ -60,4 +78,12 @@ export function langOfFormat(format: string): string | null {
     return format === 'text' ? null : format;
 }
 
-export const formatName = (format: string): string => FILE_FORMATS[format] || LANG_NAMES[format] || 'Text';
+// Name of a format (function declarations: FORMAT_LISTS above uses them while the module loads)
+export function formatName(format: string): string {
+    return FILE_FORMATS[format] || LANG_NAMES[format] || 'Text';
+}
+
+/** @returns name of a format in the list of all formats: file formats with their extension (`Power BI (.pbix)`) */
+export function formatLabel(format: string): string {
+    return format in FILE_EXTENSIONS ? `${formatName(format)} (${FILE_EXTENSIONS[format]})` : formatName(format);
+}

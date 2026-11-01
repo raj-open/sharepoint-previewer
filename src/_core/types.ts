@@ -169,6 +169,8 @@ export type Viewer = {
     relint?: (() => void) | null;
     // Editing
     writeMode?: boolean;
+    /** generated Markdown (parts of a Power BI file, ruleset) shown as text: for this file only, not remembered */
+    partsText?: boolean;
     tableEditing?: boolean;
     dirty?: boolean;
     staged?: string | null;
