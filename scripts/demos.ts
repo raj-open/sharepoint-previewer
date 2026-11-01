@@ -2,8 +2,9 @@
 // in full Chromium (Playwright, new headless mode),
 // with the harness of the behavioural tests (/tests/behave/harness.ts).
 // Usage: node scripts/demos.ts [case ...] (no case: all); cf. `just demos`.
-// Case `hero`: the animation at the top of the README (stories below, cf. /scripts/hero.ts);
-// the most striking first (IFC in 3D, Solibri rulesets, logs), then the everyday ones.
+// Case `hero`: the animation at the top of the README (stories below, cf. /scripts/hero.ts): short (about 18 scenes),
+// from an ordinary Sharepoint library to what the script adds: the most striking first (IFC in 3D, Solibri rulesets, logs),
+// then the everyday ones; each scene held as long as it needs.
 // NOTE: only fixtures of the mock Sharepoint are shown (/tests/mocks/mock-sharepoint/library).
 
 import fs from 'node:fs';
@@ -14,6 +15,8 @@ import * as h from '../tests/behave/harness.ts';
 import { RELEASE_SETTING } from '../tests/mocks/mock-sharepoint/server.ts';
 import { encode } from './hero.ts';
 import { encoder } from './hero.ts';
+import { HOLD } from './hero.ts';
+import { HOLDS_FILE } from './hero.ts';
 import { PATH_FRAMES } from './hero.ts';
 
 // ----------------------------------------------------------------
@@ -626,7 +629,8 @@ const CASES: Record<string, Case> = {
 // Hero story: one page (folder, settings), its beats in turn; each beat acts, then is shown with a caption
 // and the pointer (on an element named, else where the beat clicked last), so that each frame
 // differs from the one before by one action only
-type Beat = { caption: string; act?: Act; pointer?: (page: Page, v: Locator) => Locator };
+/** beat of the hero: caption, what is done, where the pointer is; hold: seconds shown (default cf. /scripts/hero.ts) */
+type Beat = { caption: string; hold?: number; act?: Act; pointer?: (page: Page, v: Locator) => Locator };
 type Act = (page: Page, v: Locator) => Promise<void>;
 type Story = { folder: string; settings?: Record<string, unknown>; skip?: () => string; beats: Beat[] };
 
@@ -643,28 +647,44 @@ const HERO: Story[] = [
         settings: { ...SETTINGS_3D, ...POPUP, ...DARK },
         skip: () => (h.has3dRelease() ? '' : 'no 3D files: run `just build` first'),
         beats: [
-            { caption: 'Click the eye next to a file', pointer: (page) => h.eye(page, 'flat.ifc') },
+            { caption: 'Your Sharepoint library, as always', hold: 2, act: async (page) => plain(page, true) },
+            {
+                caption: '… plus an eye next to each file: click it',
+                hold: 2,
+                act: async (page) => plain(page, false),
+                pointer: (page) => h.eye(page, 'flat.ifc'),
+            },
             {
                 caption: 'IFC models in 3D',
+                hold: 3,
                 act: async (page, v) => {
                     await h.preview(page, 'flat.ifc');
+                    await enlarge(page);
                     await open3d(page, v);
                 },
             },
-            { caption: 'Click an object …', act: async (page, v) => select3d(page, v, PICK_3D) },
             {
-                caption: '… its Psets and Qtos, with units …',
+                caption: 'Cut through them …',
+                hold: 3,
+                pointer: (_page, v) => v.locator('.tp-3d-slider'), // drop-down set without opening it
                 act: async (page, v) => {
-                    await tap(page, v.locator('.tp-3d-btn', { hasText: 'Properties' }));
-                    await v.locator('.tp-3d-props', { hasText: 'Qto_' }).waitFor();
+                    await v.locator('select.tp-3d-btn').selectOption('down');
+                    await v.locator('.tp-3d-slider').evaluate((el: HTMLInputElement) => {
+                        el.value = '45';
+                        el.dispatchEvent(new Event('input', { bubbles: true }));
+                    });
+                    await page.waitForTimeout(800); // drawn
                 },
             },
             {
-                caption: '… and its line in the text',
+                caption: '… click an object: its Psets and Qtos, with units',
+                hold: 3.5,
                 act: async (page, v) => {
-                    await tap(page, v.locator('.tp-3d-btn', { hasText: 'In text' }));
-                    await v.locator('.tp-view-btn[aria-pressed="true"]', { hasText: 'Text' }).waitFor();
-                    await page.waitForTimeout(300); // scrolled to the line
+                    await v.locator('select.tp-3d-btn').selectOption('');
+                    await page.waitForTimeout(500);
+                    await select3d(page, v, PICK_3D);
+                    await tap(page, v.locator('.tp-3d-btn', { hasText: 'Properties' }));
+                    await v.locator('.tp-3d-props', { hasText: 'Qto_' }).waitFor();
                 },
             },
         ],
@@ -675,16 +695,31 @@ const HERO: Story[] = [
         beats: [
             {
                 caption: 'Solibri rulesets: rule by rule, as diagrams',
+                hold: 3.5,
                 act: async (page, v) => {
                     await h.preview(page, 'workshop.cset');
+                    await enlarge(page);
                     await tap(page, v.locator('.tp-nav-item', { hasText: 'Doors keep shelves at a distance' }));
                     await v.locator('.tp-nav-main .tp-md-diagram svg, .tp-nav-main .tp-flow').first().waitFor();
                     await page.waitForTimeout(500); // drawn
                 },
             },
             {
-                caption: '… with hints: errors, warnings, info',
+                caption: 'Search the rules …',
+                hold: 2,
                 act: async (page, v) => {
+                    const search = v.locator('.tp-nav-search');
+                    await tap(page, search);
+                    await search.pressSequentially('cable', { delay: 30 });
+                    await v.locator('.tp-nav-count', { hasText: 'of' }).waitFor();
+                    await page.waitForTimeout(500); // drawn
+                },
+            },
+            {
+                caption: '… errors and warnings at a glance',
+                hold: 3.5,
+                act: async (page, v) => {
+                    await v.locator('.tp-nav-search').fill('');
                     await tap(page, v.locator('.tp-nav-only'));
                     await tap(page, v.locator('.tp-nav-item', { hasText: 'Cable trays keep 300 mm apart' }));
                     await v.locator('.tp-nav-main .tp-md-caution').waitFor();
@@ -698,21 +733,18 @@ const HERO: Story[] = [
         settings: { ...POPUP, ...DARK },
         beats: [
             {
-                caption: 'Logs …',
+                caption: 'Logs as tables …',
+                hold: 2.5,
                 act: async (page, v) => {
                     await h.preview(page, 'app.log');
-                    await v.locator('.tp-content .tp-ln').first().waitFor();
-                },
-            },
-            {
-                caption: '… as tables …',
-                act: async (page, v) => {
+                    await enlarge(page);
                     await tap(page, v.locator('.tp-view-btn', { hasText: 'Table' }));
                     await v.locator('.tp-table .tp-expand').first().waitFor();
                 },
             },
             {
                 caption: '… entries unfolded',
+                hold: 2.5,
                 act: async (page, v) => {
                     await tap(page, v.locator('.tp-table tr', { hasText: 'request' }).locator('.tp-expand'));
                     await v.locator('.tp-table .tp-detail').waitFor();
@@ -725,47 +757,24 @@ const HERO: Story[] = [
         settings: POPUP,
         beats: [
             {
-                caption: 'Inside Power BI files',
+                caption: 'Inside Power BI files: parts and queries …',
+                hold: 2.5,
                 act: async (page, v) => {
                     await h.preview(page, 'sales.pbix');
+                    await enlarge(page);
                     await view(v, 'Markdown');
                     await v.locator('.tp-md h2').first().waitFor();
                 },
             },
             {
-                caption: 'Its parts …',
-                act: async (page, v) => {
-                    await tap(page, v.locator(SHEET_PICKER));
-                    await v.locator('.tp-picker-menu').first().locator('.tp-picker-item').first().waitFor();
-                },
-            },
-            {
-                caption: '… its queries …',
-                act: async (page, v) => {
-                    const menu = v.locator('.tp-picker-menu').first();
-                    await tap(page, menu.locator('.tp-picker-tab', { hasText: 'Queries' }));
-                    await menu.locator('.tp-picker-item', { hasText: 'Orders' }).first().waitFor();
-                },
-            },
-            {
                 caption: '… as Power Query scripts',
+                hold: 2.5,
                 act: async (page, v) => {
+                    await v.locator(SHEET_PICKER).click();
                     const menu = v.locator('.tp-picker-menu').first();
+                    await menu.locator('.tp-picker-tab', { hasText: 'Queries' }).click();
                     await tap(page, menu.locator('.tp-picker-item', { hasText: 'Orders' }).first());
                     await v.locator('.tp-code', { hasText: 'Table.PromoteHeaders' }).waitFor();
-                },
-            },
-        ],
-    },
-    {
-        folder: '/Data',
-        beats: [
-            {
-                caption: 'Parquet as a table, without download',
-                act: async (page, v) => {
-                    await h.preview(page, 'people.parquet');
-                    await tap(page, v.locator('.tp-view-btn', { hasText: 'Table' }));
-                    await v.locator('.tp-table').waitFor();
                 },
             },
         ],
@@ -776,8 +785,10 @@ const HERO: Story[] = [
         beats: [
             {
                 caption: 'Any text file: colours and checks',
+                hold: 2,
                 act: async (page) => {
                     await h.preview(page, 'broken.xml');
+                    await enlarge(page);
                     await page.locator('.tp-lint.tp-lint-bad').waitFor();
                 },
             },
@@ -788,24 +799,16 @@ const HERO: Story[] = [
         settings: POPUP,
         beats: [
             {
-                caption: 'Edit …',
+                caption: 'Edit, save, upload to Sharepoint',
+                hold: 2.5,
                 act: async (page, v) => {
                     await h.preview(page, 'notes.txt');
-                    await tap(page, v.locator('.tp-mode-btn[title^="Edit"]'));
+                    await enlarge(page);
+                    await v.locator('.tp-mode-btn[title^="Edit"]').click();
                     await v.locator('.tp-editor').waitFor();
-                },
-            },
-            {
-                caption: '… type …',
-                act: async (page, v) => {
                     await v.locator('.tp-editor').press('Control+End');
                     await page.keyboard.type('\n- (edited) agreed: next meeting on Friday');
-                },
-            },
-            { caption: '… save …', act: async (page, v) => tap(page, v.locator('.tp-mode-btn[title^="Save"]')) },
-            {
-                caption: '… upload to Sharepoint',
-                act: async (page, v) => {
+                    await v.locator('.tp-mode-btn[title^="Save"]').click();
                     await tap(page, v.locator('.tp-mode-btn[title^="Upload"]'));
                     await page.locator('#grid .uploaded').waitFor({ timeout: 15000 }); // the list shows the upload
                     await h.settled(page);
@@ -818,126 +821,47 @@ const HERO: Story[] = [
         beats: [
             {
                 caption: 'Zen mode: the folder with all its properties',
+                hold: 2.5,
                 act: async (page) => {
                     await tap(page, page.locator('.tp-zen-tab'));
                     await page.locator('.tp-zen .tp-zen-row').first().waitFor();
                 },
             },
             {
-                caption: 'Sort, filter, choose columns …',
+                caption: 'Sort, filter, edit in place …',
+                hold: 3,
                 act: async (page) => {
-                    await tap(page, page.locator('.tp-zen th .tp-sort', { hasText: 'Status' }));
+                    await page.locator('.tp-zen th .tp-sort', { hasText: 'Status' }).click();
                     await page.locator('.tp-zen th .tp-sort', { hasText: '▲' }).waitFor();
-                },
-            },
-            {
-                caption: '… in their pane …',
-                act: async (page) => {
-                    await tap(page, page.locator('.tp-zen .tp-bar .tp-bar-btn[title^="More"]'));
-                    await tap(page, page.locator('.tp-zen-more .tp-menu-item', { hasText: 'Columns' }));
-                    await tap(page, page.locator('.tp-zen-pane .tp-bar-btn[title^="Edit"]')); // layout mode
-                    await page.locator('.tp-zen th.tp-movable').first().waitFor();
-                },
-            },
-            {
-                caption: '… and move them by their titles',
-                act: async (page) => {
-                    const from = await spot(page.locator('.tp-zen th[title="Priority"] .tp-sort'));
-                    const to = await spot(page.locator('.tp-zen th[title="Modified"]'));
-                    const box = await page.locator('.tp-zen th[title="Modified"]').boundingBox();
-                    if (!from || !to || !box) throw new Error('column titles not shown');
-                    const drop = { x: box.x + 6, y: to.y };
-                    await page.mouse.move(from.x, from.y);
-                    await page.mouse.down();
-                    await page.mouse.move(drop.x, drop.y, { steps: 12 });
-                    await page.mouse.up();
-                    clicked = drop;
-                    await page.locator('.tp-zen th:nth-child(3)[title="Priority"]').waitFor(); // after the selection and the name
-                },
-            },
-            {
-                caption: 'Edit properties in place …',
-                act: async (page) => {
-                    await page.locator('.tp-zen-pane .tp-bar-btn[title^="Save"]').click(); // columns kept
-                    await page.locator('.tp-zen-pane .tp-bar-btn[title^="Close"]').click(); // layout mode off
-                    await page.locator('.tp-zen-pane').waitFor({ state: 'detached' });
-                    await tap(page, page.locator('.tp-zen .tp-bar .tp-bar-btn[title^="Edit"]'));
-                    await page.locator('.tp-zen select.tp-zen-input').first().waitFor();
-                },
-            },
-            {
-                caption: '… choices from a list …',
-                act: async (page) => {
+                    await page.locator('.tp-zen .tp-bar .tp-bar-btn[title^="Edit"]').click();
                     const row = page.locator('.tp-zen tr.tp-zen-row', { hasText: 'prices.csv' });
                     const select = row.locator('select.tp-zen-input').first();
+                    await select.waitFor();
                     const now = await select.inputValue();
                     await tap(page, select);
                     await select.selectOption(now === 'Approved' ? 'In review' : 'Approved');
                 },
             },
             {
-                caption: '… dates, numbers, names …',
-                act: async (page) => {
-                    const row = page.locator('.tp-zen tr.tp-zen-row', { hasText: 'prices.csv' });
-                    const priority = row.locator('.tp-zen-text[contenteditable]').nth(1); // after the name
-                    await tap(page, priority);
-                    await page.keyboard.press('ControlOrMeta+a');
-                    await page.keyboard.type('1');
-                    await page.keyboard.press('Enter');
-                },
-            },
-            {
-                caption: '… save: kept in the view …',
-                act: async (page) => {
-                    await tap(page, page.locator('.tp-zen .tp-bar-btn[title^="Save"]'));
-                    await page.locator('.tp-zen .tp-zen-note', { hasText: 'saved in the view' }).waitFor();
-                },
-            },
-            {
                 caption: "… upload: applied as with Sharepoint's own form",
+                hold: 2.5,
                 act: async (page) => {
+                    await page.locator('.tp-zen .tp-bar-btn[title^="Save"]').click();
+                    await page.locator('.tp-zen .tp-zen-note', { hasText: 'saved in the view' }).waitFor();
                     await tap(page, page.locator('.tp-zen .tp-bar-btn[title^="Upload"]'));
                     await page.locator('.tp-zen .tp-zen-note', { hasText: 'uploaded' }).waitFor();
                 },
             },
             {
                 caption: '… in dark mode, too',
+                hold: 3,
                 act: async (page, v) => {
-                    await tap(page, page.locator('.tp-zen .tp-bar-btn[title^="Edit"]')); // edit mode off
+                    await page.locator('.tp-zen .tp-bar-btn[title^="Edit"]').click(); // edit mode off
                     await tap(page, page.locator('.tp-zen td.tp-zen-name', { hasText: 'prices.csv' })); // into the viewer
                     await v.locator('.tp-title-name', { hasText: 'prices.csv' }).waitFor();
-                    await tap(page, v.locator('.tp-mode-btn[title="More"]'));
+                    await v.locator('.tp-mode-btn[title="More"]').click();
                     await tap(page, v.locator('.tp-menu-item', { hasText: 'Dark mode' }));
                     await page.locator('.tp-zen.tp-dark').waitFor();
-                },
-            },
-        ],
-    },
-    {
-        folder: '/Data',
-        settings: POPUP,
-        beats: [
-            {
-                caption: 'File properties',
-                act: async (page, v) => {
-                    await h.preview(page, 'prices.csv');
-                    await view(v, 'Table');
-                    await tap(page, v.locator('.tp-mode-btn[title^="Display file metadata"]'));
-                },
-            },
-            {
-                caption: 'Copy the link …',
-                act: async (page, v) => {
-                    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
-                    await tap(page, v.locator('.tp-mode-btn[title^="Copy the link"]'));
-                },
-            },
-            { caption: '… paste it: clean, no prefix, no query, no %20', act: async (page) => paste(page) },
-            {
-                caption: 'Dark mode',
-                act: async (page, v) => {
-                    await tap(page, v.locator('.tp-mode-btn[title="More"]'));
-                    await tap(page, v.locator('.tp-menu-item', { hasText: 'Dark mode' }));
                 },
             },
         ],
@@ -999,6 +923,31 @@ async function clear(page: Page): Promise<void> {
     await page.evaluate(() => {
         for (const el of document.querySelectorAll('[data-demo]')) el.remove();
     });
+}
+
+/** Sharepoint as without the userscript (its eyes, column head and Zen tab hidden), or with them again */
+async function plain(page: Page, on: boolean): Promise<void> {
+    await page.evaluate((hide) => {
+        document.getElementById('hero-plain')?.remove();
+        if (!hide) return;
+        const style = document.createElement('style');
+        style.id = 'hero-plain';
+        style.textContent = '.tp-cell, .tp-head, .tp-zen-tab { display: none !important; }';
+        document.head.append(style);
+    }, on);
+}
+
+/** Pop-up of the hero nearly as large as the page, below the caption bar (Sharepoint still around it) */
+async function enlarge(page: Page): Promise<void> {
+    await page.locator('.tp-viewer').evaluate((box: HTMLElement) => {
+        Object.assign(box.style, {
+            left: '24px',
+            top: '60px',
+            width: 'calc(100vw - 48px)',
+            height: 'calc(100vh - 72px)',
+        });
+    });
+    await page.waitForTimeout(300); // laid out again
 }
 
 /** Draws a caption into the page (hero) */
@@ -1143,6 +1092,7 @@ async function hero(browser: Browser): Promise<void> {
     fs.rmSync(PATH_FRAMES, { recursive: true, force: true });
     fs.mkdirSync(PATH_FRAMES, { recursive: true });
     let n = 0;
+    const holds: number[] = []; // seconds per frame (cf. /scripts/hero.ts)
     for (const story of HERO) {
         const reason = story.skip?.();
         if (reason) {
@@ -1162,10 +1112,12 @@ async function hero(browser: Browser): Promise<void> {
             await label(page, beat.caption);
             const out = path.join(PATH_FRAMES, `${String(n++).padStart(2, '0')}.png`);
             await page.screenshot({ path: out });
+            holds.push(beat.hold ?? HOLD);
             console.log(`wrote ${out}: ${beat.caption}`);
         }
         await page.context().close();
     }
+    fs.writeFileSync(path.join(PATH_FRAMES, HOLDS_FILE), `${JSON.stringify(holds)}\n`);
     if (encoder()) encode();
     else console.log(`no ffmpeg with libwebp: frames kept in ${PATH_FRAMES} (join them with \`node scripts/hero.ts\`)`);
 }
