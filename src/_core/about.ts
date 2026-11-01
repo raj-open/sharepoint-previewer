@@ -19,8 +19,9 @@ const INSTALL = [
     'Tampermonkey (browser extension, user scripts allowed): a new script, ' +
         '<code>sharepoint-previewer.min.js</code> of a release pasted in, saved; then reload the Sharepoint page.',
     'Upgrade: Tampermonkey menu → Edit, the new release pasted over the old one.',
-    '3D view (optional): <code>ifc-lite-3d.js</code> and <code>ifc-lite_bg.wasm</code> of the same release ' +
-        'in a Sharepoint folder, named in the setting "3D viewer folder".',
+    'Optional viewer files of the same release in a Sharepoint folder, named in the setting "Viewer files folder": ' +
+        '3D view: <code>ifc-lite-3d.js</code> and <code>ifc-lite_bg.wasm</code>; ' +
+        'diagrams: <code>mermaid.js</code> (<a href="https://mermaid.js.org" target="_blank" rel="noopener noreferrer">Mermaid</a>; without it: a simple drawing).',
     'Zen mode and search read through the Sharepoint API (setting "Use the Sharepoint API").',
 ];
 

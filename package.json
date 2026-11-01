@@ -1,6 +1,6 @@
 {
     "name": "sharepoint-previewer",
-    "version": "3.2.1",
+    "version": "3.3.0",
     "description": "Tampermonkey userscript: preview (text, table, 3D) and editor for files in Sharepoint Online document libraries.",
     "private": true,
     "type": "module",
@@ -30,6 +30,7 @@
         "@ifc-lite/parser": "9.7.0",
         "@ifc-lite/renderer": "6.5.1",
         "@ifc-lite/wasm": "11.0.1",
+        "@mermaid-js/tiny": "12.2.0",
         "@types/node": "26.6.6",
         "esbuild": "0.28.2",
         "playwright": "1.64.1",

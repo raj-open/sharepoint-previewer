@@ -9,10 +9,12 @@ import type { Page } from 'playwright';
 import { chromium } from 'playwright';
 import * as sharepoint from '../mocks/mock-sharepoint/server.ts';
 import { has3dRelease } from '../mocks/mock-sharepoint/server.ts';
+import { hasDiagramsRelease } from '../mocks/mock-sharepoint/server.ts';
 import { userscript } from '../mocks/mock-sharepoint/userscript.ts';
 
-export const { ORIGIN, LIBRARY, LIST_PAGE, SITE, TOOLS } = sharepoint;
+export const { ORIGIN, LIBRARY, LIST_PAGE, SITE, TOOLS, RELEASE_SETTING } = sharepoint;
 export { has3dRelease };
+export { hasDiagramsRelease };
 
 // Browser session: page and the requests it made (range: Range header)
 export type Session = { page: Page; requests: { url: string; method: string; range?: string }[] };

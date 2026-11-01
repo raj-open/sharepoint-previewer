@@ -65,8 +65,8 @@ export const DEFAULTS = {
     // saves properties and names), files of search results found by name. Off: the script uses no API at all
     'sharepoint-api': true,
 
-    // Folder with ifc-lite-3d.js and ifc-lite_bg.wasm: relative to site, or from top
-    // with leading '/'. Fetched on first use of 3D button, checked by SHA-256.
+    // Folder of the optional viewer files (3D: ifc-lite-3d.js, ifc-lite_bg.wasm; diagrams: mermaid.js):
+    // relative to site, or from top with leading '/'. Fetched on first use, checked by SHA-256.
     'viewer-3d-folder': '',
 
     // 3D view asks first for IFC files above this size (for .ifczip: unpacked IFC file)
@@ -95,9 +95,10 @@ export const SPLIT_GAP = 3;
 // Width of preview (eye) column, in pixels
 export const COL_WIDTH = 32;
 
-// Checksums of 3D viewer files (they belong to this script version): dummies, stamped by the release build
+// Checksums of the optional viewer files (they belong to this script version): dummies, stamped by the release build
 export const VIEWER_3D_JS_SHA256 = '<sha256>';
 export const VIEWER_3D_WASM_SHA256 = '<sha256>';
+export const DIAGRAMS_JS_SHA256 = '<sha256>';
 
 // ===========================================================================
 // METHODS

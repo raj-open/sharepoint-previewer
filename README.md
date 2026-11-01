@@ -22,7 +22,7 @@ users should, _at the very least_, be able to preview plain-text files – whate
 
 Our answer is a **previewer** that adds to Sharepoint just what is needed to fix this.
 
-![The previewer on a mock Sharepoint: Parquet, Power BI, IFC in 3D with properties, logs, checks, editing, Zen mode with properties edited in place, clean links, dark mode](demos/img/hero.webp)
+![From an ordinary Sharepoint library to the previewer: IFC in 3D (section, properties), Solibri rulesets as diagrams with hints, logs as tables, Power BI queries, checks, editing, Zen mode with properties edited in place, dark mode](demos/img/hero.webp)
 
 ## Demonstration ##
 
@@ -47,6 +47,8 @@ Once the previewer worked, we added further features. With it you can
 
 - look inside Power BI files (their parts, Power Query scripts and parameters)
 
+- browse Solibri rulesets rule by rule, each with a diagram (searchable list), with hints on points worth checking (e.g. a rule's name and values disagreeing)
+
 - read Markdown rendered, and logs as tables (experimental)
 
 - view IFC models in 3D (optional)
@@ -66,7 +68,7 @@ Once the previewer worked, we added further features. With it you can
   - an edit mode to change properties and names directly in the list
 
 > [!NOTE]
-> The tool contains no third-party code, apart from the optional 3D view, which is built on [IFClite](https://ifclite.dev).
+> The tool contains no third-party code, apart from the optional 3D view, which is built on [IFClite](https://ifclite.dev), and the optional diagrams, drawn by [Mermaid](https://mermaid.js.org) (without it: a simple drawing of the tool's own).
 > Only Zen mode and the lookup of search results use Sharepoint's own REST API (on the same site, with your session); the setting `sharepoint-api` turns off all use of the API.
 
 ### For whom? ###
@@ -115,6 +117,8 @@ Controls that are hard to discover are listed in the script itself, under "About
   - The release bundles `@ifc-lite/geometry`, `@ifc-lite/renderer` and `@ifc-lite/parser` (with their dependencies) into `ifc-lite-3d.js` and ships the engine binary of `@ifc-lite/wasm` unchanged as `ifc-lite_bg.wasm`; the versions are pinned in [package.json](./package.json).
 
   - IFClite is used unchanged; its source code is available at <https://github.com/LTplus-AG/ifc-lite>. Modified IFClite source files would have to remain under MPL-2.0.
+
+- **[Mermaid](https://mermaid.js.org)** by Knut Sveidqvist & contributors, **MIT**: draws the optional diagrams (e.g. of Solibri rules). The release ships Mermaid's one-file build (`@mermaid-js/tiny`, version pinned in [package.json](./package.json)) unchanged as `mermaid.js`.
 
 - **Development only** (not part of the userscript): [TypeScript](https://www.typescriptlang.org), [Biome](https://biomejs.dev), [esbuild](https://esbuild.github.io), [Playwright](https://playwright.dev) and [just](https://just.systems); the test file `Data/model.pbix` comes from the samples of [PBIXRay](https://github.com/Hugoberry/pbixray) (MIT).
 

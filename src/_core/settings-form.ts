@@ -44,7 +44,11 @@ const SETTING_FORM: [string, string, (string[] | string)?][] = [
     ['max-line-chars', 'Lines cut after (characters)'],
     ['follow-links', 'Follow .url link files'],
     ['sharepoint-api', 'Use the Sharepoint API (Zen mode, search)'],
-    ['viewer-3d-folder', '3D viewer folder', '/sites/…/Viewer  or  /teams/…/Viewer  (or relative to the site)'],
+    [
+        'viewer-3d-folder',
+        'Viewer files folder (3D, diagrams)',
+        '/sites/…/Viewer  or  /teams/…/Viewer  (or relative to the site)',
+    ],
     ['viewer-3d-max-bytes', 'Warn 3D view if IFC size exceeds', 'MB'],
     ['logo', 'Logo (data:image/… URI, empty = no image)'],
 ];

@@ -1,4 +1,4 @@
-// 3D view (IFC / IFCZIP), ifc-lite from VIEWER_3D_FOLDER on first use, SHA-256 checked.
+// 3D view (IFC / IFCZIP), ifc-lite from the viewer files folder on first use, SHA-256 checked (cf. /src/readers/extras.ts).
 // Model stays in browser.
 
 // ===========================================================================
@@ -7,12 +7,12 @@
 
 import { openSettingsForm } from '../_core/settings-form.ts';
 import { MAX_3D_BYTES } from '../_core/settings.ts';
-import { VIEWER_3D_FOLDER } from '../_core/settings.ts';
 import { VIEWER_3D_JS_SHA256 } from '../_core/settings.ts';
 import { VIEWER_3D_WASM_SHA256 } from '../_core/settings.ts';
 import { formatBytes } from '../_core/util.ts';
-import { encodePath } from '../readers/request.ts';
-import { sameOrigin } from '../readers/request.ts';
+import { fetchExtra } from '../readers/extras.ts';
+import { NOT_FOUND } from '../readers/extras.ts';
+import { runExtra } from '../readers/extras.ts';
 import { flash } from './edit.ts';
 import { propsReader } from './props3d.ts';
 import { tools3d } from './tools3d.ts';
@@ -50,47 +50,21 @@ export let ifcLibraryReady = false; // loaded (then IFC files open in 3D again i
 const view3dPoses: Map<string, Pose> = new Map(); // file url -> camera of its last 3D view (while this page is open)
 /** tooltip of "Reload ifc-lite" (⋯ menu, failed 3D view) */
 export const RELOAD_TITLE = 'Fetch the 3D files (ifc-lite) again, e.g. after new ones were deployed';
-const NOT_FOUND = '3d-files-not-found'; // cause of the error when the 3D folder has no such file
 
 // ===========================================================================
 // METHODS
 // ===========================================================================
 
-async function sha256(buf: ArrayBuffer): Promise<string> {
-    const d = new Uint8Array(await crypto.subtle.digest('SHA-256', buf));
-    return [...d].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
 // Library (once per page)
 function loadIfcLibrary(onStatus: (s: string) => void): Promise<{ lib: IfcLite; wasm: Uint8Array }> {
     if (ifcLibrary) return ifcLibrary;
     const loading = (async () => {
-        if (!VIEWER_3D_FOLDER) throw new Error('the 3D viewer folder is not set (settings: "3D viewer folder")');
-        const file = async (name: string, hash: string) => {
-            if (!/^[0-9a-f]{64}$/.test(hash))
-                throw new Error('no 3D checksums in this build: use a release userscript');
-            const site = (location.pathname.match(/^\/(?:sites|teams|personal)\/[^/]+/i) || [''])[0]; // current site
-            const folder = VIEWER_3D_FOLDER.startsWith('/') ? VIEWER_3D_FOLDER : `${site}/${VIEWER_3D_FOLDER}`;
-            const url = encodePath(`${folder.replace(/\/$/, '')}/${name}`);
-            if (!sameOrigin(url)) throw new Error('the 3D viewer folder must be in this Sharepoint');
-            onStatus(`caching ${name} …`);
-            // revalidated: a cached file of an earlier release would fail its checksum
-            const res = await fetch(url, { credentials: 'same-origin', cache: 'no-cache' });
-            if (res.status === 404) {
-                const message = `${name} not found in "${folder}": is the setting "3D viewer folder" right?`;
-                throw new Error(message, { cause: NOT_FOUND });
-            }
-            if (!res.ok) throw new Error(`${name}: error ${res.status}`);
-            const buf = await res.arrayBuffer();
-            if ((await sha256(buf)) !== hash) throw new Error(`${name} does not match its checksum: not used`);
-            return buf;
-        };
         const [js, wasm] = await Promise.all([
-            file('ifc-lite-3d.js', VIEWER_3D_JS_SHA256),
-            file('ifc-lite_bg.wasm', VIEWER_3D_WASM_SHA256),
+            fetchExtra('ifc-lite-3d.js', VIEWER_3D_JS_SHA256, onStatus),
+            fetchExtra('ifc-lite_bg.wasm', VIEWER_3D_WASM_SHA256, onStatus),
         ]);
         // Read IfcLite back in same function (sandbox may have another global)
-        const lib: IfcLite | undefined = new Function(`${new TextDecoder().decode(js)}\n;return globalThis.IfcLite;`)();
+        const lib = runExtra<IfcLite>(js, 'IfcLite');
         if (!lib) throw new Error('3D library did not start');
         ifcLibraryReady = true;
         return { lib, wasm: new Uint8Array(wasm) };

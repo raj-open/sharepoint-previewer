@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="Example rules" version="1.0">
+  <rule id="1" title="Walls have a fire rating" severity="high">
+    <parameter name="property" value="FireRating"/>
+  </rule>
+  <rule id="2" title="Doors are wide enough" severity="low">
+    <parameter name="min width" value="0.9" unit="m"/>
+  </rule>
+</ruleset>
