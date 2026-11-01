@@ -143,7 +143,7 @@ const CASES: Record<string, Case> = {
         pointer: (page) => page.locator('.tp-zen-tab'),
     },
     'zen-alone': {
-        folder: '/Data',
+        folder: '/Project', // all kinds of files: icons in all their colours
         before: async (page) => {
             await page.locator('.tp-zen-tab').click();
             await page.locator('.tp-zen .tp-zen-row').first().waitFor();
@@ -159,8 +159,8 @@ const CASES: Record<string, Case> = {
         },
     },
     'zen-dark': {
-        folder: '/Data',
-        file: 'prices.csv',
+        folder: '/Project', // all kinds of files: icons in all their colours
+        file: 'measurements.csv',
         settings: { theme: 'dark' },
         steps: async (page) => {
             await zen(page);
@@ -180,8 +180,8 @@ const CASES: Record<string, Case> = {
     },
     // layout mode: columns menu open, one column hidden, one moved (a draft, not saved yet)
     'zen-layout': {
-        folder: '/Data',
-        file: 'prices.csv',
+        folder: '/Project', // all kinds of files: icons in all their colours
+        file: 'measurements.csv',
         steps: async (page) => {
             await zen(page);
             const z = page.locator('.tp-zen');
@@ -211,13 +211,13 @@ const CASES: Record<string, Case> = {
         pointer: (page) => page.locator('.tp-zen .tp-bar-btn[title^="Download"]'),
     },
     'zen-edit': {
-        folder: '/Data',
-        file: 'prices.csv',
+        folder: '/Project', // all kinds of files: icons in all their colours
+        file: 'measurements.csv',
         steps: async (page) => {
             await zen(page);
             const z = page.locator('.tp-zen');
             await z.locator('.tp-bar-btn[title^="Edit"]').click();
-            const row = z.locator('tr.tp-zen-row', { hasText: 'people.parquet' });
+            const row = z.locator('tr.tp-zen-row', { hasText: 'budget.xlsx' });
             await row.locator('select').first().selectOption('Draft');
             const priority = row.locator('.tp-zen-text[contenteditable]').nth(1); // after the name: Priority
             await priority.click();
@@ -229,7 +229,7 @@ const CASES: Record<string, Case> = {
             await z.locator('td.tp-zen-error').waitFor();
             // a change not saved yet
             const due = z
-                .locator('tr.tp-zen-row', { hasText: 'sales.pbix' })
+                .locator('tr.tp-zen-row', { hasText: 'dashboard.pbix' })
                 .locator('.tp-zen-text[contenteditable]')
                 .nth(2);
             await due.click();
@@ -817,7 +817,7 @@ const HERO: Story[] = [
         ],
     },
     {
-        folder: '/Data',
+        folder: '/Project', // all kinds of files: icons in all their colours
         beats: [
             {
                 caption: 'Zen mode: the folder with all its properties',
@@ -834,7 +834,7 @@ const HERO: Story[] = [
                     await page.locator('.tp-zen th .tp-sort', { hasText: 'Status' }).click();
                     await page.locator('.tp-zen th .tp-sort', { hasText: '▲' }).waitFor();
                     await page.locator('.tp-zen .tp-bar .tp-bar-btn[title^="Edit"]').click();
-                    const row = page.locator('.tp-zen tr.tp-zen-row', { hasText: 'prices.csv' });
+                    const row = page.locator('.tp-zen tr.tp-zen-row', { hasText: 'measurements.csv' });
                     const select = row.locator('select.tp-zen-input').first();
                     await select.waitFor();
                     const now = await select.inputValue();
@@ -857,8 +857,8 @@ const HERO: Story[] = [
                 hold: 3,
                 act: async (page, v) => {
                     await page.locator('.tp-zen .tp-bar-btn[title^="Edit"]').click(); // edit mode off
-                    await tap(page, page.locator('.tp-zen td.tp-zen-name', { hasText: 'prices.csv' })); // into the viewer
-                    await v.locator('.tp-title-name', { hasText: 'prices.csv' }).waitFor();
+                    await tap(page, page.locator('.tp-zen td.tp-zen-name', { hasText: 'measurements.csv' })); // into the viewer
+                    await v.locator('.tp-title-name', { hasText: 'measurements.csv' }).waitFor();
                     await v.locator('.tp-mode-btn[title="More"]').click();
                     await tap(page, v.locator('.tp-menu-item', { hasText: 'Dark mode' }));
                     await page.locator('.tp-zen.tp-dark').waitFor();
