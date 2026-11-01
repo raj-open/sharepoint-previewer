@@ -670,7 +670,7 @@ const HERO: Story[] = [
                 act: async (page, v) => {
                     await v.locator('select.tp-3d-btn').selectOption('down');
                     await v.locator('.tp-3d-slider').evaluate((el: HTMLInputElement) => {
-                        el.value = '45';
+                        el.value = '67';
                         el.dispatchEvent(new Event('input', { bubbles: true }));
                     });
                     await page.waitForTimeout(800); // drawn
@@ -680,9 +680,7 @@ const HERO: Story[] = [
                 caption: '… click an object: its Psets and Qtos, with units',
                 hold: 3.5,
                 act: async (page, v) => {
-                    await v.locator('select.tp-3d-btn').selectOption('');
-                    await page.waitForTimeout(500);
-                    await select3d(page, v, PICK_3D);
+                    await select3d(page, v, PICK_3D); // the section stays
                     await tap(page, v.locator('.tp-3d-btn', { hasText: 'Properties' }));
                     await v.locator('.tp-3d-props', { hasText: 'Qto_' }).waitFor();
                 },
@@ -1087,12 +1085,96 @@ async function capture(browser: Browser, c: Case, out: string): Promise<void> {
     console.log(`wrote ${out}`);
 }
 
+// Cover of the hero (and social preview): name, one line, the kinds of files, three scenes as cards (cropped to the pop-up)
+const COVER_HOLD = 2.5;
+const PATH_SOCIAL = 'demos/img/social-preview.jpg'; // GitHub: under 1 MB
+const COVER_SCENES = [
+    'Zen mode: the folder with all its properties',
+    'Solibri rulesets: rule by rule, as diagrams',
+    '… click an object: its Psets and Qtos, with units',
+]; // back to front
+const COVER_KINDS = [
+    'IFC in 3D',
+    'Solibri rulesets',
+    'Logs as tables',
+    'Edit CSVs',
+    'Power BI',
+    'Zen mode',
+    'All plain-text files',
+];
+
+/** @returns width and height of a PNG file (from its header) */
+function pngSize(file: string): [number, number] {
+    const head = fs.readFileSync(file).subarray(16, 24);
+    return [head.readUInt32BE(0), head.readUInt32BE(4)];
+}
+
+/** Cover: a calm dark page, text on the left, scenes of the hero as stacked cards on the right */
+async function cover(
+    browser: Browser,
+    shots: Map<string, string>,
+    out: string,
+    width: number,
+    height: number,
+    scale = 1, // device pixels per CSS pixel: 2 for a sharp upload
+) {
+    const scenes = COVER_SCENES.map((c) => shots.get(c)).filter((f): f is string => !!f);
+    const [fw, fh] = pngSize(scenes[0]);
+    const crop = { x: 24, y: 60, w: fw - 48, h: fh - 72 }; // the pop-up as enlarged (cf. enlarge)
+    const cw = Math.round(width * 0.46); // card width
+    const dx = Math.round(width * 0.045); // offset of each card to the one behind it
+    const dy = Math.round(height * 0.16); // enough to see several rows of the card behind
+    const ch = Math.round((cw * crop.h) / crop.w);
+    const k = cw / crop.w;
+    const card = (file: string, i: number) => {
+        const data = fs.readFileSync(file).toString('base64');
+        const left = Math.round(width * 0.96) - cw - (scenes.length - 1 - i) * dx; // the front one ends 4 % from the edge
+        const top = Math.round((height - ch - (scenes.length - 1) * dy) / 2) + i * dy; // the stack centred
+        return (
+            `<div class="card" style="left:${left}px;top:${top}px;width:${cw}px;height:${ch}px">` +
+            `<img src="data:image/png;base64,${data}" style="width:${Math.round(fw * k)}px;` +
+            `margin:${-Math.round(crop.y * k)}px 0 0 ${-Math.round(crop.x * k)}px"></div>`
+        );
+    };
+    const u = width / 1400; // unit: sizes follow the width
+    const html = `<!doctype html><meta charset="utf-8"><style>
+        body { margin: 0; width: ${width}px; height: ${height}px; overflow: hidden;
+            background: radial-gradient(circle at 80% 30%, #26323f, #14181d 70%);
+            font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #e8ebef; }
+        .text { position: absolute; left: ${Math.round(width * 0.06)}px; top: 50%; transform: translateY(-50%);
+            width: ${Math.round(width * 0.36)}px; }
+        h1 { margin: 0 0 ${Math.round(16 * u)}px; font-size: ${Math.round(58 * u)}px; font-weight: 700; letter-spacing: -0.01em; }
+        p { margin: 0 0 ${Math.round(26 * u)}px; font-size: ${Math.round(23 * u)}px; line-height: 1.4; color: #b9c2cc; }
+        .kinds { display: flex; flex-wrap: wrap; gap: ${Math.round(9 * u)}px; }
+        .kinds span { padding: ${Math.round(5 * u)}px ${Math.round(13 * u)}px; border: 1px solid #3c4856;
+            border-radius: 999px; font-size: ${Math.round(17 * u)}px; color: #d5dbe2; }
+        .card { position: absolute; overflow: hidden; border-radius: ${Math.round(10 * u)}px;
+            box-shadow: 0 ${Math.round(18 * u)}px ${Math.round(48 * u)}px rgba(0, 0, 0, .55); border: 1px solid #3a4552; }
+        .card img { display: block; }
+    </style>
+    <div class="text"><h1>Sharepoint Previewer</h1>
+    <p>Look into files right where they are in Sharepoint: no download, no other app.</p>
+    <div class="kinds">${COVER_KINDS.map((t) => `<span>${t}</span>`).join('')}</div></div>
+    ${scenes.map(card).join('')}`;
+    const { page: blank } = await browser.open(h.LIST_PAGE);
+    const chromium = blank.context().browser();
+    if (!chromium) throw new Error('no browser for the cover');
+    const context = await chromium.newContext({ viewport: { width, height }, deviceScaleFactor: scale });
+    await blank.context().close();
+    const page = await context.newPage();
+    await page.setContent(html);
+    await page.waitForTimeout(300); // images decoded
+    await page.screenshot(out.endsWith('.jpg') ? { path: out, type: 'jpeg', quality: 90 } : { path: out });
+    await context.close();
+}
+
 /** Hero animation: the beats of the stories as frames into /sandbox/hero, then joined (ffmpeg; without it the frames stay) */
 async function hero(browser: Browser): Promise<void> {
     fs.rmSync(PATH_FRAMES, { recursive: true, force: true });
     fs.mkdirSync(PATH_FRAMES, { recursive: true });
-    let n = 0;
+    let n = 1; // 00: the cover, made from the scenes once taken
     const holds: number[] = []; // seconds per frame (cf. /scripts/hero.ts)
+    const shots = new Map<string, string>(); // caption -> frame
     for (const story of HERO) {
         const reason = story.skip?.();
         if (reason) {
@@ -1113,10 +1195,18 @@ async function hero(browser: Browser): Promise<void> {
             const out = path.join(PATH_FRAMES, `${String(n++).padStart(2, '0')}.png`);
             await page.screenshot({ path: out });
             holds.push(beat.hold ?? HOLD);
+            shots.set(beat.caption, out);
             console.log(`wrote ${out}: ${beat.caption}`);
         }
         await page.context().close();
     }
+    // cover: first frame (what is shown where the animation does not play), and the social preview of the repository
+    const first = shots.values().next().value as string;
+    const [width, height] = pngSize(first);
+    await cover(browser, shots, path.join(PATH_FRAMES, '00.png'), width, height);
+    holds.unshift(COVER_HOLD);
+    await cover(browser, shots, PATH_SOCIAL, 1280, 640, 2); // 2560 × 1280
+    console.log(`wrote ${PATH_SOCIAL} (repository settings: Social preview)`);
     fs.writeFileSync(path.join(PATH_FRAMES, HOLDS_FILE), `${JSON.stringify(holds)}\n`);
     if (encoder()) encode();
     else console.log(`no ffmpeg with libwebp: frames kept in ${PATH_FRAMES} (join them with \`node scripts/hero.ts\`)`);
