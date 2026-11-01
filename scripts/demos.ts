@@ -2,7 +2,8 @@
 // in full Chromium (Playwright, new headless mode),
 // with the harness of the behavioural tests (/tests/behave/harness.ts).
 // Usage: node scripts/demos.ts [case ...] (no case: all); cf. `just demos`.
-// Case `hero`: the animation at the top of the README (stories below, cf. /scripts/hero.ts).
+// Case `hero`: the animation at the top of the README (stories below, cf. /scripts/hero.ts);
+// the most striking first (IFC in 3D, Solibri rulesets, logs), then the everyday ones.
 // NOTE: only fixtures of the mock Sharepoint are shown (/tests/mocks/mock-sharepoint/library).
 
 import fs from 'node:fs';
@@ -638,15 +639,83 @@ const DARK = { theme: 'dark' };
 // Hero animation (README): formats Sharepoint does not preview, then editing, Zen mode, the title bar, dark mode
 const HERO: Story[] = [
     {
-        folder: '/Data',
+        folder: '/Models',
+        settings: { ...SETTINGS_3D, ...POPUP, ...DARK },
+        skip: () => (h.has3dRelease() ? '' : 'no 3D files: run `just build` first'),
         beats: [
-            { caption: 'Click the eye next to a file', pointer: (page) => h.eye(page, 'people.parquet') },
+            { caption: 'Click the eye next to a file', pointer: (page) => h.eye(page, 'flat.ifc') },
             {
-                caption: 'Parquet as a table, without download',
+                caption: 'IFC models in 3D',
                 act: async (page, v) => {
-                    await h.preview(page, 'people.parquet');
+                    await h.preview(page, 'flat.ifc');
+                    await open3d(page, v);
+                },
+            },
+            { caption: 'Click an object …', act: async (page, v) => select3d(page, v, PICK_3D) },
+            {
+                caption: '… its Psets and Qtos, with units …',
+                act: async (page, v) => {
+                    await tap(page, v.locator('.tp-3d-btn', { hasText: 'Properties' }));
+                    await v.locator('.tp-3d-props', { hasText: 'Qto_' }).waitFor();
+                },
+            },
+            {
+                caption: '… and its line in the text',
+                act: async (page, v) => {
+                    await tap(page, v.locator('.tp-3d-btn', { hasText: 'In text' }));
+                    await v.locator('.tp-view-btn[aria-pressed="true"]', { hasText: 'Text' }).waitFor();
+                    await page.waitForTimeout(300); // scrolled to the line
+                },
+            },
+        ],
+    },
+    {
+        folder: '/Rules',
+        settings: { ...SETTINGS_3D, ...POPUP, ...DARK }, // viewer files folder: Mermaid (if built)
+        beats: [
+            {
+                caption: 'Solibri rulesets: rule by rule, as diagrams',
+                act: async (page, v) => {
+                    await h.preview(page, 'workshop.cset');
+                    await tap(page, v.locator('.tp-nav-item', { hasText: 'Doors keep shelves at a distance' }));
+                    await v.locator('.tp-nav-main .tp-md-diagram svg, .tp-nav-main .tp-flow').first().waitFor();
+                    await page.waitForTimeout(500); // drawn
+                },
+            },
+            {
+                caption: '… with hints: errors, warnings, info',
+                act: async (page, v) => {
+                    await tap(page, v.locator('.tp-nav-only'));
+                    await tap(page, v.locator('.tp-nav-item', { hasText: 'Cable trays keep 300 mm apart' }));
+                    await v.locator('.tp-nav-main .tp-md-caution').waitFor();
+                    await page.waitForTimeout(500); // drawn
+                },
+            },
+        ],
+    },
+    {
+        folder: '/Logs',
+        settings: { ...POPUP, ...DARK },
+        beats: [
+            {
+                caption: 'Logs …',
+                act: async (page, v) => {
+                    await h.preview(page, 'app.log');
+                    await v.locator('.tp-content .tp-ln').first().waitFor();
+                },
+            },
+            {
+                caption: '… as tables …',
+                act: async (page, v) => {
                     await tap(page, v.locator('.tp-view-btn', { hasText: 'Table' }));
-                    await v.locator('.tp-table').waitFor();
+                    await v.locator('.tp-table .tp-expand').first().waitFor();
+                },
+            },
+            {
+                caption: '… entries unfolded',
+                act: async (page, v) => {
+                    await tap(page, v.locator('.tp-table tr', { hasText: 'request' }).locator('.tp-expand'));
+                    await v.locator('.tp-table .tp-detail').waitFor();
                 },
             },
         ],
@@ -689,58 +758,14 @@ const HERO: Story[] = [
         ],
     },
     {
-        folder: '/Models',
-        settings: { ...SETTINGS_3D, ...POPUP, ...DARK },
-        skip: () => (h.has3dRelease() ? '' : 'no 3D files: run `just build` first'),
+        folder: '/Data',
         beats: [
             {
-                caption: 'IFC models in 3D',
+                caption: 'Parquet as a table, without download',
                 act: async (page, v) => {
-                    await h.preview(page, 'flat.ifc');
-                    await open3d(page, v);
-                },
-            },
-            { caption: 'Click an object …', act: async (page, v) => select3d(page, v, PICK_3D) },
-            {
-                caption: '… its Psets and Qtos, with units …',
-                act: async (page, v) => {
-                    await tap(page, v.locator('.tp-3d-btn', { hasText: 'Properties' }));
-                    await v.locator('.tp-3d-props', { hasText: 'Qto_' }).waitFor();
-                },
-            },
-            {
-                caption: '… and its line in the text',
-                act: async (page, v) => {
-                    await tap(page, v.locator('.tp-3d-btn', { hasText: 'In text' }));
-                    await v.locator('.tp-view-btn[aria-pressed="true"]', { hasText: 'Text' }).waitFor();
-                    await page.waitForTimeout(300); // scrolled to the line
-                },
-            },
-        ],
-    },
-    {
-        folder: '/Logs',
-        settings: { ...POPUP, ...DARK },
-        beats: [
-            {
-                caption: 'Logs …',
-                act: async (page, v) => {
-                    await h.preview(page, 'app.log');
-                    await v.locator('.tp-content .tp-ln').first().waitFor();
-                },
-            },
-            {
-                caption: '… as tables …',
-                act: async (page, v) => {
+                    await h.preview(page, 'people.parquet');
                     await tap(page, v.locator('.tp-view-btn', { hasText: 'Table' }));
-                    await v.locator('.tp-table .tp-expand').first().waitFor();
-                },
-            },
-            {
-                caption: '… entries unfolded',
-                act: async (page, v) => {
-                    await tap(page, v.locator('.tp-table tr', { hasText: 'request' }).locator('.tp-expand'));
-                    await v.locator('.tp-table .tp-detail').waitFor();
+                    await v.locator('.tp-table').waitFor();
                 },
             },
         ],

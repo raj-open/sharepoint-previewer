@@ -22,7 +22,7 @@ users should, _at the very least_, be able to preview plain-text files – whate
 
 Our answer is a **previewer** that adds to Sharepoint just what is needed to fix this.
 
-![The previewer on a mock Sharepoint: Parquet, Power BI, IFC in 3D with properties, logs, checks, editing, Zen mode with properties edited in place, clean links, dark mode](demos/img/hero.webp)
+![The previewer on a mock Sharepoint: IFC in 3D with properties, Solibri rulesets as diagrams with hints, logs, Power BI, Parquet, checks, editing, Zen mode with properties edited in place, clean links, dark mode](demos/img/hero.webp)
 
 ## Demonstration ##
 
