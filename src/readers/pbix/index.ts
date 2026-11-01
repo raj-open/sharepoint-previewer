@@ -341,7 +341,7 @@ export function noQueries(entries: ZipEntry[], queries: Query[], model: string |
 const cell = (s: string): string => `\`${s.replace(/\s*\n\s*/g, ' ').replace(/\|/g, '\\|')}\``;
 
 // Paths as a tree: folders first, sizes and notes behind the parts
-export function treeLines(entries: ZipEntry[]): string[] {
+export function treeLines(entries: Pick<ZipEntry, 'name' | 'size'>[]): string[] {
     const root: Node = { size: null, kids: new Map() };
     for (const e of entries) {
         let node = root;

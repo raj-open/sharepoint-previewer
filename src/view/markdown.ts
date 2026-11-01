@@ -1,4 +1,5 @@
-// Render: Markdown -> HTML (CommonMark core + GFM tables, task lists, strikethrough); raw HTML shown as text
+// Render: Markdown -> HTML (CommonMark core + GFM tables, task lists, strikethrough, alerts, Mermaid diagrams);
+// raw HTML shown as text; optional: a navigator of the sections (cf. /src/view/sections.ts)
 
 // ===========================================================================
 // IMPORTS
@@ -6,6 +7,8 @@
 
 import { esc } from '../_core/util.ts';
 import { HIGHLIGHTERS } from '../text/highlight/index.ts';
+import { drawDiagrams } from './diagram.ts';
+import { mountSections } from './sections.ts';
 
 import type { LineView } from '../_core/types.ts';
 
@@ -13,7 +16,7 @@ import type { LineView } from '../_core/types.ts';
 // TYPES
 // ===========================================================================
 
-export type MarkdownOptions = { colour?: boolean; base?: string };
+export type MarkdownOptions = { colour?: boolean; base?: string; navigator?: boolean };
 
 // ===========================================================================
 // CONSTANTS
@@ -36,6 +39,7 @@ const HEADING_RE = /^ {0,3}(#{1,6})(?:\s+(.*?))?(?:\s+#+)?\s*$/;
 const RULE_RE = /^ {0,3}([-*_])(?:\s*\1){2,}\s*$/;
 const SETEXT_RE = /^ {0,3}(=+|-+)\s*$/;
 const QUOTE_RE = /^ {0,3}> ?/;
+const ALERT_RE = /^\s*\[!(note|tip|important|warning|caution)\]\s*$/i; // GFM alert: first line of a quote
 const ITEM_RE = /^( {0,3})([-*+]|\d{1,9}[.)])(\s+|$)/;
 const TABLE_RULE_RE = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
 const UNSAFE_URL_RE = /^\s*(javascript|vbscript|data|file):/i;
@@ -151,7 +155,13 @@ function blocksHtml(lines: string[], opts: MarkdownOptions): string {
             const end = lines.findIndex((l, j) => j > i && l.trimStart().startsWith(fence[1]));
             const stop = end < 0 ? lines.length : end;
             const code = lines.slice(i + 1, stop).join('\n');
-            out.push(`<pre><code>${codeHtml(code, fence[2], opts)}</code></pre>`);
+            const pre = `<pre><code>${codeHtml(code, fence[2], opts)}</code></pre>`;
+            // diagrams: drawn once shown (cf. /src/view/diagram.ts); until then (or if not drawable) their source
+            if (fence[2].toLowerCase() === 'mermaid')
+                out.push(
+                    `<div class="tp-md-diagram" data-src="${esc(code)}"><div class="tp-md-diagram-body">${pre}</div></div>`,
+                );
+            else out.push(pre);
             i = stop + 1;
         } else if (heading) {
             const n = heading[1].length;
@@ -165,7 +175,7 @@ function blocksHtml(lines: string[], opts: MarkdownOptions): string {
             const inner = [];
             while (i < lines.length && lines[i].trim() && (QUOTE_RE.test(lines[i]) || !opensBlock(lines[i])))
                 inner.push(lines[i++].replace(QUOTE_RE, ''));
-            out.push(`<blockquote>${blocksHtml(inner, opts)}</blockquote>`);
+            out.push(quoteHtml(inner, opts));
         } else if (ITEM_RE.test(line)) {
             i = listHtml(lines, i, opts, out);
         } else if (line.includes('|') && TABLE_RULE_RE.test(lines[i + 1] || '') && lines[i + 1].includes('-')) {
@@ -205,6 +215,15 @@ function blocksHtml(lines: string[], opts: MarkdownOptions): string {
         }
     }
     return out.join('\n');
+}
+
+// Quote, or GFM alert (`> [!NOTE]` etc. alone on its first line): title, then the rest of the quote
+function quoteHtml(inner: string[], opts: MarkdownOptions): string {
+    const alert = ALERT_RE.exec(inner[0]);
+    if (!alert) return `<blockquote>${blocksHtml(inner, opts)}</blockquote>`;
+    const kind = alert[1].toLowerCase();
+    const title = `<p class="tp-md-alert-title">${kind[0].toUpperCase()}${kind.slice(1)}</p>`;
+    return `<div class="tp-md-alert tp-md-${kind}">${title}${blocksHtml(inner.slice(1), opts)}</div>`;
 }
 
 // List from line `start`: items of one kind, their lines dedented to the item's text; returns next line
@@ -257,11 +276,13 @@ export function markdownHtml(text: string, opts: MarkdownOptions = {}): string {
 // View
 // ---------------------------------------------------------------------------
 
-// Whole document at once (Markdown files are small); links to headings scroll within the view
+// Whole document at once (Markdown files are small), or one section at a time (navigator);
+// links to headings scroll within the view (or open their section); diagrams drawn once shown
 export function mountMarkdown(content: HTMLElement, text: string, opts: MarkdownOptions = {}): LineView {
     const doc = document.createElement('div');
     doc.className = 'tp-md';
     doc.innerHTML = markdownHtml(text, opts);
+    if (opts.navigator) return mountSections(content, doc);
     doc.addEventListener('click', (e) => {
         const a = (e.target as HTMLElement).closest('a[href^="#"]');
         if (!a) return;
@@ -270,5 +291,6 @@ export function mountMarkdown(content: HTMLElement, text: string, opts: Markdown
         doc.querySelector(`[data-anchor="${CSS.escape(name)}"]`)?.scrollIntoView({ block: 'start' });
     });
     content.replaceChildren(doc);
-    return { stop: () => {}, show: () => {} };
+    const stop = drawDiagrams(doc);
+    return { stop, show: () => {} };
 }

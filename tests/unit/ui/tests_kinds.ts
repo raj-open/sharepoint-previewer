@@ -15,6 +15,7 @@ describe('ui/kinds', () => {
             ['RealModel1.ifc', 'model'],
             ['model.IFCZIP', 'model'],
             ['sales.pbix', 'report'],
+            ['checks.CSET', 'rules'],
             ['settings.json', 'data'],
             ['data.xml', 'data'],
             ['logo.svg', 'image'],

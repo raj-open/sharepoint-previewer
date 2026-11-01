@@ -72,16 +72,18 @@ export const libraryOf = (p: string): string => p.split('/').slice(0, 4).join('/
 export const LIBRARY = `${SITE}/MockLibrary`;
 export const LIST_PAGE = listPageOf(LIBRARY);
 export const PATH_FILES = path.join(HERE, 'library');
-// Library of the tools: 3D files of the release (cf. RELEASE_FOLDER), plus a readme, a text file and an example model
+// Library of the tools: optional files of the release (cf. RELEASE_FOLDER), plus a readme, a text file and an example model
 export const TOOLS = `${SITE}/MockToolsLibrary`;
 export const PATH_TOOLS = path.join(HERE, 'tools');
 
 export const VERSION = fs.readFileSync(path.join(ROOT, 'dist/VERSION'), 'utf8').trim();
 export const PATH_RELEASE = latestRelease();
-// 3D files of the release, as a folder of the tools library (as deployed); setting `viewer-3d-folder`: from the top (/sites/…)
+// Optional files of the release (3D, diagrams), as a folder of the tools library (as deployed);
+// setting `viewer-3d-folder`: from the top (/sites/…)
 export const RELEASE_FOLDER = `${TOOLS}/Viewer`;
 export const RELEASE_SETTING = RELEASE_FOLDER;
 const FILES_3D = ['ifc-lite-3d.js', 'ifc-lite_bg.wasm'];
+const FILES_DIAGRAMS = ['mermaid.js'];
 // Simulated uploads, one folder per session (never synchronised: cf. /.gitignore; removed by `just clean`)
 export const PATH_UPLOADS = path.join(HERE, '__uploads__');
 
@@ -232,6 +234,9 @@ function listing(dir: string): Entry[] {
 
 /** @returns 3D files of this version are built (`just build`) */
 export const has3dRelease = (): boolean => FILES_3D.every((name) => fs.existsSync(path.join(PATH_RELEASE, name)));
+/** @returns diagram file of this version is built (`just build`) */
+export const hasDiagramsRelease = (): boolean =>
+    FILES_DIAGRAMS.every((name) => fs.existsSync(path.join(PATH_RELEASE, name)));
 
 const byName = (a: Entry, b: Entry): number => Number(b.folder) - Number(a.folder) || a.name.localeCompare(b.name);
 
@@ -253,10 +258,10 @@ function tree(libs: Libraries, library: string, uploads?: string): Record<string
     };
     walk(library);
     if (!out[library]) return out;
-    if (library === TOOLS && has3dRelease() && !out[RELEASE_FOLDER]) {
+    if (library === TOOLS && (has3dRelease() || hasDiagramsRelease()) && !out[RELEASE_FOLDER]) {
         out[TOOLS].push({ name: path.basename(RELEASE_FOLDER), folder: true, size: 0 });
         out[TOOLS].sort(byName);
-        out[RELEASE_FOLDER] = listing(PATH_RELEASE).filter((e) => FILES_3D.includes(e.name));
+        out[RELEASE_FOLDER] = listing(PATH_RELEASE).filter((e) => [...FILES_3D, ...FILES_DIAGRAMS].includes(e.name));
     }
     for (const [folder, entries] of Object.entries(out)) {
         const dir = uploads && uploadPath(uploads, folder);

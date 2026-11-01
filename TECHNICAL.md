@@ -64,24 +64,26 @@ Each build writes one flat release folder `/dist/v<BUILD_VERSION>`, named after 
 | File | Contents |
 | :--- | :------- |
 | `sharepoint-previewer.js` | userscript to install |
-| `sharepoint-previewer.min.js` | the same, minified (whitespace and syntax; names kept) |
+| `sharepoint-previewer.min.js` | the same, minified (`/scripts/minify.ts`: whitespace, syntax, local names, CSS; top-level names kept for the check worker) |
 | `ifc-lite-3d.js` | ifc-lite bundle (esbuild, versions pinned in `package.json`; unless `BUILD_3D=false`) |
 | `ifc-lite_bg.wasm` | engine binary, copied unchanged from `@ifc-lite/wasm` (unless `BUILD_3D=false`) |
+| `mermaid.js` | Mermaid for the diagrams, copied unchanged from `@mermaid-js/tiny` (unless `BUILD_DIAGRAMS=false`) |
 | `NOTES.md` | notes for review (permissions, network, storage, security, deployment) |
 
 The build writes into the userscript:
 
 - `@version` from `/dist/VERSION`
-- the SHA-256 hashes of the two 3D files
+- the SHA-256 hashes of the optional files (3D, diagrams)
   (`/dist/userscript{,.min}.js` have dummies: `0.0.0`, `<sha256>`)
 
-So the userscript and the 3D files of one build are deployed together.
+So the userscript and the optional files of one build are deployed together.
 
 `BUILD_3D=false` (`.env`, or `just BUILD_3D=false build`) leaves the 3D files out of the release folder;
 they are still built in a temporary folder, so the userscript carries their hashes.
 The build is deterministic (versions pinned),
 so such a release accepts the 3D files of the last release built with them,
 as long as the ifc-lite and esbuild versions are unchanged.
+Likewise `BUILD_DIAGRAMS=false` for `mermaid.js` (it fits as long as `@mermaid-js/tiny` is unchanged).
 The release workflow includes them only if its checkbox is ticked (default: off).
 
 ### Anonymous build ###
@@ -133,7 +135,8 @@ Sharepoint page (DOM)
      ├─ Viewer (own DOM elements, own CSS, prefix "tp-")
      │   ├─ text view: syntax colours, whitespace markers, virtualised rendering
      │   ├─ table view: CSV / Parquet / spreadsheets / logs, sort, filter, column widths, CSV editing
-     │   ├─ Markdown view: own small renderer (no library), raw HTML escaped
+     │   ├─ Markdown view: own small renderer (no library), raw HTML escaped; navigator of sections (search)
+     │   ├─ diagrams (```mermaid): Mermaid (optional, loaded from your Sharepoint on first use), else own simple drawing
      │   └─ 3D view: ifc-lite (optional, loaded from your Sharepoint on first use)
      ├─ Zen mode: own list of the folder in place of Sharepoint's (REST API: read, ValidateUpdateListItem)
      ├─ Sources: same-origin fetch with HTTP Range (chunks), in-memory cache (LRU)
@@ -184,9 +187,11 @@ How the parts communicate: [NOTES.md, §3](NOTES.md#3-communication).
     (blue while caching, neutral when idle or complete),
     with a "click to fully cache" hint
   - right: format of the file (recognised from its name);
-    its menu lists text formats and file formats (Parquet, spreadsheet, IFCZIP, Power BI) side by side,
+    its menu lists all formats (the file formats too, with their extension, e.g. "Power BI (.pbix)")
+    and the file formats alone (Parquet, spreadsheet, IFCZIP, Power BI, Solibri ruleset) side by side;
+    an entry means the same in either list;
     any of them can be chosen (also a wrong one: the file is then read as that format, or a message says why not;
-    a chosen format is marked and kept while the page is open);
+    a chosen format is marked and kept while the page is open; names are not guessed, e.g. `.cset_old`: choose it);
     text size **− 100 % +**
     (also Ctrl / ⌘ with + − 0, or Ctrl / ⌘ + wheel, in the content area);
     view switch **Text | Preview**,
@@ -199,7 +204,9 @@ How the parts communicate: [NOTES.md, §3](NOTES.md#3-communication).
     spreadsheets larger than `spreadsheet-autoload-bytes` show nothing until a sheet or table is chosen,
     the sheet shown is also named next to the file name
 - **Text view:** Ctrl / ⌘ + A (once clicked into it) selects the whole text, copy gives the whole cached text
-- **Markdown view:** headings, lists, task lists, quotes, code (with colours), tables, links, images;
+- **Markdown view:** with a navigator for some parts (e.g. rules): sections with alerts marked by a dot in the colour of the highest one (caution, warning, else note) and the number of cautions and warnings; a filter for those;
+  headings, lists, task lists, quotes, alerts (`> [!NOTE]` etc.), code (with colours), tables, links, images,
+  diagrams (```` ```mermaid ````: Mermaid if `mermaid.js` is in the viewer files folder, else simple flowcharts drawn by the script; Copy gives the source);
   raw HTML is shown as text;
   links open in a new tab (scripts not followed);
   images are shown only from the same Sharepoint, others only as links (nothing fetched from elsewhere)
@@ -218,8 +225,37 @@ What the script reads from the list and leaves alone: [NOTES.md, §2](NOTES.md#2
 | Spreadsheets: Excel `.xlsx` `.xlsm` `.xltx` `.xltm`, `.xlsb`, `.xls` `.xlt` (97–2003, 5.0/95), OpenDocument `.ods` `.ots` | ✓ | | ✓ (read only, per sheet) | | |
 | IFC / IFCZIP | ✓ | ✓ | | ✓ (asks first above 25 MB, setting) | IFC only |
 | Power BI `.pbix` `.pbit` `.pbiviz`: overview (Markdown), parts and queries in the picker | ✓ | JSON, XML, M | | | |
+| Solibri rulesets `.cset` (XML or Java-serialised objects; plain, zipped or gzipped): rules (Java objects) one at a time with a diagram and their values, in a navigator (search, ↑ / ↓); overview (Markdown), parts as XML / JSON in the picker | ✓ | XML, JSON | | | |
 | Power BI project files `.pbir` `.pbism` `.pbip` `.pbids`, tabular models `.bim` (JSON) | ✓ | ✓ | | | ✓ |
 | Any other text file | – | | | | ✓ |
+
+Solibri rulesets:
+
+- Rules are read from rulesets stored as Java objects (newer Solibri versions),
+  recognised by the fields of the objects (rules: `controlParameters`; filter rows: `filterState`), not by class names.
+- Hints per rule, from the values alone (rules of thumb, not Solibri's definitions; `/src/readers/cset/hints.ts`),
+  in three levels (boxes in the rule; a dot in the navigator in the colour of the rule's highest level):
+  - error (red, `> [!CAUTION]`): minimum above maximum while both are checked,
+    the same components included and excluded in a filter,
+    rules with the same filters whose limits cannot both hold;
+  - warning (amber, `> [!WARNING]`): the name and the values disagree (minimum / maximum, lengths in mm, cm, m),
+    the same type and values under two names, a maximum mode with the switch "Check Maximum …" off;
+  - info (blue, `> [!NOTE]`): values the check mode probably ignores (also marked in the diagram and the table),
+    empty filters, rules switched off, no explanation.
+  - The navigator can show only the rules with errors or warnings.
+  - Limits: a pair of parameters `… Min` / `… Max`; the check mode (minimum / maximum) says which is used,
+    the switch `Check Maximum …` adds the maximum.
+    Read off rulesets (fields kept from earlier settings stay in the file), not documented by Solibri.
+- Rulesets stored as XML are shown as XML; their rules are not read yet (said in the overview and the properties):
+  no real example has been seen.
+- Operators of filter rows are shown by their stored number (`op 6`):
+  the file keeps only the position in Solibri's internal list of operators,
+  whose order is not published.
+  Solibri documents the operators by data type (text: Contains, Matches, Matches With Case, Is Undefined, Is Defined;
+  numbers: =, >, <, ≥, ≤, ≠; choices: One of, None Of; booleans: =, Is Undefined),
+  cf. [Solibri Help, "231 Comparison Between Property Values"](https://help.solibri.com/hc/en-us/articles/1500004610821-231-Comparison-Between-Property-Values);
+  its public developer API has no operator type
+  (cf. [Solibri Developer Platform, package `com.solibri.smc.api.filter`](https://solibri.github.io/Developer-Platform/9.12.3/javadoc/com/solibri/smc/api/filter/package-summary.html)).
 
 Spreadsheets show the last saved value of each cell (formulas are not recalculated):
 numbers as Excel's "General" shows them (15 significant digits),
@@ -249,6 +285,10 @@ the table's rows below its header row (totals rows left out), its column names a
 `.xls` files show sheets only.
 The text view of a sheet shows the column letters as first line and the row numbers as first column,
 as Excel does (`,A,B,C`, then `1,…`).
+
+Text / Preview is remembered per kind of view (`tp-preview-table`, `tp-preview-markdown`);
+the Markdown the viewer makes itself (overviews and rules of Power BI files and rulesets) always opens rendered:
+Text there applies to that file only.
 
 Log files (experimental) open as text; their table view is chosen separately (`tp-preview-log-table`).
 It guesses the fields from the start of the lines
@@ -521,7 +561,7 @@ The anonymous build empties it (cf. Artefacts).
 | `max-line-chars` | `5000` | Longer lines are cut for display |
 | `follow-links` | `true` | Follow `.url` link files (same origin only) |
 | `sharepoint-api` | `true` | Allow features that use Sharepoint's REST API (Zen mode, finding files of search results); off: no API request at all |
-| `viewer-3d-folder` | *(empty)* | Folder with the 3D files: relative to the site, or from the top with a leading `/` |
+| `viewer-3d-folder` | *(empty)* | Folder of the optional viewer files (3D, diagrams): relative to the site, or from the top with a leading `/` |
 | `viewer-3d-max-bytes` | 25 MB | 3D view asks first (each time) above this IFC size |
 | `logo` | *(empty)* | `data:image/…` URI shown in the header of the settings form |
 

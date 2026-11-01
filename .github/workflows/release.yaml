@@ -2,7 +2,7 @@
 # RELEASE: on a release tag (v<VERSION>, cf. `just tag`),
 # runs qa, builds /dist/v<VERSION> and attaches its files to the GitHub release
 # (created if missing; pre-release for alpha, beta, rc)
-# (3D files only if chosen: they rarely change and the wasm is large)
+# (3D files and diagram file only if chosen: they rarely change and are large)
 # ----------------------------------------------------------------
 
 name: Release
@@ -21,6 +21,10 @@ on:
         type: string
       build-3d:
         description: 'Include 3D files (ifc-lite)'
+        default: false
+        type: boolean
+      build-diagrams:
+        description: 'Include diagram file (mermaid.js)'
         default: false
         type: boolean
 
@@ -62,6 +66,8 @@ jobs:
           BROWSER_CHANNEL=chrome
           # 3D files (ifc-lite) in the release; hashes in the userscript either way
           BUILD_3D=${{ inputs.build-3d }}
+          # diagram file (mermaid.js) in the release; hash in the userscript either way
+          BUILD_DIAGRAMS=${{ inputs.build-diagrams }}
           EOF
 
       - name: Build dependencies + artefacts

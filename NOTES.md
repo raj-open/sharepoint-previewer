@@ -18,11 +18,11 @@ Development: [TECHNICAL.md](TECHNICAL.md).
 
 | Topic | Behaviour |
 | :---- | :-------- |
-| Form | One JavaScript file (userscript, ~600 KB; minified ~335 KB), runs in the user's browser via Tampermonkey. Built from TypeScript modules in the repository (types removed by the build) |
+| Form | One JavaScript file (userscript, ~780 KB; minified ~360 KB), runs in the user's browser via Tampermonkey. Built from TypeScript modules in the repository (types removed by the build) |
 | Scope | Only on `https://*.sharepoint.com/*/*/*`, and only inside a library's file list |
 | APIs | No Graph API. It reads the page's HTML and fetches the file itself, like opening its URL. Sharepoint's own REST API (same site, the user's session) only for: files found by the library search (their rows carry no path: two read-only queries by file name); Zen mode (reads the folder's items and columns; uploads properties and names as Sharepoint's own form does). The setting `sharepoint-api` (default: on) switches every use of the API off |
 | Third parties | **None.** No CDN, no analytics, no external servers. All requests go to the same Sharepoint origin |
-| External libraries | None loaded at runtime. The script contains a port of Microsoft's XPress9 decoder (MIT), to read the queries of newer Power BI files in the browser. Optional 3D view: two files (ifc-lite, MPL-2.0) that **you** host in your own Sharepoint |
+| External libraries | None loaded at runtime. The script contains a port of Microsoft's XPress9 decoder (MIT), to read the queries of newer Power BI files in the browser. Optional 3D view: two files (ifc-lite, MPL-2.0); optional diagrams: one file (Mermaid, MIT); **you** host them in your own Sharepoint |
 | Permissions | Those of the signed-in user, through the browser's normal session. No extra rights, no tokens |
 | Data leaving the browser | Only when the user explicitly uploads a file (edited, new, or a renamed copy), through Sharepoint's own upload (as if done by hand), or uploads properties or names in Zen mode (Sharepoint's own API, as its edit form) |
 | Storage | Settings in Tampermonkey's script storage. View choices, window positions and the columns of Zen mode in the browser's `localStorage` for the Sharepoint origin. File contents and properties only in memory, gone on reload |
@@ -114,6 +114,12 @@ sequenceDiagram
     US->>IFC: start (library and engine binary)
     IFC-->>US: model drawn in the viewer's canvas (WebGPU)
 
+    Note over User,SP: Diagrams (first one per page; without the file: a simple drawing of the script's own)
+    User->>US: Rule of a Solibri ruleset (or Markdown with a diagram)
+    US->>SP: GET viewer files folder/mermaid.js
+    SP-->>US: the file
+    US->>US: SHA-256 checked, then Mermaid draws the diagram (SVG, strict security level)
+
     Note over User,SP: Edit and upload
     User->>US: Edit, type, Save (kept in memory)
     User->>US: Upload
@@ -167,6 +173,7 @@ and are **refused by the script if the target is not the current Sharepoint orig
 | `POST <site>/_api/contextinfo` | Zen mode: first folder (then when it runs out) | Form digest, required by Sharepoint for any POST |
 | `POST <site>/_api/web/GetList(…)/items(<id>)/ValidateUpdateListItem` | Zen mode: Upload, per item changed | Properties and name of the item, checked and saved by Sharepoint as its own edit form does (a new version) |
 | `GET <VIEWER_3D_FOLDER>/ifc-lite-3d.js`, `…/ifc-lite_bg.wasm` | First use of the 3D view only | 3D library from **your** Sharepoint; checked against fixed SHA-256 hashes before use |
+| `GET <VIEWER_3D_FOLDER>/mermaid.js` | First diagram shown only (if the folder is set) | Mermaid from **your** Sharepoint; checked against a fixed SHA-256 hash before use |
 
 Every request to `_api` is left out if the setting `sharepoint-api` is off.
 There are no other requests:
@@ -281,6 +288,10 @@ The logo setting only accepts `data:` URIs.
    - Both files are delivered with each release of the script.
      The script only accepts the 3D files of its own release (SHA-256),
      so the script and the 3D files are always deployed together.
+4. **Diagrams (optional):**
+   - Put `mermaid.js` (~2.7 MB) into the same folder (`viewer-3d-folder`).
+   - Checked against the SHA-256 hash in the script, as the 3D files.
+   - Without it, diagrams are drawn by the script itself (simple flowcharts).
 
 **Long-term alternative:**
 if a permanent solution without a userscript manager is preferred,
@@ -328,6 +339,9 @@ That is outside the scope of this script.
 - **Tampermonkey** (<https://www.tampermonkey.net>, by Jan Biniok):
   browser extension that runs the script;
   installed separately, not distributed with the script.
+- **Optional diagrams:**
+  Mermaid by Knut Sveidqvist & contributors, **MIT**
+  (<https://mermaid.js.org>; one-file build `@mermaid-js/tiny`, shipped unchanged as `mermaid.js`).
 - **Optional 3D bundle:**
   IFClite by Louis Trümpler & contributors (LTplus AG), **MPL-2.0**
   (<https://ifclite.dev>, source code: <https://github.com/LTplus-AG/ifc-lite>).

@@ -501,7 +501,8 @@ export function createViewer(): Viewer {
     // Esc: open drop-down first, then write mode (back to reading, as the edit button), then viewer; settings form: its own
     const onEscape = (e: KeyboardEvent) => {
         if (e.key !== 'Escape' || viewer !== v || document.querySelector('.tp-settings')) return;
-        if ((e.target as HTMLElement).classList?.contains('tp-name-input')) return; // name box: its own Esc
+        // name box, search of a navigator holding text: their own Esc
+        if ((e.target as HTMLElement).closest?.('.tp-name-input, .tp-nav-search:not(:placeholder-shown)')) return;
         e.stopPropagation();
         for (const p of [sheetPicker, formatPicker]) if (!p.menu.hidden) return void p.close();
         // whatever is selected: the content's text (not in the editor: its own Esc), the Zen list's items; all of it at once
@@ -583,8 +584,12 @@ export function createViewer(): Viewer {
         }
         close3d(v); // back to text / table / Markdown
         const k = viewKey(v, key); // logs: own choice
-        view[k] = on;
-        savePref(VIEW_KEYS[k], on ? '1' : '0');
+        if (k === 'markdown' && v.source?.parts)
+            v.partsText = !on; // generated Markdown: this file only
+        else {
+            view[k] = on;
+            savePref(VIEW_KEYS[k], on ? '1' : '0');
+        }
         applyColour(); // each view has its own colour choice
         if (!v.writeMode) return void v.rerender?.();
         exitWriteView(v); // Markdown, log table: shown from saved text, edit ends

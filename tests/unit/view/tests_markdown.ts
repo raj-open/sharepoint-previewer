@@ -58,8 +58,34 @@ describe('view/markdown', () => {
             /<li class="tp-md-task"><input type="checkbox" disabled checked> done/,
         );
     });
+    it('diagrams (```mermaid): their source until drawn', () => {
+        assert.equal(
+            html('```mermaid\nflowchart LR\n  a["x"] --> b\n```'),
+            '<div class="tp-md-diagram" data-src="flowchart LR\n  a[&quot;x&quot;] --&gt; b"><div class="tp-md-diagram-body">' +
+                '<pre><code>flowchart LR\n  a[&quot;x&quot;] --&gt; b</code></pre></div></div>',
+        );
+    });
+    it('alerts (GFM): kind alone on the first line of a quote', () => {
+        assert.equal(
+            html('> [!NOTE]\n> Useful **here**.'),
+            '<div class="tp-md-alert tp-md-note"><p class="tp-md-alert-title">Note</p><p>Useful <strong>here</strong>.</p></div>',
+        );
+        for (const kind of ['tip', 'important', 'warning', 'caution'])
+            assert.match(
+                html(`> [!${kind.toUpperCase()}]\n> x`),
+                new RegExp(`^<div class="tp-md-alert tp-md-${kind}">`),
+            );
+        assert.equal(
+            html('> [!note]'),
+            '<div class="tp-md-alert tp-md-note"><p class="tp-md-alert-title">Note</p></div>',
+        );
+        assert.equal(html('> [!NOTE] inline'), '<blockquote><p>[!NOTE] inline</p></blockquote>');
+        assert.equal(html('> [!OTHER]\n> x'), '<blockquote><p>[!OTHER]\nx</p></blockquote>');
+    });
     it('quotes, code (fenced with colours, indented), tables with alignment', () => {
         assert.equal(html('> a\n> b'), '<blockquote><p>a\nb</p></blockquote>');
+        assert.equal(html('> a\n>\n> - b'), '<blockquote><p>a</p>\n<ul><li>b</li></ul></blockquote>');
+        assert.equal(html('text\n> a\nlazy'), '<p>text</p>\n<blockquote><p>a\nlazy</p></blockquote>');
         assert.equal(html('```\n<a>\n```'), '<pre><code>&lt;a&gt;</code></pre>');
         assert.match(markdownHtml('```json\n{"a": 1}\n```', { colour: true }), /<span class="tp-key">/);
         assert.equal(html('    x = 1'), '<pre><code>x = 1</code></pre>');

@@ -59,7 +59,8 @@ type SourceBase = {
 /** part of an archive: text read at once (null: not plain text, not readable) */
 /** Power Query: name and M expression (`let … in …`, or a value with `meta […]`) */
 export type Query = { name: string; body: string };
-export type ArchivePart = { name: string; note: string; lang: string | null; text: string | null };
+/** nav: Markdown shown with a navigator of its sections */
+export type ArchivePart = { name: string; note: string; lang: string | null; text: string | null; nav?: boolean };
 /** spreadsheet: sheets and tables, one shown (current entry of the view, `mode`); waiting: none chosen yet */
 export type SheetSource = Omit<SourceBase, 'isSheet'> & {
     isSheet: true;
@@ -168,6 +169,8 @@ export type Viewer = {
     relint?: (() => void) | null;
     // Editing
     writeMode?: boolean;
+    /** generated Markdown (parts of a Power BI file, ruleset) shown as text: for this file only, not remembered */
+    partsText?: boolean;
     tableEditing?: boolean;
     dirty?: boolean;
     staged?: string | null;
