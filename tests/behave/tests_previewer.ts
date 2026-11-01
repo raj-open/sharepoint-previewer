@@ -534,6 +534,82 @@ describe('preview per file type', () => {
         await v.locator('.tp-code', { hasText: 'DataModel: not shown' }).waitFor();
     });
 
+    it('Solibri rulesets: Java objects as overview and JSON, XML at once (read only)', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Rules`);
+        const v = await h.preview(page, 'rules.cset');
+        const menu = v.locator('.tp-picker-menu').first();
+        await v.locator('.tp-title-sheet', { hasText: 'Part: Overview' }).waitFor();
+        await v.locator('.tp-view-btn', { hasText: 'Text' }).click();
+        await v.locator('.tp-code', { hasText: '| `example.rules.Rule` | 2 |' }).waitFor();
+
+        await v.locator(SHEET_PICKER).click();
+        await menu.locator('.tp-picker-item', { hasText: 'Example rules.cset' }).click();
+        await v.locator('.tp-code', { hasText: '"title": "Doors are wide enough"' }).waitFor();
+        assert.match(await properties(v), /format: JSON/);
+        assert.equal(await v.locator('.tp-mode-btn[title^="Edit"]').isDisabled(), true);
+
+        const x = await h.preview(page, 'rules-xml.cset');
+        await x.locator('.tp-title-sheet', { hasText: 'Part: rules-xml.cset' }).waitFor();
+        await x.locator('.tp-code', { hasText: '<ruleset name="Example rules"' }).waitFor();
+        assert.match(await properties(x), /format: XML/);
+    });
+
+    it('Solibri rulesets: rules with a navigator (search, keys), a diagram each (simple drawing without Mermaid)', async () => {
+        const page = await openFolder(`${h.LIBRARY}/Rules`);
+        const v = await h.preview(page, 'workshop.cset');
+        await v.locator('.tp-title-sheet', { hasText: 'Part: Rules' }).waitFor();
+        const items = v.locator('.tp-nav-item');
+        assert.equal(await items.count(), 8); // overview, 7 rules
+        assert.deepEqual(await v.locator('.tp-nav-group').allTextContents(), ['Power', 'Access']);
+        await items.filter({ hasText: 'Doors keep shelves' }).click();
+        const main = v.locator('.tp-nav-main');
+        await main.locator('h2', { hasText: 'Doors keep shelves at a distance' }).waitFor();
+        await main.locator('.tp-flow-node', { hasText: '+ Door · label' }).waitFor();
+        assert.equal(await main.locator('.tp-flow-line').count(), 2);
+        assert.match(await h.text(main.locator('.tp-md-diagram-note')), /Simple drawing \(Mermaid not set up\)/);
+
+        const search = v.locator('.tp-nav-search');
+        await search.fill('cable');
+        assert.equal(await h.text(v.locator('.tp-nav-count')), '3 of 8');
+        await main.locator('h2', { hasText: 'Cables carry a label' }).waitFor();
+        await search.press('Escape'); // clears the search, the viewer stays
+        assert.equal(await h.text(v.locator('.tp-nav-count')), '8 sections');
+        await search.press('ArrowUp');
+        await main.locator('h2', { hasText: 'Every part named' }).waitFor();
+        await v.locator('.tp-nav-step', { hasText: '› Cables carry a label' }).click();
+        await main.locator('h2', { hasText: 'Cables carry a label' }).waitFor();
+
+        // hints: marked in the list, filter for them, listed in the rule
+        assert.equal(await v.locator('.tp-nav-item .tp-nav-warn').count(), 4);
+        assert.equal(await v.locator('.tp-nav-item[data-mark="error"]').count(), 1); // highest level of the rule
+        assert.equal(await v.locator('.tp-nav-item[data-mark="warning"]').count(), 3);
+        assert.equal(await v.locator('.tp-nav-item[data-mark="info"]').count(), 1); // no explanation
+        assert.equal(await items.first().getAttribute('data-mark'), null); // overview
+        await v.locator('.tp-nav-only', { hasText: 'Only errors and warnings (4)' }).click();
+        assert.equal(await h.text(v.locator('.tp-nav-count')), '4 of 8');
+        await main.locator('h2', { hasText: 'Cable trays keep 300 mm apart' }).waitFor();
+        await main.locator('.tp-md-caution li', { hasText: 'Gap Min (0.5) is above Gap Max (0.3)' }).waitFor();
+        await items.filter({ hasText: 'Ladders keep 900 mm' }).click();
+        await main
+            .locator('.tp-md-warning li', { hasText: 'the name says 900 mm, the rule checks Gap Min 0.6' })
+            .waitFor();
+        await main.locator('.tp-flow-node', { hasText: 'Gap Max: 0.3 (probably not used)' }).waitFor();
+        await v.locator('.tp-nav-only').click();
+        assert.equal(await h.text(v.locator('.tp-nav-count')), '8 sections');
+    });
+
+    it('Solibri rulesets: diagrams drawn by Mermaid from the viewer files folder', {
+        skip: h.hasDiagramsRelease() ? false : 'no diagram file: run `just build` first',
+    }, async () => {
+        const page = await openFolder(`${h.LIBRARY}/Rules`, { 'viewer-3d-folder': h.RELEASE_SETTING });
+        const v = await h.preview(page, 'workshop.cset');
+        await v.locator('.tp-nav-item', { hasText: 'Doors keep shelves' }).click();
+        const diagram = v.locator('.tp-nav-main .tp-md-diagram-mermaid');
+        await diagram.locator('svg').waitFor({ timeout: 20000 });
+        assert.match(await h.text(diagram), /Gap Min: 0\.8/);
+        assert.equal(await v.locator('.tp-md-diagram-note').count(), 0);
+    });
+
     it('refuses binary files', async () => {
         const page = await openFolder(`${h.LIBRARY}/Data`);
         const v = await h.preview(page, 'logo.png');

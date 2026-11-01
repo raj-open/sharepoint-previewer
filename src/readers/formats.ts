@@ -6,6 +6,7 @@
 
 import { LANG_NAMES } from '../text/lang.ts';
 import { langOf } from '../text/lang.ts';
+import { CSET_RE } from './cset/index.ts';
 import { PARQUET_RE } from './parquet/meta.ts';
 import { PBIX_RE } from './pbix/index.ts';
 import { SHEET_RE } from './sheets/cells.ts';
@@ -15,7 +16,7 @@ import { ZIP_RE } from './zip.ts';
 // TYPES
 // ===========================================================================
 
-export type Reader = 'text' | 'parquet' | 'sheet' | 'ifczip' | 'pbix';
+export type Reader = 'text' | 'parquet' | 'sheet' | 'ifczip' | 'pbix' | 'cset';
 
 // ===========================================================================
 // CONSTANTS
@@ -27,6 +28,7 @@ const FILE_FORMATS: Record<string, string> = {
     sheet: 'Spreadsheet',
     ifczip: 'IFCZIP',
     pbix: 'Power BI',
+    cset: 'Solibri ruleset',
 };
 
 // Lists of the format picker: text formats (plain text first, then by name), file formats
@@ -45,6 +47,7 @@ export function formatOf(name: string): string {
     if (SHEET_RE.test(name)) return 'sheet';
     if (ZIP_RE.test(name)) return 'ifczip';
     if (PBIX_RE.test(name)) return 'pbix';
+    if (CSET_RE.test(name)) return 'cset';
     return langOf(name) || 'text';
 }
 
@@ -53,7 +56,7 @@ export const readerOf = (format: string): Reader => (format in FILE_FORMATS ? fo
 // Language of a format, as in Viewer.lang (null: plain text)
 export function langOfFormat(format: string): string | null {
     if (format === 'ifczip') return 'ifc';
-    if (format === 'pbix') return 'md'; // shown as Markdown
+    if (format === 'pbix' || format === 'cset') return 'md'; // overview shown as Markdown
     return format === 'text' ? null : format;
 }
 

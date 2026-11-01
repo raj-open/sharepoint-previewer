@@ -21,6 +21,7 @@ import { POWERBI_CONFIRM_BYTES } from '../_core/settings.ts';
 import { esc } from '../_core/util.ts';
 import { formatBytes } from '../_core/util.ts';
 import { nextFrame } from '../_core/util.ts';
+import { openCsetSource } from '../readers/cset/index.ts';
 import { formatName } from '../readers/formats.ts';
 import { formatOf } from '../readers/formats.ts';
 import { langOfFormat } from '../readers/formats.ts';
@@ -169,7 +170,9 @@ async function openFile(
                     ? await openZipSource(fetchUrl, getSignal, reload, onProgress, force)
                     : reader === 'pbix'
                       ? await openPbixSource(fetchUrl, getSignal, reload, onProgress, askPowerBi)
-                      : await openSource(fetchUrl, getSignal, reload, onProgress);
+                      : reader === 'cset'
+                        ? await openCsetSource(fetchUrl, getSignal, reload, onProgress)
+                        : await openSource(fetchUrl, getSignal, reload, onProgress);
         if ('deferred' in result) return { src: null, deferred: result as Deferred, message: null, fileName, hops };
         if ('error' in result) {
             // file from search results, not found by name: say so first, details below
@@ -747,7 +750,11 @@ export async function showFile(name: string, url: string, reload: boolean, keep 
                 expand: logExpand(rows, colourOn(v)),
             });
         } else if (markdownView(v)) {
-            v.lineView = mountMarkdown(v.content, lines.join('\n'), { colour: colourOn(v), base: folderUrl });
+            v.lineView = mountMarkdown(v.content, lines.join('\n'), {
+                colour: colourOn(v),
+                base: folderUrl,
+                navigator: !!part?.nav,
+            });
         } else {
             const tokens = (colourOn(v) ? highlight : plain)(visible.join('\n'));
             v.lineView = mountLines(v.content, renderLines(tokens, problemsByLine, truncated));

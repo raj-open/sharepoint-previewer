@@ -19,6 +19,7 @@ export type Kind =
     | 'log'
     | 'model'
     | 'report'
+    | 'rules'
     | 'image'
     | 'document'
     | 'archive'
@@ -45,6 +46,7 @@ const FORMAT_KINDS: Record<string, Kind> = {
     ifc: 'model',
     ifczip: 'model',
     pbix: 'report',
+    cset: 'rules',
     json: 'data',
     xml: 'data',
     yaml: 'data',
@@ -73,6 +75,7 @@ const GLYPHS: Record<Kind, string> = {
     log: '<path d="M4 5h1.2M7 5h5M4 8h1.2M7 8h3.5M4 11h1.2M7 11h4.5"/>', // time stamps and messages
     model: '<path d="M8 3.5l4 2.2v4.6L8 12.5l-4-2.2V5.7zM4 5.7l4 2.2 4-2.2M8 7.9v4.6"/>',
     report: '<path d="M4 12.5h8M5.5 11V8.5M8 11V4.5M10.5 11V6.5"/>',
+    rules: '<path d="M6.5 3.2l3.3 1.8v3.8L6.5 10.6 3.2 8.8V5zM3.2 5l3.3 1.8L9.8 5M6.5 6.8v3.8"/><path d="M9.3 11l1.4 1.4 2.6-2.8"/>', // the model, checked
     image: '<rect x="3.5" y="4.5" width="9" height="7" rx="1"/><path d="M4 11l2.6-2.8 2 2 1.2-1.2 2 2"/><circle cx="10" cy="6.6" r=".7"/>',
     document: '<path d="M5 3.5h3.8l2.2 2.2v6.8H5zM8.8 3.5v2.2H11M6.5 8.5h3M6.5 10.5h3"/>',
     archive: '<path d="M7 3.5h1M8 5h1M7 6.5h1M8 8h1"/><rect x="6.3" y="9.3" width="3.4" height="3.2" rx=".8"/>',
