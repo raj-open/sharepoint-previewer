@@ -19,9 +19,11 @@
 
 3. Copy the minified `sharepoint-previewer.min.js` into your Tampermonkey extension.
 
-4. (Optional – for the 3D view) Place the [IFClite](https://ifclite.dev) artefacts
+4. (Optional – for the 3D view and diagrams) Place the [IFClite](https://ifclite.dev) artefacts
    (`ifc-lite-3d.js`, `ifc-lite_bg.wasm`)
-   in a designated Sharepoint library of your choice.
+   and the [Mermaid](https://mermaid.js.org) file (`mermaid.js`)
+   in a designated Sharepoint library of your choice
+   (setting "Viewer files folder"; without `mermaid.js` diagrams are drawn in a simpler way).
 
 5. Ensure the userscript `Sharepoint Previewer` is activated in the Tampermonkey extension and refresh your browser.
 
