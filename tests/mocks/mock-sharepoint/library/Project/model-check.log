@@ -1,0 +1,3 @@
+2026-10-28 09:00:00,012 - check - INFO - ruleset workshop.cset loaded (7 rules)
+2026-10-28 09:00:02,480 - check - WARNING - Cable trays keep 300 mm apart: 2 issues
+2026-10-28 09:00:03,101 - check - INFO - done: 2 issues, 0 errors

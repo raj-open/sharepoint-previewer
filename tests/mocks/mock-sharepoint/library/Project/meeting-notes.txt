@@ -1,0 +1,4 @@
+Kick-off, workshop extension
+
+- scope: shelves, doors, cable trays
+- next: model check on Friday

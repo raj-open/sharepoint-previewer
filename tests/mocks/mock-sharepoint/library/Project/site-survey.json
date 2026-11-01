@@ -1,0 +1,8 @@
+{
+  "site": "Workshop extension",
+  "levels": 2,
+  "rooms": [
+    { "name": "Store", "area": 42.5 },
+    { "name": "Office", "area": 18.0 }
+  ]
+}
